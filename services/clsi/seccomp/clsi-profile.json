@@ -921,6 +921,121 @@
       "name": "membarrier",
       "action": "SCMP_ACT_ALLOW",
       "args": []
+    },
+    {
+      "name": "cachestat",
+      "action": "SCMP_ACT_ALLOW",
+      "args": []
+    },
+    {
+      "name": "faccessat2",
+      "action": "SCMP_ACT_ALLOW",
+      "args": []
+    },
+    {
+      "name": "fchmodat2",
+      "action": "SCMP_ACT_ALLOW",
+      "args": []
+    },
+    {
+      "name": "futex_requeue",
+      "action": "SCMP_ACT_ALLOW",
+      "args": []
+    },
+    {
+      "name": "futex_wait",
+      "action": "SCMP_ACT_ALLOW",
+      "args": []
+    },
+    {
+      "name": "futex_waitv",
+      "action": "SCMP_ACT_ALLOW",
+      "args": []
+    },
+    {
+      "name": "futex_wake",
+      "action": "SCMP_ACT_ALLOW",
+      "args": []
+    },
+    {
+      "name": "landlock_add_rule",
+      "action": "SCMP_ACT_ALLOW",
+      "args": []
+    },
+    {
+      "name": "landlock_create_ruleset",
+      "action": "SCMP_ACT_ALLOW",
+      "args": []
+    },
+    {
+      "name": "landlock_restrict_self",
+      "action": "SCMP_ACT_ALLOW",
+      "args": []
+    },
+    {
+      "name": "listmount",
+      "action": "SCMP_ACT_ALLOW",
+      "args": []
+    },
+    {
+      "name": "lsm_get_self_attr",
+      "action": "SCMP_ACT_ALLOW",
+      "args": []
+    },
+    {
+      "name": "lsm_list_modules",
+      "action": "SCMP_ACT_ALLOW",
+      "args": []
+    },
+    {
+      "name": "lsm_set_self_attr",
+      "action": "SCMP_ACT_ALLOW",
+      "args": []
+    },
+    {
+      "name": "map_shadow_stack",
+      "action": "SCMP_ACT_ALLOW",
+      "args": []
+    },
+    {
+      "name": "memfd_secret",
+      "action": "SCMP_ACT_ALLOW",
+      "args": []
+    },
+    {
+      "name": "mount_setattr",
+      "action": "SCMP_ACT_ALLOW",
+      "args": []
+    },
+    {
+      "name": "pidfd_getfd",
+      "action": "SCMP_ACT_ALLOW",
+      "args": []
+    },
+    {
+      "name": "process_madvise",
+      "action": "SCMP_ACT_ALLOW",
+      "args": []
+    },
+    {
+      "name": "process_mrelease",
+      "action": "SCMP_ACT_ALLOW",
+      "args": []
+    },
+    {
+      "name": "quotactl_fd",
+      "action": "SCMP_ACT_ALLOW",
+      "args": []
+    },
+    {
+      "name": "set_mempolicy_home_node",
+      "action": "SCMP_ACT_ALLOW",
+      "args": []
+    },
+    {
+      "name": "statmount",
+      "action": "SCMP_ACT_ALLOW",
+      "args": []
     }
   ]
 }
