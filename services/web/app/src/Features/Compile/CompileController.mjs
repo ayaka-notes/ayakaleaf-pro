@@ -133,7 +133,7 @@ async function _syncTeX(
   try {
     const body = await CompileManager.promises.syncTeX(projectId, userId, {
       direction,
-      compileFromClsiCache: Features.hasFeature('saas'),
+      compileFromClsiCache: Settings.apis.clsiCache.enabled,
       validatedOptions: {
         ...validatedOptions,
         editorId,
@@ -453,9 +453,11 @@ const _CompileController = {
       enablePng2Pdf,
       enableCheckpointCompiles,
     } = await _getSplitTestOptions(req, res)
-    if (Features.hasFeature('saas')) {
+    if (Settings.apis.clsiCache.enabled) {
       options.compileFromClsiCache = true
       options.populateClsiCache = true
+    }
+    if (Features.hasFeature('saas')) {
       options.compileFromHistory = compileFromHistory
       if (enablePng2Pdf) {
         options.png2pdf = enablePng2Pdf
