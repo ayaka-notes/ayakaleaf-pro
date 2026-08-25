@@ -77,6 +77,9 @@ module.exports = {
       ),
       currentShards: parseInt(process.env.CLSI_CACHE_CURRENT_SHARDS, 10),
       desiredShards: parseInt(process.env.CLSI_CACHE_DESIRED_SHARDS, 10),
+      // Outside of SaaS there are no free compiles to save the PDF upload on.
+      populateForStandardCompiles:
+        process.env.CLSI_CACHE_POPULATE_FOR_STANDARD_COMPILES !== 'false',
       reshardFrom: new Date(process.env.CLSI_CACHE_RESHARD_FROM),
       reshardUntil: new Date(process.env.CLSI_CACHE_RESHARD_UNTIL),
     },

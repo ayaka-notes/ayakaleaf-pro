@@ -204,9 +204,11 @@ async function prepareClsiCache(
   userId,
   { sourceProjectId, templateVersionId, imageName }
 ) {
-  if (!Features.hasFeature('saas')) return undefined
-  const features = await UserGetter.promises.getUserFeatures(userId)
-  if (features.compileGroup !== 'priority') return undefined
+  if (!Settings.apis.clsiCache.enabled) return undefined
+  if (Features.hasFeature('saas')) {
+    const features = await UserGetter.promises.getUserFeatures(userId)
+    if (features.compileGroup !== 'priority') return undefined
+  }
 
   const signal = AbortSignal.timeout(ClsiCacheHandler.TIMEOUT)
   let lastUpdated

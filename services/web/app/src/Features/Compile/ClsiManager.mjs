@@ -7,6 +7,7 @@ import {
   RequestFailedError,
 } from '@overleaf/fetch-utils'
 import Settings from '@overleaf/settings'
+import Features from '../../infrastructure/Features.mjs'
 import ProjectGetter from '../Project/ProjectGetter.mjs'
 import ProjectEntityHandler from '../Project/ProjectEntityHandler.mjs'
 import logger from '@overleaf/logger'
@@ -1155,7 +1156,9 @@ function _finaliseRequest(projectId, options, project, docs, files) {
           // enable for premium compiles
           (['alpha', 'priority'].includes(options.compileGroup) ||
             // enable for free for short period when we saw low capacity
-            enableCompileFromCacheUntil > Date.now()) &&
+            enableCompileFromCacheUntil > Date.now() ||
+            // no premium tiers outside of SaaS
+            !Features.hasFeature('saas')) &&
           options.compileFromClsiCache,
         populateClsiCache: options.populateClsiCache,
         enablePdfCaching:
@@ -1236,7 +1239,9 @@ async function syncTeX(
   )
   url.searchParams.set(
     'compileFromClsiCache',
-    compileFromClsiCache && ['alpha', 'priority'].includes(compileGroup)
+    compileFromClsiCache &&
+      (!Features.hasFeature('saas') ||
+        ['alpha', 'priority'].includes(compileGroup))
   )
   url.searchParams.set('imageName', imageName)
   for (const [key, value] of Object.entries(validatedOptions)) {

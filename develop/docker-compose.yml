@@ -35,6 +35,21 @@ services:
       - ${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock
       - clsi-cache:/overleaf/services/clsi/cache
 
+  clsi-cache:
+    build:
+      context: ..
+      dockerfile: services/clsi-cache/Dockerfile
+    env_file:
+      - dev.env
+    environment:
+      - CLSI_CACHE_SHARD=clsi-cache-dev
+      # clsi's ${PWD}/output and the cache share one bind mount, so outputs
+      # can be hard-linked instead of downloaded.
+      - CLSI_CACHE_LOCAL_CLSI_OUTPUT_DIR=/overleaf/develop-data/output
+      - CLSI_CACHE_DATA_PATH=/overleaf/develop-data/clsi-cache
+    volumes:
+      - ${PWD}:/overleaf/develop-data
+
   clsi-nginx:
     image: nginx:1.28
     read_only: true

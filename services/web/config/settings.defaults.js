@@ -257,6 +257,7 @@ module.exports = {
     },
     clsiCache: {
       instances: JSON.parse(process.env.CLSI_CACHE_INSTANCES || '[]'),
+      enabled: Boolean(process.env.CLSI_CACHE_INSTANCES),
     },
     project_history: {
       sendProjectStructureOps: true,

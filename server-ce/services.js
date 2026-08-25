@@ -12,6 +12,9 @@ module.exports = [
     name: 'clsi',
   },
   {
+    name: 'clsi-cache',
+  },
+  {
     name: 'filestore',
   },
   {

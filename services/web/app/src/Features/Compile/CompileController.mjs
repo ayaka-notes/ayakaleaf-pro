@@ -85,7 +85,7 @@ async function _syncTeX(req, res, direction, validatedOptions) {
   try {
     const body = await CompileManager.promises.syncTeX(projectId, userId, {
       direction,
-      compileFromClsiCache: Features.hasFeature('saas'),
+      compileFromClsiCache: Settings.apis.clsiCache.enabled,
       validatedOptions: {
         ...validatedOptions,
         editorId,
@@ -207,9 +207,11 @@ const _CompileController = {
       pdfDownloadDomain,
       compileFromHistory,
     } = await _getSplitTestOptions(req, res)
-    if (Features.hasFeature('saas')) {
+    if (Settings.apis.clsiCache.enabled) {
       options.compileFromClsiCache = true
       options.populateClsiCache = true
+    }
+    if (Features.hasFeature('saas')) {
       options.compileFromHistory = compileFromHistory
     }
     options.enablePdfCaching = enablePdfCaching
