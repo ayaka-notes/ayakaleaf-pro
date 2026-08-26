@@ -4,7 +4,6 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react'
 import type { Template } from '../../types/template'
@@ -12,8 +11,10 @@ import { GetTemplatesResponseBody, Sort } from '../types/api'
 import getMeta from '@/utils/meta'
 import useAsync from '@/shared/hooks/use-async'
 import { getTemplates } from '../util/api'
-import sortTemplates from '../util/sort-templates'
 import { debugConsole } from '@/utils/debugging'
+
+export const TEMPLATES_PER_PAGE = 9
+const SEARCH_DEBOUNCE_MS = 300
 
 export type TemplateGalleryContextValue = {
   visibleTemplates: Template[]
@@ -23,6 +24,8 @@ export type TemplateGalleryContextValue = {
   setSort: React.Dispatch<React.SetStateAction<Sort>>
   searchText: string
   setSearchText: React.Dispatch<React.SetStateAction<string>>
+  currentPage: number
+  setCurrentPage: React.Dispatch<React.SetStateAction<number>>
 }
 
 export const TemplateGalleryContext = createContext<
@@ -34,16 +37,16 @@ type TemplateGalleryProviderProps = {
 }
 
 export function TemplateGalleryProvider({ children }: TemplateGalleryProviderProps) {
-  const [loadedTemplates, setLoadedTemplates] = useState<Template[]>([])
   const [visibleTemplates, setVisibleTemplates] = useState<Template[]>([])
   const [totalTemplatesCount, setTotalTemplatesCount] = useState<number>(0)
   const [sort, setSort] = useState<Sort>({
     by: 'lastUpdated',
     order: 'desc',
   })
-  const prevSortRef = useRef<Sort>(sort)
 
   const [searchText, setSearchText] = useState('')
+  const [debouncedSearchText, setDebouncedSearchText] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
 
   const {
     error,
@@ -53,42 +56,29 @@ export function TemplateGalleryProvider({ children }: TemplateGalleryProviderPro
   const category = getMeta('ol-templateCategory') || 'all'
 
   useEffect(() => {
-    runAsync(getTemplates(sort, category))
+    const timer = setTimeout(
+      () => setDebouncedSearchText(searchText),
+      SEARCH_DEBOUNCE_MS
+    )
+    return () => clearTimeout(timer)
+  }, [searchText])
+
+  useEffect(() => {
+    runAsync(
+      getTemplates({
+        sort,
+        category,
+        page: currentPage,
+        pageSize: TEMPLATES_PER_PAGE,
+        q: debouncedSearchText,
+      })
+    )
       .then(data => {
-        setLoadedTemplates(data.templates)
+        setVisibleTemplates(data.templates)
         setTotalTemplatesCount(data.totalSize)
       })
       .catch(debugConsole.error)
-      .finally(() => {
-      })
-  }, [runAsync])
-
-  useEffect(() => {
-    let filteredTemplates = [...loadedTemplates]
-
-    if (searchText.length) {
-      filteredTemplates = filteredTemplates.filter(template =>
-        template.name.toLowerCase().includes(searchText.toLowerCase()) ||
-        template.description.toLowerCase().includes(searchText.toLowerCase())
-      )
-    }
-
-    if (prevSortRef.current !== sort) {
-      filteredTemplates = sortTemplates(filteredTemplates, sort)
-      const loadedTemplatesSorted = sortTemplates(loadedTemplates, sort)
-      setLoadedTemplates(loadedTemplatesSorted)
-    }
-      setVisibleTemplates(filteredTemplates)
-  }, [
-    loadedTemplates,
-    searchText,
-    sort,
-  ])
-
-  useEffect(() => {
-    prevSortRef.current = sort
-  }, [sort])
-
+  }, [runAsync, sort, category, currentPage, debouncedSearchText])
 
   const value = useMemo<TemplateGalleryContextValue>(
     () => ({
@@ -99,6 +89,8 @@ export function TemplateGalleryProvider({ children }: TemplateGalleryProviderPro
       sort,
       totalTemplatesCount,
       visibleTemplates,
+      currentPage,
+      setCurrentPage,
     }),
     [
       error,
@@ -108,6 +100,8 @@ export function TemplateGalleryProvider({ children }: TemplateGalleryProviderPro
       sort,
       totalTemplatesCount,
       visibleTemplates,
+      currentPage,
+      setCurrentPage,
     ]
   )
 

@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import OLRow from '@/shared/components/ol/ol-row'
-import { useTemplateGalleryContext } from '../context/template-gallery-context'
+import {
+  useTemplateGalleryContext,
+  TEMPLATES_PER_PAGE,
+} from '../context/template-gallery-context'
 import TemplateGalleryEntry from './template-gallery-entry'
-import Pagination from './pagination'
+import GalleryPagination from './gallery-pagination'
 
 export default function TemplateGallery() {
   const { t } = useTranslation()
@@ -11,16 +14,16 @@ export default function TemplateGallery() {
     searchText,
     sort,
     visibleTemplates,
+    totalTemplatesCount,
+    currentPage,
+    setCurrentPage,
   } = useTemplateGalleryContext()
 
-  const templatesPerPage = 6
-  const totalPages = Math.ceil(visibleTemplates.length / templatesPerPage)
-
-  const [currentPage, setCurrentPage] = useState(1)
+  const totalPages = Math.ceil(totalTemplatesCount / TEMPLATES_PER_PAGE)
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [sort])
+  }, [sort, setCurrentPage])
 
   const [lastNonSearchPage, setLastNonSearchPage] = useState(1)
   const [isSearching, setIsSearching] = useState(false)
@@ -39,8 +42,7 @@ export default function TemplateGallery() {
     }
   }, [searchText])
 
-  const startIndex = (currentPage - 1) * templatesPerPage
-  const currentTemplates = visibleTemplates.slice(startIndex, startIndex + templatesPerPage)
+  const currentTemplates = visibleTemplates
 
   return (
     <>
@@ -59,7 +61,13 @@ export default function TemplateGallery() {
           </OLRow>
         )}
       </OLRow>
-      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+      <div className="d-flex justify-content-center">
+        <GalleryPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+        />
+      </div>
     </>
   )
 }

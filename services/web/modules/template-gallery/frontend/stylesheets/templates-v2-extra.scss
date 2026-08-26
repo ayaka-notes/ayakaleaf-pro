@@ -1,10 +1,42 @@
 .gallery {
 
-  .gallery-search-form-control {
-    padding-top: 0px;
-    padding-bottom: 0px;
+  // Centered search on its own row: an icon input plus a primary submit button,
+  // mirroring the upstream templates search layout.
+  .gallery-search-row {
+    margin-bottom: 0.5rem;
   }
 
+  .gallery-search {
+    display: flex;
+    align-items: stretch;
+    gap: var(--spacing-04, 8px);
+    width: 100%;
+    max-width: 560px;
+    margin-inline: auto;
+
+    // input grows to fill; the button keeps its natural width
+    .form-control-wrapper {
+      flex: 1 1 auto;
+    }
+  }
+
+  .gallery-search-btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .form-control-search-clear-btn {
+    display: inline-flex;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--neutral-70, #677283);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--neutral-90, #1b222c);
+    }
+  }
 
   .gallery-header-sort-btn {
     font-size: var(--font-size-02);
@@ -24,9 +56,38 @@
       text-decoration: underline;
     }
 
-    .material-symbols {
-      vertical-align: top;
-      font-size: var(--font-size-05);
-    }
+  }
+
+  // Sort arrows: bottom-aligned and nudged down a little to sit on the label.
+  .gallery-header-sort-btn .material-symbols {
+    vertical-align: bottom;
+    position: relative;
+    top: 1px;
+    font-size: var(--font-size-05);
+  }
+}
+// Core gives .tagged-header-container a spacing-16 bottom margin, sized for a
+// header that ends with the title. Ours ends with the back link / search /
+// sort row right above the grid, so tighten it. The id wins over core's
+// .gallery.gallery-tagged selector regardless of stylesheet order.
+#main-content.gallery-tagged {
+  .tagged-header-container {
+    margin-top: var(--spacing-08);
+    margin-bottom: var(--spacing-08);
+  }
+
+  // Core pins the tagged title/summary to the left; we center the header.
+  .gallery-title,
+  .gallery-summary {
+    text-align: center;
+  }
+
+  // Core caps the summary at 828px, which folds a one-sentence description
+  // onto two lines; let it use the container width.
+  .gallery-summary {
+    max-width: none;
+    margin-inline: auto;
+    // breathing room before the search row (core sets margin-bottom: 0)
+    margin-bottom: var(--spacing-09);
   }
 }

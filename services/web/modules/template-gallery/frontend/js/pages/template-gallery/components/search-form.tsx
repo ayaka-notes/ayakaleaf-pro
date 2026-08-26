@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { MergeAndOverride } from '../../../../../types/utils'
 import OLForm from '@/shared/components/ol/ol-form'
 import OLFormControl from '@/shared/components/ol/ol-form-control'
+import OLButton from '@/shared/components/ol/ol-button'
 import MaterialIcon from '@/shared/components/material-icon'
 
 type SearchFormOwnProps = {
@@ -31,6 +32,7 @@ export default function SearchForm({
 
   return (
     <OLForm
+      className="gallery-search"
       role="search"
       onSubmit={e => e.preventDefault()}
     >
@@ -56,6 +58,13 @@ export default function SearchForm({
           )
         }
       />
+      <OLButton
+        variant="primary"
+        type="submit"
+        className="gallery-search-btn"
+      >
+        {t('search')}
+      </OLButton>
     </OLForm>
   )
 }

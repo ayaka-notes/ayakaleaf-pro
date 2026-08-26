@@ -177,38 +177,57 @@ async function getTemplate(key, val) {
   return _formatTemplateForPage(template)
 }
 
+const MAX_PAGE_SIZE = 50
+// Name sorting is case-insensitive. Any index on `name` must be created with
+// this same collation, otherwise mongo cannot use it and sorts in memory.
+const NAME_COLLATION = { locale: 'en', strength: 2 }
+
 async function getCategoryTemplates(reqQuery) {
   const {
     category,
     by = 'lastUpdated',
     order = 'desc',
+    page = '1',
+    pageSize = '9',
+    q = '',
   } = reqQuery || {}
 
+  if (!['lastUpdated', 'name'].includes(by) || !['asc', 'desc'].includes(order)) {
+    throw new OError('Invalid sorting criteria', { status: 400, sort: { by, order } })
+  }
+  const pageNumber = Math.max(parseInt(page, 10) || 1, 1)
+  const size = Math.min(Math.max(parseInt(pageSize, 10) || 9, 1), MAX_PAGE_SIZE)
+
   const query = (category === 'all') ? {} : { category : '/templates/' + category }
+  if (q) {
+    // Search the markdown sources: the rendered name/author/description
+    // fields contain HTML markup that plain text queries would match.
+    const search = { $regex: _.escapeRegExp(q), $options: 'i' }
+    query.$or = [{ name: search }, { authorMD: search }, { descriptionMD: search }]
+  }
+
+  // _id tiebreaker keeps page boundaries stable when templates share a sort value
+  const direction = order === 'asc' ? 1 : -1
+  const sortSpec = { [by]: direction, _id: direction }
+
   const projection = { _id : 1, version : 1, name : 1, author : 1, description : 1, lastUpdated : 1 }
-  const allTemplates = await Template.find(query, projection).exec()
-  const formattedTemplates = allTemplates.map(_formatTemplateForList)
-  const sortedTemplates = _sortTemplates(formattedTemplates, { by, order })
+  let templatesQuery = Template.find(query, projection)
+    .sort(sortSpec)
+    .skip((pageNumber - 1) * size)
+    .limit(size)
+  if (by === 'name') {
+    templatesQuery = templatesQuery.collation(NAME_COLLATION)
+  }
+
+  const [totalSize, templates] = await Promise.all([
+    Template.countDocuments(query),
+    templatesQuery.exec(),
+  ])
 
   return {
-    totalSize: sortedTemplates.length,
-    templates: sortedTemplates,
+    totalSize,
+    templates: templates.map(_formatTemplateForList),
   }
-}
-
-function _sortTemplates(templates, sort) {
-  if (
-    (sort.by && !['lastUpdated', 'name'].includes(sort.by)) ||
-    (sort.order && !['asc', 'desc'].includes(sort.order))
-  ) {
-    throw new OError('Invalid sorting criteria', { status: 400, sort })
-  }
-  const sortedTemplates = _.orderBy(
-    templates,
-    [sort.by || 'lastUpdated'],
-    [sort.order || 'desc']
-  )
-  return sortedTemplates
 }
 
 function _formatTemplateForList(template) {

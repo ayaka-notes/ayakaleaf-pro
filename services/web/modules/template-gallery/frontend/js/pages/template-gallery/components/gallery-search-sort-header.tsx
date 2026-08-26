@@ -36,43 +36,48 @@ export default function GallerySearchSortHeader( { gotoAllLink }: { boolean } ) 
 
   const { handleSort } = useSort()
   return (
-    <OLRow>
-      {gotoAllLink ? (
-      <OLCol className="col-auto">
-          <a className="previous-page-link" href="/templates/all">
-            <i className="material-symbols material-symbols-rounded" aria-hidden="true">arrow_left_alt</i>
-            {t('all_templates')}
-          </a>
+    <>
+      {/* Search sits on its own centered row, mirroring upstream's templates page */}
+      <OLRow className="gallery-search-row">
+        <OLCol className="d-flex justify-content-center">
+          <SearchForm
+            inputValue={searchText}
+            setInputValue={setSearchText}
+          />
         </OLCol>
-      ) : (
-      <OLCol className="col-auto">
-          <a className="previous-page-link" href="/templates">
-            <i className="material-symbols material-symbols-rounded" aria-hidden="true">arrow_left_alt</i>
-            {t('template_gallery')}
-          </a>
-        </OLCol>
-      )}
-      <OLCol className="d-flex justify-content-center gap-2">
-        <SortByButton
-          column="lastUpdated"
-          text={t('last_updated')}
-          sort={sort}
-          onClick={() => handleSort('lastUpdated')}
-        />
+      </OLRow>
+      <OLRow>
+        {gotoAllLink ? (
+        <OLCol className="col-auto">
+            <a className="previous-page-link" href="/templates/all">
+              <i className="material-symbols material-symbols-rounded" aria-hidden="true">arrow_left_alt</i>
+              {t('all_templates')}
+            </a>
+          </OLCol>
+        ) : (
+        <OLCol className="col-auto">
+            <a className="previous-page-link" href="/templates">
+              <i className="material-symbols material-symbols-rounded" aria-hidden="true">arrow_left_alt</i>
+              {t('template_gallery')}
+            </a>
+          </OLCol>
+        )}
+        <OLCol className="d-flex justify-content-end gap-2">
+          <SortByButton
+            column="lastUpdated"
+            text={t('last_updated')}
+            sort={sort}
+            onClick={() => handleSort('lastUpdated')}
+          />
 
-        <SortByButton
-          column="name"
-          text={t('title')}
-          sort={sort}
-          onClick={() => handleSort('name')}
-        />
-      </OLCol>
-      <OLCol xs={3} className="ms-auto" >
-        <SearchForm
-          inputValue={searchText}
-          setInputValue={setSearchText}
-        />
-      </OLCol>
-    </OLRow>
+          <SortByButton
+            column="name"
+            text={t('title')}
+            sort={sort}
+            onClick={() => handleSort('name')}
+          />
+        </OLCol>
+      </OLRow>
+    </>
   )
 }
