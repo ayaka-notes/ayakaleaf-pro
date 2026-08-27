@@ -58,8 +58,9 @@ block content
 									)
 										span(data-ol-inflight="idle") #{translate("create_account")}
 										span(hidden data-ol-inflight="pending") #{translate("registering")}…
-							p.ciam-login-register-or-text-container
-								span.ciam-login-register-or-text #{translate("or")}
+							if (settings.ldap && settings.ldap.enable) || (settings.saml && settings.saml.enable) || (settings.oidc && settings.oidc.enable)
+								p.ciam-login-register-or-text-container
+									span.ciam-login-register-or-text #{translate("or")}
 							if settings.ldap && settings.ldap.enable
 								.actions(style='margin-top: 15px;')
 									a.button.btn-secondary.btn(
