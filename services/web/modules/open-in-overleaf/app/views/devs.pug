@@ -1,0 +1,283 @@
+extends ../../../../app/views/layout-website-redesign
+
+block vars
+	- isWebsiteRedesign = true
+
+block entrypointVar
+	- entrypoint = 'modules/open-in-overleaf/pages/devs/devs'
+
+block content
+	-
+		// The public base URL of this instance, used verbatim in the examples so
+		// people can copy/paste working "Open in Overleaf" snippets.
+		var base = olBaseUrl
+		var docsUrl = base + '/docs'
+		var helloTex = '\\documentclass[12pt]{article}\n\\usepackage{amsmath}\n\\usepackage{amsfonts}\n\\begin{document}\n\n$\\mathfrak{H}$ello world!\n\\end{document}\n\n'
+		var helloB64 = Buffer.from(helloTex).toString('base64')
+		var phpTex = '\\documentclass{article}\n\\begin{document}\nHello $i$ \\& $j$.\n\\end{document}\n'
+		var rawTex = '\\documentclass[12pt,letterpaper]{article}\n\\usepackage[T1]{fontenc}\n\\usepackage{amsmath}\n\\begin{document}\n\\noindent\nBla bla bla bla :\n\\begin{align*}\nA &= B + C - D \\\\ \\\\\n%phantom\n&\\phantom{= B + C \\;}\n%phantom\n+ D - E \\\\ \\\\\n&= F + G - H.\n\\end{align*}\n\\end{document}\n'
+
+	style.
+		.oio-devs { max-width: 820px; margin: 0 auto; }
+		.oio-devs h1 { margin-bottom: var(--spacing-08, 24px); }
+		.oio-devs h2 { margin-top: var(--spacing-11, 48px); }
+		.oio-devs h3 { margin-top: var(--spacing-09, 32px); }
+		.oio-devs pre { background: var(--bg-light-secondary, #f4f5f6); border: 1px solid var(--neutral-20, #e7e9ee); border-radius: 8px; padding: 16px; overflow-x: auto; font-size: 13px; line-height: 1.5; }
+		.oio-devs .oio-example { background: var(--bg-light-secondary, #f4f5f6); border: 1px solid var(--neutral-20, #e7e9ee); border-radius: 8px; padding: 20px; margin: 16px 0; }
+		.oio-devs .oio-example .form-control { margin-bottom: 12px; }
+		.oio-devs .oio-codebox { background: var(--bg-light-secondary, #f4f5f6); border: 1px solid var(--neutral-20, #e7e9ee); border-radius: 8px; padding: 12px 16px 16px; margin: 16px 0; overflow-x: auto; }
+		.oio-devs .oio-codebox dt { font-weight: 600; font-size: 13px; color: var(--neutral-70, #677283); margin-bottom: 8px; }
+		.oio-devs .oio-codebox dd { margin: 0; }
+		.oio-devs .oio-codebox pre { margin: 0; padding: 0; background: none; border: 0; }
+		.oio-devs .oio-codebox code { display: block; white-space: pre; font-size: 13px; line-height: 1.5; }
+		.oio-devs .oio-codebox .hl-command { color: #0550ae; }
+		.oio-devs .oio-codebox .hl-brace { color: #953800; }
+		.oio-devs .oio-codebox .hl-comment { color: var(--neutral-70, #677283); font-style: italic; }
+
+	main#main-content.content.content-alt(role='main')
+		.container-xxl
+			.oio-devs
+				h1 Overleaf API
+				p.lead Do you have your own LaTeX site? Would you like to add “Open in Overleaf” functionality to help it stand out? If so, you’re at the right place!
+				h2 One-click to open in Overleaf…
+				p We’ve developed the tools you need to load LaTeX code and files from your website or blog directly into Overleaf.
+				p See it in action: every example in the sections below opens a real project on this server.
+				p To add similar functionality to your site, take a look at the sections below.
+
+				h2 Overview
+				p.
+					You can load a code snippet into Overleaf by passing it (or its URI) to
+					<code>#{docsUrl}</code> using a form or a link.
+				p The most basic approach is to use a link:
+				pre= docsUrl + '?snip_uri=http://pathtoyourfile.tex'
+				p You may also link to a project instead of a single LaTeX snippet by passing the location of a zip file for the <code>zip_uri</code> parameter. Here are some links in action:
+				p
+					a.btn.btn-primary.me-2(href=`${docsUrl}?snip_uri=${encodeURIComponent('data:application/x-tex;base64,' + helloB64)}`) A LaTeX code snippet
+					a.btn.btn-primary(href=`${docsUrl}?zip_uri=${encodeURIComponent('data:application/zip;base64,' + olDemoZipB64)}`) A zipped project
+				p Some more advanced methods of embedding and opening LaTeX content are listed below in the implementations section. There are also a number of customisable features that can tailor the “Open in Overleaf” functionality to your needs. These can be found in the features section below.
+
+				h2 Implementations
+
+				h3 Post a Snippet by URI (URL)
+				p You can post the URI of a file, and Overleaf will download the file and import it as the main file of the project. The file must be accessible from this server. The file will be fetched using either HTTP or HTTPS, depending on the URI that you give it; other protocols are not supported. Files should be LaTeX files or zip format.
+				p Here we pass the full path to this file for the <code>snip_uri</code> parameter:
+				.oio-example
+					form(action=docsUrl method='post' target='_blank')
+						input.form-control(type='text' name='snip_uri' value='https://your-site.example/examples/helloworld.tex')
+						button.btn.btn-primary(type='submit') Open in Overleaf
+				p This form can be implemented with the following code:
+				pre.
+					&lt;form action="#{docsUrl}" method="post" target="_blank"&gt;
+					  &lt;input type="text" name="snip_uri"
+					         value="https://your-site.example/examples/helloworld.tex"&gt;&lt;br&gt;
+					  &lt;input type="submit" value="Open in Overleaf"&gt;
+					&lt;/form&gt;
+				p Alternatively you can just use a link, as described in the Overview section above. We recommend that you use <code>encodeURIComponent</code> (or an equivalent method server-side) to escape each parameter, but this is not absolutely necessary.
+				p You can also upload multiple files using <code>snip_uri[]</code> array parameters like this:
+				pre= docsUrl + '?snip_uri[]=http://.../a.tex&snip_uri[]=http://.../b.tex'
+				p And there’s a <code>snip_name[]</code> parameter that you can use to override the name of each uploaded file:
+				pre.
+					#{docsUrl}?snip_uri[]=http://.../a.tex&amp;
+					  snip_uri[]=http://.../b.tex&amp;
+					  snip_name[]=file1.tex&amp;
+					  snip_name[]=file2.tex
+
+				h3 Base64 Data URL
+				p It is possible to use a data URL with a base64 string as the <code>snip_uri</code> value:
+				pre data:[mime_type];base64,[your_base64_encoded_file]
+				p For example, this is the same <code>helloworld.tex</code> file but encoded as base64:
+				.oio-example
+					form(action=docsUrl method='post' target='_blank')
+						input.form-control(type='text' name='snip_uri' value=`data:application/x-tex;base64,${helloB64}`)
+						button.btn.btn-primary(type='submit') Open in Overleaf
+				p This form can be implemented with the following code:
+				pre.
+					&lt;form action="#{docsUrl}" method="post" target="_blank"&gt;
+					  &lt;input type="text" name="snip_uri"
+					         value="data:application/x-tex;base64,#{helloB64}"&gt;&lt;br&gt;
+					  &lt;input type="submit" value="Open in Overleaf"&gt;
+					&lt;/form&gt;
+				p Base64 strings can also represent compressed zip files containing multiple files. For instance, here’s a simple case with two <code>.tex</code> files and a single <code>.bib</code> file:
+				.oio-example
+					form(action=docsUrl method='post' target='_blank')
+						input.form-control(type='text' name='zip_uri' value=`data:application/zip;base64,${olDemoZipB64}`)
+						button.btn.btn-primary(type='submit') Open in Overleaf
+				p This form can be implemented with the following code:
+				pre.
+					&lt;form action="#{docsUrl}" method="post" target="_blank"&gt;
+					  &lt;input type="text" name="zip_uri"
+					         value="data:application/zip;base64,#{olDemoZipB64}"&gt;&lt;br&gt;
+					  &lt;input type="submit" value="Open in Overleaf"&gt;
+					&lt;/form&gt;
+
+				h3 URL-encoded snippet
+				p URL encoding is useful if you submit using a hidden input field, as in this example. This avoids problems with newlines in the TeX source. This example posts the result of the PHP5 code:
+				pre.
+					urlencode("\\documentclass{article}\n\\begin{document}\nHello \$i\$ \\& \$j\$.\n\\end{document}\n");
+				p in the <code>encoded_snip</code> parameter. If using JavaScript, the <code>encodeURIComponent</code> function should be used (not the <code>escape</code> function, which has problems with internationalisation).
+				.oio-example
+					form(action=docsUrl method='post' target='_blank')
+						input(type='hidden' name='encoded_snip' value=encodeURIComponent(phpTex))
+						button.btn.btn-primary(type='submit') Open in Overleaf
+
+				h3 Raw snippet
+				p If you submit from the server side or with AJAX you can use the <code>snip</code> parameter, which assumes no encoding. Another use case is submission from a textarea (which could be hidden using CSS); in this case you must escape HTML entities in the HTML source.
+				.oio-example
+					form(action=docsUrl method='post' target='_blank')
+						textarea.form-control(name='snip' rows='8')= rawTex
+						button.btn.btn-primary(type='submit') Open in Overleaf
+				p This form can be implemented with the following code:
+				pre.
+					&lt;form action="#{docsUrl}" method="post" target="_blank"&gt;
+					  &lt;textarea rows="8" cols="60" name="snip"&gt;
+					  \documentclass[12pt,letterpaper]{article}
+					  \usepackage[T1]{fontenc}
+					  \usepackage{amsmath}
+					  \begin{document}
+					  \noindent
+					  Bla bla bla bla :
+					  \begin{align*}
+					  A &amp;= B + C - D \\ \\
+					  %phantom
+					  &amp;\phantom{= B + C \;}
+					  %phantom
+					  + D - E \\ \\
+					  &amp;= F + G - H.
+					  \end{align*}
+					  \end{document}
+					  &lt;/textarea&gt;
+					  &lt;input type="submit" value="Open in Overleaf"&gt;
+					&lt;/form&gt;
+
+				h3 Post from Formatted Code Box
+				p This example shows how to extract the unformatted code from a CSS-styled code box and submit it to Overleaf. The key components are:
+				ol
+					li The JavaScript that defines the <code>openInOverleaf()</code> function.
+					li The <code>form</code> with id <code>ol_form</code>, which is used to POST the source as a URL-encoded snippet. Note that in this case you only need one form on the page, even if you have multiple code boxes.
+					li The link in the code box that actually calls <code>openInOverleaf()</code>.
+				h4 Examples
+				dl.codebox.oio-codebox
+					dt Code: <a href="#" onclick="openInOverleaf(this); return false;">Open in Overleaf</a>
+					dd
+						pre
+							code.tex.
+								\renewcommand{\arraystretch}{2}
+								\[
+								g :=\left(
+								\begin{array}{c|c}
+								\mathbf{2^D} &amp; \textbf{1} \\ \hline
+								\textbf{1} &amp; \begin{array}{cc}
+								\boldsymbol{1^\alpha} &amp; \textbf{0} \\
+								\textbf{0} &amp; \boldsymbol{1^\beta}
+								\end{array} \\
+								\end{array}
+								\right)
+								\]
+				dl.codebox.oio-codebox
+					dt Code: <a href="#" onclick="openInOverleaf(this); return false;">Open in Overleaf</a>
+					dd
+						pre
+							code.tex.
+								\documentclass{article}
+								\usepackage{tikz}
+								\usetikzlibrary{arrows}
+								\begin{document}
+								\begin{tikzpicture}[-&gt;,&gt;=stealth',shorten &gt;=1pt,auto,node distance=3cm,
+								  thick,main node/.style={circle,fill=blue!20,draw,font=\sffamily\Large\bfseries}]
+								
+								  \node[main node] (1) {1};
+								  \node[main node] (2) [below left of=1] {2};
+								  \node[main node] (3) [below right of=2] {3};
+								  \node[main node] (4) [below right of=1] {4};
+								
+								  \path[every node/.style={font=\sffamily\small}]
+								    (1) edge node [left] {0.6} (4)
+								        edge [bend right] node[left] {0.3} (2)
+								        edge [loop above] node {0.1} (1)
+								    (2) edge node [right] {0.4} (1)
+								        edge node {0.3} (4)
+								        edge [loop left] node {0.4} (2)
+								        edge [bend right] node[left] {0.1} (3)
+								    (3) edge node [right] {0.8} (2)
+								        edge [bend right] node[right] {0.2} (4)
+								    (4) edge node [left] {0.2} (3)
+								        edge [loop right] node {0.6} (4)
+								        edge [bend right] node[right] {0.2} (1);
+								\end{tikzpicture}
+								\end{document}
+				form#ol_form(action=docsUrl method='post' target='_blank' style='display:none')
+					input#ol_encoded_snip(type='hidden' name='encoded_snip')
+
+				h4 Implementation
+				p The HTML required to add the examples above is:
+				pre.
+					&lt;form id="ol_form" action="#{docsUrl}" method="post" target="_blank"&gt;
+					  &lt;input id="ol_encoded_snip" type="hidden" name="encoded_snip"&gt;
+					&lt;/form&gt;
+					&lt;dl class="codebox"&gt;
+					  &lt;dt&gt;Code: &lt;a href="#" onclick="openInOverleaf(this); return false;"&gt;Open in Overleaf&lt;/a&gt;&lt;/dt&gt;
+					  &lt;dd&gt;
+					    &lt;pre&gt;
+					      &lt;code class="tex"&gt;
+					        \documentclass{article}
+					        ...
+					      &lt;/code&gt;
+					    &lt;/pre&gt;
+					  &lt;/dd&gt;
+					&lt;/dl&gt;
+				p The JavaScript code for the openInOverleaf method, which should be included in a <code>script</code> tag is:
+				pre.
+					function openInOverleaf(a) {
+					  /*
+					  * Get the unformatted code from the formatted code box.
+					  *
+					  * Using the browser's selection isn't ideal, because it clobbers whatever
+					  * the user may have had in their clipboard.
+					  * It's almost possible to use innerText, but that does not work on FF.
+					  * FF supports textContent, but that discards the newlines, which are
+					  * represented by BR tags in the formatted code. So, we have to walk the DOM.
+					  */
+					  function unformat(e) {
+					    var ret = "";
+					    if (e.nodeType === 1) { // element node
+					      if (e.tagName === "BR") {
+					        return "\n";
+					      } else {
+					        for (e = e.firstChild; e; e = e.nextSibling) {
+					            ret += unformat(e);
+					        }
+					        return ret;
+					      }
+					    } else if (e.nodeType === 3 || e.nodeType === 4) { // text node
+					        return e.nodeValue;
+					    }
+					  }
+					  var code = a.parentNode.parentNode.getElementsByTagName('CODE')[0];
+					  document.getElementById('ol_encoded_snip').value =
+					    encodeURIComponent(unformat(code));
+					  document.getElementById('ol_form').submit();
+					}
+				p The syntax highlighting in the code boxes is added with a few <code>span</code> elements; you can generate yours with a library such as highlight.js, or add them manually if you prefer.
+
+				h2 Features
+				p The features below are included to aid usability of the “Open in Overleaf” implementations, and may be customised to suit your preferences.
+
+				h3 Decoration
+				p The code must be wrapped in a valid document in order to compile. If the code snippet does not have a <code>\documentclass</code> tag, it is wrapped in a standard document when it is imported:
+				pre.
+					\documentclass[12pt]{article}
+					\usepackage[english]{babel}
+					\usepackage{amsmath}
+					\usepackage{tikz}
+					\begin{document}
+					SNIPPET GOES HERE
+					\end{document}
+
+				h3 Encoding
+				p The submitted snippet should be encoded using UTF-8. Windows newlines are converted to unix newlines.
+
+				h3 TeX Engine
+				p By default, Overleaf tries to detect which TeX engine to use, and usually chooses <code>pdflatex</code>. If you would like to set the engine explicitly for your new project, you can pass an <code>engine</code> parameter with one of the following values: <code>latex_dvipdf</code>, <code>pdflatex</code>, <code>xelatex</code> or <code>lualatex</code>.
+
+				h3 Main Document
+				p By default, Overleaf tries to detect which document to use as the main <code>.tex</code> file, based on whether it contains a <code>\documentclass</code>. If you would like to override this behaviour, you can pass a <code>main_document</code> parameter with the name of the file. When supplying an array of snippets, you must also pass an array of filenames for this to work reliably.
