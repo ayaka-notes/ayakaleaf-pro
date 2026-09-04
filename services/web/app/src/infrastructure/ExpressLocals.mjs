@@ -15,6 +15,7 @@ import AdminAuthorizationHelper from '../Features/Helpers/AdminAuthorizationHelp
 import { addOptionalCleanupHandlerAfterDrainingConnections } from './GracefulShutdown.mjs'
 import { sanitizeSessionUserForFrontEnd } from './FrontEndUser.mjs'
 import { expressify } from '@overleaf/promise-utils'
+import { buildMainColorCss } from './MainColor.mjs'
 
 const {
   canRedirectToAdminDomain,
@@ -324,6 +325,7 @@ export default async function (webRouter, privateApiRouter, publicApiRouter) {
 
   webRouter.use(function (req, res, next) {
     res.locals.settings = Settings
+    res.locals.mainColorCssVariables = buildMainColorCss(Settings.mainColor)
     next()
   })
 

@@ -820,6 +820,7 @@ module.exports = {
   },
 
   appName: process.env.APP_NAME || 'Overleaf (Community Edition)',
+  mainColor: process.env.OVERLEAF_MAIN_COLOR,
 
   adminEmail: process.env.ADMIN_EMAIL || 'placeholder@example.com',
   adminDomains: process.env.ADMIN_DOMAINS
