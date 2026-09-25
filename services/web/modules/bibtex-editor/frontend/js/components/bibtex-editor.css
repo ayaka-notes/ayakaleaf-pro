@@ -1,0 +1,416 @@
+/* Styles for the visual BibTeX editor: entry list/table, toolbar, panels and
+   modals. Generated stylesheet — edit the source, not this file directly. */
+.bibtex-entry-list {
+  background-color:var(--bg-primary-themed);
+  color:var(--content-secondary-themed);
+  padding:0 var(--spacing-04)}
+.bibtex-entry-list-body {
+  position:relative}
+.bibtex-entry-list-body .bibtex-entry-row {
+  border-top:1px solid var(--border-divider-themed)}
+.bibtex-entry-list-body .bibtex-entry-row:first-child {
+  border-top:none}
+.bibtex-entry-row {
+  display:flex}
+.bibtex-col-errors {
+  flex:0 0 30px}
+.bibtex-col-key {
+  flex:1 .6 12em}
+.bibtex-col-title {
+  flex:3 1 30em}
+.bibtex-col-author {
+  flex:1 1 16em}
+.bibtex-col-year {
+  flex:0 0 4em}
+.bibtex-entry-header {
+  background:var(--bg-primary-themed);
+  border-bottom:1px solid var(--border-divider-themed);
+  position:sticky;
+  top:0;
+  z-index:1}
+.bibtex-entry-cell {
+  min-width:0;
+  overflow-wrap:break-word;
+  padding:var(--spacing-04);
+  text-align:left}
+.bibtex-entry-cell .citation-key {
+  font-family:DM Mono,monospace;
+  font-feature-settings:"ss05"}
+.bibtex-entry-cell mark {
+  padding:0}
+.bibtex-col-actions {
+  flex:0 0 50px;
+  line-height:1}
+.bibtex-entry-header-cell {
+  font-weight:600;
+  padding-top:var(--spacing-04);
+  white-space:nowrap}
+.bibtex-sortable-header {
+  align-items:center;
+  background:none;
+  border:none;
+  color:var(--content-secondary-themed);
+  display:flex;
+  font-weight:700;
+  gap:4px;
+  padding:0}
+.bibtex-entry-error-icon {
+  align-items:center;
+  -webkit-appearance:none;
+  -moz-appearance:none;
+  appearance:none;
+  background:transparent;
+  border:0;
+  color:var(--red-50);
+  cursor:pointer;
+  display:inline-flex;
+  height:var(--line-height-03);
+  padding:0}
+.bibtex-tooltip-errors {
+  display:flex;
+  flex-direction:column;
+  gap:var(--spacing-04);
+  text-align:left}
+.bibtex-tooltip-errors ul {
+  margin-bottom:0}
+.bibtex-tooltip-errors blockquote {
+  margin-left:var(--spacing-06);
+  white-space:pre-wrap}
+.button-autocomplete-container {
+  left:0;
+  margin-top:var(--spacing-02);
+  top:100%;
+  z-index:1000}
+.button-autocomplete-container:not(.expand-up) .form-control {
+  margin-bottom:var(--spacing-03)}
+.button-autocomplete-container.expand-up {
+  bottom:100%;
+  margin-bottom:var(--spacing-02);
+  margin-top:0;
+  top:auto}
+.button-autocomplete-container .dropdown-item {
+  border-radius:var(--border-radius-base);
+  padding:var(--spacing-02) var(--spacing-04)}
+.button-autocomplete-container .dropdown-item:focus,.button-autocomplete-container .dropdown-item:hover {
+  background-color:var(--bg-light-secondary)}
+.button-autocomplete-container .dropdown-menu {
+  border:none;
+  box-shadow:none;
+  margin:0;
+  max-height:300px;
+  overflow-y:auto;
+  padding:0}
+.bibtex-collapsible-heading {
+  align-items:center;
+  background:transparent;
+  border:none;
+  cursor:pointer;
+  display:flex;
+  gap:var(--spacing-02);
+  margin-bottom:var(--spacing-04);
+  padding:var(--spacing-02) 0;
+  text-decoration:none;
+  width:auto}
+.bibtex-collapsible-heading:hover {
+  opacity:.8}
+.bibtex-collapsible-heading:focus {
+  outline:2px solid var(--border-active-themed);
+  outline-offset:2px}
+.bibtex-collapsible-heading-icon {
+  align-items:center;
+  color:var(--content-secondary);
+  display:inline-flex;
+  flex-shrink:0;
+  margin-left:var(--spacing-01)}
+.entry-type-selector-btn {
+  cursor:pointer;
+  height:var(--spacing-09);
+  padding:var(--spacing-02) var(--spacing-04)}
+.entry-type-selector-btn:hover {
+  border-color:var(--border-primary)}
+.entry-type-selector-btn .material-symbols {
+  color:var(--content-secondary)}
+.btn.btn-ghost.bibtex-add-field-button {
+  --btn-ghost-color:var(--content-secondary)}
+.bibtex-import-textarea {
+  font-family:DM Mono,monospace;
+  font-feature-settings:"ss05"}
+.bibtex-import-preview-card {
+  border:1px solid var(--neutral-30);
+  border-radius:var(--border-radius-large);
+  display:flex;
+  flex-direction:column;
+  gap:var(--spacing-06);
+  padding:var(--spacing-04) var(--spacing-06)}
+.bibtex-import-preview-card-content {
+  display:flex;
+  flex-direction:column;
+  gap:var(--spacing-03);
+  padding-top:var(--spacing-04)}
+.bibtex-import-preview-card-heading {
+  font-weight:600}
+.bibtex-import-preview-card-field {
+  color:var(--content-secondary)}
+.bibtex-import-preview-card-tags {
+  display:flex;
+  gap:var(--spacing-06);
+  padding-bottom:var(--spacing-04)}
+.bibtex-import-preview-card-key {
+  background-color:var(--bg-light-tertiary);
+  border-radius:var(--border-radius-base);
+  font-family:DM Mono,monospace;
+  font-feature-settings:"ss05";
+  padding:var(--spacing-01) var(--spacing-02)}
+.bibtex-already-in-library .badge-tag-content {
+  max-width:none}
+.bibtex-import-preview-count {
+  font-weight:600;
+  margin-bottom:var(--spacing-04)}
+.bibtex-import-preview-list {
+  display:flex;
+  flex-direction:column;
+  gap:var(--spacing-04)}
+.bibtex-import-preview-empty {
+  color:var(--content-secondary);
+  padding:var(--spacing-10) var(--spacing-09);
+  text-align:center}
+.bibtex-add-button {
+  margin-left:auto}
+.ol-editor-toolbar-button-group {
+  align-items:center;
+  display:flex;
+  flex-wrap:nowrap;
+  line-height:1;
+  margin:4px 0;
+  padding:0 4px;
+  white-space:nowrap}
+.ol-editor-toolbar-button-group:not(:first-child) {
+  border-left:1px solid hsla(0,0%,49%,.3)}
+.ol-editor-toolbar-button-group .ol-cm-toolbar-button {
+  align-items:center;
+  background-color:transparent;
+  border:none;
+  border-radius:var(--border-radius-base);
+  color:inherit;
+  display:inline-flex;
+  height:24px;
+  justify-content:center;
+  line-height:1;
+  margin:0 1px;
+  overflow:hidden;
+  padding:0;
+  width:24px}
+.ol-editor-toolbar-button-group .ol-cm-toolbar-button.active,.ol-editor-toolbar-button-group .ol-cm-toolbar-button:active,.ol-editor-toolbar-button-group .ol-cm-toolbar-button:focus,.ol-editor-toolbar-button-group .ol-cm-toolbar-button:hover {
+  background-color:hsla(0,0%,49%,.1);
+  box-shadow:none;
+  color:inherit}
+.ol-editor-toolbar-button-group .ol-cm-toolbar-button.active[aria-disabled=true],.ol-editor-toolbar-button-group .ol-cm-toolbar-button:active[aria-disabled=true],.ol-editor-toolbar-button-group .ol-cm-toolbar-button:focus[aria-disabled=true],.ol-editor-toolbar-button-group .ol-cm-toolbar-button:hover[aria-disabled=true] {
+  opacity:.2}
+.ol-editor-toolbar-button-group .ol-cm-toolbar-button.active,.ol-editor-toolbar-button-group .ol-cm-toolbar-button:active {
+  background-color:hsla(0,0%,49%,.2)}
+.ol-editor-toolbar-button-group .ol-cm-toolbar-button[aria-disabled=true] {
+  cursor:not-allowed;
+  opacity:.2}
+.ol-cm-toolbar-wrapper-needs-border .ol-editor-toolbar-button-group:first-child {
+  border-left:1px solid hsla(0,0%,49%,.3)}
+.ol-toolbar-layout-right {
+  align-items:center;
+  display:flex;
+  margin-left:auto}
+.ol-toolbar-layout-right .ol-cm-toolbar-button {
+  align-items:center;
+  display:inline-flex;
+  height:24px;
+  justify-content:center;
+  margin:0 1px;
+  padding:0;
+  width:24px}
+.bibtex-toolbar,.ol-toolbar-layout-left {
+  align-items:center;
+  display:flex}
+.bibtex-toolbar {
+  box-shadow:inset 0 -1px 0 var(--border-divider-themed);
+  height:32px;
+  padding:0 5px}
+:root {
+  --border-radius-base:4px;
+  --border-radius-medium:8px;
+  --border-radius-large:16px;
+  --border-radius-full:9999px;
+  --white:#fff;
+  --neutral-10:#f4f5f6;
+  --neutral-20:#e7e9ee;
+  --neutral-30:#d0d5dd;
+  --neutral-40:#afb5c0;
+  --neutral-50:#8d96a5;
+  --neutral-60:#677283;
+  --neutral-70:#495365;
+  --neutral-80:#2f3a4c;
+  --neutral-90:#1b222c;
+  --green-10:#eaf6ef;
+  --green-20:#b8dbc8;
+  --green-30:#86caa5;
+  --green-40:#53b57f;
+  --green-50:#098842;
+  --green-60:#1e6b41;
+  --green-70:#195936;
+  --blue-10:#f1f4f9;
+  --blue-20:#c3d0e3;
+  --blue-30:#97b6e5;
+  --blue-40:#6597e0;
+  --blue-50:#366cbf;
+  --blue-60:#28518f;
+  --blue-70:#214475;
+  --red-10:#f9f1f1;
+  --red-20:#f5beba;
+  --red-30:#e59d9a;
+  --red-40:#e36d66;
+  --red-50:#b83a33;
+  --red-60:#942f2a;
+  --red-70:#782722;
+  --yellow-10:#fcf1e3;
+  --yellow-20:#fcc483;
+  --yellow-30:#f7a445;
+  --yellow-40:#de8014;
+  --yellow-50:#8f5514;
+  --yellow-60:#7a4304;
+  --yellow-70:#633a0b;
+  --bg-light-primary:var(--white);
+  --bg-light-secondary:var(--neutral-10);
+  --bg-light-tertiary:var(--neutral-20);
+  --bg-light-disabled:var(--neutral-20);
+  --bg-dark-primary:var(--neutral-90);
+  --bg-dark-secondary:var(--neutral-80);
+  --bg-dark-tertiary:var(--neutral-70);
+  --bg-dark-disabled:var(--neutral-70);
+  --bg-accent-01:var(--green-50);
+  --bg-accent-02:var(--green-60);
+  --bg-accent-03:var(--green-10);
+  --bg-danger-01:var(--red-50);
+  --bg-danger-02:var(--red-60);
+  --bg-danger-03:var(--red-10);
+  --bg-warning-01:var(--yellow-50);
+  --bg-warning-02:var(--yellow-60);
+  --bg-warning-03:var(--yellow-10);
+  --bg-info-01:var(--blue-50);
+  --bg-info-02:var(--blue-60);
+  --bg-info-03:var(--blue-10);
+  --content-primary:var(--neutral-90);
+  --content-secondary:var(--neutral-70);
+  --content-disabled:var(--neutral-40);
+  --content-placeholder:var(--neutral-60);
+  --content-danger:var(--red-50);
+  --content-warning:var(--yellow-50);
+  --content-positive:var(--green-50);
+  --content-info:var(--blue-50);
+  --border-primary:var(--neutral-60);
+  --border-hover:var(--neutral-70);
+  --border-disabled:var(--neutral-20);
+  --border-active:var(--blue-50);
+  --border-danger:var(--red-50);
+  --border-divider:var(--neutral-20);
+  --border-dark-divider:var(--neutral-70);
+  --link-web:var(--green-60);
+  --link-web-hover:var(--green-70);
+  --link-web-visited:var(--green-60);
+  --link-ui:var(--blue-50);
+  --link-ui-hover:var(--blue-60);
+  --link-ui-visited:var(--blue-60);
+  --content-primary-dark:var(--neutral-10);
+  --content-secondary-dark:var(--neutral-20);
+  --content-disabled-dark:var(--neutral-60);
+  --content-placeholder-dark:var(--neutral-50);
+  --content-danger-dark:var(--red-40);
+  --content-warning-dark:var(--yellow-40);
+  --content-positive-dark:var(--green-40);
+  --content-info-dark:var(--blue-30);
+  --border-primary-dark:var(--neutral-30);
+  --border-hover-dark:var(--neutral-20);
+  --border-disabled-dark:var(--neutral-80);
+  --border-active-dark:var(--blue-30);
+  --border-danger-dark:var(--red-40);
+  --border-divider-dark:var(--neutral-80);
+  --link-web-dark:var(--green-30);
+  --link-web-hover-dark:var(--green-40);
+  --link-web-visited-dark:var(--green-40);
+  --link-ui-dark:var(--blue-30);
+  --link-ui-hover-dark:var(--blue-40);
+  --link-ui-visited-dark:var(--blue-40);
+  --premium-gradient:linear-gradient(246deg,var(--blue-70) 0%,#254c84 29%,var(--blue-40) 97%);
+  --premium-gradient-dark:linear-gradient(246deg,#6f8bcd,#8ea3d7 29%,#ccdcff 97%);
+  --spacing-00:0;
+  --spacing-01:2px;
+  --spacing-02:4px;
+  --spacing-03:6px;
+  --spacing-04:8px;
+  --spacing-05:12px;
+  --spacing-06:16px;
+  --spacing-07:20px;
+  --spacing-08:24px;
+  --spacing-09:32px;
+  --spacing-10:40px;
+  --spacing-11:48px;
+  --spacing-12:56px;
+  --spacing-13:64px;
+  --spacing-14:72px;
+  --spacing-15:80px;
+  --spacing-16:96px;
+  --font-sans:"Noto Sans",sans-serif;
+  --font-size-01:0.75rem;
+  --font-size-02:0.875rem;
+  --font-size-03:1rem;
+  --font-size-04:1.125rem;
+  --font-size-05:1.25rem;
+  --font-size-06:1.5rem;
+  --font-size-07:1.875rem;
+  --font-size-08:2.25rem;
+  --font-size-09:3rem;
+  --font-size-10:3.25rem;
+  --font-size-11:3.75rem;
+  --font-size-12:4.5rem;
+  --font-size-13:6em;
+  --line-height-01:1rem;
+  --line-height-02:1.25rem;
+  --line-height-03:1.5rem;
+  --line-height-04:1.75rem;
+  --line-height-05:2rem;
+  --line-height-06:2.5rem;
+  --line-height-07:3rem;
+  --line-height-08:4rem;
+  --line-height-09:4.25rem;
+  --line-height-10:5rem;
+  --line-height-11:6rem;
+  --line-height-12:8rem}
+.bibtex-visual-editor {
+  background-color:var(--bg-primary-themed);
+  display:flex;
+  flex-direction:column;
+  font-size:14px;
+  inset:0;
+  position:absolute}
+.bibtex-visual-editor .bibtex-entry-list {
+  flex-grow:1;
+  overflow:hidden scroll}
+.bibtex-visual-editor .bibtex-search {
+  width:320px}
+.kebab-menu-toggle:after {
+  display:none!important}
+.bibtex-loading {
+  align-items:center;
+  display:flex;
+  flex:1;
+  justify-content:center}
+.bibtex-entry-list-panel {
+  align-items:center;
+  border-bottom:1px solid var(--border-divider-themed);
+  display:flex;
+  gap:var(--spacing-06);
+  min-height:calc(var(--spacing-08) + var(--spacing-10));
+  padding:var(--spacing-04) var(--spacing-08)}
+.bibtex-delete-selected-btn.btn {
+  align-items:center;
+  display:inline-flex;
+  gap:var(--spacing-02)}
+.bibtex-entry-count {
+  color:var(--content-secondary-themed);
+  font-weight:700}
