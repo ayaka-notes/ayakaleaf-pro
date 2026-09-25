@@ -34,7 +34,15 @@ const Features = {
     return (
       (Boolean(Settings.ldap) && Boolean(Settings.ldap.enable)) ||
       (Boolean(Settings.saml) && Boolean(Settings.saml.enable)) ||
+      (Boolean(Settings.oidc) && Boolean(Settings.oidc.enable)) ||
       Boolean(Settings.overleaf)
+    )
+  },
+
+  localLoginDisabled() {
+    return (
+      Boolean(Settings.disableLocalLogin) &&
+      Features.externalAuthenticationSystemUsed()
     )
   },
 
