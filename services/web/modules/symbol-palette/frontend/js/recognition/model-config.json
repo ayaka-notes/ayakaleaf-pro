@@ -1,0 +1,7 @@
+{
+  "inputName": "input",
+  "outputName": "logits",
+  "candidateCount": 40,
+  "resultCount": 10,
+  "excludedPackages": ["tipa", "textcomp"]
+}

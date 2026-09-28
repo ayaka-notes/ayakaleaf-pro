@@ -7,6 +7,8 @@ export default function SymbolPaletteItems({
   items,
   handleSelect,
   focusInput,
+  ariaLabel = 'Symbols',
+  spriteSheet,
 }) {
   const [focusedIndex, setFocusedIndex] = useState(0)
   const itemRefs = useRef([])
@@ -82,14 +84,14 @@ export default function SymbolPaletteItems({
       event.preventDefault()
       setFocusedIndex(newIndex)
     },
-    [focusedIndex, items, focusInput, handleSelect]
+    [focusedIndex, items, focusInput, handleSelect, toggleSymbolPalette]
   )
 
   return (
-    <div className="symbol-palette-items" role="listbox" aria-label="Symbols">
+    <div className="symbol-palette-items" role="listbox" aria-label={ariaLabel}>
       {items.map((symbol, index) => (
         <SymbolPaletteItem
-          key={symbol.codepoint}
+          key={symbol.command}
           symbol={symbol}
           handleSelect={symbol => {
             handleSelect(symbol)
@@ -97,6 +99,7 @@ export default function SymbolPaletteItems({
           }}
           handleKeyDown={handleKeyDown}
           focused={index === focusedIndex}
+          spriteSheet={spriteSheet}
           ref={el => {
             itemRefs.current[index] = el
           }}
@@ -114,5 +117,7 @@ SymbolPaletteItems.propTypes = {
   ).isRequired,
   handleSelect: PropTypes.func.isRequired,
   focusInput: PropTypes.func.isRequired,
+  ariaLabel: PropTypes.string,
+  spriteSheet: PropTypes.object,
 }
 

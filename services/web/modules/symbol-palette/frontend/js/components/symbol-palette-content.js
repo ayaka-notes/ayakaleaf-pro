@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import PropTypes from 'prop-types'
 import { matchSorter } from 'match-sorter'
@@ -8,9 +16,13 @@ import SymbolPaletteSearch from './symbol-palette-search'
 import SymbolPaletteBody from './symbol-palette-body'
 import SymbolPaletteTabs from './symbol-palette-tabs'
 import SymbolPaletteCloseButton from './symbol-palette-close-button'
+import SymbolPaletteDrawToggle from './symbol-palette-draw-toggle'
+
+const SymbolPaletteDraw = lazy(() => import('./symbol-palette-draw'))
 
 export default function SymbolPaletteContent({ handleSelect }) {
   const [input, setInput] = useState('')
+  const [drawing, setDrawing] = useState(false)
 
   const { t } = useTranslation()
 
@@ -62,13 +74,22 @@ export default function SymbolPaletteContent({ handleSelect }) {
       <div className="symbol-palette">
         <div className="symbol-palette-header-outer">
           <div className="symbol-palette-header">
-            <SymbolPaletteTabs 
-              categories={categories} 
+            <SymbolPaletteTabs
+              categories={categories}
               activeCategoryId={activeCategoryId}
               setActiveCategoryId={setActiveCategoryId}
+              disabled={drawing}
             />
             <div className="symbol-palette-header-group">
-              <SymbolPaletteSearch setInput={setInput} inputRef={inputRef} />
+              <SymbolPaletteSearch
+                setInput={setInput}
+                inputRef={inputRef}
+                onFocus={() => setDrawing(false)}
+              />
+              <SymbolPaletteDrawToggle
+                active={drawing}
+                setActive={setDrawing}
+              />
             </div>
           </div>
           <div className="symbol-palette-header-group">
@@ -76,14 +97,26 @@ export default function SymbolPaletteContent({ handleSelect }) {
           </div>
         </div>
         <div className="symbol-palette-body">
-          <SymbolPaletteBody
-            categories={categories}
-            categorisedSymbols={categorisedSymbols}
-            filteredSymbols={filteredSymbols}
-            handleSelect={handleSelect}
-            focusInput={focusInput}
-            activeCategoryId={activeCategoryId}
-          />
+          {drawing ? (
+            <Suspense
+              fallback={
+                <div className="symbol-palette-empty" role="status">
+                  {t('symbol_palette_loading_model')}
+                </div>
+              }
+            >
+              <SymbolPaletteDraw handleSelect={handleSelect} />
+            </Suspense>
+          ) : (
+            <SymbolPaletteBody
+              categories={categories}
+              categorisedSymbols={categorisedSymbols}
+              filteredSymbols={filteredSymbols}
+              handleSelect={handleSelect}
+              focusInput={focusInput}
+              activeCategoryId={activeCategoryId}
+            />
+          )}
         </div>
       </div>
     </div>

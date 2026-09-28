@@ -1,0 +1,39 @@
+{
+  "name": "browser-candidate-clock-v1",
+  "version": "v0.1.0-preview.2",
+  "trainingRepository": "symbol-recognition-training",
+  "trainedBy": "ayaka-notes",
+  "intendedFor": "ayakaleaf-pro",
+  "runtime": "onnxruntime-web 1.26.0 (full WASM)",
+  "input": "input: float32 [1,1,64,64]",
+  "output": "logits: float32 [1,1622]",
+  "scoreMeaning": "Ranking scores; not calibrated probabilities",
+  "files": {
+    "model.ort": {
+      "bytes": 29648376,
+      "sha256": "dba2f28a41a5af668e959adcfc103492a029841a58d5d24a96a2b5d10fbae26a"
+    },
+    "ort-wasm-simd-threaded.wasm": {
+      "bytes": 13022405,
+      "sha256": "040d52ce5066707a10d45cb9500c35e70a9c2fb33c4fb63428da9ae45b956b97"
+    },
+    "ort-wasm-simd-threaded.mjs": {
+      "bytes": 24180,
+      "sha256": "2de262ca1fe2d6e0ef9236bf77632fa01de232ce7b6a33071c37637ee53f4669"
+    }
+  },
+  "trainingRelease": "v0.1.0-preview.2",
+  "runtimeSource": "https://registry.npmjs.org/onnxruntime-web/-/onnxruntime-web-1.26.0.tgz",
+  "runtimeLicense": "MIT",
+  "clockCorrection": {
+    "version": "clock-v1",
+    "quarantinedLabels": 78,
+    "otherClassWeightsPreserved": true,
+    "additionalTrainingData": {
+      "source": "Google Quick, Draw!",
+      "url": "https://github.com/googlecreativelab/quickdraw-dataset",
+      "license": "CC-BY-4.0",
+      "notice": "TRAINING-DATA-QUICKDRAW-LICENSE"
+    }
+  }
+}

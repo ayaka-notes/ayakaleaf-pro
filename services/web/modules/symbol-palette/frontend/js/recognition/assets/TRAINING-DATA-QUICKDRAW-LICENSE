@@ -1,0 +1,6 @@
+This data made available by Google, Inc. under the Creative Commons Attribution 4.0 International license.
+https://creativecommons.org/licenses/by/4.0/
+
+Source: https://github.com/googlecreativelab/quickdraw-dataset
+Material: reviewed clock pen strokes in data/corrections/clock-v1-samples.jsonl.
+Changes: subset selection, coordinate-pair conversion, raster hashing and split assignment.
