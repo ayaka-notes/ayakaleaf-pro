@@ -1,11 +1,12 @@
 import PropTypes from 'prop-types'
-import { useState, useRef } from 'react'
+import { useRef } from 'react'
 
 
 export default function SymbolPaletteTabs({
   categories,
   activeCategoryId,
   setActiveCategoryId,
+  disabled = false,
 }) {
 
   const buttonRefs = useRef([])
@@ -55,6 +56,7 @@ export default function SymbolPaletteTabs({
             aria-selected={selected}
             tabIndex={selected ? 0 : -1}
             ref={(el) => (buttonRefs.current[index] = el)}
+            disabled={disabled}
             onClick={() => setActiveCategoryId(category.id)}
             onKeyDown={(e) => handleKeyDown(e, index)}
           >
@@ -73,4 +75,5 @@ SymbolPaletteTabs.propTypes = {
   })).isRequired,
   activeCategoryId: PropTypes.string.isRequired,
   setActiveCategoryId: PropTypes.func.isRequired,
+  disabled: PropTypes.bool,
 }

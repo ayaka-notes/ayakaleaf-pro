@@ -1,0 +1,49 @@
+{
+  "description": "Locally rasterized Hand-TeX SVG glyphs with a Material Icons clock override; not original artwork.",
+  "sourceRepository": "https://github.com/VoxelCubes/Hand-TeX",
+  "sourceCommit": "5613813717c393fb5bcb405a83e63facdab1c998",
+  "sourceArchive": {
+    "url": "https://codeload.github.com/VoxelCubes/Hand-TeX/tar.gz/5613813717c393fb5bcb405a83e63facdab1c998",
+    "sha256": "a84b1464a83bc37df64c7b72b4eadee9ba1e67709819a274949d8b2cbcfed9d4"
+  },
+  "license": "GPL-3.0",
+  "licenseSource": "https://github.com/VoxelCubes/Hand-TeX/blob/5613813717c393fb5bcb405a83e63facdab1c998/LICENSE",
+  "licenseSha256": "605e9047a563c5c8396ffb18232aa4304ec56586aee537c45064c6fb425e44ad",
+  "upstreamRenderingScript": "https://github.com/VoxelCubes/Hand-TeX/blob/5613813717c393fb5bcb405a83e63facdab1c998/symbols/pre_renderer.py",
+  "upstreamMetadataSha256": "16f1bf85533e4bded0ec534a9395d1ae2e4452778e5eb1e277ebd3c612254f42",
+  "labelsSha256": "e2dbfc08249a870a11b89ef60f9976d6f537ef6e6e2c8af5b4ea937b920fd6f9",
+  "svgSourceCount": 1583,
+  "svgSourcesSha256": "8dcaf79bfd832a0dbab8050537c3b04eb47a41cef8d4fccc18d436592ebf3fb0",
+  "overrides": [
+    {
+      "command": "\\clock",
+      "source": "scripts/symbol-overrides/clock.svg",
+      "sha256": "195008a6770dc270810b0fc7dac2406a9bd2ab220d6722f0deb7d7b0153e5e41",
+      "upstreamSha256": "22d5a7b0e4394b7d359436c6dbaefa72187ee3433867cf108cd2f4be31a1aa26",
+      "modification": "Clock hands changed to point to 12 and 3, with rounded ends.",
+      "sourceUrl": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/src/action/schedule/materialicons/24px.svg",
+      "license": "Apache-2.0",
+      "licenseFile": "SYMBOLS-MATERIAL-LICENSE",
+      "licenseSha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+      "licenseSource": "https://github.com/google/material-design-icons/blob/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/LICENSE"
+    }
+  ],
+  "generator": "scripts/generate-symbol-atlas.py",
+  "renderer": {
+    "playwright": "1.58.0",
+    "chromium": "153.0.8010.12",
+    "cell": 64,
+    "padding": 4
+  },
+  "validation": {
+    "commands": 1622,
+    "nonemptyCells": 1622,
+    "minimumInkPixels": 105,
+    "width": 3072,
+    "height": 2176
+  },
+  "generatedFiles": {
+    "sprites.png": "eb0d32842203dfffdef36f235c3af68fc0743059bdd9bdf6f009bfcb92c746fd",
+    "sprites.json": "08a2b000477113241531d3391da985a523ccaa9951bafa0a6b49c8b1e3cb8a00"
+  }
+}
