@@ -12,6 +12,11 @@ export function normalizeStrokes(strokes, coordinateSpace) {
     }
   }
   if (minX === Infinity) return []
+  if (minX === maxX && minY === maxY) {
+    return strokes.map(stroke =>
+      stroke.map(() => [coordinateSpace / 2, coordinateSpace / 2])
+    )
+  }
 
   const width = maxX - minX || 1
   const height = maxY - minY || 1
