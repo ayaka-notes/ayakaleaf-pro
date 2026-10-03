@@ -24,6 +24,8 @@ html(
 		block css
 			each file in entrypointStyles(entrypoint)
 				link(rel='stylesheet' href=file)
+		if mainColorCssVariables
+			style(nonce=scriptNonce)!= mainColorCssVariables
 
 		block _headLinks
 
