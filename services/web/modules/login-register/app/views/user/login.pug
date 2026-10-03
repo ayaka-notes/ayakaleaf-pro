@@ -16,48 +16,49 @@ block content
 								else
 									h1.h3 #{translate("log_in")}
 							.login-register-hr-text-container(style='margin-top: 1px; padding: 5px 0;')
-							form(name='loginForm' data-ol-async-form action='/login' method='POST')
-								input(name='_csrf' type='hidden' value=csrfToken)
-								+formMessagesNewStyle
-								+customFormMessageNewStyle('invalid-password-retry-or-reset', 'danger')
-									| !{translate('email_or_password_wrong_try_again_or_reset', {}, [{ name: 'a', attrs: { href: '/user/password/reset', 'aria-describedby': 'resetPasswordDescription' } }])}
-									span.visually-hidden(id='resetPasswordDescription')
-										| #{translate('reset_password_link')}
-								+customFormMessageNewStyle('password-compromised')
-									| !{translate('password_compromised_try_again_or_use_known_device_or_reset', {}, [{name: 'a', attrs: {href: 'https://haveibeenpwned.com/passwords', rel: 'noopener noreferrer', target: '_blank'}}, {name: 'a', attrs: {href: '/user/password/reset', target: '_blank'}}])}.
-								.form-group
-									label(for='email') #{translate("email")}
-									input#email.form-control(
-										name='email'
-										type='email'
-										required
-										placeholder='email@example.com'
-										autofocus='true'
-										autocomplete='username'
-									)
-								.form-group
-									label(for='password') #{translate("password")}
-									input#password.form-control(
-										name='password'
-										type='password'
-										autocomplete='current-password'
-										required
-									)
-								.actions
-									button.btn-primary.btn(type='submit' data-ol-disabled-inflight)
-										span(data-ol-inflight='idle') #{translate("login")}
-										span(hidden data-ol-inflight='pending') #{translate("logging_in")}…
-									a.float-end(href='/user/password/reset') #{translate("forgot_your_password")}?
-								if login_support_text
-									hr
-									p.text-center !{login_support_text}
-							if (settings.ldap && settings.ldap.enable) || (settings.saml && settings.saml.enable) || (settings.oidc && settings.oidc.enable)
+							if !localLoginDisabled
+								form(name='loginForm' data-ol-async-form action='/login' method='POST')
+									input(name='_csrf' type='hidden' value=csrfToken)
+									+formMessagesNewStyle
+									+customFormMessageNewStyle('invalid-password-retry-or-reset', 'danger')
+										| !{translate('email_or_password_wrong_try_again_or_reset', {}, [{ name: 'a', attrs: { href: '/user/password/reset', 'aria-describedby': 'resetPasswordDescription' } }])}
+										span.visually-hidden(id='resetPasswordDescription')
+											| #{translate('reset_password_link')}
+									+customFormMessageNewStyle('password-compromised')
+										| !{translate('password_compromised_try_again_or_use_known_device_or_reset', {}, [{name: 'a', attrs: {href: 'https://haveibeenpwned.com/passwords', rel: 'noopener noreferrer', target: '_blank'}}, {name: 'a', attrs: {href: '/user/password/reset', target: '_blank'}}])}.
+									.form-group
+										label(for='email') #{translate("email")}
+										input#email.form-control(
+											name='email'
+											type='email'
+											required
+											placeholder='email@example.com'
+											autofocus='true'
+											autocomplete='username'
+										)
+									.form-group
+										label(for='password') #{translate("password")}
+										input#password.form-control(
+											name='password'
+											type='password'
+											autocomplete='current-password'
+											required
+										)
+									.actions
+										button.btn-primary.btn(type='submit' data-ol-disabled-inflight)
+											span(data-ol-inflight='idle') #{translate("login")}
+											span(hidden data-ol-inflight='pending') #{translate("logging_in")}…
+										a.float-end(href='/user/password/reset') #{translate("forgot_your_password")}?
+									if login_support_text
+										hr
+										p.text-center !{login_support_text}
+							if !localLoginDisabled && ((settings.ldap && settings.ldap.enable) || (settings.saml && settings.saml.enable) || (settings.oidc && settings.oidc.enable))
 								p.ciam-login-register-or-text-container
 									span.ciam-login-register-or-text #{translate("or")}
 							if settings.ldap && settings.ldap.enable
 								.actions(style='margin-top: 15px;')
 									a.button.btn-secondary.btn(
-									href='/ldap/login',
+										href='/ldap/login',
 										style="width: 100%;"
 										data-ol-disabled-inflight
 									)
@@ -66,7 +67,7 @@ block content
 							if settings.saml && settings.saml.enable
 								.actions(style='margin-top: 15px;')
 									a.button.btn-secondary.btn(
-									href='/saml/login',
+										href='/saml/login',
 										style="width: 100%;"
 										data-ol-disabled-inflight
 									)

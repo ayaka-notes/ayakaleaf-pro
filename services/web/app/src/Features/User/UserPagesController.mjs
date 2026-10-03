@@ -308,6 +308,7 @@ const UserPagesController = {
       title: Settings.nav?.login_support_title || 'login',
       login_support_title: Settings.nav?.login_support_title,
       login_support_text: Settings.nav?.login_support_text,
+      localLoginDisabled: Features.localLoginDisabled(),
       metadata,
     })
   },

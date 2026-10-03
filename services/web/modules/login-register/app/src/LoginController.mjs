@@ -1,5 +1,6 @@
 import AuthenticationController from "../../../../app/src/Features/Authentication/AuthenticationController.mjs"
 import Settings from "@overleaf/settings"
+import Features from '../../../../app/src/infrastructure/Features.mjs'
 import Path from 'path'
 
 export default {
@@ -22,6 +23,7 @@ export default {
       title: Settings.nav?.login_support_title || 'login',
       login_support_title: Settings.nav?.login_support_title,
       login_support_text: Settings.nav?.login_support_text,
+      localLoginDisabled: Features.localLoginDisabled(),
       metadata,
     })
   },
@@ -45,6 +47,7 @@ export default {
       title: Settings.nav?.login_support_title || 'login',
       login_support_title: Settings.nav?.login_support_title,
       login_support_text: Settings.nav?.login_support_text,
+      localLoginDisabled: Features.localLoginDisabled(),
       metadata,
     })
   }

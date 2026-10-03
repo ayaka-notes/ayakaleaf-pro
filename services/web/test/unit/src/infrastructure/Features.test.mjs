@@ -34,6 +34,14 @@ describe('Features', function () {
         expect(ctx.Features.externalAuthenticationSystemUsed()).to.be.true
       })
     })
+    describe('with oidc setting', function () {
+      beforeEach(function (ctx) {
+        ctx.settings.oidc = { enable: true }
+      })
+      it('should return true', function (ctx) {
+        expect(ctx.Features.externalAuthenticationSystemUsed()).to.be.true
+      })
+    })
     describe('with oauth setting', function () {
       beforeEach(function (ctx) {
         ctx.settings.overleaf = { oauth: true }
@@ -41,6 +49,25 @@ describe('Features', function () {
       it('should return true', function (ctx) {
         expect(ctx.Features.externalAuthenticationSystemUsed()).to.be.true
       })
+    })
+  })
+
+  describe('localLoginDisabled', function () {
+    it('should return false by default', function (ctx) {
+      expect(ctx.Features.localLoginDisabled()).to.be.false
+    })
+
+    it('should return false when disabled without external auth', function (ctx) {
+      ctx.settings.disableLocalLogin = true
+
+      expect(ctx.Features.localLoginDisabled()).to.be.false
+    })
+
+    it('should return true when disabled with external auth', function (ctx) {
+      ctx.settings.disableLocalLogin = true
+      ctx.settings.oidc = { enable: true }
+
+      expect(ctx.Features.localLoginDisabled()).to.be.true
     })
   })
 
