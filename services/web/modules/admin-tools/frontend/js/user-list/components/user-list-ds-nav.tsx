@@ -1,6 +1,6 @@
 import { useUserListContext } from '../context/user-list-context'
-import { useTranslation, Trans } from 'react-i18next'
-import React from 'react'
+import { useTranslation } from 'react-i18next'
+import type { ReactNode } from 'react'
 import CreateAccountButton from './create-account-button'
 import UserListTable from './table/user-list-table'
 import SearchForm from './search-form'
@@ -26,8 +26,8 @@ type UsersTabProps = {
   filter: Filter
   searchText: string
   setSearchText: (value: string) => void
-  selectedUsers: User[],
-  tableTopArea: React.ReactNode
+  selectedUsers: User[]
+  tableTopArea: ReactNode
 }
 
 export function UsersTab({
@@ -35,7 +35,7 @@ export function UsersTab({
   searchText,
   setSearchText,
   selectedUsers,
-  tableTopArea
+  tableTopArea,
 }: UsersTabProps) {
   const { t } = useTranslation()
   return (
@@ -85,54 +85,16 @@ export function UsersTab({
   )
 }
 
-export function LicenseUsageTab() {
-  const activeUsersCount = getMeta('ol-activeUsersCount')
-  const { t } = useTranslation()
-
-  return (
-    <div className="license-usage-tab">
-      <p></p>
-      <p>
-        <Trans
-          i18nKey="server_pro_license_entitlement_line_1"
-          values={{ appName: t('app_name') }}
-          components={[<strong />]}
-        />
-      </p>
-      <p>
-        <Trans
-          i18nKey="server_pro_license_entitlement_line_2"
-          values={{ count: activeUsersCount }}
-          components={[<strong />, <a href="https://www.overleaf.com/contact" />]}
-        />
-      </p>
-      <p>
-        <Trans i18nKey="server_pro_license_entitlement_line_3" />
-      </p>
-    </div>
-  )
-}
-
-
 export function UserListDsNav() {
   const navbarProps = getMeta('ol-navbar')
   const footerProps = getMeta('ol-footer')
-  const activeUsersCount = getMeta('ol-activeUsersCount')
 
-  const { t } = useTranslation()
-  const {
-    error,
-    searchText,
-    setSearchText,
-    selectedUsers,
-    filter,
-  } = useUserListContext()
+  const { error, searchText, setSearchText, selectedUsers, filter } =
+    useUserListContext()
 
   const tableTopArea = (
     <div className="pt-2 pb-3 d-md-none d-flex gap-2">
-      <CreateAccountButton
-        id="create-account-button-users-table"
-      />
+      <CreateAccountButton id="create-account-button-users-table" />
       <SearchForm
         inputValue={searchText}
         setInputValue={setSearchText}
@@ -141,8 +103,6 @@ export function UserListDsNav() {
       />
     </div>
   )
-
-  const [activeTab, setActiveTab] = React.useState('users')
 
   return (
     <div className="user-ds-nav-page website-redesign">
@@ -156,60 +116,20 @@ export function UserListDsNav() {
         <div className="user-ds-nav-content-and-messages">
           <div className="user-ds-nav-content">
             <div className="user-ds-nav-main">
-
               {error ? <DashApiError /> : ''}
               <main aria-labelledby="main-content">
-                <div className="card"
+                <div
+                  className="card"
                   style={{ backgroundColor: 'var(--bg-primary-themed)' }}
                 >
                   <div className="card-body">
-                    <div className="ol-tabs">
-                      <div className="nav-tabs-container">
-                        <ul className="nav nav-tabs align-left" role="tablist">
-                          <li className="nav-item" role="presentation">
-                            <a
-                              className={`nav-link ${activeTab === 'users' ? 'active' : ''}`}
-                              href="#users"
-                              role="tab"
-                              onClick={(e) => {
-                                e.preventDefault()
-                                setActiveTab('users')
-                              }}
-                            >
-                              {t('user_administration')}
-                            </a>
-                          </li>
-                          <li className="nav-item" role="presentation">
-                            <a
-                              className={`nav-link ${activeTab === 'license-usage' ? 'active' : ''}`}
-                              href="#license-usage"
-                              role="tab"
-                              onClick={(e) => {
-                                e.preventDefault()
-                                setActiveTab('license-usage')
-                              }}
-                            >
-                              {t('license')}
-                            </a>
-                          </li>
-                        </ul>
-
-                      </div>
-                      <div className="tab-content">
-                        <div className={`tab-pane ${activeTab === 'users' ? 'active' : ''}`} role="tabpanel" id="users">
-                          <UsersTab
-                            filter={filter}
-                            searchText={searchText}
-                            setSearchText={setSearchText}
-                            selectedUsers={selectedUsers}
-                            tableTopArea={tableTopArea}
-                          />
-                        </div>
-                        <div className={`tab-pane ${activeTab === 'license-usage' ? 'active' : ''}`} role="tabpanel" id="license-usage">
-                          <LicenseUsageTab />
-                        </div>
-                      </div>
-                    </div>
+                    <UsersTab
+                      filter={filter}
+                      searchText={searchText}
+                      setSearchText={setSearchText}
+                      selectedUsers={selectedUsers}
+                      tableTopArea={tableTopArea}
+                    />
                   </div>
                 </div>
               </main>
