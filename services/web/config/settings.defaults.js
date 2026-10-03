@@ -1161,7 +1161,12 @@ module.exports = {
     domainVerificationToken: [],
     v1ImportDataScreen: [],
     snapshotUtils: [],
-    visualEditorProviders: [],
+    visualEditorProviders: [
+      Path.resolve(
+        __dirname,
+        '../modules/bibtex-editor/frontend/js/bibtex-visual-editor-provider'
+      ),
+    ],
     usGovBanner: [],
     rollingBuildsUpdatedAlert: [],
     offlineModeToolbarButtons: [],
