@@ -43,5 +43,6 @@ export function untrashProjectForUser(projectId: string, userId: string) {
   return postJSON(`/admin/project/${projectId}/untrash`, { body: { userId } })
 }
 export function transferProjectOwnership(projectId: string, options: TransferOwnershipOptions) {
-  return postJSON(`/project/${projectId}/transfer-ownership`, { body: { ...options } })
+  // CE 6.3 validates this body with a strict schema that only accepts user_id
+  return postJSON(`/project/${projectId}/transfer-ownership`, { body: { user_id: options.user_id } })
 }

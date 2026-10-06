@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Usage: services/ai-mock/bin/down
+# Removes the mock container.
+
+docker rm --force e2e-ai-mock >/dev/null 2>&1 || true

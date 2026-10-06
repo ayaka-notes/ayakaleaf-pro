@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Usage: services/tpr-mock/bin/prepare
+#
+# Runs before the toolkit's bin/up. Writes the mock's certificate for
+# www.zotero.org, api.zotero.org and api.mendeley.com, puts its CA into
+# data/overleaf/certs/ where the suite's NODE_EXTRA_CA_CERTS points, and
+# gives Overleaf and the mock the same random OAuth clients.
+#
+# Expects TOOLKIT_DIR in the environment.
+
+set -euo pipefail
+
+services="$(cd "$(dirname "$0")/../.." && pwd)"
+state="$TOOLKIT_DIR/services/tpr-mock"
+
+"$services/lib/make-tls" "$state" www.zotero.org api.zotero.org api.mendeley.com
+mkdir -p "$TOOLKIT_DIR/data/overleaf/certs"
+cp "$state/ca.crt" "$TOOLKIT_DIR/data/overleaf/certs/tpr-mock-ca.pem"
+
+zotero_secret=$(openssl rand -hex 20)
+mendeley_secret=$(openssl rand -hex 20)
+cat >"$state/mock.env" <<ENV
+TPR_MOCK_ZOTERO_CLIENT_ID=e2e-zotero-client
+TPR_MOCK_ZOTERO_CLIENT_SECRET=$zotero_secret
+TPR_MOCK_MENDELEY_CLIENT_ID=e2e-mendeley-client
+TPR_MOCK_MENDELEY_CLIENT_SECRET=$mendeley_secret
+ENV
+
+"$services/../bin/apply-config" "$TOOLKIT_DIR/config/variables.env" <(cat <<ENV
+ZOTERO_CLIENT_ID=e2e-zotero-client
+ZOTERO_CLIENT_SECRET=$zotero_secret
+MENDELEY_CLIENT_ID=e2e-mendeley-client
+MENDELEY_CLIENT_SECRET=$mendeley_secret
+ENV
+)

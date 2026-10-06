@@ -10,9 +10,12 @@ export type ContextMenuItemSegmentation =
   | 'give-feedback'
   | 'delete'
   | 'jump-to-location-in-pdf'
+  | 'jump-to-definition'
   | 'suggest-edits'
   | 'back-to-editing'
   | 'comment'
+  | 'accept-changes'
+  | 'reject-changes'
 
 export type ContextMenuAnalyticsEvents = {
   'menu-expand': {

@@ -16,6 +16,11 @@ import passport from 'passport'
 import NotificationsBuilder from '../Notifications/NotificationsBuilder.mjs'
 import UrlHelper from '../Helpers/UrlHelper.mjs'
 import AsyncFormHelper from '../Helpers/AsyncFormHelper.mjs'
+import {
+  getRawReqInput,
+  parseReq,
+  z,
+} from '../../infrastructure/Validation.mjs'
 import _ from 'lodash'
 import UserAuditLogHandler from '../User/UserAuditLogHandler.mjs'
 import AnalyticsRegistrationSourceHelper from '../Analytics/AnalyticsRegistrationSourceHelper.mjs'
@@ -28,6 +33,12 @@ import EmailHelper from '../Helpers/EmailHelper.mjs'
 import SplitTestHandler from '../SplitTests/SplitTestHandler.mjs'
 
 const { hasAdminAccess } = AdminAuthorizationHelper
+
+// middleware schema is non-strict: it validates only the field this
+// middleware consumes; the route schema stays responsible for strictness
+const zipUrlQuerySchema = z.object({
+  query: z.object({ zipUrl: z.string().optional() }),
+})
 
 function send401WithChallenge(res) {
   res.setHeader('WWW-Authenticate', 'OverleafLogin')
@@ -109,7 +120,7 @@ const AuthenticationController = {
       analyticsId: user.analyticsId || user._id,
       alphaProgram: user.alphaProgram || undefined, // only store if set
       betaProgram: user.betaProgram || undefined, // only store if set
-      labsProgram: user.labsProgram || undefined, // only store if set
+      labsProgram: user.labsProgram, // always store, we could revert about 1 week after deploying this change.
     }
     if (user.isAdmin) {
       lightUser.isAdmin = true
@@ -534,9 +545,12 @@ const AuthenticationController = {
 
   setRedirectInSession(req, value) {
     if (value == null) {
+      // the full query string is re-encoded into the post-login redirect
+      // path verbatim, never read by name here (case 1: verbatim forwarding)
+      const { query } = getRawReqInput(req)
       value =
-        Object.keys(req.query).length > 0
-          ? `${req.path}?${querystring.stringify(req.query)}`
+        Object.keys(query).length > 0
+          ? `${req.path}?${querystring.stringify(query)}`
           : `${req.path}`
     }
     if (
@@ -550,8 +564,9 @@ const AuthenticationController = {
   },
 
   _redirectToLoginOrRegisterPage(req, res) {
+    const { query } = parseReq(req, zipUrlQuerySchema, { logOnly: true })
     if (
-      req.query.zipUrl != null ||
+      query.zipUrl != null ||
       req.session.sharedProjectData ||
       req.path === '/user/subscription/new'
     ) {
@@ -567,7 +582,9 @@ const AuthenticationController = {
       'user not logged in so redirecting to login page'
     )
     AuthenticationController.setRedirectInSession(req)
-    const url = `/login?${querystring.stringify(req.query)}`
+    // the full query string is re-encoded into the login redirect URL
+    // verbatim, never read by name here (case 1: verbatim forwarding)
+    const url = `/login?${querystring.stringify(getRawReqInput(req).query)}`
     res.redirect(url)
     Metrics.inc('security.login-redirect')
   },
@@ -588,7 +605,9 @@ const AuthenticationController = {
       'user not logged in so redirecting to register page'
     )
     AuthenticationController.setRedirectInSession(req)
-    const url = `/register?${querystring.stringify(req.query)}`
+    // the full query string is re-encoded into the register redirect URL
+    // verbatim, never read by name here (case 1: verbatim forwarding)
+    const url = `/register?${querystring.stringify(getRawReqInput(req).query)}`
     res.redirect(url)
     Metrics.inc('security.login-redirect')
   },
@@ -684,7 +703,7 @@ function _loginAsyncHandlers(req, user, anonymousAnalyticsId, isNewUser) {
   LoginRateLimiter.recordSuccessfulLogin(user.email, () => {})
   AuthenticationController._recordSuccessfulLogin(user._id, () => {})
   AuthenticationController.ipMatchCheck(req, user)
-  Analytics.recordEventForUserInBackground(user._id, 'user-logged-in', {
+  Analytics.recordEventForMongoUserInBackground(user, 'user-logged-in', {
     source: req.session.saml
       ? 'saml'
       : req.user_info?.auth_provider || 'email-password',

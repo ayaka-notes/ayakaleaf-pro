@@ -1,4 +1,4 @@
-import { vi, expect } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import mongodb from 'mongodb-legacy'
 
 const { ObjectId } = mongodb
@@ -51,9 +51,11 @@ describe('ProjectHelper', function () {
 
     ctx.SplitTestHandler = {
       promises: {
-        getAssignmentForUser: vi.fn().mockResolvedValue({ variant: 'default' }),
+        featureFlagEnabled: vi.fn().mockResolvedValue(false),
       },
     }
+    ctx.req = {}
+    ctx.res = {}
 
     vi.doMock('mongodb-legacy', () => ({
       default: { ObjectId },
@@ -131,6 +133,67 @@ describe('ProjectHelper', function () {
     })
   })
 
+  describe('isTrackChangesEnabledForUser', function () {
+    const userId = '588f3ddae8ebc1bac07c9fa4'
+
+    it('returns true for the legacy on-for-everyone format', function (ctx) {
+      expect(
+        ctx.ProjectHelper.isTrackChangesEnabledForUser(true, userId)
+      ).to.equal(true)
+    })
+
+    it('returns true when enabled for the user', function (ctx) {
+      expect(
+        ctx.ProjectHelper.isTrackChangesEnabledForUser(
+          { [userId]: true },
+          userId
+        )
+      ).to.equal(true)
+    })
+
+    it('supports ObjectId user ids', function (ctx) {
+      expect(
+        ctx.ProjectHelper.isTrackChangesEnabledForUser(
+          { [userId]: true },
+          new ObjectId(userId)
+        )
+      ).to.equal(true)
+    })
+
+    it('returns false when only enabled for another user', function (ctx) {
+      expect(
+        ctx.ProjectHelper.isTrackChangesEnabledForUser(
+          { '5c41deb2b4ca500153340809': true },
+          userId
+        )
+      ).to.equal(false)
+    })
+
+    it('returns false when only enabled for guests', function (ctx) {
+      expect(
+        ctx.ProjectHelper.isTrackChangesEnabledForUser(
+          { __guests__: true },
+          userId
+        )
+      ).to.equal(false)
+    })
+
+    it('returns false when disabled', function (ctx) {
+      expect(
+        ctx.ProjectHelper.isTrackChangesEnabledForUser(false, userId)
+      ).to.equal(false)
+      expect(
+        ctx.ProjectHelper.isTrackChangesEnabledForUser(undefined, userId)
+      ).to.equal(false)
+    })
+
+    it('returns false without a user id', function (ctx) {
+      expect(
+        ctx.ProjectHelper.isTrackChangesEnabledForUser({ [userId]: true }, null)
+      ).to.equal(false)
+    })
+  })
+
   describe('compilerFromV1Engine', function () {
     it('returns the correct engine for latex_dvipdf', function (ctx) {
       expect(ctx.ProjectHelper.compilerFromV1Engine('latex_dvipdf')).to.equal(
@@ -159,7 +222,11 @@ describe('ProjectHelper', function () {
 
   describe('getAllowedImagesForUser', function () {
     it('marks alpha only images as not allowed when the user is anonymous', async function (ctx) {
-      const images = await ctx.ProjectHelper.getAllowedImagesForUser(null)
+      const images = await ctx.ProjectHelper.getAllowedImagesForUser(
+        ctx.req,
+        ctx.res,
+        null
+      )
       const imageNames = _mapToAllowed(images)
       expect(imageNames).to.deep.equal([
         { imageName: 'texlive-full:2018.1', allowed: true },
@@ -170,7 +237,11 @@ describe('ProjectHelper', function () {
     })
 
     it('marks monthly labs images as not allowed when the user is anonymous', async function (ctx) {
-      const images = await ctx.ProjectHelper.getAllowedImagesForUser(null)
+      const images = await ctx.ProjectHelper.getAllowedImagesForUser(
+        ctx.req,
+        ctx.res,
+        null
+      )
       const imageNames = _mapToAllowed(images)
       expect(imageNames).to.deep.equal([
         { imageName: 'texlive-full:2018.1', allowed: true },
@@ -181,10 +252,12 @@ describe('ProjectHelper', function () {
     })
 
     it('marks monthly labs images as allowed when the user is enrolled', async function (ctx) {
-      ctx.SplitTestHandler.promises.getAssignmentForUser.mockResolvedValue({
-        variant: 'enabled',
-      })
-      const images = await ctx.ProjectHelper.getAllowedImagesForUser(ctx.user)
+      ctx.SplitTestHandler.promises.featureFlagEnabled.mockResolvedValue(true)
+      const images = await ctx.ProjectHelper.getAllowedImagesForUser(
+        ctx.req,
+        ctx.res,
+        ctx.user
+      )
       const imageNames = _mapToAllowed(images)
       expect(imageNames).to.deep.equal([
         { imageName: 'texlive-full:2018.1', allowed: true },
@@ -195,7 +268,11 @@ describe('ProjectHelper', function () {
     })
 
     it('marks alpha only images as not allowed when when the user is not admin', async function (ctx) {
-      const images = await ctx.ProjectHelper.getAllowedImagesForUser(ctx.user)
+      const images = await ctx.ProjectHelper.getAllowedImagesForUser(
+        ctx.req,
+        ctx.res,
+        ctx.user
+      )
       const imageNames = _mapToAllowed(images)
       expect(imageNames).to.deep.equal([
         { imageName: 'texlive-full:2018.1', allowed: true },
@@ -207,6 +284,8 @@ describe('ProjectHelper', function () {
 
     it('returns all images when the user is admin', async function (ctx) {
       const images = await ctx.ProjectHelper.getAllowedImagesForUser(
+        ctx.req,
+        ctx.res,
         ctx.adminUser
       )
       const imageNames = _mapToAllowed(images)

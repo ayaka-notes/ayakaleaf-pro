@@ -29,17 +29,17 @@ env:
 
 jobs:
   build-image:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       # If the event is a pull request, checkout the head sha of the PR
       - name: "Checkout Current Repository"
-        uses: actions/checkout@main
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
       - name: "Login to GitHub Container Registry"
-        uses: docker/login-action@v3.0.0
+        uses: docker/login-action@v4
         with:
           registry: ${{env.DOCKER_REGISTRY}}
           username: ${{github.actor}}
@@ -48,7 +48,7 @@ jobs:
       # --- We need to sync yarn.lock/i18 to ensure consistency ---
       - name: "Sync yarn.lock And Prepare .dockerignore"
         run: |
-          docker run --rm -v "$(pwd)":/workspace -w /workspace node:24.14.1 sh -c "corepack enable && yarn install --mode=update-lockfile"
+          docker run --rm -v "$(pwd)":/workspace -w /workspace node:24.18.1 sh -c "corepack enable && yarn install --mode=update-lockfile"
           # Apply the highest-versioned locale patch over the base locales before extracting
           patch_dir=$(printf '%s\n' services/web/locales/locales_patches/v*/ | sort -V | tail -n1)
           if [ -d "$patch_dir" ]; then
@@ -64,7 +64,7 @@ jobs:
       # --- Set up Docker ---
       # See: https://docs.docker.com/build/ci/github-actions/multi-platform/
       - name: Set up Docker (enable containerd image store)
-        uses: docker/setup-docker-action@v4
+        uses: docker/setup-docker-action@v5
         with:
           daemon-config: |
             {
@@ -73,13 +73,13 @@ jobs:
               }
             }
       - name: Set up Buildx (docker driver)
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
         with:
           driver: docker
 
       # --- Build Base Image ---
       - name: "Build base image (hash cache)"
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./
           file: ./server-ce/Dockerfile-base
@@ -100,7 +100,7 @@ jobs:
         id: vars
         run: echo "MONOREPO_REVISION=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
       - name: "Build Server image"
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./
           file: ./server-ce/Dockerfile
@@ -112,6 +112,10 @@ jobs:
           tags: |
             sharelatex/sharelatex:latest
           annotations: |
+            org.opencontainers.image.title=overleaf-pro-ops
+            org.opencontainers.image.description=Overleaf Pro operations image, built from every push to server-pro, maintained by ayaka-notes. For testing only.
+            org.opencontainers.image.source=https://github.com/ayaka-notes/ayakaleaf-pro
+            org.opencontainers.image.version=${{ steps.vars.outputs.MONOREPO_REVISION }}
             space.ayaka.overleaf-pro.ops.revision=${{ steps.vars.outputs.MONOREPO_REVISION }}
           # We don't want -${{ github.ref_name }} limit, just more cache hit
           no-cache: ${{ inputs.no_cache || false }}
@@ -138,11 +142,10 @@ jobs:
 
       # --- Retention Policy: Delete old images ---
       - name: Delete old images
-        uses: snok/container-retention-policy@v2
+        uses: snok/container-retention-policy@v3.1.0
         with:
           image-names: overleaf-pro/ops*
-          cut-off: A week ago UTC+8
-          account-type: org
-          org-name: ayaka-notes
-          untagged-only: false
+          cut-off: 7d
+          account: ayaka-notes
+          tag-selection: both
           token: ${{ secrets.ORGTOKEN }}

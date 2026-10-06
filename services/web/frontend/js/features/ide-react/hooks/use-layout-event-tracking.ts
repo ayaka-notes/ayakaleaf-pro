@@ -3,7 +3,7 @@ import { useEffect } from 'react'
 import { sendMBOnce } from '@/infrastructure/event-tracking'
 
 export function useLayoutEventTracking() {
-  const { view, leftMenuShown, chatIsOpen } = useLayoutContext()
+  const { view, settingsShown, chatIsOpen } = useLayoutContext()
 
   useEffect(() => {
     if (view && view !== 'editor' && view !== 'pdf') {
@@ -12,10 +12,10 @@ export function useLayoutEventTracking() {
   }, [view])
 
   useEffect(() => {
-    if (leftMenuShown) {
-      sendMBOnce(`ide-open-left-menu-once`)
+    if (settingsShown) {
+      sendMBOnce(`ide-open-settings-once`)
     }
-  }, [leftMenuShown])
+  }, [settingsShown])
 
   useEffect(() => {
     if (chatIsOpen) {

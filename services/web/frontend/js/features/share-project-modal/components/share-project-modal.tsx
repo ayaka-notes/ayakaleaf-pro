@@ -7,7 +7,10 @@ import React, {
 } from 'react'
 import ShareProjectModalContent from './share-project-modal-content'
 import { useProjectContext } from '@/shared/context/project-context'
-import { useSplitTestContext } from '@/shared/context/split-test-context'
+import {
+  useFeatureFlag,
+  useSplitTestContext,
+} from '@/shared/context/split-test-context'
 import { sendMB } from '@/infrastructure/event-tracking'
 import { useEditorContext } from '@/shared/context/editor-context'
 import customLocalStorage from '@/infrastructure/local-storage'
@@ -93,6 +96,8 @@ const ShareProjectModal = React.memo(function ShareProjectModal({
   const { publicAccessLevel } = project || {}
 
   const { splitTestVariants } = useSplitTestContext()
+  const isSharingUpdatesEnabled = useFeatureFlag('sharing-updates')
+  const isNewLinkEnabled = useFeatureFlag('sharing-updates-new-link')
 
   // show the new share modal if project owner
   // is over collaborator limit or has pending editors (once every 24 hours)
@@ -147,6 +152,23 @@ const ShareProjectModal = React.memo(function ShareProjectModal({
   }, [show])
 
   const handleShow = useCallback(async () => {
+    if (!isSharingUpdatesEnabled || !isProjectOwner) {
+      return
+    }
+
+    // When the new reusable-link feature is off, derive access purely from the
+    // project's publicAccessLevel (legacy token-based sharing) and avoid the
+    // reusable sharing-link endpoint, which is gated behind the same flag.
+    if (!isNewLinkEnabled) {
+      setSharingLinkData(null)
+      setProjectAccess(
+        publicAccessLevel === 'tokenBased'
+          ? 'legacyLinkSharing'
+          : 'onlyInvitedPeople'
+      )
+      return
+    }
+
     if (publicAccessLevel === 'tokenBased') {
       setSharingLinkData(null)
       setProjectAccess('legacyLinkSharing')
@@ -179,7 +201,13 @@ const ShareProjectModal = React.memo(function ShareProjectModal({
           'generic_something_went_wrong'
       )
     }
-  }, [publicAccessLevel, projectId])
+  }, [
+    publicAccessLevel,
+    projectId,
+    isSharingUpdatesEnabled,
+    isNewLinkEnabled,
+    isProjectOwner,
+  ])
 
   // close the modal if not in flight
   const cancel = useCallback(() => {
@@ -195,21 +223,18 @@ const ShareProjectModal = React.memo(function ShareProjectModal({
     setSuccessActionMessage(undefined)
     setInFlight(true)
 
-    const promise = request()
-
-    promise.catch((error: { data?: Record<string, string> }) => {
-      setError(
-        error.data?.errorReason ||
-          error.data?.error ||
-          'generic_something_went_wrong'
-      )
-    })
-
-    promise.finally(() => {
-      setInFlight(false)
-    })
-
-    return promise
+    return request()
+      .catch((error: { data?: Record<string, string> }) => {
+        setError(
+          error.data?.errorReason ||
+            error.data?.error ||
+            'generic_something_went_wrong'
+        )
+        throw error
+      })
+      .finally(() => {
+        setInFlight(false)
+      })
   }, [])
 
   if (!project) {

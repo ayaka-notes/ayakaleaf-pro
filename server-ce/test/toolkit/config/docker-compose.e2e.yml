@@ -1,0 +1,6 @@
+services:
+  sharelatex:
+    environment:
+      OVERLEAF_CONFIG: /etc/overleaf/settings.e2e.cjs
+    volumes:
+      - ../config/settings.cjs:/etc/overleaf/settings.e2e.cjs:ro

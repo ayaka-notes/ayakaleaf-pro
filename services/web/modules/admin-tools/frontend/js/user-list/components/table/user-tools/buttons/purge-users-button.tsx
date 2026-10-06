@@ -5,7 +5,7 @@ import useIsMounted from '@/shared/hooks/use-is-mounted'
 import { useUserListContext } from '../../../../context/user-list-context'
 import { User } from '../../../../../../../types/user/api'
 import PurgeUserModal from '../../../modals/purge-user-modal'
-import { performPurgeUser, postActions } from '../../../../util/user-actions'
+import { performPurgeUser, type PostActions } from '../../../../util/user-actions'
 
 function PurgeUsersButton() {
   const { t } = useTranslation()

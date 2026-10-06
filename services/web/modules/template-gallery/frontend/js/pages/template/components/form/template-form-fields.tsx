@@ -5,7 +5,7 @@ import SettingsTemplateCategory from '../settings/settings-template-category'
 import SettingsLicense from '../settings/settings-license'
 import SettingsLanguage from '../settings/settings-language'
 import { useTranslation } from 'react-i18next'
-import type { Template } from '../../types/template'
+import type { Template } from '../../../types/template'
 
 interface TemplateFormFieldsProps {
   template: Partial<Template>

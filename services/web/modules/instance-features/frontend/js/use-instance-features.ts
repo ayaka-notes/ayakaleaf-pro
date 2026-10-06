@@ -2,17 +2,24 @@ import { useEffect, useState } from 'react'
 import { getJSON } from '@/infrastructure/fetch-json'
 
 export type InstanceFeatures = {
+  ai: boolean
   githubSync: boolean
   zotero: boolean
+  mendeley: boolean
 }
 
-const DISABLED: InstanceFeatures = { githubSync: false, zotero: false }
+const DISABLED: InstanceFeatures = {
+  ai: false,
+  githubSync: false,
+  zotero: false,
+  mendeley: false,
+}
 
 // The frontend is compiled once, so it can't read the operator's env vars.
 // Instead it asks the server (GET /system/features) which instance-level
-// features are enabled, and statically bundled UI (github-sync, zotero) hides
-// itself when its feature is off. Fetched at most once per page load and shared
-// across every caller.
+// features are enabled, and statically bundled UI (github-sync, zotero,
+// mendeley) hides itself when its feature is off. Fetched at most once per page
+// load and shared across every caller.
 let cache: InstanceFeatures | null = null
 let inflight: Promise<InstanceFeatures> | null = null
 
@@ -24,8 +31,10 @@ function loadInstanceFeatures(): Promise<InstanceFeatures> {
     inflight = getJSON('/system/features')
       .then((data: Partial<InstanceFeatures>) => {
         cache = {
+          ai: Boolean(data?.ai),
           githubSync: Boolean(data?.githubSync),
           zotero: Boolean(data?.zotero),
+          mendeley: Boolean(data?.mendeley),
         }
         return cache
       })

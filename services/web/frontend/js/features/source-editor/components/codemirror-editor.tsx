@@ -13,6 +13,9 @@ import { ReviewPanelProviders } from '@/features/review-panel/context/review-pan
 import { ReviewPanelRoot } from '@/features/review-panel/components/review-panel-root'
 import ReviewPanelTabsHeaderPortal from '@/features/review-panel/components/review-panel-tabs-header-portal'
 import ReviewTooltipMenu from '@/features/review-panel/components/review-tooltip-menu'
+import DeepLink from '@/features/review-panel/components/deep-link'
+import EditorFloatingMenu from '@/features/editor-floating-menu/editor-floating-menu'
+import AddCommentCommand from '@/features/editor-floating-menu/components/add-comment-command'
 import {
   CodeMirrorStateContext,
   CodeMirrorViewContext,
@@ -73,12 +76,10 @@ function CodeMirrorEditor() {
   return (
     <CodeMirrorStateContext.Provider value={state}>
       <CodeMirrorViewContext.Provider value={viewRef.current}>
-        <CodeMirrorEditorComponents hidden={VisualEditor != null} />
-        {VisualEditor && (
-          <Suspense fallback={null}>
-            <VisualEditor />
-          </Suspense>
-        )}
+        <CodeMirrorEditorComponents
+          hidden={VisualEditor != null}
+          VisualEditor={VisualEditor}
+        />
       </CodeMirrorViewContext.Provider>
     </CodeMirrorStateContext.Provider>
   )
@@ -86,13 +87,18 @@ function CodeMirrorEditor() {
 
 type CodeMirrorEditorComponentsProps = {
   hidden: boolean
+  VisualEditor: ElementType | null
 }
 
 function CodeMirrorEditorComponents({
   hidden = false,
+  VisualEditor,
 }: CodeMirrorEditorComponentsProps) {
   useToolbarMenuBarEditorCommands()
   const { features } = useProjectContext()
+  const writefullToolbarMigrationEnabled = useFeatureFlag(
+    'writefull-toolbar-migration'
+  )
   return (
     <ReviewPanelProviders>
       <CodemirrorOutline />
@@ -104,7 +110,16 @@ function CodeMirrorEditorComponents({
 
       <MathPreviewTooltip />
       <EditorContextMenu />
-      {features.trackChangesVisible && <ReviewTooltipMenu />}
+      <DeepLink />
+      {features.trackChangesVisible &&
+        (writefullToolbarMigrationEnabled ? (
+          <>
+            <AddCommentCommand />
+            <EditorFloatingMenu />
+          </>
+        ) : (
+          <ReviewTooltipMenu />
+        ))}
       {features.trackChangesVisible && <ReviewPanelTabsHeaderPortal />}
       {features.trackChangesVisible && <ReviewPanelRoot />}
       {features.trackChangesVisible && <UpgradeTrackChangesModal />}
@@ -113,6 +128,11 @@ function CodeMirrorEditorComponents({
         ({ import: { default: Component }, path }) => (
           <Component key={path} />
         )
+      )}
+      {VisualEditor && (
+        <Suspense fallback={null}>
+          <VisualEditor />
+        </Suspense>
       )}
     </ReviewPanelProviders>
   )

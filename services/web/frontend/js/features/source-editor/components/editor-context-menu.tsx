@@ -2,29 +2,26 @@ import { FC, Fragment, memo, useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom'
 import { getTooltip } from '@codemirror/view'
 import {
-  Dropdown,
-  DropdownMenu,
-  DropdownItem,
-  DropdownDivider,
-} from '@/shared/components/dropdown/dropdown-menu'
+  OLDropdown,
+  OLDropdownMenu,
+  OLDropdownItem,
+  OLDropdownDivider,
+} from '@/shared/components/ol/ol-dropdown-menu'
 import {
   useCodeMirrorStateContext,
   useCodeMirrorViewContext,
 } from './codemirror-context'
 import { contextMenuStateField } from '../extensions/context-menu'
-import { useFeatureFlag } from '@/shared/context/split-test-context'
 import { useContextMenuItems } from '../hooks/use-context-menu-items'
 import DropdownListItem from '@/shared/components/dropdown/dropdown-list-item'
-import { EditorContextMenuFeedback } from './editor-context-menu-feedback'
 import { sendContextMenuEvent } from '../utils/context-menu-analytics'
 
 const EditorContextMenu: FC = () => {
   const state = useCodeMirrorStateContext()
   const view = useCodeMirrorViewContext()
-  const editorContextMenuEnabled = useFeatureFlag('editor-context-menu')
 
   const menuState = state.field(contextMenuStateField, false)
-  if (!editorContextMenuEnabled || !menuState?.tooltip) {
+  if (!menuState?.tooltip) {
     return null
   }
 
@@ -48,44 +45,45 @@ const EditorContextMenuContent: FC = memo(function EditorContextMenuContent() {
   }, [])
 
   return (
-    <Dropdown show onToggle={onToggle}>
-      <DropdownMenu
-        ref={menuRef}
-        show
-        tabIndex={0}
-        className="dropdown-menu-unpositioned"
-        onKeyDown={event => {
-          switch (event.code) {
-            case 'Escape':
-            case 'Tab':
-              event.preventDefault()
-              closeMenu()
-              break
-          }
-        }}
-      >
-        {menuItems.map((menuItem, index) => (
-          <Fragment key={index}>
-            {menuItem.separatorAbove && <DropdownDivider />}
-            <DropdownListItem>
-              <DropdownItem
-                as="button"
-                onClick={() => menuItem.handler()}
-                disabled={menuItem.disabled}
-                trailingIcon={
-                  menuItem.shortcut ? (
-                    <span>{menuItem.shortcut}</span>
-                  ) : undefined
-                }
-              >
-                {menuItem.label}
-              </DropdownItem>
-            </DropdownListItem>
-          </Fragment>
-        ))}
-        <EditorContextMenuFeedback />
-      </DropdownMenu>
-    </Dropdown>
+    <OLDropdown show onToggle={onToggle}>
+      <div onContextMenu={event => event.preventDefault()}>
+        <OLDropdownMenu
+          ref={menuRef}
+          show
+          tabIndex={0}
+          className="dropdown-menu-unpositioned"
+          onKeyDown={event => {
+            switch (event.key) {
+              case 'Escape':
+              case 'Tab':
+                event.preventDefault()
+                closeMenu()
+                break
+            }
+          }}
+        >
+          {menuItems.map((menuItem, index) => (
+            <Fragment key={index}>
+              {menuItem.separatorAbove && <OLDropdownDivider />}
+              <DropdownListItem>
+                <OLDropdownItem
+                  as="button"
+                  onClick={() => menuItem.handler()}
+                  disabled={menuItem.disabled}
+                  trailingIcon={
+                    menuItem.shortcut ? (
+                      <span>{menuItem.shortcut}</span>
+                    ) : undefined
+                  }
+                >
+                  {menuItem.label}
+                </OLDropdownItem>
+              </DropdownListItem>
+            </Fragment>
+          ))}
+        </OLDropdownMenu>
+      </div>
+    </OLDropdown>
   )
 })
 

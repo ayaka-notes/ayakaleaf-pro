@@ -1,10 +1,11 @@
-import { beforeEach, describe, it, vi, expect } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import sinon from 'sinon'
 import tk from 'timekeeper'
 import MockRequest from '../helpers/MockRequest.mjs'
 import MockResponse from '../helpers/MockResponse.mjs'
 import mongodb from 'mongodb-legacy'
 import AuthenticationErrors from '../../../../app/src/Features/Authentication/AuthenticationErrors.mjs'
+import { setReqValidationModeForTests } from '@overleaf/validation-tools'
 const modulePath =
   '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
 
@@ -144,7 +145,7 @@ describe('AuthenticationController', function () {
       '../../../../app/src/Features/Analytics/AnalyticsManager',
       () => ({
         default: (ctx.AnalyticsManager = {
-          recordEventForUserInBackground: sinon.stub(),
+          recordEventForMongoUserInBackground: sinon.stub(),
           identifyUser: sinon.stub(),
           getIdsFromSession: sinon.stub().returns({ userId: ctx.user._id }),
         }),
@@ -1097,6 +1098,24 @@ describe('AuthenticationController', function () {
           .should.equal(false)
       })
     })
+
+    describe('request validation', function () {
+      beforeEach(function () {
+        setReqValidationModeForTests('enforce')
+      })
+
+      afterEach(function () {
+        setReqValidationModeForTests(null)
+      })
+
+      it('rejects a non-string zipUrl query param', function (ctx) {
+        ctx.req.query.zipUrl = ['a', 'b']
+        ctx.SessionManager.isUserLoggedIn = sinon.stub().returns(false)
+        expect(() => ctx.middleware(ctx.req, ctx.res, ctx.next)).toThrowError(
+          expect.objectContaining({ name: 'InvalidRequestError' })
+        )
+      })
+    })
   })
 
   describe('_redirectToRegisterPage', function () {
@@ -1646,8 +1665,8 @@ describe('AuthenticationController', function () {
 
       it('should track the login event', function (ctx) {
         sinon.assert.calledWith(
-          ctx.AnalyticsManager.recordEventForUserInBackground,
-          ctx.user._id,
+          ctx.AnalyticsManager.recordEventForMongoUserInBackground,
+          ctx.user,
           'user-logged-in'
         )
       })

@@ -1,4 +1,4 @@
-import { GetUsersResponseBody, Sort } from '../../../../types/user/api'
+import { GetUsersResponseBody, Sort, User } from '../../../../types/user/api'
 import { deleteJSON, getJSON, postJSON } from '@/infrastructure/fetch-json'
 
 export function getUsers(sortBy: Sort): Promise<GetUsersResponseBody> {
@@ -33,6 +33,16 @@ export function purgeUser(userId: string) {
 
 export function getAdditionalUserInfo(userId: string) {
   return getJSON(`/admin/user/${userId}/info`)
+}
+
+export type AiUsage = { used: number; limit: number | null }
+
+export function getAiUsage(userId: string): Promise<AiUsage> {
+  return getJSON(`/admin/user/${userId}/ai-usage`)
+}
+
+export function resetAiUsage(userId: string): Promise<AiUsage> {
+  return postJSON(`/admin/user/${userId}/ai-usage/reset`)
 }
 
 export function sendRegEmail(userId: string) {

@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Usage: services/ai-mock/bin/prepare
+#
+# Runs before the toolkit's bin/up. Writes the mock's certificate for
+# api.openai.com, api.tavily.com and docs.overleaf.com, puts its CA into
+# data/overleaf/certs/ where the suite's NODE_EXTRA_CA_CERTS points, and
+# gives Overleaf and the mock the same random API keys.
+#
+# Expects TOOLKIT_DIR in the environment.
+
+set -euo pipefail
+
+services="$(cd "$(dirname "$0")/../.." && pwd)"
+state="$TOOLKIT_DIR/services/ai-mock"
+
+"$services/lib/make-tls" "$state" api.openai.com api.tavily.com docs.overleaf.com
+mkdir -p "$TOOLKIT_DIR/data/overleaf/certs"
+cp "$state/ca.crt" "$TOOLKIT_DIR/data/overleaf/certs/ai-mock-ca.pem"
+
+api_key=$(openssl rand -hex 20)
+tavily_key=$(openssl rand -hex 20)
+cat >"$state/mock.env" <<ENV
+AI_MOCK_API_KEY=$api_key
+AI_MOCK_TAVILY_KEY=$tavily_key
+ENV
+
+"$services/../bin/apply-config" "$TOOLKIT_DIR/config/variables.env" <(cat <<ENV
+AI_API_KEY=$api_key
+TAVILY_API_KEY=$tavily_key
+ENV
+)

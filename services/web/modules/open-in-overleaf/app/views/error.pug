@@ -1,0 +1,14 @@
+extends ../../../../app/views/layout-website-redesign
+
+block vars
+	- isWebsiteRedesign = true
+
+block content
+	main#main-content.content.content-alt(role='main')
+		.container
+			.row
+				.col-md-8.offset-md-2.text-center
+					h1 Open in Overleaf
+					p.lead= message
+					p
+						a.btn.btn-primary(href='/devs') View the Overleaf API docs

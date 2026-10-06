@@ -14,10 +14,8 @@ import {
   useCodeMirrorStateContext,
   useCodeMirrorViewContext,
 } from '@/features/source-editor/components/codemirror-context'
-import {
-  buildAddNewCommentRangeEffect,
-  reviewTooltipStateField,
-} from '@/features/source-editor/extensions/review-tooltip'
+import { reviewTooltipField } from '@/features/source-editor/extensions/review-tooltip'
+import { buildAddNewCommentRangeEffect } from '@/features/source-editor/extensions/add-comment'
 import { selectHighlightedOrNearestToken } from '@/features/source-editor/utils/select-highlighted-or-nearest-token'
 import { EditorSelection } from '@codemirror/state'
 import { EditorView, getTooltip } from '@codemirror/view'
@@ -44,6 +42,7 @@ const EDIT_MODE_SWITCH_WIDGET_HEIGHT = 40
 const CM_LINE_RIGHT_PADDING = 8
 const TOOLTIP_SHOW_DELAY = 120
 
+// TODO remove when `writefull-toolbar-migration` fully rolled out
 const ReviewTooltipMenu: FC = () => {
   const state = useCodeMirrorStateContext()
   const view = useCodeMirrorViewContext()
@@ -51,7 +50,7 @@ const ReviewTooltipMenu: FC = () => {
   const [show, setShow] = useState(true)
   const { setView } = useReviewPanelViewActionsContext()
   const { openReviewPanel } = useReviewPanelLayout()
-  const tooltipState = state.field(reviewTooltipStateField, false)?.tooltip
+  const tooltipState = state.field(reviewTooltipField, false)
   const previousTooltipState = usePreviousValue(tooltipState)
 
   useEffect(() => {
@@ -137,6 +136,7 @@ const ReviewTooltipMenuContent = memo<{ onAddComment: () => void }>(
     const view = useCodeMirrorViewContext()
     const state = useCodeMirrorStateContext()
     const { reviewPanelOpen } = useLayoutContext()
+    const permissions = usePermissionsContext()
     const ranges = useRangesContext()
     const { acceptChanges, rejectChanges } = useRangesActionsContext()
     const { showGenericConfirmModal } = useModalsContext()
@@ -207,7 +207,8 @@ const ReviewTooltipMenuContent = memo<{ onAddComment: () => void }>(
       changesInSelection,
     ])
 
-    const showChangesButtons = changesInSelection.length > 0
+    const showChangesButtons =
+      permissions.write && changesInSelection.length > 0
 
     useEffect(() => {
       view.requestMeasure({

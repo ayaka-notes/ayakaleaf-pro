@@ -9,13 +9,13 @@ export default {
     webRouter.post(
       '/project/:project_id/track_changes',
       AuthorizationMiddleware.blockRestrictedUserFromProject,
-      AuthorizationMiddleware.ensureUserCanReadProject,
+      AuthorizationMiddleware.ensureUserCanWriteProjectContent,
       TrackChangesController.trackChanges
     )
     webRouter.post(
       '/project/:project_id/doc/:doc_id/changes/accept',
       AuthorizationMiddleware.blockRestrictedUserFromProject,
-      AuthorizationMiddleware.ensureUserCanReadProject,
+      AuthorizationMiddleware.ensureUserCanWriteProjectContent,
       TrackChangesController.acceptChanges
     )
     webRouter.get(
@@ -39,37 +39,37 @@ export default {
     webRouter.post(
       '/project/:project_id/thread/:thread_id/messages',
       AuthorizationMiddleware.blockRestrictedUserFromProject,
-      AuthorizationMiddleware.ensureUserCanReadProject,
+      AuthorizationMiddleware.ensureUserCanWriteOrReviewProjectContent,
       TrackChangesController.sendComment
     )
     webRouter.post(
       '/project/:project_id/thread/:thread_id/messages/:message_id/edit',
       AuthorizationMiddleware.blockRestrictedUserFromProject,
-      AuthorizationMiddleware.ensureUserCanReadProject,
+      AuthorizationMiddleware.ensureUserCanWriteOrReviewProjectContent,
       TrackChangesController.editMessage
     )
     webRouter.delete(
       '/project/:project_id/thread/:thread_id/messages/:message_id',
       AuthorizationMiddleware.blockRestrictedUserFromProject,
-      AuthorizationMiddleware.ensureUserCanReadProject,
+      AuthorizationMiddleware.ensureUserCanWriteProjectContent,
       TrackChangesController.deleteMessage
     )
     webRouter.post(
       '/project/:project_id/doc/:doc_id/thread/:thread_id/resolve',
       AuthorizationMiddleware.blockRestrictedUserFromProject,
-      AuthorizationMiddleware.ensureUserCanReadProject,
+      AuthorizationMiddleware.ensureUserCanDeleteOrResolveThread,
       TrackChangesController.resolveThread
     )
     webRouter.post(
       '/project/:project_id/doc/:doc_id/thread/:thread_id/reopen',
       AuthorizationMiddleware.blockRestrictedUserFromProject,
-      AuthorizationMiddleware.ensureUserCanReadProject,
+      AuthorizationMiddleware.ensureUserCanDeleteOrResolveThread,
       TrackChangesController.reopenThread
     )
     webRouter.delete(
       '/project/:project_id/doc/:doc_id/thread/:thread_id',
       AuthorizationMiddleware.blockRestrictedUserFromProject,
-      AuthorizationMiddleware.ensureUserCanReadProject,
+      AuthorizationMiddleware.ensureUserCanDeleteOrResolveThread,
       TrackChangesController.deleteThread
     )
   }

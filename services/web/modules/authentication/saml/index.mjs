@@ -1,3 +1,4 @@
+import { rememberExternalAuth } from '../logout.mjs'
 let samlModule = {}
 if (process.env.EXTERNAL_AUTH?.includes('saml')) {
   const { default: SAMLModuleManager } = await import('./app/src/SAMLModuleManager.mjs')
@@ -8,6 +9,7 @@ if (process.env.EXTERNAL_AUTH?.includes('saml')) {
   samlModule = {
     name: 'saml-authentication',
     hooks: {
+      preFinishLogin: rememberExternalAuth,
       passportSetup: SAMLModuleManager.passportSetup,
       getGroupPolicyForUser: SAMLModuleManager.getGroupPolicyForUser,
     },

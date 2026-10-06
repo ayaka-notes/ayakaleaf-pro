@@ -3,10 +3,13 @@ import { expect } from 'chai'
 import { fetchNothing, fetchJsonWithResponse } from '@overleaf/fetch-utils'
 import assert from 'node:assert'
 import mongodb from 'mongodb-legacy'
+import RedisWrapper from '@overleaf/redis-wrapper'
 import * as ProjectHistoryClient from './helpers/ProjectHistoryClient.js'
 import * as ProjectHistoryApp from './helpers/ProjectHistoryApp.js'
 import Settings from '@overleaf/settings'
 const { ObjectId } = mongodb
+const LockKey = Settings.redis.lock.key_schema
+const lockRClient = RedisWrapper.createClient(Settings.redis.lock)
 
 const MockHistoryStore = () => nock('http://127.0.0.1:3100')
 const MockWeb = () => nock('http://127.0.0.1:3000')
@@ -50,6 +53,20 @@ describe('Flushing old queues', function () {
 
   afterEach(function () {
     nock.cleanAll()
+  })
+
+  describe('flushing a project with the background flag', function () {
+    // document-updater's background flush (HistoryManager.js
+    // flushProjectChangesAsync) sends ?background=true on the plain
+    // project flush route; project-history does not read the flag, it
+    // just needs to accept it rather than reject it as an unknown field.
+    it('should accept the background query flag', async function () {
+      const response = await fetchNothing(
+        `http://127.0.0.1:3054/project/${this.projectId}/flush?background=true`,
+        { method: 'POST' }
+      )
+      expect(response.status).to.equal(204)
+    })
   })
 
   describe('retrying an unflushed project', function () {
@@ -147,6 +164,26 @@ describe('Flushing old queues', function () {
           !this.flushCall.isDone(),
           'did not make calls to history service to store updates'
         )
+      })
+    })
+
+    describe('when the project lock is already held', function () {
+      it('returns 423', async function () {
+        const key = LockKey.projectHistoryLock({ project_id: this.projectId })
+        await lockRClient.set(key, 'taken')
+        try {
+          const { statusCode } = await ProjectHistoryClient.flushProject(
+            this.projectId,
+            { allowErrors: true }
+          )
+          expect(statusCode).to.equal(423)
+        } finally {
+          await lockRClient.del(key)
+          // the lock timeout above is recorded as a failure (ErrorRecorder
+          // categorizes it as "lock-overrun"); clear it so it doesn't leak
+          // into other tests' failure-count assertions (e.g. RetryTests)
+          await ProjectHistoryClient.clearFailure(this.projectId)
+        }
       })
     })
 

@@ -49,8 +49,8 @@ describe('HttpController', () => {
     ctx.res.status = sinon.stub().returns(ctx.res)
     ctx.req = { query: {} }
     ctx.next = sinon.stub()
-    ctx.projectId = 'mock-project-id'
-    ctx.docId = 'mock-doc-id'
+    ctx.projectId = new ObjectId().toString()
+    ctx.docId = new ObjectId().toString()
     ctx.doc = {
       _id: ctx.docId,
       lines: ['mock', 'lines', ' here', '', '', ' spaces '],
@@ -350,7 +350,18 @@ describe('HttpController', () => {
         ctx.req.body = {
           lines: (ctx.lines = ['hello', 'world']),
           version: (ctx.version = 42),
-          ranges: (ctx.ranges = { changes: 'mock' }),
+          ranges: (ctx.ranges = {
+            changes: [
+              {
+                id: new ObjectId().toString(),
+                op: { i: 'foo', p: 3 },
+                metadata: {
+                  user_id: new ObjectId().toString(),
+                  ts: new Date().toJSON(),
+                },
+              },
+            ],
+          }),
         }
         ctx.rev = 5
         ctx.DocManager.updateDoc = sinon
@@ -412,14 +423,15 @@ describe('HttpController', () => {
         ctx.DocManager.updateDoc.called.should.equal(false)
       })
 
-      it('should return a 400 (bad request) response', ctx => {
-        ctx.res.sendStatus.calledWith(400).should.equal(true)
+      it('should pass a validation error to next', ctx => {
+        expect(ctx.next).to.have.been.calledOnce
+        expect(ctx.next.firstCall.args[0].name).to.equal('InvalidRequestError')
       })
     })
 
     describe('when the doc version are not provided', () => {
       beforeEach(async ctx => {
-        ctx.req.body = { version: 42, lines: ['hello world'] }
+        ctx.req.body = { lines: ['hello world'], ranges: {} }
         ctx.DocManager.updateDoc = sinon
           .stub()
           .resolves({ modified: false, rev: 0 })
@@ -430,8 +442,9 @@ describe('HttpController', () => {
         ctx.DocManager.updateDoc.called.should.equal(false)
       })
 
-      it('should return a 400 (bad request) response', ctx => {
-        ctx.res.sendStatus.calledWith(400).should.equal(true)
+      it('should pass a validation error to next', ctx => {
+        expect(ctx.next).to.have.been.calledOnce
+        expect(ctx.next.firstCall.args[0].name).to.equal('InvalidRequestError')
       })
     })
 
@@ -448,8 +461,9 @@ describe('HttpController', () => {
         ctx.DocManager.updateDoc.called.should.equal(false)
       })
 
-      it('should return a 400 (bad request) response', ctx => {
-        ctx.res.sendStatus.calledWith(400).should.equal(true)
+      it('should pass a validation error to next', ctx => {
+        expect(ctx.next).to.have.been.calledOnce
+        expect(ctx.next.firstCall.args[0].name).to.equal('InvalidRequestError')
       })
     })
 
@@ -458,7 +472,7 @@ describe('HttpController', () => {
         ctx.req.body = {
           lines: (ctx.lines = Array(2049).fill('a'.repeat(1024))),
           version: (ctx.version = 42),
-          ranges: (ctx.ranges = { changes: 'mock' }),
+          ranges: (ctx.ranges = {}),
         }
         ctx.DocManager.updateDoc = sinon
           .stub()
@@ -486,7 +500,11 @@ describe('HttpController', () => {
         project_id: ctx.projectId,
         doc_id: ctx.docId,
       }
-      ctx.req.body = { name: 'foo.tex' }
+      ctx.req.body = {
+        deleted: true,
+        deletedAt: '2026-06-15T00:00:00Z',
+        name: 'foo.tex',
+      }
       ctx.DocManager.patchDoc = sinon.stub().resolves()
       await ctx.HttpController.patchDoc(ctx.req, ctx.res, ctx.next)
     })
@@ -494,7 +512,12 @@ describe('HttpController', () => {
     it('should delete the document', ctx => {
       expect(ctx.DocManager.patchDoc).to.have.been.calledWith(
         ctx.projectId,
-        ctx.docId
+        ctx.docId,
+        {
+          deleted: true,
+          deletedAt: new Date('2026-06-15T00:00:00Z'),
+          name: 'foo.tex',
+        }
       )
     })
 
@@ -510,19 +533,13 @@ describe('HttpController', () => {
         await ctx.HttpController.patchDoc(ctx.req, ctx.res, ctx.next)
       })
 
-      it('should log a message', ctx => {
-        expect(ctx.logger.fatal).to.have.been.calledWith(
-          { field: 'cannot' },
-          'joi validation for pathDoc is broken'
-        )
+      it('should pass a validation error to next', ctx => {
+        expect(ctx.next).to.have.been.calledOnce
+        expect(ctx.next.firstCall.args[0].name).to.equal('InvalidRequestError')
       })
 
-      it('should not pass the invalid field along', ctx => {
-        expect(ctx.DocManager.patchDoc).to.have.been.calledWith(
-          ctx.projectId,
-          ctx.docId,
-          {}
-        )
+      it('should not patch the document', ctx => {
+        expect(ctx.DocManager.patchDoc).not.to.have.been.called
       })
     })
   })

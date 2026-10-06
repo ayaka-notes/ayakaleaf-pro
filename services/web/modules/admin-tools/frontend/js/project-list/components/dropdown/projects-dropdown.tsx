@@ -5,13 +5,12 @@ import {
   useProjectListContext,
 } from '../../context/project-list-context'
 import {
-  Dropdown,
-  DropdownHeader,
-  DropdownItem,
-  DropdownMenu,
-  DropdownToggle,
-} from '@/shared/components/dropdown/dropdown-menu'
-import BackToUserList from '../back-to-user-list'
+  OLDropdown as Dropdown,
+  OLDropdownHeader as DropdownHeader,
+  OLDropdownItem as DropdownItem,
+  OLDropdownMenu as DropdownMenu,
+  OLDropdownToggle as DropdownToggle,
+} from '@/shared/components/ol/ol-dropdown-menu'
 import ProjectsFilterMenu from '../projects-filter-menu'
 
 type ItemProps = {

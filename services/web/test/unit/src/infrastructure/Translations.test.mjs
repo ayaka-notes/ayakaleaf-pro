@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import express from 'express'
 
 const MODULE_PATH = '../../../../app/src/infrastructure/Translations.mjs'
@@ -38,7 +38,7 @@ describe('Translations', function () {
       headers: {
         'accept-language': '',
       },
-      acceptsLanguage: express.request.acceptsLanguages,
+      acceptsLanguages: express.request.acceptsLanguages,
     }
     res = {
       locals: {},

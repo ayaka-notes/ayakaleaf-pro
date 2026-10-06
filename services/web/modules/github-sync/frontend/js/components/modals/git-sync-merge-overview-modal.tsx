@@ -10,7 +10,7 @@ import OLRow from '@/shared/components/ol/ol-row'
 import OLCol from '@/shared/components/ol/ol-col'
 import OLButton from '@/shared/components/ol/ol-button'
 import OLIconButton from '@/shared/components/ol/ol-icon-button'
-import OLNotification from '@/shared/components/ol/ol-notification'
+import Notification from '@/shared/components/notification'
 import { debugConsole } from '@/utils/debugging'
 import { ProjectSyncState, GitSyncModalStatus } from '../../types/git-sync-types'
 import '../../../stylesheets/github-sync.scss'
@@ -111,10 +111,12 @@ const GitSyncMergeOverviewModal = ({
             <hr />
 
             {data.diverged && (
-              <OLNotification
-                type="warning"
-                content={t('github_repository_diverged')}
-              />
+              <div className="notification-list">
+                <Notification
+                  type="warning"
+                  content={t('github_repository_diverged')}
+                />
+              </div>
             )}
 
             <h3 className="github-sync-commits-heading">
@@ -191,10 +193,12 @@ const GitSyncMergeOverviewModal = ({
         )}
 
         {error && (
-          <OLNotification
-            type="error"
-            content={t('generic_something_went_wrong')}
-          />
+          <div className="notification-list">
+            <Notification
+              type="error"
+              content={t('generic_something_went_wrong')}
+            />
+          </div>
         )}
 
       </OLModalBody>

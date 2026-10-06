@@ -4,56 +4,23 @@ import SplitTestUtils from './SplitTestUtils.mjs'
 import OError from '@overleaf/o-error'
 import _ from 'lodash'
 import { CacheFlow } from 'cache-flow'
+import Settings from '@overleaf/settings'
+
+// customer.io silently drops attribute values over 1000 bytes, so cap the
+// number of split tests whose assignments are sent in the
+// `split_test_assignments` attribute
+const MAX_CUSTOMER_IO_SPLIT_TESTS = 25
 
 const ALPHA_PHASE = 'alpha'
 const LABS_PHASE = 'labs'
 const BETA_PHASE = 'beta'
 const RELEASE_PHASE = 'release'
 
-async function getSplitTests({ name, phase, type, active, archived }) {
-  const filters = {}
-  if (name && name !== '') {
-    filters.name = { $regex: _.escapeRegExp(name) }
-  }
-  if (active) {
-    filters.$where = 'this.versions[this.versions.length - 1].active === true'
-  }
-  if (type === 'split-test') {
-    const query =
-      'this.versions[this.versions.length - 1].analyticsEnabled === true'
-    if (filters.$where) {
-      filters.$where += `&& ${query}`
-    } else {
-      filters.$where = query
-    }
-  }
-  if (type === 'gradual-rollout') {
-    const query =
-      'this.versions[this.versions.length - 1].analyticsEnabled === false'
-    if (filters.$where) {
-      filters.$where += `&& ${query}`
-    } else {
-      filters.$where = query
-    }
-  }
-  if (['alpha', 'labs', 'beta', 'release'].includes(phase)) {
-    const query = `this.versions[this.versions.length - 1].phase === "${phase}"`
-    if (filters.$where) {
-      filters.$where += `&& ${query}`
-    } else {
-      filters.$where = query
-    }
-  }
-  if (archived === true) {
-    filters.archived = true
-  } else if (archived === false) {
-    filters.archived = { $ne: true }
-  }
+async function getSplitTests() {
   try {
-    return await SplitTest.find(filters)
+    return await SplitTest.find({})
       .populate('archivedBy', ['email', 'first_name', 'last_name'])
       .populate('versions.author', ['email', 'first_name', 'last_name'])
-      .limit(300)
       .exec()
   } catch (error) {
     throw OError.tag(error, 'Failed to get split tests list')
@@ -132,6 +99,9 @@ async function createSplitTest(
     labsDescription: labsInfo.description,
     labsIcon: labsInfo.icon,
     labsSuccessNotification: labsInfo.successNotification,
+    labsRequirePremiumCompiles: labsInfo.requirePremiumCompiles
+      ? true
+      : undefined,
     versions: [
       {
         versionNumber: 1,
@@ -197,16 +167,25 @@ async function updateSplitTestInfo(name, info, labsInfo) {
       `Cannot update split test '${name}': not found`
     )
   }
+  if (info.customerIoEnabled && !splitTest.customerIoEnabled) {
+    await _checkCustomerIoSplitTestLimit(splitTest._id)
+  }
   splitTest.description = info.description
   splitTest.expectedEndDate = info.expectedEndDate
   splitTest.ticketUrl = info.ticketUrl
   splitTest.reportsUrls = info.reportsUrls
   splitTest.winningVariant = info.winningVariant
+  splitTest.customerIoEnabled = Boolean(info.customerIoEnabled)
   if (labsInfo) {
     splitTest.labsTitle = labsInfo.title
     splitTest.labsDescription = labsInfo.description
     splitTest.labsIcon = labsInfo.icon
     splitTest.labsSuccessNotification = labsInfo.successNotification
+    // unset rather than stored as false, so turning the requirement back off
+    // leaves the split test as it was before it was ever set
+    splitTest.labsRequirePremiumCompiles = labsInfo.requirePremiumCompiles
+      ? true
+      : undefined
   }
   return _saveSplitTest(splitTest)
 }
@@ -577,6 +556,19 @@ function _updateVariantsWithNewConfiguration(
   return variantsCopy
 }
 
+async function _checkCustomerIoSplitTestLimit(splitTestId) {
+  const count = await SplitTest.countDocuments({
+    _id: { $ne: splitTestId },
+    customerIoEnabled: true,
+    archived: { $ne: true },
+  })
+  if (count >= MAX_CUSTOMER_IO_SPLIT_TESTS) {
+    throw new Errors.InvalidError(
+      `Cannot send more than ${MAX_CUSTOMER_IO_SPLIT_TESTS} split tests to customer.io: disable another split test first`
+    )
+  }
+}
+
 function _getTotalRolloutPercentage(variants) {
   return _.sumBy(variants, 'rolloutPercent')
 }
@@ -603,11 +595,12 @@ async function _saveSplitTest(splitTest) {
 }
 
 /*
- * As this is only used for utility in local dev environment, we should make sure this isn't run in
- * any other deployment environment.
+ * As this is only used for utility in local dev environment (and the test
+ * suites), we should make sure this isn't run in any other deployment
+ * environment.
  */
 function _checkEnvIsSafe(operation) {
-  if (process.env.NODE_ENV !== 'development') {
+  if (!Settings.isDevEnv && !Settings.isCI) {
     throw new Errors.ForbiddenError(
       `Attempted to ${operation} all feature flags outside of local env`
     )

@@ -2,7 +2,7 @@ services:
   clsi:
     command: ["node", "--watch", "app.js"]
     environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
     ports:
       - "127.0.0.1:9230:9229"
     volumes:
@@ -14,7 +14,7 @@ services:
   chat:
     command: ["node", "--watch", "app.js"]
     environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
     ports:
       - "127.0.0.1:9231:9229"
     volumes:
@@ -25,7 +25,7 @@ services:
   docstore:
     command: ["node", "--watch", "app.js"]
     environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
     ports:
       - "127.0.0.1:9233:9229"
     volumes:
@@ -36,7 +36,7 @@ services:
   document-updater:
     command: ["node", "--watch", "app.js"]
     environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
     ports:
       - "127.0.0.1:9234:9229"
     volumes:
@@ -47,7 +47,7 @@ services:
   filestore:
     command: ["node", "--watch", "app.js"]
     environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
     ports:
       - "127.0.0.1:9235:9229"
     volumes:
@@ -58,7 +58,7 @@ services:
   history-v1:
     command: ["node", "--watch", "app.js"]
     environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
     ports:
       - "127.0.0.1:9239:9229"
     volumes:
@@ -72,7 +72,7 @@ services:
   linked-url-proxy:
     command: ["node", "--watch", "app.mjs"]
     environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
     ports:
       - "127.0.0.1:9241:9229"
     volumes:
@@ -83,7 +83,7 @@ services:
   notifications:
     command: ["node", "--watch", "app.ts"]
     environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
     ports:
       - "127.0.0.1:9236:9229"
     volumes:
@@ -94,7 +94,7 @@ services:
   project-history:
     command: ["node", "--watch", "app.js"]
     environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
     ports:
       - "127.0.0.1:9240:9229"
     volumes:
@@ -105,7 +105,7 @@ services:
   real-time:
     command: ["node", "--watch", "app.js"]
     environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
     ports:
       - "127.0.0.1:9237:9229"
     volumes:
@@ -116,7 +116,7 @@ services:
   web:
     command: ["node", "--watch", "app.mjs", "--watch-locales"]
     environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
     ports:
       - "127.0.0.1:9229:9229"
     volumes:
@@ -126,6 +126,7 @@ services:
       - ../services/web/locales:/overleaf/services/web/locales
       - ../services/web/modules:/overleaf/services/web/modules
       - ../services/web/public:/overleaf/services/web/public
+      - ../services/web/shared:/overleaf/services/web/shared
 
   webpack:
     volumes:
@@ -135,6 +136,10 @@ services:
       - ../services/web/locales:/overleaf/services/web/locales
       - ../services/web/modules:/overleaf/services/web/modules
       - ../services/web/public:/overleaf/services/web/public
+      - ../services/web/shared:/overleaf/services/web/shared
       - ../services/web/transform:/overleaf/services/web/transform
       - ../services/web/types:/overleaf/services/web/types
       - ../services/web/webpack-plugins:/overleaf/services/web/webpack-plugins
+      - ../services/web/webpack.config.js:/overleaf/services/web/webpack.config.js
+      - ../services/web/webpack.config.dev.js:/overleaf/services/web/webpack.config.dev.js
+      - ../services/web/babel.config.cjs:/overleaf/services/web/babel.config.cjs

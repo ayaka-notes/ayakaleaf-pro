@@ -50,7 +50,9 @@ async function getLatestBuildFromCache(projectId, userId, filename, signal) {
       ? lastUpdatedInRedis
       : lastUpdatedInMongo
   const isUpToDate = lastCompiled >= lastUpdated
-  const imageName = Path.basename(fullImageName)
+  // fullImageName is unset for projects outside SaaS (no
+  // Settings.currentImageName to default from on creation)
+  const imageName = fullImageName ? Path.basename(fullImageName) : undefined
 
   return {
     internal: {
@@ -249,7 +251,7 @@ async function createTemplateClsiCache({
   docEntries,
 }) {
   const compileGroup = Settings.defaultFeatures.compileGroup
-  const compileBackendClass = Settings.apis.clsi.submissionBackendClass
+  const compileBackendClass = Settings.apis.clsi.submissionCompileBackendClass
   const submissionId = new ObjectId().toString()
   const editorId = Crypto.randomUUID()
   const historyId = project.overleaf.history.id

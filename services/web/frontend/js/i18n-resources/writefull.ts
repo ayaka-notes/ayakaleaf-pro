@@ -32,6 +32,7 @@ const en = {
     'toggle-writefull-toolbar': 'Toggle Writefull toolbar',
     'toggle-writefull': 'Toggle Writefull',
     'writing-tools': 'Writing tools',
+    'custom-prompt': 'Custom prompt',
     'synonyms-in-context': 'Synonyms in Context',
     translate: 'Translate',
     'translate.zh-CN': 'Chinese (Simplified)',
@@ -159,6 +160,7 @@ const en = {
     'ai-context-menu.abstract-generator': 'Abstract Generator',
     'ai-context-menu.keywords-generator': 'Keywords Generator',
     'ai-context-menu.context-options': 'Context Options',
+    'ai-context-menu.check-citations': 'Check citations',
     'ai-context-menu.select-text-tooltip':
       'Select text to access these options',
     'ai-context-menu.paraphrase': 'Paraphrase',
@@ -555,6 +557,7 @@ const es = {
     'toggle-writefull-toolbar': 'Mostrar/Ocultar barra de Writefull',
     'toggle-writefull': 'Mostrar/Ocultar Writefull',
     'writing-tools': 'Herramientas de escritura',
+    'custom-prompt': 'Prompt personalizado',
     'synonyms-in-context': 'Sinónimos en Contexto',
     translate: 'Traducir',
     'translate.zh-CN': 'Chino (Simplificado)',
@@ -694,6 +697,7 @@ const es = {
     'ai-context-menu.abstract-generator': 'Generar Abstract',
     'ai-context-menu.keywords-generator': 'Generar palabras clave',
     'ai-context-menu.context-options': 'Opciones de contexto',
+    'ai-context-menu.check-citations': 'Comprobar citas',
     'ai-context-menu.select-text-tooltip':
       'Seleccione texto para acceder a estas opciones',
     'ai-context-menu.paraphrase': 'Parafrasear',

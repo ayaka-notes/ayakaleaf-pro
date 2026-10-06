@@ -29,7 +29,11 @@ async function getProjectFromTemplate(req, res, next) {
 // request to this function to actually create the project
 async function createProjectFromTemplate(req, res, next) {
   const userId = SessionManager.getLoggedInUserId(req.session)
-    const project = await TemplatesManager.promises.createProjectFromV1Template(
+  // the route is not wrapped in expressify, so an error here must reach next():
+  // an unhandled rejection exits the web process
+  let project
+  try {
+    project = await TemplatesManager.promises.createProjectFromV1Template(
       req.body.brandVariationId,
       req.body.compiler,
       req.body.mainFile,
@@ -40,9 +44,12 @@ async function createProjectFromTemplate(req, res, next) {
       req.body.imageName,
       req.body.language
     )
+  } catch (error) {
+    return next(error)
+  }
     delete req.session.templateData
     if (!project) {
-      throw new Error('failed to create project from template')
+      return next(new Error('failed to create project from template'))
     }
     return res.redirect(`/project/${project._id}`)
 }

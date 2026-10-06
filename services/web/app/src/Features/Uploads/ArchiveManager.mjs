@@ -15,7 +15,7 @@ import {
 } from './ArchiveErrors.mjs'
 import FileTypeManager from './FileTypeManager.mjs'
 
-const MAX_UNCOMPRESSED_BYTES = 1024 * 1024 * 300 // 300MB
+const MAX_UNCOMPRESSED_BYTES = 6 * Settings.maxUploadSize || 1024 * 1024 * 300
 
 /**
  * Check if a zip entry's file path is safe and return the destination path.

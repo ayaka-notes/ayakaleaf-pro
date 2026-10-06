@@ -11,16 +11,21 @@
       "@overleaf/access-token-encryptor": [
         "./libraries/access-token-encryptor"
       ],
+      "@overleaf/access-token-encryptor/*": [
+        "./libraries/access-token-encryptor/*"
+      ],
       "@overleaf/fetch-utils": ["./libraries/fetch-utils"],
       "@overleaf/logger": ["./libraries/logger"],
       "@overleaf/metrics": ["./libraries/metrics"],
       "@overleaf/mongo-utils": ["./libraries/mongo-utils"],
+      "@overleaf/mongo-utils/*": ["./libraries/mongo-utils/*"],
       "@overleaf/object-persistor": ["./libraries/object-persistor"],
       "@overleaf/o-error": ["./libraries/o-error"],
       "overleaf-editor-core": ["./libraries/overleaf-editor-core"],
       "@overleaf/piece-table": ["./libraries/piece-table"],
       "@overleaf/promise-utils": ["./libraries/promise-utils"],
       "@overleaf/ranges-tracker": ["./libraries/ranges-tracker"],
+      "@overleaf/ranges-tracker/*": ["./libraries/ranges-tracker/*"],
       "@overleaf/redis-wrapper": ["./libraries/redis-wrapper"],
       "@overleaf/settings": ["./libraries/settings"],
       "@overleaf/stream-utils": ["./libraries/stream-utils"],
@@ -28,6 +33,6 @@
     },
     "skipLibCheck": true,
     "strict": true,
-    "target": "ES2022"
+    "target": "ES2024"
   }
 }

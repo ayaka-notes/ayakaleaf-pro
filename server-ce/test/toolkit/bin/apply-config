@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Usage: bin/apply-config TARGET OVERRIDES
+#
+# Sets every KEY=VALUE line from OVERRIDES in TARGET the way a user edits a
+# toolkit config file: replace the existing (possibly commented out) KEY= line,
+# or append it when TARGET has no such line.
+
+set -euo pipefail
+
+target=$1
+overrides=$2
+
+while IFS= read -r line || [[ -n "$line" ]]; do
+  [[ -z "$line" || "$line" == \#* ]] && continue
+  key=${line%%=*}
+  tmp=$(mktemp)
+  awk -v key="$key" -v line="$line" '
+    !done && $0 ~ "^#? *" key "=" { print line; done = 1; next }
+    { print }
+    END { if (!done) print line }
+  ' "$target" >"$tmp"
+  cat "$tmp" >"$target"
+  rm "$tmp"
+done <"$overrides"

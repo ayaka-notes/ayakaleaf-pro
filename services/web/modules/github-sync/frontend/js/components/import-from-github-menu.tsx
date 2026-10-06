@@ -1,6 +1,6 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { DropdownItem } from '@/shared/components/dropdown/dropdown-menu'
+import { OLDropdownItem as DropdownItem } from '@/shared/components/ol/ol-dropdown-menu'
 import useInstanceFeatures from '@modules/instance-features/frontend/js/use-instance-features'
 
 export default function ImportFromGitHubMenu({ onClick }: { onClick: (e: React.MouseEvent) => void }) {

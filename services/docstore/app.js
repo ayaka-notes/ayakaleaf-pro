@@ -6,12 +6,7 @@ import Metrics from '@overleaf/metrics'
 import Settings from '@overleaf/settings'
 import logger from '@overleaf/logger'
 import express from 'express'
-import bodyParser from 'body-parser'
-import {
-  celebrate as validate,
-  Joi,
-  errors as handleValidationErrors,
-} from 'celebrate'
+import { handleValidationError } from '@overleaf/validation-tools'
 import mongodb from './app/js/mongodb.js'
 import Errors from './app/js/Errors.js'
 import HttpController from './app/js/HttpController.js'
@@ -32,22 +27,6 @@ const app = express()
 app.use(Metrics.http.monitor(logger))
 
 Metrics.injectMetricsRoute(app)
-
-app.param('project_id', function (req, res, next, projectId) {
-  if (projectId?.match(/^[0-9a-f]{24}$/)) {
-    next()
-  } else {
-    next(new Error('invalid project id'))
-  }
-})
-
-app.param('doc_id', function (req, res, next, docId) {
-  if (docId?.match(/^[0-9a-f]{24}$/)) {
-    next()
-  } else {
-    next(new Error('invalid doc id'))
-  }
-})
 
 app.get('/project/:project_id/doc-deleted', HttpController.getAllDeletedDocs)
 app.get('/project/:project_id/doc', HttpController.getAllDocs)
@@ -73,19 +52,12 @@ app.get('/project/:project_id/doc/:doc_id/peek', HttpController.peekDoc)
 // Add 64kb overhead for the JSON encoding, and double the size to allow for ranges in the json payload
 app.post(
   '/project/:project_id/doc/:doc_id',
-  bodyParser.json({ limit: Settings.maxJsonRequestSize }),
+  express.json({ limit: Settings.maxJsonRequestSize }),
   HttpController.updateDoc
 )
 app.patch(
   '/project/:project_id/doc/:doc_id',
-  bodyParser.json(),
-  validate({
-    body: {
-      deleted: Joi.boolean(),
-      name: Joi.string().when('deleted', { is: true, then: Joi.required() }),
-      deletedAt: Joi.date().when('deleted', { is: true, then: Joi.required() }),
-    },
-  }),
+  express.json(),
   HttpController.patchDoc
 )
 app.delete('/project/:project_id/doc/:doc_id', (req, res) => {
@@ -101,7 +73,7 @@ app.get('/health_check', HttpController.healthCheck)
 
 app.get('/status', (req, res) => res.send('docstore is alive'))
 
-app.use(handleValidationErrors())
+app.use(handleValidationError)
 app.use(function (error, req, res, next) {
   if (error instanceof Errors.NotFoundError) {
     logger.warn({ req }, 'not found')

@@ -3,7 +3,7 @@ import useAsync from '@/shared/hooks/use-async'
 import { deleteJSON } from '@/infrastructure/fetch-json'
 import { OLModalBody, OLModalFooter } from '@/shared/components/ol/ol-modal'
 import OLButton from '@/shared/components/ol/ol-button'
-import OLNotification from '@/shared/components/ol/ol-notification'
+import Notification from '@/shared/components/notification'
 import { debugConsole } from '@/utils/debugging'
 import { GitSyncModalStatus } from '../../types/git-sync-types'
 
@@ -35,28 +35,32 @@ const GitSyncUnlinkUnavailableModal = ({
   return (
     <>
       <OLModalBody>
-        <OLNotification
-          type="error"
-          content={t('github_sync_repository_not_found_description')}
-        />
+        <div className="notification-list">
+          <Notification
+            type="error"
+            content={t('github_sync_repository_not_found_description')}
+          />
+        </div>
 
         {error && (
-          <OLNotification
-            type="error"
-            content={
-              error.info?.statusCode === 403 ? (
-                <Trans
-                  i18nKey="ask_proj_owner_to_unlink_from_current_github"
-                  values={{ projectOwnerEmail: error?.data?.ownerEmail ?? '?' }}
-                  components={[
-                    error?.data?.ownerEmail ? <a href={`mailto:${error.data.ownerEmail}`} /> : <></>
-                  ]}
-                />
-              ) : (
-                t('something_went_wrong_server')
-              )
-            }
-          />
+          <div className="notification-list">
+            <Notification
+              type="error"
+              content={
+                error.info?.statusCode === 403 ? (
+                  <Trans
+                    i18nKey="ask_proj_owner_to_unlink_from_current_github"
+                    values={{ projectOwnerEmail: error?.data?.ownerEmail ?? '?' }}
+                    components={[
+                      error?.data?.ownerEmail ? <a href={`mailto:${error.data.ownerEmail}`} /> : <></>
+                    ]}
+                  />
+                ) : (
+                  t('something_went_wrong_server')
+                )
+              }
+            />
+          </div>
         )}
       </OLModalBody>
 

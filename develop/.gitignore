@@ -1,5 +1,5 @@
+# runtime data from the dev environment
 /compiles/*
-!.gitkeep
-.env
-output
-compiles
+!/compiles/.gitkeep
+/output/
+/data/

@@ -20,7 +20,7 @@ import CustomerIoPlanHelpers from './CustomerIoPlanHelpers.mjs'
 import { GroupPolicy } from '../../models/GroupPolicy.mjs'
 import { AI_ADD_ON_CODE } from './AiHelper.mjs'
 import { fetchNothing } from '@overleaf/fetch-utils'
-import SplitTestHandler from '../SplitTests/SplitTestHandler.mjs'
+import SplitTestUserGetter from '../SplitTests/SplitTestUserGetter.mjs'
 
 /**
  * Enqueue a job for refreshing features for the given user
@@ -39,20 +39,23 @@ function featuresEpochIsCurrent(user) {
 
 /**
  * Refresh features for the given user
+ * @param {string} userId
+ * @param {string} reason
  */
 async function refreshFeatures(userId, reason) {
   const user = await UserGetter.promises.getUser(userId, {
     _id: 1,
     features: 1,
     email: 1,
+    ...SplitTestUserGetter.getProjection(),
   })
   const oldFeatures = _.clone(user.features)
   const features = await computeFeatures(userId)
   logger.debug({ userId, features, reason }, 'updating user features')
 
   const matchedFeatureSet = FeaturesHelper.getMatchedFeatureSet(features)
-  AnalyticsManager.setUserPropertyForUserInBackground(
-    userId,
+  AnalyticsManager.setUserPropertyForMongoUserInBackground(
+    user,
     'feature-set',
     matchedFeatureSet
   )
@@ -89,19 +92,8 @@ async function refreshFeatures(userId, reason) {
   //  skip if they are the reason we are refreshing features (they'd already be up to date)
   if (featuresChanged && reason !== 'writefullEntitlementSynced') {
     try {
-      // todo: quota clean-up: simplify once split test isnt needed
-      let hasPremiumAiFeatures
-      const inQuotaSplitTest =
-        await SplitTestHandler.promises.featureFlagEnabledForUser(
-          userId,
-          'plans-2026-phase-1'
-        )
-      if (inQuotaSplitTest) {
-        hasPremiumAiFeatures =
-          newFeatures.aiUsageQuota === Settings.aiFeatures.unlimitedQuota
-      } else {
-        hasPremiumAiFeatures = Boolean(newFeatures.aiErrorAssistant)
-      }
+      const hasPremiumAiFeatures =
+        newFeatures.aiUsageQuota === Settings.aiFeatures.unlimitedQuota
       // update WF with the current feature set for the user
       await fetchNothing(
         `${Settings.writefull.overleafApiUrl}/api/user/status/update-overleaf-status`,
@@ -112,6 +104,7 @@ async function refreshFeatures(userId, reason) {
           json: {
             userOverleafId: userId,
             // todo: quota clean-up: collab with writefull to rename this, and check if still needed
+            // AiAssist is legacy naming for our old one tier AI subscription, which is now our "Unlimited" quota tier
             hasAiAssist: hasPremiumAiFeatures,
             aiUsageQuota: newFeatures.aiUsageQuota,
           },
@@ -279,7 +272,7 @@ async function _getIndividualFeatures(userId) {
     featureSets.push(_subscriptionToFeatures(subscription))
   }
 
-  // todo: quota clean-up - remove
+  // todo: quota clean-up - remove once we finish transitioning all users to other plans
   // if they are in the quota split test, we no longer look at the add-on, since every plan will now have the same quota
   // standalone plan will receive correct state since their plan will provide the correct quota
   featureSets.push(_aiAddOnFeatures(subscription))
@@ -331,8 +324,6 @@ function _subscriptionToFeatures(subscription) {
 function _aiAddOnFeatures(subscription) {
   if (subscription?.addOns?.some(addOn => addOn.addOnCode === AI_ADD_ON_CODE)) {
     return {
-      // allow both naming systems to work
-      aiErrorAssistant: true,
       aiUsageQuota: Settings.aiFeatures.unlimitedQuota,
     }
   } else {

@@ -111,6 +111,7 @@ export default {
     const userDetails = {
       email: email,
       password: password,
+      analyticsId: crypto.randomUUID(),
     }
 
     UserRegistrationHandler.registerNewUser(

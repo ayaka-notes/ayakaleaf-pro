@@ -1,12 +1,12 @@
 # This file was auto-generated, do not edit it directly.
-# Instead run internal$ services/web/build_scripts
+# Instead run bin/update_build_scripts from
+# https://github.com/overleaf/internal/
 
-FROM node:24.14.1 AS base
+FROM node:24.18.1 AS base
 
 # Corepack setup, shared between all the images.
-ENV PATH="/overleaf/node_modules/.bin:$PATH"
 ENV COREPACK_HOME=/opt/corepack
-RUN corepack enable && corepack install -g yarn@4.14.1
+RUN corepack enable && corepack install -g yarn@4.18.0
 ENV COREPACK_ENABLE_NETWORK=0
 
 WORKDIR /overleaf/services/web
@@ -36,8 +36,9 @@ FROM base AS deps-prod
 COPY services/web/scripts/fetch-pyodide-packages.mjs /overleaf/services/web/scripts/fetch-pyodide-packages.mjs
 RUN cd /overleaf/services/web && node scripts/fetch-pyodide-packages.mjs
 
-COPY package.json yarn.lock .yarnrc.yml /overleaf/
+COPY package.json yarn.lock .yarnrc.yml .pnp.register.mjs /overleaf/
 COPY libraries/access-token-encryptor/package.json /overleaf/libraries/access-token-encryptor/package.json
+COPY libraries/cypress-pnp-reporter/package.json /overleaf/libraries/cypress-pnp-reporter/package.json
 COPY libraries/eslint-plugin/package.json /overleaf/libraries/eslint-plugin/package.json
 COPY libraries/fetch-utils/package.json /overleaf/libraries/fetch-utils/package.json
 COPY libraries/logger/package.json /overleaf/libraries/logger/package.json
@@ -63,7 +64,10 @@ FROM deps-prod AS deps
 ENV CYPRESS_INSTALL_BINARY=0
 
 COPY tsconfig.backend.json /overleaf/
-RUN cd /overleaf && yarn workspaces focus @overleaf/web overleaf
+RUN cd /overleaf \
+    && printf '%s\n' '"--install.mutex" "file:/tmp/overleaf-yarn-classic-mutex"' > /tmp/.yarnrc \
+    && yarn workspaces focus @overleaf/web overleaf \
+    && rm /tmp/.yarnrc
 
 
 # the dev is suitable for running tests
@@ -72,6 +76,7 @@ FROM deps AS dev
 ARG SENTRY_RELEASE
 ENV SENTRY_RELEASE=$SENTRY_RELEASE
 COPY libraries/access-token-encryptor/ /overleaf/libraries/access-token-encryptor/
+COPY libraries/cypress-pnp-reporter/ /overleaf/libraries/cypress-pnp-reporter/
 COPY libraries/eslint-plugin/ /overleaf/libraries/eslint-plugin/
 COPY libraries/fetch-utils/ /overleaf/libraries/fetch-utils/
 COPY libraries/logger/ /overleaf/libraries/logger/
@@ -90,8 +95,7 @@ COPY services/web/ /overleaf/services/web/
 COPY tools/migrations/ /overleaf/tools/migrations/
 
 # Build the latex parser
-RUN cd /overleaf/services/web && yarn run 'lezer-latex:generate' \
-    && chown -R node:node /overleaf/services/web/data
+RUN cd /overleaf/services/web && yarn run 'lezer-latex:generate'
 
 # The module folders are owned as root. The node user cannot create them. Create them in advance.
 RUN cd /overleaf/services/web && make create_module_Makefiles
@@ -113,6 +117,7 @@ RUN nice find /overleaf/services/web/public -name '*.js.map' -delete
 # copy source code and precompile pug images
 FROM deps-prod AS pug
 COPY libraries/access-token-encryptor/ /overleaf/libraries/access-token-encryptor/
+COPY libraries/cypress-pnp-reporter/ /overleaf/libraries/cypress-pnp-reporter/
 COPY libraries/eslint-plugin/ /overleaf/libraries/eslint-plugin/
 COPY libraries/fetch-utils/ /overleaf/libraries/fetch-utils/
 COPY libraries/logger/ /overleaf/libraries/logger/
@@ -134,11 +139,12 @@ COPY tools/migrations/ /overleaf/tools/migrations/
 RUN rm /overleaf/services/web/modules/server-ce-scripts -rf
 RUN OVERLEAF_CONFIG=/overleaf/services/web/config/settings.overrides.saas.js nice yarn run precompile-pug
 
+ENV NODE_OPTIONS="--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs"
 
 # the web image with only production dependencies but no webpack production build, for development
 FROM pug AS app-only
 USER node
-CMD ["node", "--expose-gc", "app.mjs"]
+CMD ["node", "--expose-gc", "--trace-warnings", "app.mjs"]
 
 
 # the final production image, with webpack production build but without source maps
@@ -148,4 +154,4 @@ ENV SENTRY_RELEASE=$SENTRY_RELEASE
 ENV NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/DigiCertGlobalG2TLSRSASHA2562020CA1-1.crt
 COPY --from=webpack-no-sourcemaps /overleaf/services/web/public /overleaf/services/web/public
 USER node
-CMD ["node", "--expose-gc", "app.mjs"]
+CMD ["node", "--expose-gc", "--trace-warnings", "app.mjs"]

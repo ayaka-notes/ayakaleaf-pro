@@ -1,11 +1,11 @@
 import { useTranslation } from 'react-i18next'
 import getMeta from '@/utils/meta'
 import {
-  Dropdown,
-  DropdownItem,
-  DropdownMenu,
-  DropdownToggle,
-} from '@/shared/components/dropdown/dropdown-menu'
+  OLDropdown as Dropdown,
+  OLDropdownItem as DropdownItem,
+  OLDropdownMenu as DropdownMenu,
+  OLDropdownToggle as DropdownToggle,
+} from '@/shared/components/ol/ol-dropdown-menu'
 import MaterialIcon from '@/shared/components/material-icon'
 import OLSpinner from '@/shared/components/ol/ol-spinner'
 import FlagUserButton from '../table/cells/action-buttons/flag-user-button'

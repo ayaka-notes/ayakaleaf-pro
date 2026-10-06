@@ -3,9 +3,11 @@ import {
   EditorProviders,
   makeEditorPropertiesProvider,
   makeProjectProvider,
+  USER_ID,
 } from '../../../helpers/editor-providers'
 import CodeMirrorEditor from '../../../../../frontend/js/features/source-editor/components/codemirror-editor'
 import { TestContainer } from '../helpers/test-container'
+import { docId } from '../helpers/mock-doc'
 import { FC } from 'react'
 import { PermissionsContext } from '@/features/ide-react/context/permissions-context'
 import { Permissions } from '@/features/ide-react/types/permissions'
@@ -63,6 +65,34 @@ const MockFileTreeDataProvider: FC<React.PropsWithChildren> = ({
     value={
       {
         selectedEntities: [{ type: 'doc', id: '_root_doc_id' } as any],
+        fileTreeData: {
+          _id: 'root-folder-id',
+          name: 'rootFolder',
+          docs: [{ _id: docId, name: 'test.tex' }],
+          folders: [],
+          fileRefs: [],
+        },
+      } as any
+    }
+  >
+    {children}
+  </FileTreeDataContext.Provider>
+)
+
+const MockEmptyFileTreeDataProvider: FC<React.PropsWithChildren> = ({
+  children,
+}) => (
+  <FileTreeDataContext.Provider
+    value={
+      {
+        selectedEntities: [{ type: 'doc', id: '_root_doc_id' } as any],
+        fileTreeData: {
+          _id: 'root-folder-id',
+          name: 'rootFolder',
+          docs: [],
+          folders: [],
+          fileRefs: [],
+        },
       } as any
     }
   >
@@ -97,9 +127,6 @@ const grantClipboardPermissions = () => {
 describe('editor context menu', { scrollBehavior: false }, function () {
   beforeEach(function () {
     window.metaAttributesCache.set('ol-preventCompileOnLoad', true)
-    window.metaAttributesCache.set('ol-splitTestVariants', {
-      'editor-context-menu': 'enabled',
-    })
     cy.intercept('POST', '/project/*/track_changes', {
       statusCode: 200,
       body: {},
@@ -335,6 +362,35 @@ describe('editor context menu', { scrollBehavior: false }, function () {
     })
   })
 
+  describe('when in focus mode', function () {
+    it('should hide the Add Comment item but keeps the other actions', function () {
+      const scope = mockScope()
+
+      cy.mount(
+        <TestContainer>
+          <EditorProviders
+            scope={scope}
+            features={{ trackChangesVisible: true }}
+            layoutContext={{ focusMode: true }}
+          >
+            <CodeMirrorEditor />
+          </EditorProviders>
+        </TestContainer>
+      )
+
+      cy.get('.cm-line').eq(10).rightclick()
+
+      cy.findByRole('menu').within(() => {
+        cy.findByRole('menuitem', { name: /cut/i }).should('be.enabled')
+        cy.findByRole('menuitem', { name: /copy/i }).should('be.enabled')
+        cy.findByRole('menuitem', { name: /suggest edits/i }).should(
+          'be.enabled'
+        )
+        cy.findByRole('menuitem', { name: /comment/i }).should('not.exist')
+      })
+    })
+  })
+
   describe('when text is selected', function () {
     it('should enable Cut, Copy, Paste, Delete, Suggest edits, and Comment', function () {
       const scope = mockScope()
@@ -564,7 +620,7 @@ describe('editor context menu', { scrollBehavior: false }, function () {
               ProjectProvider: makeProjectProvider(
                 mockProject({
                   // Re-assigns `withTrackChanges` value in the `track-changes-state-context` useEffect hook
-                  trackChangesState: true,
+                  trackChangesState: { [USER_ID]: true },
                   projectFeatures: {
                     trackChanges: true,
                     trackChangesVisible: true,
@@ -647,27 +703,6 @@ describe('editor context menu', { scrollBehavior: false }, function () {
           'not.exist'
         )
       })
-    })
-  })
-
-  describe('when feature flag is disabled', function () {
-    it('should not show the context menu', function () {
-      window.metaAttributesCache.set('ol-splitTestVariants', {
-        'editor-context-menu': 'default',
-      })
-
-      const scope = mockScope()
-
-      cy.mount(
-        <TestContainer>
-          <EditorProviders scope={scope}>
-            <CodeMirrorEditor />
-          </EditorProviders>
-        </TestContainer>
-      )
-
-      cy.get('.cm-line').eq(10).rightclick()
-      cy.findByRole('menu').should('not.exist')
     })
   })
 
@@ -1006,9 +1041,48 @@ describe('editor context menu', { scrollBehavior: false }, function () {
       })
     })
 
+    it('should close the menu and show an error toast when there is no resolvable file path', function () {
+      const scope = mockScope()
+
+      cy.intercept(
+        'GET',
+        '/project/*/sync/code*',
+        cy.spy().as('syncToPdfRequest')
+      )
+
+      cy.mount(
+        <TestContainer>
+          <EditorProviders
+            scope={scope}
+            providers={{
+              DetachCompileProvider: MockDetachCompileProvider,
+              FileTreeDataProvider: MockEmptyFileTreeDataProvider,
+            }}
+          >
+            <GlobalToasts />
+            <CodeMirrorEditor />
+          </EditorProviders>
+        </TestContainer>
+      )
+
+      cy.get('.cm-line').eq(10).rightclick()
+
+      cy.findByRole('menu').within(() => {
+        cy.findByRole('menuitem', { name: /jump to location in pdf/i }).click()
+      })
+
+      cy.findByRole('menu').should('not.exist')
+
+      cy.get('.global-toasts').should(
+        'contain.text',
+        'That didn’t work. Try switching files and try again.'
+      )
+
+      cy.get('@syncToPdfRequest').should('not.have.been.called')
+    })
+
     it('should hide button when visual preview is enabled', function () {
       window.metaAttributesCache.set('ol-splitTestVariants', {
-        'editor-context-menu': 'enabled',
         'visual-preview': 'enabled',
       })
 
@@ -1268,12 +1342,10 @@ describe('editor context menu', { scrollBehavior: false }, function () {
       cy.get('body').type('{esc}')
       cy.findByRole('menu').should('not.exist')
     })
+  })
 
-    it('should not show context menu on gutter when feature flag is disabled', function () {
-      window.metaAttributesCache.set('ol-splitTestVariants', {
-        'editor-context-menu': 'default',
-      })
-
+  describe('when right-clicking inside the open menu', function () {
+    it('should suppress the native menu and stay open', function () {
       const scope = mockScope()
 
       cy.mount(
@@ -1284,8 +1356,160 @@ describe('editor context menu', { scrollBehavior: false }, function () {
         </TestContainer>
       )
 
-      cy.get('.cm-gutterElement').eq(5).rightclick()
-      cy.findByRole('menu').should('not.exist')
+      cy.get('.cm-line').eq(10).rightclick()
+      cy.findByRole('menu').should('be.visible')
+
+      cy.findByRole('menu').within(() => {
+        cy.findAllByRole('menuitem')
+          .first()
+          .then($item => {
+            const event = new MouseEvent('contextmenu', {
+              bubbles: true,
+              cancelable: true,
+            })
+            // dispatchEvent returns false when preventDefault was called
+            const notPrevented = $item[0].dispatchEvent(event)
+            expect(notPrevented, 'native context menu prevented').to.equal(
+              false
+            )
+          })
+      })
+
+      // The second contextmenu event keeps the custom menu open
+      cy.findByRole('menu').should('be.visible')
+    })
+  })
+
+  describe('tracked-change actions', function () {
+    function mountEditorWithChanges() {
+      cy.intercept('POST', `/project/*/doc/${docId}/changes/accept`, {}).as(
+        'acceptChange'
+      )
+
+      const changes = [
+        {
+          metadata: {
+            user_id: USER_ID,
+            ts: new Date('2025-01-01T00:00:00.000Z'),
+          },
+          id: 'inserted-op-id',
+          op: { p: 166, t: 'inserted-op-id', i: 'introduction' },
+        },
+        {
+          metadata: {
+            user_id: USER_ID,
+            ts: new Date('2025-01-01T01:00:00.000Z'),
+          },
+          id: 'deleted-op-id',
+          op: { p: 110, t: 'deleted-op-id', d: 'beautiful ' },
+        },
+      ]
+      const getChanges = cy.stub().as('getChanges').returns([])
+      const removeChangeIds = cy.stub().as('removeChangeIds')
+
+      const scope = mockScope(undefined, {
+        docOptions: {
+          rangesOptions: { changes, getChanges, removeChangeIds },
+        },
+      })
+
+      cy.mount(
+        <TestContainer>
+          <EditorProviders
+            scope={scope}
+            features={{ trackChangesVisible: true }}
+          >
+            <CodeMirrorEditor />
+          </EditorProviders>
+        </TestContainer>
+      )
+    }
+
+    // Select a deletion and an insertion so the bulk-action items appear, then
+    // right-click inside the selection (which preserves it).
+    function openMenuOverChanges() {
+      cy.findByText('\\maketitle').type(
+        '{home}{shift}' + '{downArrow}'.repeat(10),
+        { scrollBehavior: false }
+      )
+      cy.findByText('\\maketitle').rightclick({ scrollBehavior: false })
+    }
+
+    it('shows accept and reject items when the selection covers changes', function () {
+      mountEditorWithChanges()
+      openMenuOverChanges()
+
+      cy.findByRole('menu').within(() => {
+        cy.findByRole('menuitem', { name: 'Accept selected changes' }).should(
+          'be.visible'
+        )
+        cy.findByRole('menuitem', { name: 'Reject selected changes' }).should(
+          'be.visible'
+        )
+      })
+    })
+
+    it('hides accept and reject items when the selection covers no changes', function () {
+      mountEditorWithChanges()
+
+      cy.get('.cm-line').eq(2).rightclick({ scrollBehavior: false })
+
+      cy.findByRole('menu').should('be.visible')
+      cy.findByRole('menu').within(() => {
+        cy.findByRole('menuitem', { name: 'Accept selected changes' }).should(
+          'not.exist'
+        )
+        cy.findByRole('menuitem', { name: 'Reject selected changes' }).should(
+          'not.exist'
+        )
+      })
+    })
+
+    it('accepts the selected changes', function () {
+      mountEditorWithChanges()
+      openMenuOverChanges()
+
+      cy.findByRole('menu').within(() => {
+        cy.findByRole('menuitem', { name: 'Accept selected changes' }).click({
+          scrollBehavior: false,
+        })
+      })
+
+      cy.findByRole('dialog').within(() => {
+        cy.findByText(
+          'Are you sure you want to accept the selected 2 changes?'
+        ).should('exist')
+        cy.findByRole('button', { name: 'OK' }).click({ scrollBehavior: false })
+      })
+
+      cy.wait('@acceptChange')
+      cy.get('@removeChangeIds').should('have.been.calledWith', [
+        'inserted-op-id',
+        'deleted-op-id',
+      ])
+    })
+
+    it('rejects the selected changes', function () {
+      mountEditorWithChanges()
+      openMenuOverChanges()
+
+      cy.findByRole('menu').within(() => {
+        cy.findByRole('menuitem', { name: 'Reject selected changes' }).click({
+          scrollBehavior: false,
+        })
+      })
+
+      cy.findByRole('dialog').within(() => {
+        cy.findByText(
+          'Are you sure you want to reject the selected 2 changes?'
+        ).should('exist')
+        cy.findByRole('button', { name: 'OK' }).click({ scrollBehavior: false })
+      })
+
+      cy.get('@getChanges').should('have.been.calledWith', [
+        'inserted-op-id',
+        'deleted-op-id',
+      ])
     })
   })
 })

@@ -647,10 +647,10 @@ describe('<ShareProjectModal/>', function () {
 
     const user = userEvent.setup()
     await user.click(screen.getByTestId('add-collaborator-select'))
-    await user.click(screen.getByText('Viewer'))
+    await user.click(await screen.findByRole('option', { name: 'Viewer' }))
 
     const submitButton = screen.getByRole('button', { name: 'Invite' })
-    await userEvent.click(submitButton)
+    await user.click(submitButton)
 
     let calls: CallLog[] = []
     await waitFor(
@@ -704,16 +704,16 @@ describe('<ShareProjectModal/>', function () {
 
     const user = userEvent.setup()
     await user.click(screen.getByTestId('add-collaborator-select'))
-    const editorOption = screen.getByText('Editor').closest('button')
-    const reviewerOption = screen.getByText('Reviewer').closest('button')
-    const viewerOption = screen.getByText('Viewer').closest('button')
+    const editorOption = await screen.findByRole('option', { name: 'Editor' })
+    const reviewerOption = screen.getByRole('option', { name: /Reviewer/ })
+    const viewerOption = screen.getByRole('option', { name: 'Viewer' })
 
     expect(editorOption?.classList.contains('disabled')).to.be.true
     expect(reviewerOption?.classList.contains('disabled')).to.be.true
     expect(viewerOption?.classList.contains('disabled')).to.be.false
 
     screen.getByText(
-      /Upgrade to add more collaborators and access collaboration features like track changes and full project history/
+      /Upgrade to add more collaborators and access higher AI allowance, track changes, and full project history/
     )
   })
 
@@ -742,16 +742,16 @@ describe('<ShareProjectModal/>', function () {
     const user = userEvent.setup()
     await user.click(screen.getByTestId('add-collaborator-select'))
 
-    const editorOption = screen.getByText('Editor').closest('button')
-    const reviewerOption = screen.getByText('Reviewer').closest('button')
-    const viewerOption = screen.getByText('Viewer').closest('button')
+    const editorOption = await screen.findByRole('option', { name: 'Editor' })
+    const reviewerOption = screen.getByRole('option', { name: /Reviewer/ })
+    const viewerOption = screen.getByRole('option', { name: 'Viewer' })
 
     expect(editorOption?.classList.contains('disabled')).to.be.true
     expect(reviewerOption?.classList.contains('disabled')).to.be.true
     expect(viewerOption?.classList.contains('disabled')).to.be.false
 
     screen.getByText(
-      /Upgrade to add more collaborators and access collaboration features like track changes and full project history/
+      /Upgrade to add more collaborators and access higher AI allowance, track changes, and full project history/
     )
   })
 
@@ -998,10 +998,51 @@ describe('<ShareProjectModal/>', function () {
     })
   })
 
+  it('re-selects the same suggestion after removing it', async function () {
+    renderWithEditorContext(
+      <ShareProjectModal {...modalProps} />,
+      createContextProps()
+    )
+
+    const [inputElement] = await screen.findAllByLabelText('Add email address')
+
+    await waitFor(() => {
+      expect(fetchMock.callHistory.called('express:/user/contacts')).to.be.true
+    })
+
+    await userEvent.type(inputElement, 'pto')
+    await userEvent.click(
+      screen.getByRole('option', {
+        name: `Claudius Ptolemy <ptolemy@example.com>`,
+      })
+    )
+
+    const removeButton = await screen.findByRole('button', { name: /Remove/ })
+
+    await userEvent.click(removeButton)
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /remove/i })).to.be.null
+    })
+
+    await userEvent.click(inputElement)
+    await userEvent.click(
+      await screen.findByRole('option', {
+        name: `Claudius Ptolemy <ptolemy@example.com>`,
+      })
+    )
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /remove/i })).to.have.length(
+        1
+      )
+    })
+  })
+
   describe('sharing-updates feature flag enabled', function () {
     beforeEach(function () {
       window.metaAttributesCache.set('ol-splitTestVariants', {
         'sharing-updates': 'enabled',
+        'sharing-updates-new-link': 'enabled',
       })
     })
 
@@ -1062,11 +1103,77 @@ describe('<ShareProjectModal/>', function () {
         user: {
           id: USER_ID,
           email: USER_EMAIL,
-          activeGroupSubscriptions: [{ _id: 'sub-123' }],
+          activeProfessionalGroupSubscriptions: [{ _id: 'sub-123' }],
         },
       })
 
       await screen.findByText('Anyone in your group with the link')
+    })
+
+    describe('invited people count', function () {
+      beforeEach(function () {
+        fetchMock.get(
+          `/project/${shareModalProjectDefaults._id}/sharing-link`,
+          404
+        )
+      })
+
+      it('shows "No one invited yet" when the owner is the only person', async function () {
+        renderWithEditorContext(
+          <ShareProjectModal {...modalProps} />,
+          createContextProps({ publicAccessLevel: 'private' })
+        )
+
+        await screen.findByText('No one invited yet')
+        expect(screen.queryByText('1 person invited')).to.be.null
+      })
+
+      it('shows the invited people count, excluding the owner, when there are collaborators', async function () {
+        const members: ProjectMember[] = [
+          {
+            _id: 'member-author' as UserId,
+            email: 'member-author@example.com',
+            privileges: 'readAndWrite',
+            first_name: 'Member',
+            last_name: 'Author',
+          },
+          {
+            _id: 'member-viewer' as UserId,
+            email: 'member-viewer@example.com',
+            privileges: 'readOnly',
+            first_name: 'Member',
+            last_name: 'Viewer',
+          },
+        ]
+
+        renderWithEditorContext(
+          <ShareProjectModal {...modalProps} />,
+          createContextProps({ publicAccessLevel: 'private', members })
+        )
+
+        await screen.findByText('2 people invited')
+        expect(screen.queryByText('No one invited yet')).to.be.null
+      })
+
+      it('shows "1 person invited" when there is a single collaborator', async function () {
+        const members: ProjectMember[] = [
+          {
+            _id: 'member-author' as UserId,
+            email: 'member-author@example.com',
+            privileges: 'readAndWrite',
+            first_name: 'Member',
+            last_name: 'Author',
+          },
+        ]
+
+        renderWithEditorContext(
+          <ShareProjectModal {...modalProps} />,
+          createContextProps({ publicAccessLevel: 'private', members })
+        )
+
+        await screen.findByText('1 person invited')
+        expect(screen.queryByText('No one invited yet')).to.be.null
+      })
     })
 
     describe('copy link button', function () {
@@ -1200,7 +1307,11 @@ describe('<ShareProjectModal/>', function () {
     expect(screen.queryByRole('link', { name: 'Give feedback' })).to.be.null
   })
 
-  describe('with "sharing-updates" feature flag', function () {
+  describe('sharing-updates enabled, new sharing links disabled', function () {
+    // The new reusable-link functionality is gated behind
+    // `sharing-updates-new-link`. With only `sharing-updates` on, the modal
+    // shows the new UI wired to legacy token-based link sharing: two options
+    // ("Only invited people" / "Via sharing links") driven by publicAccessLevel.
     beforeEach(function () {
       window.metaAttributesCache.set('ol-splitTestVariants', {
         'sharing-updates': 'enabled',
@@ -1208,7 +1319,65 @@ describe('<ShareProjectModal/>', function () {
     })
 
     afterEach(function () {
+      window.metaAttributesCache.delete('ol-splitTestVariants')
+    })
+
+    it('shows "Via sharing links" without the legacy label when `publicAccessLevel` is `tokenBased`', async function () {
+      fetchMock.get(`/project/${shareModalProjectDefaults._id}/tokens`, {})
+
+      renderWithEditorContext(
+        <ShareProjectModal {...modalProps} />,
+        createContextProps({ publicAccessLevel: 'tokenBased' })
+      )
+
+      await screen.findByText('Via sharing links')
+      expect(screen.queryByText('Via sharing links (legacy)')).to.be.null
+    })
+
+    it('shows "Only invited people" when `publicAccessLevel` is `private`, without calling the sharing-link endpoint', async function () {
+      // Deliberately not mocking /sharing-link: it must not be requested when
+      // the new-link flag is off (fetch-mock throws on unmatched routes).
+      renderWithEditorContext(
+        <ShareProjectModal {...modalProps} />,
+        createContextProps({ publicAccessLevel: 'private' })
+      )
+
+      await screen.findByText('Only invited people')
+      // The copy-sharing-link button is for the new reusable links only.
+      expect(screen.queryByRole('button', { name: 'Copy sharing link' })).to.be
+        .null
+    })
+
+    it('offers only the two legacy access options, not "Anyone with the link"', async function () {
+      fetchMock.get(`/project/${shareModalProjectDefaults._id}/tokens`, {})
+
+      renderWithEditorContext(
+        <ShareProjectModal {...modalProps} />,
+        createContextProps({ publicAccessLevel: 'tokenBased' })
+      )
+
+      const toggle = await screen.findByRole('button', {
+        name: 'Via sharing links',
+      })
+      await userEvent.click(toggle)
+
+      await screen.findByText('Only invited people')
+      expect(screen.queryByText('Anyone with the link')).to.be.null
+    })
+  })
+
+  describe('with "sharing-updates" feature flag', function () {
+    beforeEach(function () {
+      window.metaAttributesCache.set('ol-splitTestVariants', {
+        'sharing-updates': 'enabled',
+        'sharing-updates-new-link': 'enabled',
+      })
+    })
+
+    afterEach(function () {
       window.metaAttributesCache.set('ol-splitTestVariants', {})
+      window.metaAttributesCache.set('ol-splitTestInfo', {})
+      delete (navigator as any).clipboard
     })
 
     it('disables the invite button when no email is entered', async function () {
@@ -1322,6 +1491,164 @@ describe('<ShareProjectModal/>', function () {
       await screen.findByText('Invitation(s) sent.')
     })
 
+    it('shows a generic error and no success message when an invite fails (e.g. collaborator limit reached)', async function () {
+      fetchMock.post('express:/project/:projectId/invite', {
+        status: 200,
+        body: {
+          invite: null,
+        },
+      })
+
+      renderWithEditorContext(
+        <ShareProjectModal {...modalProps} />,
+        createContextProps({ publicAccessLevel: 'tokenBased' })
+      )
+
+      const inputElement = await screen.findByTestId('collaborator-email-input')
+      fireEvent.change(inputElement, { target: { value: 'new@example.com' } })
+      fireEvent.blur(inputElement)
+
+      const inviteButton = (await screen.findByRole('button', {
+        name: /invite/i,
+      })) as HTMLButtonElement
+      await waitFor(() => expect(inviteButton.disabled).to.be.false)
+      await userEvent.click(inviteButton)
+
+      await screen.findByText('Sorry, something went wrong')
+      expect(screen.queryByText('Invitation(s) sent.')).to.be.null
+    })
+
+    it('clears "successActionMessage" when invitations are sent', async function () {
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: sinon.stub().resolves() },
+        configurable: true,
+        writable: true,
+      })
+
+      const sharingLinkToken = 'abc123token'
+      fetchMock.get('express:/project/:projectId/sharing-link', {
+        _id: 'invite-id',
+        token: sharingLinkToken,
+        privileges: 'readAndWrite',
+      })
+      fetchMock.post('express:/project/:projectId/invite', {
+        status: 200,
+        body: {
+          invite: {
+            _id: 'new-invite',
+            email: 'new@example.com',
+            privileges: 'readAndWrite',
+          },
+        },
+      })
+
+      renderWithEditorContext(
+        <ShareProjectModal {...modalProps} />,
+        createContextProps()
+      )
+
+      const copyButton: HTMLButtonElement = await screen.findByRole('button', {
+        name: /copy sharing link/i,
+      })
+      expect(copyButton.disabled).to.be.false
+
+      await userEvent.click(copyButton)
+      await screen.findByText(/link copied/i)
+
+      const inputElement = screen.getByTestId('collaborator-email-input')
+      fireEvent.change(inputElement, { target: { value: 'new@example.com' } })
+      fireEvent.blur(inputElement)
+
+      const inviteButton = (await screen.findByRole('button', {
+        name: /invite/i,
+      })) as HTMLButtonElement
+      await waitFor(() => expect(inviteButton.disabled).to.be.false)
+      await userEvent.click(inviteButton)
+
+      await screen.findByText('Invitation(s) sent.')
+      expect(screen.queryByText(/link copied/i)).to.be.null
+    })
+
+    it('clears "invitations sent" message when input is changed', async function () {
+      fetchMock.post('express:/project/:projectId/invite', {
+        status: 200,
+        body: {
+          invite: {
+            _id: 'new-invite',
+            email: 'new@example.com',
+            privileges: 'readAndWrite',
+          },
+        },
+      })
+
+      renderWithEditorContext(
+        <ShareProjectModal {...modalProps} />,
+        createContextProps()
+      )
+
+      const inputElement = await screen.findByTestId('collaborator-email-input')
+      fireEvent.change(inputElement, { target: { value: 'new@example.com' } })
+      fireEvent.blur(inputElement)
+
+      const inviteButton = (await screen.findByRole('button', {
+        name: /invite/i,
+      })) as HTMLButtonElement
+      await waitFor(() => expect(inviteButton.disabled).to.be.false)
+      await userEvent.click(inviteButton)
+
+      await screen.findByText('Invitation(s) sent.')
+
+      fireEvent.change(inputElement, { target: { value: 'a' } })
+
+      await waitFor(
+        () => expect(screen.queryByText('Invitation(s) sent.')).to.be.null
+      )
+    })
+
+    it('clears "invitations sent" message when a selected item is removed', async function () {
+      fetchMock.post('express:/project/:projectId/invite', {
+        status: 200,
+        body: {
+          invite: {
+            _id: 'new-invite',
+            email: 'new@example.com',
+            privileges: 'readAndWrite',
+          },
+        },
+      })
+
+      renderWithEditorContext(
+        <ShareProjectModal {...modalProps} />,
+        createContextProps()
+      )
+
+      const inputElement = await screen.findByTestId('collaborator-email-input')
+      fireEvent.change(inputElement, { target: { value: 'new@example.com' } })
+      fireEvent.blur(inputElement)
+
+      const inviteButton = (await screen.findByRole('button', {
+        name: /invite/i,
+      })) as HTMLButtonElement
+      await waitFor(() => expect(inviteButton.disabled).to.be.false)
+      await userEvent.click(inviteButton)
+
+      await screen.findByText('Invitation(s) sent.')
+
+      fireEvent.change(inputElement, {
+        target: { value: 'another@example.com' },
+      })
+      fireEvent.blur(inputElement)
+
+      const removeButton = await screen.findByRole('button', {
+        name: /remove/i,
+      })
+      await userEvent.click(removeButton)
+
+      await waitFor(
+        () => expect(screen.queryByText('Invitation(s) sent.')).to.be.null
+      )
+    })
+
     it('shows the "Give feedback" link for the project owner', async function () {
       renderWithEditorContext(
         <ShareProjectModal {...modalProps} />,
@@ -1377,6 +1704,28 @@ describe('<ShareProjectModal/>', function () {
         })
         expect(feedbackLink.getAttribute('href')).to.equal(
           'https://forms.gle/WLEjzG4Ayp8zFscM9'
+        )
+      })
+
+      it('links to the Labs feedback URL when the "sharing-updates" feature is in the Labs phase', async function () {
+        window.metaAttributesCache.set('ol-splitTestInfo', {
+          'sharing-updates': { phase: 'labs' },
+        })
+
+        renderWithEditorContext(<ShareProjectModal {...modalProps} />, {
+          ...createContextProps(),
+          user: {
+            id: USER_ID,
+            email: USER_EMAIL,
+            isProfessionalGroupPlan: false,
+          },
+        })
+
+        const feedbackLink = await screen.findByRole('link', {
+          name: 'Give feedback',
+        })
+        expect(feedbackLink.getAttribute('href')).to.equal(
+          'https://docs.google.com/forms/d/e/1FAIpQLSeOsPzSw8lWLY310ZvR7BCK08v3Puc4JWFdV6K3m9QbsL2OSw/viewform'
         )
       })
     })

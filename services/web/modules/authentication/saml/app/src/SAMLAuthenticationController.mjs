@@ -2,6 +2,7 @@ import Settings from '@overleaf/settings'
 import logger from '@overleaf/logger'
 import passport from 'passport'
 import AuthenticationController from '../../../../../app/src/Features/Authentication/AuthenticationController.mjs'
+import AsyncFormHelper from '../../../../../app/src/Features/Helpers/AsyncFormHelper.mjs'
 import SAMLAuthenticationManager from './SAMLAuthenticationManager.mjs'
 import { endSession } from '../../../logout.mjs'
 import UserSessionsManager from '../../../../../app/src/Features/User/UserSessionsManager.mjs'
@@ -104,7 +105,7 @@ const SAMLAuthenticationController = {
     passport._strategy('saml').logout(req, async (err, url) => {
       await endSession(req)
       if (err) return next(err)
-      res.redirect(url)
+      AsyncFormHelper.redirect(req, res, url)
     })
   },
   passportLogoutCallback(req, res, next) {

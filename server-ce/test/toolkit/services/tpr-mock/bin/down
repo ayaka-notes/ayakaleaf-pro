@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Usage: services/tpr-mock/bin/down
+# Removes the mock container.
+
+docker rm --force e2e-tpr-mock >/dev/null 2>&1 || true

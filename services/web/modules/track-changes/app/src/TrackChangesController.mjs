@@ -14,8 +14,12 @@ const TrackChangesController = {
   async trackChanges(req, res, next) {
     try {
       const { project_id } = req.params
-      let state = req.body.on || req.body.on_for
-      if (req.body.on_for_guests && !req.body.on) state.__guests__ = true
+      // merge into the stored state: on_for replaces the members, on_for_guests only toggles __guests__
+      const project = await Project.findById(project_id, { track_changes: 1 }).lean()
+      const { __guests__, ...members } = project?.track_changes instanceof Object ? project.track_changes : {}
+      const state = { ...(req.body.on_for || members) }
+      const guests = req.body.on_for_guests ?? __guests__
+      if (guests) state.__guests__ = true
       await Project.updateOne({_id: project_id}, {track_changes: state}).exec()  //do not wait?
       EditorRealTimeController.emitToRoom(project_id, 'toggle-track-changes', state)
       res.sendStatus(204)

@@ -5,12 +5,12 @@ import withContent, { SortBtnProps } from '../sort/with-content'
 import { useProjectListContext } from '../../context/project-list-context'
 import { Sort } from '../../../../../types/project/api'
 import {
-  Dropdown,
-  DropdownHeader,
-  DropdownItem,
-  DropdownMenu,
-  DropdownToggle,
-} from '@/shared/components/dropdown/dropdown-menu'
+  OLDropdown as Dropdown,
+  OLDropdownHeader as DropdownHeader,
+  OLDropdownItem as DropdownItem,
+  OLDropdownMenu as DropdownMenu,
+  OLDropdownToggle as DropdownToggle,
+} from '@/shared/components/ol/ol-dropdown-menu'
 
 function Item({ onClick, text, iconType }: SortBtnProps) {
   return (

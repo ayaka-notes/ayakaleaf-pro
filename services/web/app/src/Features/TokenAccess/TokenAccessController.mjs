@@ -23,6 +23,7 @@ import UserGetter from '../User/UserGetter.mjs'
 import Settings from '@overleaf/settings'
 import LimitationsManager from '../Subscription/LimitationsManager.mjs'
 import SplitTestHandler from '../SplitTests/SplitTestHandler.mjs'
+import { z, zz, parseReq } from '../../infrastructure/Validation.mjs'
 
 const { getSafeAdminDomainRedirect } = UrlHelper
 const { canRedirectToAdminDomain } = AdminAuthorizationHelper
@@ -91,8 +92,18 @@ async function _isOverleafStaff(userId) {
   )
 }
 
+const tokenAccessPageSchema = z.object({
+  // the router constrains :token to READ_ONLY_TOKEN_PATTERN /
+  // READ_AND_WRITE_TOKEN_PATTERN already, so a bare string is sufficient
+  // here -- Express never invokes this handler for a non-matching token.
+  params: z.strictObject({
+    token: z.string(),
+  }),
+})
+
 async function tokenAccessPage(req, res, next) {
-  const { token } = req.params
+  const { params } = parseReq(req, tokenAccessPageSchema, { logOnly: true })
+  const { token } = params
   if (!TokenAccessHandler.isValidToken(token)) {
     return next(new Errors.NotFoundError())
   }
@@ -285,9 +296,29 @@ async function checkAndGetProjectOrResponseAction(
   return [project, null, { projectId, action: 'continue' }]
 }
 
+const grantTokenAccessSchema = z.object({
+  // the router constrains :token to READ_ONLY_TOKEN_PATTERN /
+  // READ_AND_WRITE_TOKEN_PATTERN already, so a bare string is sufficient
+  // here -- Express never invokes this handler for a non-matching token.
+  params: z.strictObject({
+    token: z.string(),
+  }),
+  body: z.strictObject({
+    // sent as a genuine JSON boolean by the frontend (postJSON), not a
+    // query-string value -- z.stringbool() would reject it.
+    confirmedByUser: z.boolean().optional(),
+    // opaque: only ever compared for equality / logged, never used as a
+    // path or query value (see TokenAccessHandler.checkTokenHashPrefix).
+    tokenHashPrefix: z.string().optional(),
+  }),
+})
+
 async function grantTokenAccessReadAndWrite(req, res, next) {
-  const { token } = req.params
-  const { confirmedByUser, tokenHashPrefix } = req.body
+  const { params, body } = parseReq(req, grantTokenAccessSchema, {
+    logOnly: true,
+  })
+  const { token } = params
+  const { confirmedByUser, tokenHashPrefix } = body
   const userId = SessionManager.getLoggedInUserId(req.session)
   if (!TokenAccessHandler.isReadAndWriteToken(token)) {
     return res.sendStatus(400)
@@ -342,7 +373,7 @@ async function grantTokenAccessReadAndWrite(req, res, next) {
         ...(pendingEditor && { pendingEditor: true }),
       }
     )
-    AnalyticsManager.recordEventForUserInBackground(userId, 'project-joined', {
+    AnalyticsManager.recordEventForSession(req.session, 'project-joined', {
       role: pendingEditor
         ? PrivilegeLevels.READ_ONLY
         : PrivilegeLevels.READ_AND_WRITE,
@@ -391,8 +422,11 @@ async function grantTokenAccessReadAndWrite(req, res, next) {
 }
 
 async function grantTokenAccessReadOnly(req, res, next) {
-  const { token } = req.params
-  const { confirmedByUser, tokenHashPrefix } = req.body
+  const { params, body } = parseReq(req, grantTokenAccessSchema, {
+    logOnly: true,
+  })
+  const { token } = params
+  const { confirmedByUser, tokenHashPrefix } = body
   const userId = SessionManager.getLoggedInUserId(req.session)
   if (!TokenAccessHandler.isReadOnlyToken(token)) {
     return res.sendStatus(400)
@@ -452,7 +486,8 @@ async function grantTokenAccessReadOnly(req, res, next) {
     await TokenAccessHandler.promises.addReadOnlyUserToProject(
       userId,
       project._id,
-      project.owner_ref
+      project.owner_ref,
+      req.session
     )
 
     return res.json({
@@ -468,8 +503,22 @@ async function grantTokenAccessReadOnly(req, res, next) {
   }
 }
 
+// non-strict: this is middleware, chained before sharingUpdatesConsent /
+// moveReadWriteToCollaborators / moveReadWriteToReadOnly, which apply their
+// own strict schemas to the same params.
+const ensureUserCanUseSharingUpdatesConsentPageSchema = z.object({
+  params: z.object({
+    Project_id: zz.objectId(),
+  }),
+})
+
 async function ensureUserCanUseSharingUpdatesConsentPage(req, res, next) {
-  const { Project_id: projectId } = req.params
+  const { params } = parseReq(
+    req,
+    ensureUserCanUseSharingUpdatesConsentPageSchema,
+    { logOnly: true }
+  )
+  const { Project_id: projectId } = params
   const userId = SessionManager.getLoggedInUserId(req.session)
   const project = await ProjectGetter.promises.getProject(projectId, {
     owner_ref: 1,
@@ -498,8 +547,17 @@ async function ensureUserCanUseSharingUpdatesConsentPage(req, res, next) {
   next()
 }
 
+const sharingUpdatesConsentSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+  }),
+})
+
 async function sharingUpdatesConsent(req, res, next) {
-  const { Project_id: projectId } = req.params
+  const { params } = parseReq(req, sharingUpdatesConsentSchema, {
+    logOnly: true,
+  })
+  const { Project_id: projectId } = params
   AnalyticsManager.recordEventForSession(req.session, 'notification-prompt', {
     page: req.path,
     name: 'link-sharing-collaborator',
@@ -509,8 +567,17 @@ async function sharingUpdatesConsent(req, res, next) {
   })
 }
 
+const moveReadWriteToCollaboratorsSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+  }),
+})
+
 async function moveReadWriteToCollaborators(req, res, next) {
-  const { Project_id: projectId } = req.params
+  const { params } = parseReq(req, moveReadWriteToCollaboratorsSchema, {
+    logOnly: true,
+  })
+  const { Project_id: projectId } = params
   const userId = SessionManager.getLoggedInUserId(req.session)
   const project = await ProjectGetter.promises.getProject(projectId, {
     owner_ref: 1,
@@ -578,8 +645,17 @@ async function moveReadWriteToCollaborators(req, res, next) {
   res.sendStatus(204)
 }
 
+const moveReadWriteToReadOnlySchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+  }),
+})
+
 async function moveReadWriteToReadOnly(req, res, next) {
-  const { Project_id: projectId } = req.params
+  const { params } = parseReq(req, moveReadWriteToReadOnlySchema, {
+    logOnly: true,
+  })
+  const { Project_id: projectId } = params
   const userId = SessionManager.getLoggedInUserId(req.session)
   await ProjectAuditLogHandler.promises.addEntry(
     projectId,

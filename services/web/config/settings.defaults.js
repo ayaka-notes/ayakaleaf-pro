@@ -1,5 +1,9 @@
 const Path = require('node:path')
 const { merge } = require('@overleaf/settings/merge')
+const {
+  DEFAULT_TEXT_EXTENSIONS,
+  DEFAULT_EDITABLE_FILENAMES,
+} = require('overleaf-editor-core/lib/text_file_defaults')
 
 let defaultFeatures, siteUrl
 
@@ -28,51 +32,6 @@ const intFromEnv = function (name, defaultValue) {
   return parseInt(process.env[name], 10) || defaultValue
 }
 
-const defaultTextExtensions = [
-  'tex',
-  'latex',
-  'sty',
-  'cls',
-  'bst',
-  'bib',
-  'bibtex',
-  'txt',
-  'tikz',
-  'mtx',
-  'rtex',
-  'md',
-  'asy',
-  'lbx',
-  'bbx',
-  'cbx',
-  'm',
-  'lco',
-  'dtx',
-  'ins',
-  'ist',
-  'def',
-  'clo',
-  'ldf',
-  'rmd',
-  'qmd',
-  'lua',
-  'py',
-  'gv',
-  'mf',
-  'yml',
-  'yaml',
-  'lhs',
-  'lean',
-  'lean4',
-  'hs',
-  'mk',
-  'xmpdata',
-  'cfg',
-  'rnw',
-  'ltx',
-  'inc',
-]
-
 const parseTextExtensions = function (extensions) {
   if (extensions) {
     return extensions.split(',').map(ext => ext.trim())
@@ -99,7 +58,6 @@ const httpPermissionsPolicy = {
     'magnetometer',
     'midi',
     'otp-credentials',
-    'payment',
     'picture-in-picture',
     'screen-wake-lock',
     'serial',
@@ -112,6 +70,8 @@ const httpPermissionsPolicy = {
     autoplay: 'self "https://videos.ctfassets.net"',
     fullscreen: 'self',
     'on-device-speech-recognition': 'self',
+    // required for Apple Pay / Google Pay
+    payment: 'self "https://js.stripe.com"',
   },
 }
 
@@ -148,6 +108,7 @@ module.exports = {
       process.env.MONGO_URL ||
       `mongodb://${process.env.MONGO_HOST || '127.0.0.1'}/sharelatex`,
     hasSecondaries: process.env.MONGO_HAS_SECONDARIES === 'true',
+    auxUrl: process.env.MONGO_AUX_CONNECTION_STRING,
   },
 
   redis: {
@@ -252,8 +213,12 @@ module.exports = {
           ? `http://${process.env.CLSI_LB_IP || process.env.CLSI_LB_HOST}:80`
           : `http://${process.env.DOWNLOAD_HOST || '127.0.0.1'}:8080`,
       backendGroupName: undefined,
-      submissionBackendClass:
-        process.env.CLSI_SUBMISSION_BACKEND_CLASS || 'c3d',
+      submissionCompileBackendClass:
+        process.env.CLSI_SUBMISSION_COMPILE_BACKEND_CLASS || 'free',
+      standardCompileBackendClass:
+        process.env.CLSI_STANDARD_COMPILE_BACKEND_CLASS || 'free',
+      priorityCompileBackendClass:
+        process.env.CLSI_PRIORITY_COMPILE_BACKEND_CLASS || 'premium',
     },
     clsiCache: {
       instances: JSON.parse(process.env.CLSI_CACHE_INSTANCES || '[]'),
@@ -331,6 +296,10 @@ module.exports = {
   },
 
   splitTests: [],
+  splitTest: {
+    enableSplitTestCalculator:
+      process.env.ENABLE_SPLIT_TEST_CALCULATOR === 'true',
+  },
 
   // Where your instance of Overleaf Community Edition/Server Pro can be found publicly. Used in emails
   // that are sent out, generated links, etc.
@@ -429,6 +398,7 @@ module.exports = {
     compileGroup: 'standard',
     references: true,
     trackChanges: true,
+    offlineMode: true,
   }),
 
   // featuresEpoch: 'YYYY-MM-DD',
@@ -616,7 +586,6 @@ module.exports = {
   ],
 
   translatedLanguages: {
-    cn: '简体中文',
     cs: 'Čeština',
     da: 'Dansk',
     de: 'Deutsch',
@@ -631,11 +600,9 @@ module.exports = {
     no: 'Norsk',
     pl: 'Polski',
     pt: 'Português',
-    ro: 'Română',
     ru: 'Русский',
     sv: 'Svenska',
     tr: 'Türkçe',
-    uk: 'Українська',
     'zh-CN': '简体中文',
   },
 
@@ -896,16 +863,18 @@ module.exports = {
 
   compileBodySizeLimitMb: process.env.COMPILE_BODY_SIZE_LIMIT_MB || 7,
 
-  textExtensions: defaultTextExtensions.concat(
+  // The defaults come from overleaf-editor-core so that every service that
+  // classifies a file as a doc or as a binary file works from the same list.
+  textExtensions: DEFAULT_TEXT_EXTENSIONS.concat(
     parseTextExtensions(process.env.ADDITIONAL_TEXT_EXTENSIONS)
   ),
 
   // case-insensitive file names that is editable (doc) in the editor
-  editableFilenames: ['latexmkrc', '.latexmkrc', 'makefile', 'gnumakefile'],
+  editableFilenames: DEFAULT_EDITABLE_FILENAMES.slice(),
 
   fileIgnorePattern:
     process.env.FILE_IGNORE_PATTERN ||
-    '**/{{__MACOSX,.git,.texpadtmp,.R}{,/**},.!(latexmkrc),*.{dvi,aux,log,toc,out,pdfsync,synctex,synctex(busy),fdb_latexmk,fls,nlo,ind,glo,gls,glg,bbl,blg,doc,docx,gz,swp}}',
+    '**/{{__MACOSX,.git,.texpadtmp,.R,.venv,venv}{,/**},.!(latexmkrc),*.{dvi,aux,log,toc,out,pdfsync,synctex,synctex(busy),fdb_latexmk,fls,nlo,ind,glo,gls,glg,bbl,blg,doc,docx,gz,swp}}',
 
   validRootDocExtensions: ['tex', 'Rtex', 'ltx', 'Rnw'],
 
@@ -1028,43 +997,71 @@ module.exports = {
     createFileModes: [
       Path.resolve(
         __dirname,
-        '../modules/zotero/frontend/js/components/zotero-create-file'
+        '../modules/tpr-webmodule/frontend/js/components/create-file-mode-zotero'
+      ),
+      Path.resolve(
+        __dirname,
+        '../modules/tpr-webmodule/frontend/js/components/create-file-mode-mendeley'
       ),
     ],
     devToolbar: [],
+    dsNavLibraryLink: [],
+    trashPageTabs: [],
+    adminUserLibrary: [],
     gitBridge: [],
-    publishModal: [],
+    publishModalDropdownButton: [],
+    publishModalToolbarButton: [],
     tprFileViewInfo: [
       Path.resolve(
         __dirname,
-        '../modules/zotero/frontend/js/components/tpr-file-view-info'
+        '../modules/tpr-webmodule/frontend/js/components/tpr-file-view-info'
       ),
     ],
     tprFileViewRefreshError: [
       Path.resolve(
         __dirname,
-        '../modules/zotero/frontend/js/components/tpr-file-view-refresh-error'
+        '../modules/tpr-webmodule/frontend/js/components/tpr-file-view-refresh-error'
       ),
     ],
     tprFileViewRefreshButton: [
       Path.resolve(
         __dirname,
-        '../modules/zotero/frontend/js/components/tpr-file-view-refresh-button'
+        '../modules/tpr-webmodule/frontend/js/components/tpr-file-view-refresh-button'
       ),
     ],
     tprFileViewNotOriginalImporter: [
       Path.resolve(
         __dirname,
-        '../modules/zotero/frontend/js/components/tpr-file-view-not-original-importer'
+        '../modules/tpr-webmodule/frontend/js/components/tpr-file-view-not-original-importer'
       ),
     ],
     contactUsModal: [],
-    sourceEditorExtensions: [],
+    sourceEditorExtensions: [
+      Path.resolve(
+        __dirname,
+        '../modules/error-assistant/frontend/js/extensions/previous-fix'
+      ),
+    ],
     sourceEditorVisualExtensions: [],
     sourceEditorComponents: [],
-    pdfLogEntryHeaderActionComponents: [],
-    pdfLogEntryComponents: [],
-    pdfLogEntriesComponents: [],
+    pdfLogEntryHeaderActionComponents: [
+      Path.resolve(
+        __dirname,
+        '../modules/error-assistant/frontend/js/components/suggest-fix-button'
+      ),
+    ],
+    pdfLogEntryComponents: [
+      Path.resolve(
+        __dirname,
+        '../modules/error-assistant/frontend/js/components/error-assistant'
+      ),
+    ],
+    pdfLogEntriesComponents: [
+      Path.resolve(
+        __dirname,
+        '../modules/error-assistant/frontend/js/components/previous-fix-entry'
+      ),
+    ],
     pdfPreviewPromotions: [],
     diagnosticActions: [],
     sourceEditorCompletionSources: [],
@@ -1074,17 +1071,28 @@ module.exports = {
         '../modules/symbol-palette/frontend/js/components/symbol-palette'
       ),
     ],
+    sourceEditorToolbarStartButtons: [],
     sourceEditorToolbarButtonGroups: [],
     sourceEditorToolbarComponents: [],
     sourceEditorToolbarEndButtons: [],
-    rootContextProviders: [],
+    rootContextProviders: [
+      Path.resolve(
+        __dirname,
+        '../modules/workbench/frontend/js/context/workbench-settings-context'
+      ),
+    ],
     mainEditorLayoutModals: [
       Path.resolve(
         __dirname,
         '../modules/reference-picker/frontend/js/components/reference-picker-controller.tsx'
       ),
     ],
-    mainEditorLayoutPanels: [],
+    mainEditorLayoutPanels: [
+      Path.resolve(
+        __dirname,
+        '../modules/workbench/frontend/js/components/workbench-dock'
+      ),
+    ],
     pythonRunner: [
       Path.resolve(
         __dirname,
@@ -1102,7 +1110,11 @@ module.exports = {
     referenceLinkingWidgets: [
       Path.resolve(
         __dirname,
-        '../modules/zotero/frontend/js/components/zotero-widget'
+        '../modules/tpr-webmodule/frontend/js/components/zotero-widget'
+      ),
+      Path.resolve(
+        __dirname,
+        '../modules/tpr-webmodule/frontend/js/components/mendeley-widget'
       ),
     ],
     importProjectFromGithubModalWrapper: [
@@ -1145,6 +1157,8 @@ module.exports = {
     managedGroupSubscriptionEnrollmentNotification: [],
     managedGroupEnrollmentInvite: [],
     ssoCertificateInfo: [],
+    domainVerificationLabel: [],
+    domainVerificationToken: [],
     v1ImportDataScreen: [],
     snapshotUtils: [],
     visualEditorProviders: [],
@@ -1202,20 +1216,29 @@ module.exports = {
       ),
       Path.resolve(
         __dirname,
-        '../modules/zotero/frontend/js/components/zotero-integration-card.tsx'
+        '../modules/tpr-webmodule/frontend/js/components/zotero-integration-card.tsx'
+      ),
+      Path.resolve(
+        __dirname,
+        '../modules/tpr-webmodule/frontend/js/components/mendeley-integration-card.tsx'
       ),
     ],
     referenceSearchSetting: [],
     settingsModalEditorTabSections: [],
     settingsModalSpellcheckSections: [],
-    errorLogsComponents: [],
+    editorFloatingMenuActions: [],
     referenceIndices: [
       Path.resolve(
         __dirname,
         '../modules/reference-picker/frontend/js/reference-index/advanced-reference-index.ts'
       ),
     ],
-    railEntries: [],
+    railEntries: [
+      Path.resolve(
+        __dirname,
+        '../modules/workbench/frontend/js/workbench-rail-entry'
+      ),
+    ],
     railPopovers: [],
     railActions: [],
     railModals: [],
@@ -1240,8 +1263,11 @@ module.exports = {
     'reference-picker',
     'git-bridge',
     'github-sync',
-    'zotero',
-    'instance-features'
+    'tpr-webmodule',
+    'workbench',
+    'error-assistant',
+    'instance-features',
+    'open-in-overleaf'
   ],
   viewIncludes: {},
 
@@ -1287,7 +1313,8 @@ module.exports.splitTestOverrides = {
   'import-markdown': 'enabled',
   'export-docx': 'enabled',
   'export-markdown': 'enabled',
-  'export-html': 'enabled'
+  'export-html': 'enabled',
+  'intermittent-connection-improvements': 'enabled'
 }
 
 module.exports.oauthProviders = {

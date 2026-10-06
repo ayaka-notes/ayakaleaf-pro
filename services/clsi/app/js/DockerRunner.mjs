@@ -278,10 +278,11 @@ const DockerRunner = {
       Image: image,
       WorkingDir: cwd ? Path.posix.join('/compile', cwd) : '/compile',
       NetworkDisabled: true,
-      Memory: 1024 * 1024 * 1024 * 1024, // 1 Gb
       User: Settings.clsi.docker.user,
       Env: Object.entries(env).map(([key, value]) => `${key}=${value}`),
       HostConfig: {
+        // Memory only takes effect inside HostConfig
+        Memory: 1024 * 1024 * 1024, // 1 Gb
         Binds: Object.entries(volumes).map(
           ([hostVol, dockerVol]) => `${hostVol}:${dockerVol}`
         ),

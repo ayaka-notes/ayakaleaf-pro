@@ -1,0 +1,5 @@
+# Applied on top of the overleaf.rc that toolkit's bin/init generates.
+# A suite can layer more settings via suites/<suite>/overleaf.rc.
+SERVER_PRO=true
+# Local tag that `make setup` gives to the image under test
+OVERLEAF_IMAGE_NAME=overleaf-pro-e2e

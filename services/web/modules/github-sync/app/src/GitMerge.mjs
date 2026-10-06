@@ -737,7 +737,7 @@ async function exportChangesToGit({
 function generateBranchName() {
   const d = new Date()
   const pad = n => `${n}`.padStart(2, '0')
-  return `overleaf-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`
+  return `overleaf-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
 }
 
 async function getGitBlobMap(token, repoFullName, commit) {

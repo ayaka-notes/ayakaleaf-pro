@@ -339,6 +339,26 @@
     }
   }
 
+  .ds-nav-ds-name {
+    margin-bottom: var(--spacing-05);
+
+    span {
+      text-transform: uppercase;
+      font-weight: bold;
+
+      @include body-xs;
+    }
+  }
+}
+
+.user-ds-nav-page,
+#manage-projects-root .project-ds-nav-page {
+  .theme-toggle-radio label {
+    display: flex;
+    margin-bottom: 0;
+    color: var(--content-primary-themed);
+  }
+
   .ds-nav-icon-dropdown {
     .dropdown-toggle {
       color: var(--content-secondary-themed);
@@ -371,17 +391,6 @@
       .material-symbols {
         vertical-align: middle;
       }
-    }
-  }
-
-  .ds-nav-ds-name {
-    margin-bottom: var(--spacing-05);
-
-    span {
-      text-transform: uppercase;
-      font-weight: bold;
-
-      @include body-xs;
     }
   }
 }

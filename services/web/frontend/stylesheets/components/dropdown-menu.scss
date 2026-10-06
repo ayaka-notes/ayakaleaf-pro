@@ -37,13 +37,7 @@
 }
 
 @include theme('default') {
-  .ide-redesign-main,
-  .project-ds-nav-page,
-  // Codemirror tooltips are rendered outside of the main app container
-  .cm-tooltip .dropdown-menu,
-  .cm-tooltip .dropdown {
-    @include dark-dropdown-menu;
-  }
+  @include dark-dropdown-menu;
 }
 
 $dropdown-item-min-height: 36px;
@@ -132,6 +126,10 @@ $dropdown-item-min-height: 36px;
 
   &:focus {
     background: none;
+
+    // Bootstrap sets the hover text colour on plain :focus too; reset it so a
+    // mouse-focused (not :focus-visible), non-hovered item stays readable.
+    color: var(--dropdown-text-color);
   }
 
   &:focus-visible {
@@ -160,6 +158,12 @@ $dropdown-item-min-height: 36px;
   &.active {
     background-color: var(--dropdown-background-active);
     color: var(--dropdown-text-active);
+  }
+
+  &.disabled,
+  &[aria-disabled='true'] {
+    color: var(--content-disabled);
+    pointer-events: none;
   }
 
   &.btn-link {
@@ -219,6 +223,21 @@ $dropdown-item-min-height: 36px;
 .dropdown-item-leading-icon-empty {
   display: inline-block;
   width: 20px;
+}
+
+// Bootstrap sets pointer-events: none on disabled items, so set the cursor on
+// the parent <li> where pointer events still land.
+.dropdown-menu li:has(> .dropdown-item.disabled),
+.dropdown-menu li:has(> .dropdown-item[aria-disabled='true']) {
+  cursor: not-allowed;
+}
+
+// When the dropdown item itself is rendered as an <li> (e.g. Dropdown.Item as="li"),
+// pointer-events: none is on the <li> itself so re-enable it there.
+.dropdown-menu li.dropdown-item.disabled,
+.dropdown-menu li.dropdown-item[aria-disabled='true'] {
+  pointer-events: auto;
+  cursor: not-allowed;
 }
 
 // description text should look disabled when the dropdown item is disabled
@@ -282,7 +301,8 @@ $dropdown-item-min-height: 36px;
 }
 
 .nested-dropdown-toggle {
-  &::after {
+  &::after,
+  &::before {
     content: none !important;
   }
 
@@ -290,10 +310,9 @@ $dropdown-item-min-height: 36px;
   justify-content: space-between;
 }
 
-.dropdown-shortcut-char {
-  display: inline-block;
-  width: 1em;
-  text-align: center;
+.dropdown-shortcut {
+  display: inline-flex;
+  gap: var(--spacing-02);
 }
 
 .dropdown-item-wide {

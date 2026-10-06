@@ -7,7 +7,6 @@ export type RefProviderSettings = {
   enabled: boolean
   disablePersonalLibrary: boolean
   groups: { id: string }[]
-  migrated?: boolean
 }
 
 export type UserSettings = {
@@ -30,6 +29,7 @@ export type UserSettings = {
   editorTabs: boolean
   nonBlinkingCursor: boolean
   darkModePdf: boolean
+  floatingMenu: boolean
   zotero: RefProviderSettings
   mendeley: RefProviderSettings
   papers: RefProviderSettings

@@ -1,4 +1,4 @@
-import { vi, assert, expect } from 'vitest'
+import { assert, beforeEach, describe, expect, it, vi } from 'vitest'
 import { setTimeout } from 'node:timers/promises'
 import MockRequest from '../helpers/MockRequest.mjs'
 import MockResponse from '../helpers/MockResponse.mjs'
@@ -65,7 +65,8 @@ describe('UserEmailsController', function () {
     }
     ctx.HttpErrorHandler = { conflict: vi.fn() }
     ctx.AnalyticsManager = {
-      recordEventForUserInBackground: vi.fn(),
+      recordEventForSession: vi.fn(),
+      recordEventForMongoUserInBackground: vi.fn(),
     }
     ctx.UserAuditLogHandler = {
       addEntry: vi.fn((userId, op, initiatorId, ip, info, callback) =>
@@ -810,13 +811,15 @@ describe('UserEmailsController', function () {
           ctx.req,
           { json: vi.fn() }
         )
-        expect(
-          ctx.AnalyticsManager.recordEventForUserInBackground
-        ).toHaveBeenCalledWith(ctx.user._id, 'email-verified', {
-          provider: 'email',
-          verification_type: 'token',
-          isPrimary: ctx.user.email === ctx.email,
-        })
+        expect(ctx.AnalyticsManager.recordEventForSession).toHaveBeenCalledWith(
+          ctx.req.session,
+          'email-verified',
+          {
+            provider: 'email',
+            verification_type: 'token',
+            isPrimary: ctx.user.email === ctx.email,
+          }
+        )
       })
 
       it('removes pendingExistingEmail from session', async function (ctx) {
@@ -962,6 +965,26 @@ describe('UserEmailsController', function () {
           },
         }
       )
+    })
+  })
+
+  describe('showConfirm', function () {
+    it('renders the confirm email page with the token from the query string', async function (ctx) {
+      ctx.req.query = { token: 'mock-confirm-token' }
+      await ctx.UserEmailsController.showConfirm(ctx.req, ctx.res)
+      expect(ctx.res.renderedTemplate).to.equal('user/confirm_email')
+      expect(ctx.res.renderedVariables).to.deep.equal({
+        token: 'mock-confirm-token',
+        title: 'confirm_email',
+      })
+    })
+
+    it('renders with an undefined token when none is supplied', async function (ctx) {
+      await ctx.UserEmailsController.showConfirm(ctx.req, ctx.res)
+      expect(ctx.res.renderedVariables).to.deep.equal({
+        token: undefined,
+        title: 'confirm_email',
+      })
     })
   })
 })

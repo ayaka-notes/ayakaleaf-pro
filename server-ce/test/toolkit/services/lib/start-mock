@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Usage: services/lib/start-mock NAME HOST...
+#
+# Starts services/NAME/server.mjs on the toolkit's network, reachable as NAME
+# for the tests' control API on port 8080 and as each HOST, so that Docker's
+# DNS sends Overleaf's requests for those hosts to the mock. The certificate
+# and mock.env come from the mock's bin/prepare, in
+# $TOOLKIT_DIR/services/NAME. Waits until Overleaf reaches the mock over TLS.
+#
+# Expects TOOLKIT_DIR and TOOLKIT_NETWORK in the environment.
+
+set -euo pipefail
+
+name=$1
+shift
+services="$(cd "$(dirname "$0")/.." && pwd)"
+state="$TOOLKIT_DIR/services/$name"
+
+aliases=(--network-alias "$name")
+for host in "$@"; do
+  aliases+=(--network-alias "$host")
+done
+
+docker run --detach --name "e2e-$name" \
+  --network "$TOOLKIT_NETWORK" \
+  "${aliases[@]}" \
+  --env-file "$state/mock.env" \
+  --volume "$services/$name/server.mjs:/mock/server.mjs:ro" \
+  --volume "$services/lib:/mock/lib:ro" \
+  --volume "$state:/tls:ro" \
+  node:24-alpine node /mock/server.mjs
+
+echo "Waiting for $name..."
+for _ in $(seq 30); do
+  docker exec sharelatex curl -sf -o /dev/null -X POST "http://$name:8080/_mock/reset" && break
+  sleep 1
+done
+# Any answer over TLS will do, it shows the alias and the certificate work
+docker exec sharelatex curl -s -o /dev/null "https://$1/" \
+  --cacert "/var/lib/overleaf/certs/$name-ca.pem" \
+  || { echo "$name is not reachable as $1" >&2; exit 1; }
+echo "$name is up"

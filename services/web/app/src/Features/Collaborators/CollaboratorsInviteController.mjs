@@ -22,6 +22,8 @@ import PrivilegeLevels, {
 } from '../Authorization/PrivilegeLevels.mjs'
 import SplitTestHandler from '../SplitTests/SplitTestHandler.mjs'
 import SubscriptionGroupHandler from '../Subscription/SubscriptionGroupHandler.mjs'
+import SubscriptionLocator from '../Subscription/SubscriptionLocator.mjs'
+import TokenAccessHandler from '../TokenAccess/TokenAccessHandler.mjs'
 
 // This rate limiter allows a different number of requests depending on the
 // number of callaborators a user is allowed. This is implemented by providing
@@ -38,8 +40,15 @@ const rateLimiter = new RateLimiter('invite-to-project-by-user-id', {
   duration: 60 * 30,
 })
 
+const getAllInvitesSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+  }),
+})
+
 async function getAllInvites(req, res) {
-  const projectId = req.params.Project_id
+  const { params } = parseReq(req, getAllInvitesSchema, { logOnly: true })
+  const projectId = params.Project_id
   logger.debug({ projectId }, 'getting all active invites for project')
   const invites =
     await CollaboratorsInviteGetter.promises.getAllInvites(projectId)
@@ -87,6 +96,21 @@ async function _checkRateLimit(userId) {
 }
 
 const inviteToProjectSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+  }),
+  body: z.strictObject({
+    email: z.string(),
+    privileges: z.enum([
+      PrivilegeLevels.READ_ONLY,
+      PrivilegeLevels.READ_AND_WRITE,
+      PrivilegeLevels.REVIEW,
+    ]),
+  }),
+})
+// Rollout-temporary fallback (pre-refinement schema from main); delete
+// when this route's REQ_VALIDATION_MODE instrumentation is removed.
+const inviteToProjectFallbackSchema = z.object({
   params: z.object({
     Project_id: zz.objectId(),
   }),
@@ -101,7 +125,9 @@ const inviteToProjectSchema = z.object({
 })
 
 async function inviteToProject(req, res) {
-  const { params, body } = parseReq(req, inviteToProjectSchema)
+  const { params, body } = parseReq(req, inviteToProjectSchema, {
+    fallbackSchema: inviteToProjectFallbackSchema,
+  })
   const projectId = params.Project_id
   let { email, privileges } = body
   const sendingUser = SessionManager.getSessionUser(req.session)
@@ -187,9 +213,17 @@ async function inviteToProject(req, res) {
   })
   res.json({ invite })
 }
+const revokeInviteSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+    invite_id: zz.objectId(),
+  }),
+})
+
 async function revokeInvite(req, res) {
-  const projectId = req.params.Project_id
-  const inviteId = req.params.invite_id
+  const { params } = parseReq(req, revokeInviteSchema, { logOnly: true })
+  const projectId = params.Project_id
+  const inviteId = params.invite_id
   const user = SessionManager.getSessionUser(req.session)
 
   logger.debug({ projectId, inviteId }, 'revoking invite')
@@ -221,9 +255,19 @@ async function revokeInvite(req, res) {
   res.sendStatus(204)
 }
 
+const generateNewInviteSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+    invite_id: zz.objectId(),
+  }),
+})
+
 async function generateNewInvite(req, res) {
-  const projectId = req.params.Project_id
-  const inviteId = req.params.invite_id
+  const { params } = parseReq(req, generateNewInviteSchema, {
+    logOnly: true,
+  })
+  const projectId = params.Project_id
+  const inviteId = params.invite_id
   const user = SessionManager.getSessionUser(req.session)
 
   logger.debug({ projectId, inviteId }, 'resending invite')
@@ -273,9 +317,17 @@ const _renderInvalidPage = function (res, projectId, sharingUpdates) {
   }
 }
 
+const viewInviteSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+    token: z.string(),
+  }),
+})
+
 async function viewInvite(req, res) {
-  const projectId = req.params.Project_id
-  const { token } = req.params
+  const { params } = parseReq(req, viewInviteSchema, { logOnly: true })
+  const projectId = params.Project_id
+  const { token } = params
 
   const { variant: sharingUpdates } =
     await SplitTestHandler.promises.getAssignment(req, res, 'sharing-updates')
@@ -359,8 +411,15 @@ async function viewInvite(req, res) {
   }
 }
 
+const viewSharingLinkSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+  }),
+})
+
 async function viewSharingLink(req, res) {
-  const projectId = req.params.Project_id
+  const { params } = parseReq(req, viewSharingLinkSchema, { logOnly: true })
+  const projectId = params.Project_id
 
   // ensure the project exists
   const project = await ProjectGetter.promises.getProject(projectId, {
@@ -373,8 +432,17 @@ async function viewSharingLink(req, res) {
 
   const currentUser = SessionManager.getSessionUser(req.session)
   if (!currentUser) {
-    AuthenticationController.setRedirectInSession(req)
-    return res.redirect('/register')
+    const invite =
+      await CollaboratorsInviteGetter.promises.getSharingLinkInvite(projectId)
+    const isPublicSharingLink =
+      invite != null &&
+      invite.privileges !== PrivilegeLevels.NONE &&
+      !invite.subscriptionId
+
+    if (!isPublicSharingLink) {
+      AuthenticationController.setRedirectInSession(req)
+      return res.redirect('/register')
+    }
   }
 
   // cleanup if set for register page
@@ -386,9 +454,22 @@ async function viewSharingLink(req, res) {
   })
 }
 
+const acceptInviteSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+    token: z.string().optional(),
+  }),
+  body: z.strictObject({
+    token: z.string().optional(),
+  }),
+})
+
 async function acceptInvite(req, res) {
-  const { Project_id: projectId, token: urlToken } = req.params
-  const { token: bodyToken } = req.body
+  const { params, body } = parseReq(req, acceptInviteSchema, {
+    logOnly: true,
+  })
+  const { Project_id: projectId, token: urlToken } = params
+  const { token: bodyToken } = body
   const currentUser = SessionManager.getSessionUser(req.session)
   logger.debug(
     { projectId, userId: currentUser._id },
@@ -493,17 +574,13 @@ async function acceptInvite(req, res) {
   } else if (invite.privileges === PrivilegeLevels.READ_ONLY) {
     editMode = 'view'
   }
-  AnalyticsManager.recordEventForUserInBackground(
-    currentUser._id,
-    'project-joined',
-    {
-      projectId,
-      ownerId: invite.sendingUserId, // only owner can invite others
-      mode: editMode,
-      role: invite.privileges,
-      source: urlToken ? 'email-invite' : 'sharing-link',
-    }
-  )
+  AnalyticsManager.recordEventForSession(req.session, 'project-joined', {
+    projectId,
+    ownerId: invite.sendingUserId, // only owner can invite others
+    mode: editMode,
+    role: invite.privileges,
+    source: urlToken ? 'email-invite' : 'sharing-link',
+  })
 
   if (req.xhr) {
     res.sendStatus(204) //  Done async via project page notification
@@ -512,8 +589,16 @@ async function acceptInvite(req, res) {
   }
 }
 
+const getSharingLinkSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+  }),
+})
+
 async function getSharingLink(req, res) {
-  const { Project_id: projectId } = req.params
+  const { Project_id: projectId } = parseReq(req, getSharingLinkSchema, {
+    logOnly: true,
+  }).params
 
   const invite =
     await CollaboratorsInviteGetter.promises.getSharingLinkInvite(projectId)
@@ -534,6 +619,26 @@ async function getSharingLink(req, res) {
 }
 
 const updateSharingLinkSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+  }),
+  body: z.strictObject({
+    // We have to use a union here, as Zod enums must be strings,
+    // but NONE is defined as boolean false
+    privileges: z.union([
+      z.literal(PrivilegeLevels.NONE),
+      z.enum([
+        PrivilegeLevels.READ_ONLY,
+        PrivilegeLevels.READ_AND_WRITE,
+        PrivilegeLevels.REVIEW,
+      ]),
+    ]),
+    subscriptionId: zz.objectId().optional(),
+  }),
+})
+// Rollout-temporary fallback (pre-refinement schema from main); delete
+// when this route's REQ_VALIDATION_MODE instrumentation is removed.
+const updateSharingLinkFallbackSchema = z.object({
   params: z.object({
     Project_id: zz.objectId(),
   }),
@@ -553,15 +658,37 @@ const updateSharingLinkSchema = z.object({
 })
 
 async function updateSharingLink(req, res) {
-  const { params, body } = parseReq(req, updateSharingLinkSchema)
+  const { params, body } = parseReq(req, updateSharingLinkSchema, {
+    fallbackSchema: updateSharingLinkFallbackSchema,
+  })
   const projectId = params.Project_id
   const privileges = body.privileges
   const subscriptionId = body.subscriptionId
 
+  const currentUser = SessionManager.getSessionUser(req.session)
+
+  if (subscriptionId) {
+    const subscriptions =
+      await SubscriptionLocator.promises.getUserActiveProfessionalGroupSubscriptions(
+        currentUser._id,
+        { _id: 1 }
+      )
+    const canShareWithSubscription = subscriptions.some(
+      subscription => subscription._id.toString() === subscriptionId.toString()
+    )
+
+    if (!canShareWithSubscription) {
+      logger.debug(
+        { projectId, subscriptionId, userId: currentUser._id },
+        'cannot create a group sharing link for a non-professional or non-member subscription'
+      )
+      return res.status(403).json({ errorReason: 'subscription_not_eligible' })
+    }
+  }
+
   let invite =
     await CollaboratorsInviteGetter.promises.getSharingLinkInvite(projectId)
 
-  const currentUser = SessionManager.getSessionUser(req.session)
   if (invite === null) {
     invite = await CollaboratorsInviteHandler.promises.createSharingLinkInvite(
       projectId,
@@ -608,6 +735,16 @@ async function updateSharingLink(req, res) {
 }
 
 const validateSharingLinkSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+  }),
+  body: z.strictObject({
+    token: z.string(),
+  }),
+})
+// Rollout-temporary fallback (pre-refinement schema from main); delete
+// when this route's REQ_VALIDATION_MODE instrumentation is removed.
+const validateSharingLinkFallbackSchema = z.object({
   params: z.object({
     Project_id: zz.objectId(),
   }),
@@ -617,7 +754,9 @@ const validateSharingLinkSchema = z.object({
 })
 
 async function validateSharingLink(req, res) {
-  const { params, body } = parseReq(req, validateSharingLinkSchema)
+  const { params, body } = parseReq(req, validateSharingLinkSchema, {
+    fallbackSchema: validateSharingLinkFallbackSchema,
+  })
   const projectId = params.Project_id
   const { token } = body
 
@@ -628,7 +767,19 @@ async function validateSharingLink(req, res) {
 
   const currentUser = SessionManager.getSessionUser(req.session)
 
-  if (invite == null || !currentUser) {
+  if (invite == null) {
+    return res.json({ valid: false })
+  }
+
+  if (!currentUser) {
+    if (
+      invite.reusable &&
+      invite.privileges !== PrivilegeLevels.NONE &&
+      !invite.subscriptionId
+    ) {
+      TokenAccessHandler.grantSessionTokenAccess(req, projectId, token)
+      return res.json({ valid: true, redirect: true })
+    }
     return res.json({ valid: false })
   }
 

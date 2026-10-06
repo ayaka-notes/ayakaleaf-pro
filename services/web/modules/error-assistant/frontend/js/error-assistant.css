@@ -1,0 +1,379 @@
+/* Styles for AI error suggestions, code diffs, and feedback controls.
+   Uses the editor's shared design tokens for light and dark themes. */
+
+.ai-error-assistant-hidden-suggest-fix-button {
+  height: 0;
+  position: absolute;
+  visibility: hidden;
+  width: 0;
+}
+.ai-error-assistant-suggested-change {
+  border: 1px solid var(--border-divider-themed);
+  border-radius: var(--border-radius-base);
+}
+.ai-error-assistant-suggested-change-header {
+  align-items: center;
+  background-color: var(--bg-secondary-themed);
+  display: flex;
+  gap: var(--spacing-04);
+  padding: var(--spacing-03) var(--spacing-04);
+}
+.ai-error-assistant-suggested-change-heading {
+  color: var(--content-primary-themed);
+  flex: 1;
+  font-family: DM Mono, monospace;
+  font-feature-settings: "ss05";
+  font-size: var(--font-size-01);
+  font-weight: 500;
+  line-height: var(--line-height-01);
+}
+.ai-error-assistant-change-icon {
+  font-size: var(--font-size-01);
+  line-height: var(--line-height-01);
+}
+.ai-error-assistant-action-button {
+  bottom: var(--spacing-04);
+  position: absolute;
+  right: var(--spacing-04);
+}
+.ai-error-assistant-footer-inner {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+.ai-error-assistant-feedback-toast {
+  bottom: var(--spacing-04);
+  position: fixed;
+  right: var(--spacing-04);
+  z-index: 1;
+}
+.ai-error-assistant-intro-messages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-04);
+  margin-top: var(--spacing-04);
+}
+.ai-error-assistant-previous-fix-entry .log-entry-header-text {
+  color: var(--content-primary-themed);
+}
+.ai-error-assistant-cursor {
+  animation: ai-error-assistant-blink 1s infinite;
+  background-color: var(--blue-70);
+  border-radius: var(--spacing-03);
+  display: inline-block;
+  height: 1lh;
+  margin-top: var(--spacing-04);
+  width: 1em;
+}
+@keyframes ai-error-assistant-blink {
+  0% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.ai-error-assistant {
+  color: var(--content-primary-themed);
+  font-size: 110%;
+  margin-top: var(--spacing-04);
+  overflow-y: auto;
+  padding: var(--spacing-04);
+  position: relative;
+}
+.ai-error-assistant.ai-error-assistant-finished,
+.ai-error-assistant.ai-error-assistant-intro,
+.ai-error-assistant.ai-error-assistant-running {
+  background: linear-gradient(
+        var(--bg-primary-themed),
+        var(--bg-primary-themed)
+      )
+      padding-box,
+    var(--premium-gradient-themed) border-box;
+  border: 1px solid transparent;
+  border-radius: var(--border-radius-base);
+}
+.log-entry-content-link + .ai-error-assistant,
+.log-entry-formatted-content + .ai-error-assistant {
+  margin-top: var(--spacing-04);
+}
+.ai-error-assistant-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  padding: 0;
+}
+.ai-error-assistant-meta {
+  display: flex;
+  flex: 3;
+  flex-direction: column;
+  font-size: var(--font-size-02);
+  justify-content: center;
+  padding: 0;
+}
+.ai-error-assistant-heading {
+  -webkit-background-clip: text;
+  background-clip: text;
+  background-image: var(--premium-gradient-themed);
+  color: transparent;
+  font-weight: 400;
+}
+.ai-error-assistant-tip {
+  border: 1px solid #ddd;
+  border-radius: var(--border-radius-base);
+  display: flex;
+  font-size: var(--font-size-01);
+  gap: var(--spacing-04);
+  margin: var(--spacing-04) 0;
+  padding: var(--spacing-04);
+}
+.ai-error-assistant-suggest-fix-button {
+  align-items: center;
+  display: flex;
+  gap: var(--spacing-03);
+}
+.ai-error-assistant-actions {
+  align-items: center;
+  display: flex;
+  gap: var(--spacing-04);
+  justify-content: flex-end;
+  margin-bottom: var(--spacing-04);
+  margin-top: var(--spacing-04);
+}
+.ai-error-assistant-tool-calls {
+  list-style: none;
+  margin-bottom: 0;
+  padding-left: 0;
+}
+.ai-error-assistant-tool-calls li {
+  margin-right: 0;
+  width: auto;
+}
+.ai-error-assistant-messages {
+  font-size: var(--font-size-02);
+  margin: -14px 0 0;
+  padding: 0;
+  z-index: -1;
+}
+.ai-error-assistant-messages .ai-error-assistant-messages-header {
+  font-weight: var(--ds-font-weight-bold);
+}
+.ai-error-assistant-action {
+  margin: var(--spacing-06);
+}
+.ai-error-assistant-output {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Noto Sans", var(--font-sans);
+}
+.ai-error-assistant-output h1,
+.ai-error-assistant-output h2,
+.ai-error-assistant-output h3,
+.ai-error-assistant-output h4,
+.ai-error-assistant-output h5,
+.ai-error-assistant-output h6 {
+  color: inherit;
+  font-family: inherit;
+  font-size: 110%;
+  font-weight: 700;
+  margin: var(--spacing-06) var(--spacing-04);
+}
+.ai-error-assistant-output table {
+  background-color: inherit;
+}
+.ai-error-assistant-output p > code {
+  background-color: var(--bg-tertiary-themed);
+  border-radius: var(--spacing-02);
+  color: var(--content-primary-themed);
+  line-height: 0;
+  padding: var(--spacing-01);
+}
+.ai-error-assistant-output p {
+  margin: var(--spacing-06) 0;
+}
+.ai-error-assistant-copy-code-btn {
+  color: var(--content-primary-themed);
+  gap: var(--spacing-02);
+  --bs-btn-color: var(--content-primary-themed);
+  --bs-btn-bg: transparent;
+  --bs-btn-border-color: transparent;
+  --bs-btn-hover-color: var(--content-primary-themed);
+  --bs-btn-hover-bg: var(--bg-tertiary-themed);
+  --bs-btn-hover-border-color: var(--bg-tertiary-themed);
+  --bs-btn-active-color: var(--content-primary-themed);
+  --bs-btn-active-bg: var(--bg-tertiary-themed);
+  --bs-btn-active-border-color: var(--bg-tertiary-themed);
+  --bs-btn-disabled-color: #afb5c0;
+  --bs-btn-disabled-bg: #e7e9ee;
+  --bs-btn-disabled-border-color: #e7e9ee;
+  --bs-btn-border-width: 0;
+}
+.ai-error-assistant-copy-code-btn[data-ol-loading="true"] {
+  background-color: var(--bs-btn-bg);
+  border-color: var(--bs-btn-border-color);
+  color: var(--bs-btn-color);
+  opacity: 1;
+}
+.ai-error-assistant-message {
+  margin-bottom: var(--spacing-04);
+}
+.ai-error-assistant-message pre {
+  background: hsla(0, 0%, 49%, 0.1);
+  border: 1px solid hsla(0, 0%, 66.7%, 0.5);
+  border-radius: var(--spacing-01);
+  font-size: var(--font-size-02);
+  padding: var(--spacing-03);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ai-error-assistant-message .ai-error-assistant-line-number {
+  border-right: none;
+  flex-shrink: 0;
+  margin-right: 0;
+  padding-right: 0;
+}
+.ai-error-assistant-message .ai-error-assistant-line-number button {
+  all: unset;
+  cursor: pointer;
+}
+.ai-error-assistant-message .ai-error-assistant-code {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ai-error-assistant-message .ai-error-assistant-from,
+.ai-error-assistant-message .ai-error-assistant-to {
+  align-items: center;
+  background-color: transparent;
+  display: flex;
+  flex-wrap: nowrap;
+  font-family: DM Mono, monospace;
+  font-feature-settings: "ss05";
+  font-size: var(--font-size-01);
+  font-weight: 500;
+  gap: var(--spacing-04);
+  margin: 0 var(--spacing-04);
+  min-height: 1lh;
+  padding: var(--spacing-04) 0;
+  position: relative;
+  text-decoration: none;
+  white-space: pre-wrap;
+}
+.ai-error-assistant-message .ai-error-assistant-from {
+  border-bottom: 1px solid var(--border-divider-themed);
+}
+.ai-error-assistant-message del {
+  background-color: var(--bg-danger-01);
+  color: var(--content-primary-dark);
+  text-decoration: none;
+}
+.ai-error-assistant-message ins {
+  background-color: var(--bg-accent-01);
+  color: var(--content-primary-dark);
+  text-decoration: none;
+}
+.ai-error-assistant-footer {
+  align-items: flex-start;
+  color: var(--content-secondary-themed);
+  display: flex;
+  flex-direction: column;
+  font-size: var(--font-size-01);
+  gap: var(--spacing-04);
+  justify-content: space-between;
+  margin-bottom: var(--spacing-02);
+  padding: 0;
+}
+.ai-error-assistant-feedback {
+  align-items: center;
+  display: flex;
+  gap: var(--spacing-03);
+  padding: 0;
+}
+.ai-error-assistant-feedback .ai-error-assistant-feedback-button {
+  align-items: center;
+  background: none;
+  color: inherit;
+  display: inline-flex;
+  padding: 0;
+}
+.ai-error-assistant-feedback
+  .ai-error-assistant-feedback-button:not(.active):focus,
+.ai-error-assistant-feedback
+  .ai-error-assistant-feedback-button:not(.active):hover {
+  background-color: var(--bg-tertiary-themed);
+  color: var(--content-primary-themed);
+}
+.ai-error-assistant-feedback
+  .ai-error-assistant-feedback-button.ai-error-assistant-feedback-positive.active {
+  color: var(--green-50);
+}
+.ai-error-assistant-feedback
+  .ai-error-assistant-feedback-button.ai-error-assistant-feedback-negative.active {
+  color: var(--red-50);
+}
+.ai-error-assistant-intro .ai-error-assistant-footer {
+  justify-content: flex-end;
+}
+.ai-error-assistant-feedback-form {
+  border: 1px solid var(--neutral-40);
+  border-radius: var(--spacing-04);
+  color: var(--content-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-06);
+  margin: 0 var(--spacing-04) var(--spacing-04) var(--spacing-04);
+  padding: var(--spacing-06);
+}
+.ai-error-assistant-feedback-form .form-group {
+  margin-bottom: 0;
+}
+.ai-error-assistant-feedback-form .checkbox {
+  display: flex;
+  margin: 0;
+}
+.ai-error-assistant-feedback-form label {
+  color: var(--neutral-70);
+  font-size: var(--font-size-02);
+}
+.ai-error-assistant-feedback-form textarea {
+  border-color: var(--neutral-60);
+}
+.ai-error-assistant-feedback-form-heading {
+  display: flex;
+  font-size: var(--font-size-02);
+  font-weight: 700;
+  justify-content: space-between;
+  line-height: var(--line-height-02);
+}
+.ai-error-assistant-feedback-form-heading button {
+  background: none;
+  border: none;
+}
+.ai-error-assistant-feedback-form-choices {
+  display: flex;
+  flex-flow: column wrap;
+  font-size: var(--font-size-03);
+  gap: var(--spacing-04);
+  margin-top: var(--spacing-05);
+}
+.ai-error-assistant-prompt {
+  margin: var(--spacing-05);
+}
+.ai-error-assistant-prompt form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-03);
+  justify-content: center;
+  margin: var(--spacing-05);
+}
+.ai-error-assistant-prompt form .form-group {
+  flex: 1;
+  margin-bottom: 0;
+}
+.ai-error-assistant-sparkle {
+  height: 20px;
+  width: 20px;
+}
+.ol-cm-diagnostic-actions .ai-error-assistant-sparkle {
+  height: var(--spacing-06);
+  margin-top: 0;
+  width: var(--spacing-06);
+}

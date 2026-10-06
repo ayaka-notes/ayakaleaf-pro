@@ -9,8 +9,8 @@ import SubscriptionUpdater from './SubscriptionUpdater.mjs'
 import LimitationsManager from './LimitationsManager.mjs'
 import EmailHandler from '../Email/EmailHandler.mjs'
 import { callbackify } from '@overleaf/promise-utils'
-import UserUpdater from '../User/UserUpdater.mjs'
 import Modules from '../../infrastructure/Modules.mjs'
+import SubscriptionErrors from './Errors.mjs'
 import { AI_ADD_ON_CODE } from './AiHelper.mjs'
 import CustomerIoPlanHelpers from './CustomerIoPlanHelpers.mjs'
 import WorkbenchRateLimiter from '../../infrastructure/rate-limiters/WorkbenchRateLimiter.mjs'
@@ -19,61 +19,6 @@ import AiFeatureUsageRateLimiter from '../../infrastructure/rate-limiters/AiFeat
 /**
  * @import { PaymentProviderSubscriptionChange } from './PaymentProviderEntities.mjs'
  */
-
-/**
- * @param {any} userId
- */
-async function validateNoSubscriptionInRecurly(userId) {
-  let subscriptions =
-    await RecurlyWrapper.promises.listAccountActiveSubscriptions(userId)
-
-  if (!subscriptions) {
-    subscriptions = []
-  }
-
-  if (subscriptions.length > 0) {
-    await SubscriptionUpdater.promises.syncSubscription(
-      subscriptions[0],
-      userId
-    )
-
-    return false
-  }
-
-  return true
-}
-
-/**
- * @param {any} user
- * @param {any} subscriptionDetails
- * @param {any} recurlyTokenIds
- */
-async function createSubscription(user, subscriptionDetails, recurlyTokenIds) {
-  const valid = await validateNoSubscriptionInRecurly(user._id)
-
-  if (!valid) {
-    throw new Error('user already has subscription in recurly')
-  }
-
-  const recurlySubscription = await RecurlyWrapper.promises.createSubscription(
-    user,
-    subscriptionDetails,
-    recurlyTokenIds
-  )
-
-  if (recurlySubscription.trial_started_at) {
-    const trialStartedAt = new Date(recurlySubscription.trial_started_at)
-    await UserUpdater.promises.updateUser(
-      { _id: user._id, lastTrial: { $not: { $gt: trialStartedAt } } },
-      { $set: { lastTrial: trialStartedAt } }
-    )
-  }
-
-  await SubscriptionUpdater.promises.syncSubscription(
-    recurlySubscription,
-    user._id
-  )
-}
 
 /**
  * Preview the effect of changing the subscription plan
@@ -253,6 +198,9 @@ async function reactivateSubscription(user) {
       )
     }
   } catch (err) {
+    if (err instanceof SubscriptionErrors.AddressPendingReactivationError) {
+      throw err
+    }
     logger.warn(
       { err, userId: user._id },
       'there was an error checking user v2 subscription'
@@ -288,7 +236,7 @@ async function syncSubscription(recurlySubscription, requesterData) {
 /**
  * attempt to collect past due invoice for customer. Only do that when a) the
  * customer is using Paypal and b) there is only one past due invoice.
- * This is used because Recurly doesn't always attempt collection of paast due
+ * This is used because Recurly doesn't always attempt collection of past due
  * invoices after Paypal billing info were updated.
  *
  * @param {any} recurlyAccountCode
@@ -431,8 +379,6 @@ async function pauseSubscription(user, pauseCycles) {
 }
 
 export default {
-  validateNoSubscriptionInRecurly: callbackify(validateNoSubscriptionInRecurly),
-  createSubscription: callbackify(createSubscription),
   previewSubscriptionChange: callbackify(previewSubscriptionChange),
   updateSubscription: callbackify(updateSubscription),
   cancelPendingSubscriptionChange: callbackify(cancelPendingSubscriptionChange),
@@ -448,8 +394,6 @@ export default {
   pauseSubscription: callbackify(pauseSubscription),
   resumeSubscription: callbackify(resumeSubscription),
   promises: {
-    validateNoSubscriptionInRecurly,
-    createSubscription,
     previewSubscriptionChange,
     updateSubscription,
     cancelPendingSubscriptionChange,

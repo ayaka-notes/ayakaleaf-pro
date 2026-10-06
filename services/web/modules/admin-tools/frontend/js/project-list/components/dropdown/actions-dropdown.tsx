@@ -1,10 +1,10 @@
 import { useTranslation } from 'react-i18next'
 import {
-  Dropdown,
-  DropdownItem,
-  DropdownMenu,
-  DropdownToggle,
-} from '@/shared/components/dropdown/dropdown-menu'
+  OLDropdown as Dropdown,
+  OLDropdownItem as DropdownItem,
+  OLDropdownMenu as DropdownMenu,
+  OLDropdownToggle as DropdownToggle,
+} from '@/shared/components/ol/ol-dropdown-menu'
 import DownloadProjectButton from '../table/cells/action-buttons/download-project-button'
 import TrashProjectButton from '../table/cells/action-buttons/trash-project-button'
 import UntrashProjectButton from '../table/cells/action-buttons/untrash-project-button'

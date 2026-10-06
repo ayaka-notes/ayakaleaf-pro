@@ -96,6 +96,8 @@ services:
       dockerfile: services/linked-url-proxy/Dockerfile
     env_file:
       - dev.env
+    environment:
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs
 
   mongo:
     image: mongo:8
@@ -149,6 +151,7 @@ services:
     env_file:
       - dev.env
     environment:
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs
       - APP_NAME=Overleaf Community Edition
       - ENABLED_LINKED_FILE_TYPES=project_file,project_output_file,url,mendeley,zotero
       - EMAIL_CONFIRMATION_DISABLED=true
@@ -178,8 +181,12 @@ services:
       context: ..
       dockerfile: services/web/Dockerfile
       target: webpack
+    environment:
+      - NODE_ENV=development
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs
+      - OVERLEAF_CONFIG=/overleaf/services/web/config/settings.webpack.js
     command:
-      ["npx", "webpack", "serve", "--config", "webpack.config.dev-env.js"]
+      ["yarn", "exec", "webpack", "serve", "--config", "webpack.config.dev-env.js"]
     ports:
       - "127.0.0.1:80:3808"
     volumes:

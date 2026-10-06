@@ -1,4 +1,4 @@
-import { SortingOrder } from '@/types/sorting-order'
+import { SortingOrder } from '@ol-types/sorting-order'
 import { Template } from '../../types/template'
 
 export type Sort = {

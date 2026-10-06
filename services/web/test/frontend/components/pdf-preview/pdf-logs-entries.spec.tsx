@@ -62,12 +62,8 @@ describe('<PdfLogsEntries/>', function () {
     )
   }
 
-  // TODO: ide-redesign-cleanup: Remove this wrapper when the styles are no
-  // longer nested in .ide-redesign-main .error-logs
   const LogsPanel = ({ children }: { children: ReactElement }) => (
-    <div className="ide-redesign-main">
-      <div className="error-logs"> {children}</div>
-    </div>
+    <div className="error-logs"> {children}</div>
   )
 
   const logEntries: LogEntry[] = [

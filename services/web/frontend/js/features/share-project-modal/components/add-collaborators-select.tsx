@@ -8,7 +8,8 @@ import { PermissionsLevel } from '@/features/ide-react/types/permissions'
 import { useProjectContext } from '@/shared/context/project-context'
 import {
   resendInvite,
-  sendInvite,
+  sendInviteParams,
+  useSendInvite,
 } from '@/features/share-project-modal/utils/api'
 import { ContactItem } from '@/features/share-project-modal/components/select-collaborators'
 import { useShareProjectContext } from '@/features/share-project-modal/components/share-project-modal'
@@ -47,6 +48,7 @@ function AddCollaboratorsSelect({
   const { setInFlight, setError } = useShareProjectContext()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { projectId, project, updateProject } = useProjectContext()
+  const sendInviteHook = useSendInvite()
   const { members, invites } = project || {}
 
   const privilegeOptions = useMemo(() => {
@@ -122,8 +124,6 @@ function AddCollaboratorsSelect({
         continue
       }
 
-      hasInvited = true
-
       let data
 
       try {
@@ -132,7 +132,9 @@ function AddCollaboratorsSelect({
         if (invite) {
           data = await resendInvite(projectId, invite)
         } else {
-          data = await sendInvite(projectId, email, privileges)
+          data = await sendInviteHook.run(
+            ...sendInviteParams(projectId, email, privileges)
+          )
         }
 
         const role = data?.invite?.privileges
@@ -196,17 +198,31 @@ function AddCollaboratorsSelect({
           setInFlight(false)
         }
       } else if (data.invite) {
+        hasInvited = true
         updateProject({
           invites: invites?.concat(data.invite) || [data.invite],
         })
       } else if (data.users) {
+        hasInvited = true
         updateProject({
           members: members?.concat(data.users) || data.users,
         })
       } else if (data.user) {
+        hasInvited = true
         updateProject({
           members: members?.concat(data.user) || [data.user],
         })
+      } else if (!('invite' in data)) {
+        // a successful resend returns an empty body (no `invite` field)
+        hasInvited = true
+      } else {
+        hasError = true
+        setError('generic_something_went_wrong')
+        if (isSharingUpdatesEnabled) {
+          setIsSubmitting(false)
+        } else {
+          setInFlight(false)
+        }
       }
 
       // wait for a short time, so canAddCollaborators has time to update with new collaborator information
@@ -233,6 +249,7 @@ function AddCollaboratorsSelect({
     projectId,
     reset,
     selectedItems,
+    sendInviteHook,
     setError,
     setInFlight,
     updateProject,
@@ -287,6 +304,7 @@ function AddCollaboratorsSelect({
       >
         {t('invite')}
       </ClickableElementEnhancer>
+      {sendInviteHook.renderRecaptcha()}
     </>
   )
 }

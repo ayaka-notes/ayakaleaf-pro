@@ -1,0 +1,2 @@
+# Start the toolkit's git-bridge container next to Overleaf
+GIT_BRIDGE_ENABLED=true

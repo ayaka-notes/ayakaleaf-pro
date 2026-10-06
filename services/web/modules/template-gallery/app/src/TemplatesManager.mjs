@@ -12,7 +12,7 @@ import {
 } from '@overleaf/fetch-utils'
 import settings from '@overleaf/settings'
 import crypto from 'node:crypto'
-import Errors from '../../../../app/src/Features/Subscription/Errors.mjs'
+import Errors from '../../../../app/src/Features/Errors/Errors.js'
 import ClsiCacheManager from '../../../../app/src/Features/Compile/ClsiCacheManager.mjs'
 import { pipeline } from 'node:stream/promises'
 

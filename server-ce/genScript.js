@@ -20,7 +20,7 @@ switch (process.argv.pop()) {
           console.log('export CYPRESS_INSTALL_BINARY=0')
 
           // install webpack and frontend dependencies
-          console.log('yarn install')
+          console.log('yarn install || yarn install || yarn install')
           // run webpack
           console.log('yarn run webpack:production')
           // fetch Pyodide wheel bundle (numpy/matplotlib/etc.) for the python-runner module

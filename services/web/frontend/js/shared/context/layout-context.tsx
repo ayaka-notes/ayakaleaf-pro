@@ -16,7 +16,6 @@ import getMeta from '../../utils/meta'
 import { DetachRole } from './detach-context'
 import { debugConsole } from '@/utils/debugging'
 import { BinaryFile } from '@/features/file-view/types/binary-file'
-import useScopeEventEmitter from '@/shared/hooks/use-scope-event-emitter'
 import useEventListener from '@/shared/hooks/use-event-listener'
 import { isMac } from '@/shared/utils/os'
 import { sendSearchEvent } from '@/features/event-tracking/search-events'
@@ -34,7 +33,7 @@ export type LayoutContextOwnStates = {
   chatIsOpen: boolean
   reviewPanelOpen: boolean
   miniReviewPanelVisible: boolean
-  leftMenuShown: boolean
+  settingsShown: boolean
   loadingStyleSheet: boolean
   pdfLayout: IdeLayout
   projectSearchIsOpen: boolean
@@ -56,8 +55,8 @@ export type LayoutContextValue = LayoutContextOwnStates & {
   setMiniReviewPanelVisible: Dispatch<
     SetStateAction<LayoutContextValue['miniReviewPanelVisible']>
   >
-  setLeftMenuShown: Dispatch<
-    SetStateAction<LayoutContextValue['leftMenuShown']>
+  setSettingsShown: Dispatch<
+    SetStateAction<LayoutContextValue['settingsShown']>
   >
   setLoadingStyleSheet: Dispatch<
     SetStateAction<LayoutContextValue['loadingStyleSheet']>
@@ -90,7 +89,6 @@ export const LayoutProvider: FC<React.PropsWithChildren> = ({ children }) => {
   // what to show in the "flat" view (editor or pdf)
   const [view, _setView] = useState<IdeView | null>('editor')
   const [openFile, setOpenFile] = useState<BinaryFile | null>(null)
-  const historyToggleEmitter = useScopeEventEmitter('history:toggle', true)
   const { isOpen: railIsOpen, setIsOpen: setRailIsOpen } = useRailContext()
   const [prevRailIsOpen, setPrevRailIsOpen] = useState(railIsOpen)
   // Whether we came from a file or a document when we left the ide
@@ -102,7 +100,7 @@ export const LayoutProvider: FC<React.PropsWithChildren> = ({ children }) => {
       _setView(oldValue => {
         // ensure that the "history:toggle" event is broadcast when switching in or out of history view
         if (value === 'history' || oldValue === 'history') {
-          historyToggleEmitter()
+          window.dispatchEvent(new CustomEvent('history:toggle'))
         }
 
         if (value === 'history') {
@@ -121,14 +119,7 @@ export const LayoutProvider: FC<React.PropsWithChildren> = ({ children }) => {
         return value
       })
     },
-    [
-      _setView,
-      setRailIsOpen,
-      historyToggleEmitter,
-      prevRailIsOpen,
-      setPrevRailIsOpen,
-      railIsOpen,
-    ]
+    [_setView, setRailIsOpen, prevRailIsOpen, setPrevRailIsOpen, railIsOpen]
   )
 
   const restoreView = useCallback(() => {
@@ -151,8 +142,8 @@ export const LayoutProvider: FC<React.PropsWithChildren> = ({ children }) => {
   const [miniReviewPanelVisible, setMiniReviewPanelVisible] =
     useState<boolean>(false)
 
-  // whether the menu pane is open
-  const [leftMenuShown, setLeftMenuShown] = useState<boolean>(false)
+  // whether the settings modal is open
+  const [settingsShown, setSettingsShown] = useState<boolean>(false)
 
   // whether the project search is open
   const [projectSearchIsOpen, setProjectSearchIsOpen] = useState(false)
@@ -189,12 +180,12 @@ export const LayoutProvider: FC<React.PropsWithChildren> = ({ children }) => {
   )
 
   useEventListener(
-    'ui.toggle-left-menu',
+    'ui.toggle-settings',
     useCallback(
       (event: CustomEvent<boolean>) => {
-        setLeftMenuShown(event.detail)
+        setSettingsShown(event.detail)
       },
-      [setLeftMenuShown]
+      [setSettingsShown]
     )
   )
 
@@ -220,7 +211,7 @@ export const LayoutProvider: FC<React.PropsWithChildren> = ({ children }) => {
       if (
         (isMac ? event.metaKey : event.ctrlKey) &&
         event.shiftKey &&
-        event.key === 'F'
+        event.key.toUpperCase() === 'F'
       ) {
         event.preventDefault()
         sendSearchEvent('search-open', {
@@ -234,7 +225,7 @@ export const LayoutProvider: FC<React.PropsWithChildren> = ({ children }) => {
         focusModeEnabled &&
         (isMac ? event.metaKey : event.ctrlKey) &&
         event.shiftKey &&
-        event.key === 'M'
+        event.key.toUpperCase() === 'M'
       ) {
         event.preventDefault()
         setFocusMode(mode => !mode)
@@ -354,7 +345,7 @@ export const LayoutProvider: FC<React.PropsWithChildren> = ({ children }) => {
           !event.shiftKey &&
           !event.altKey
         ) {
-          switch (event.code) {
+          switch (event.key) {
             case 'ArrowLeft': // Editor only
               event.preventDefault()
               handleChangeLayout('flat', 'editor')
@@ -388,7 +379,7 @@ export const LayoutProvider: FC<React.PropsWithChildren> = ({ children }) => {
       detachRole,
       changeLayout,
       chatIsOpen,
-      leftMenuShown,
+      settingsShown,
       openFile,
       pdfLayout,
       pdfPreviewOpen,
@@ -398,7 +389,7 @@ export const LayoutProvider: FC<React.PropsWithChildren> = ({ children }) => {
       miniReviewPanelVisible,
       loadingStyleSheet,
       setChatIsOpen,
-      setLeftMenuShown,
+      setSettingsShown,
       setOpenFile,
       setPdfLayout,
       setReviewPanelOpen,
@@ -419,7 +410,7 @@ export const LayoutProvider: FC<React.PropsWithChildren> = ({ children }) => {
       detachRole,
       changeLayout,
       chatIsOpen,
-      leftMenuShown,
+      settingsShown,
       openFile,
       pdfLayout,
       pdfPreviewOpen,
@@ -429,7 +420,7 @@ export const LayoutProvider: FC<React.PropsWithChildren> = ({ children }) => {
       miniReviewPanelVisible,
       loadingStyleSheet,
       setChatIsOpen,
-      setLeftMenuShown,
+      setSettingsShown,
       setOpenFile,
       setPdfLayout,
       setReviewPanelOpen,

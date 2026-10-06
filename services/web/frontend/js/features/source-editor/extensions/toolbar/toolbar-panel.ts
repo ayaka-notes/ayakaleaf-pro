@@ -140,6 +140,14 @@ const toolbarTheme = EditorView.theme({
     '&:not(:first-child)': {
       borderLeft: '1px solid rgba(125, 125, 125, 0.3)',
     },
+    '&:has(> [data-overflow]):not(:has(> [data-overflow]:not(.overflow-hidden)))':
+      {
+        borderLeft: 'none',
+        padding: 0,
+      },
+    '&:empty': {
+      display: 'none',
+    },
     '&.ol-cm-toolbar-end': {
       borderLeft: 'none',
     },
@@ -151,10 +159,15 @@ const toolbarTheme = EditorView.theme({
       width: 0,
       padding: 0,
     },
+    '& > [data-overflow].overflow-hidden': {
+      width: 0,
+      overflow: 'hidden',
+    },
   },
-  '.ol-cm-toolbar-wrapper-indented .ol-cm-toolbar-button-group:first-child': {
-    borderLeft: '1px solid rgba(125, 125, 125, 0.3)',
-  },
+  '.ol-cm-toolbar-wrapper-needs-border .ol-cm-toolbar-button-group:first-child':
+    {
+      borderLeft: '1px solid rgba(125, 125, 125, 0.3)',
+    },
   '.ol-cm-toolbar-button': {
     display: 'inline-flex',
     alignItems: 'center',

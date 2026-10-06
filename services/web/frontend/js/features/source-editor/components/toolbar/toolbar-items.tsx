@@ -2,7 +2,6 @@ import { ComponentType, FC, memo } from 'react'
 import { EditorState } from '@codemirror/state'
 import { useEditorContext } from '../../../../shared/context/editor-context'
 import { ToolbarButton } from './toolbar-button'
-import { redo, undo } from '@codemirror/commands'
 import * as commands from '../../extensions/toolbar/commands'
 import { SectionHeadingDropdown } from './section-heading-dropdown'
 import getMeta from '../../../../utils/meta'
@@ -57,27 +56,6 @@ export const ToolbarItems: FC<{
 
   return (
     <>
-      {showGroup('group-history') && (
-        <div
-          className="ol-cm-toolbar-button-group"
-          aria-label={t('toolbar_undo_redo_actions')}
-        >
-          <ToolbarButton
-            id="toolbar-undo"
-            label={t('toolbar_undo')}
-            command={undo}
-            icon="undo"
-            shortcut={isMac ? '⌘Z' : 'Ctrl+Z'}
-          />
-          <ToolbarButton
-            id="toolbar-redo"
-            label={t('toolbar_redo')}
-            command={redo}
-            icon="redo"
-            shortcut={isMac ? '⇧⌘Z' : 'Ctrl+Y'}
-          />
-        </div>
-      )}
       {sourceEditorToolbarButtonGroups.map(
         ({ import: { default: Component, overflowGroupId }, path }) =>
           showGroup(overflowGroupId) && <Component key={path} />
@@ -136,47 +114,69 @@ export const ToolbarItems: FC<{
               )}
             </div>
           )}
-          {showGroup('group-misc') && (
-            <div
-              className="ol-cm-toolbar-button-group"
-              data-overflow="group-misc"
-              aria-label={t('toolbar_insert_misc')}
-            >
-              <ToolbarButton
-                id="toolbar-href"
-                label={t('toolbar_insert_link')}
-                command={commands.wrapInHref}
-                icon="add_link"
-              />
-              {features.trackChangesVisible && permissions.comment && (
+          <div
+            className="ol-cm-toolbar-button-group"
+            data-overflow="group-misc"
+            aria-label={t('toolbar_insert_misc')}
+          >
+            {showGroup('misc-href') && (
+              <div data-overflow="misc-href">
                 <ToolbarButton
-                  id="toolbar-add-comment"
-                  label={t('add_comment')}
-                  disabled={isCursorOnEmptyLine(state)}
-                  command={addCommentFromToolbar}
-                  icon="add_comment"
+                  id="toolbar-href"
+                  label={t('toolbar_insert_link')}
+                  command={commands.wrapInHref}
+                  icon="add_link"
                 />
+              </div>
+            )}
+            {features.trackChangesVisible &&
+              permissions.comment &&
+              showGroup('misc-comment') && (
+                <div data-overflow="misc-comment">
+                  <ToolbarButton
+                    id="toolbar-add-comment"
+                    label={t('add_comment')}
+                    disabled={isCursorOnEmptyLine(state)}
+                    command={addCommentFromToolbar}
+                    icon="add_comment"
+                  />
+                </div>
               )}
-              <ToolbarButton
-                id="toolbar-ref"
-                label={t('toolbar_insert_cross_reference')}
-                command={commands.insertRef}
-                icon="sell"
-              />
-              <ToolbarButton
-                id="toolbar-cite"
-                label={t('toolbar_insert_citation')}
-                command={commands.insertCite}
-                icon="book_5"
-              />
-              <InsertFigureDropdown />
-              {writefullInstance || showAiFeaturesDisabled ? (
-                <TableDropdown />
-              ) : (
-                <LegacyTableDropdown />
-              )}
-            </div>
-          )}
+            {showGroup('misc-ref') && (
+              <div data-overflow="misc-ref">
+                <ToolbarButton
+                  id="toolbar-ref"
+                  label={t('toolbar_insert_cross_reference')}
+                  command={commands.insertRef}
+                  icon="sell"
+                />
+              </div>
+            )}
+            {showGroup('misc-cite') && (
+              <div data-overflow="misc-cite">
+                <ToolbarButton
+                  id="toolbar-cite"
+                  label={t('toolbar_insert_citation')}
+                  command={commands.insertCite}
+                  icon="book_5"
+                />
+              </div>
+            )}
+            {showGroup('misc-figure') && (
+              <div data-overflow="misc-figure">
+                <InsertFigureDropdown />
+              </div>
+            )}
+            {showGroup('misc-table') && (
+              <div data-overflow="misc-table">
+                {writefullInstance || showAiFeaturesDisabled ? (
+                  <TableDropdown />
+                ) : (
+                  <LegacyTableDropdown />
+                )}
+              </div>
+            )}
+          </div>
           {showGroup('group-list') && (
             <div
               className="ol-cm-toolbar-button-group"

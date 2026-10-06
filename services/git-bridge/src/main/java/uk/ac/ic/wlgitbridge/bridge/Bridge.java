@@ -3,6 +3,9 @@ package uk.ac.ic.wlgitbridge.bridge;
 import com.google.api.client.auth.oauth2.Credential;
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -241,12 +244,29 @@ public class Bridge {
     gcJob.start();
   }
 
-  public boolean healthCheck() {
+  // synchronized so concurrent health checks (e.g. liveness and readiness
+  // probes) don't race on the shared probe file and observe partial writes
+  public synchronized boolean healthCheck() {
     try {
       dbStore.getNumProjects();
-      File rootDirectory = new File("/");
-      if (!rootDirectory.exists()) {
-        throw new Exception("bad filesystem state, root directory does not exist");
+      // Check the repo store volume, not the container root filesystem, so a
+      // read-only or detached volume fails the check.
+      File rootDirectory = repoStore.getRootDirectory();
+      if (rootDirectory == null || !rootDirectory.isDirectory()) {
+        throw new Exception("repo store root directory does not exist: " + rootDirectory);
+      }
+      // Confirm the volume is writable: overwrite a fixed probe file in .wlgb
+      // (outside project storage) and read it back.
+      File wlgbDirectory = new File(rootDirectory, ".wlgb");
+      if (!wlgbDirectory.isDirectory()) {
+        throw new Exception("repo store .wlgb directory does not exist: " + wlgbDirectory);
+      }
+      Path probeFile = new File(wlgbDirectory, ".health_check").toPath();
+      byte[] payload = "ok".getBytes(StandardCharsets.UTF_8);
+      Files.write(probeFile, payload);
+      byte[] readBack = Files.readAllBytes(probeFile);
+      if (!Arrays.equals(payload, readBack)) {
+        throw new Exception("repo store health check file content mismatch: " + probeFile);
       }
       Log.debug("[HealthCheck] passed");
       return true;

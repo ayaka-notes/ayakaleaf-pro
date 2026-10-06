@@ -109,6 +109,29 @@ describe('TextOperation', function () {
     expect(o.isNoop()).to.be.false
   })
 
+  it('does not treat a tracked-change retain as a no-op when composing for undo', function () {
+    // A single retain with a tracking directive changes the file's tracked
+    // changes when applied, so isNoop() reports false and
+    // canBeComposedWithForUndo() does not group it with other operations.
+    const trackedDelete = new TextOperation().retain(5, {
+      tracking: new TrackingProps(
+        'delete',
+        'user-1',
+        new Date('2026-07-10T00:00:00.000Z')
+      ),
+    })
+
+    const file = new StringFileData('lorem')
+    file.edit(trackedDelete)
+    expect(file.getTrackedChanges().asSorted()).to.have.length(1)
+
+    expect(trackedDelete.isNoop()).to.be.false
+
+    const unrelatedInsert = new TextOperation().retain(5).insert('x')
+    expect(trackedDelete.canBeComposedWithForUndo(unrelatedInsert)).to.be.false
+    expect(unrelatedInsert.canBeComposedWithForUndo(trackedDelete)).to.be.false
+  })
+
   it('converts to string', function () {
     const o = new TextOperation()
     o.retain(2)
@@ -368,6 +391,13 @@ describe('TextOperation', function () {
   })
 
   describe('compose', function () {
+    it('rejects a second operation built on different content', function () {
+      const a = new TextOperation().retain(4)
+      const b = new TextOperation().retain(7)
+
+      expect(() => a.compose(b)).to.throw(TextOperation.UnprocessableError)
+    })
+
     it(
       'composes (randomised)',
       random.test(numTrials, () => {
@@ -404,6 +434,110 @@ describe('TextOperation', function () {
         expect(afterAB).to.deep.equal(afterB, fuzzingErrorWithB)
       })
     )
+
+    it(
+      'compose associativity (randomised)',
+      random.test(numTrials, () => {
+        const str = random.string(20)
+        const comments = random.comments(6)
+
+        const a = randomOperation(str, comments.ids)
+        const afterA = new StringFileData(str, comments.comments)
+        a.apply(afterA)
+
+        const b = randomOperation(afterA.getContent(), comments.ids)
+        const afterB = new StringFileData(
+          afterA.getContent(),
+          comments.comments
+        )
+        b.apply(afterB)
+
+        const c = randomOperation(afterB.getContent(), comments.ids)
+
+        const ab = a.compose(b)
+        const ab_c = ab.compose(c)
+
+        const bc = b.compose(c)
+        const a_bc = a.compose(bc)
+
+        const ab_c_file = new StringFileData(str, comments.comments)
+        ab_c.apply(ab_c_file)
+
+        const a_bc_file = new StringFileData(str, comments.comments)
+        a_bc.apply(a_bc_file)
+
+        const fuzzingError = fuzzingErrorMessage({
+          str,
+          comments,
+          a: a.toJSON(),
+          b: b.toJSON(),
+          c: c.toJSON(),
+        })
+
+        // See 'compose associativity does not handle timestamps' test below
+        // for why we ignore timestamps here.
+        expect(stripTrackedChangeTimestamps(ab_c_file.toRaw())).to.deep.equal(
+          stripTrackedChangeTimestamps(a_bc_file.toRaw()),
+          fuzzingError
+        )
+      })
+    )
+
+    it('compose associativity does not handle timestamps', function () {
+      const str = 'AB'
+      const comments = []
+
+      // a tracks both chars as a delete @2023
+      const a = TextOperation.fromJSON({
+        textOperation: [
+          {
+            r: 2,
+            tracking: {
+              type: 'delete',
+              userId: 'user1',
+              ts: '2023-01-01T00:00:00.000Z',
+            },
+          },
+        ],
+      })
+      // b re-tracks the first char as a delete @2022 (same user), leaving the
+      // second char as an untracked retain (still @2023 from a, and adjacent)
+      const b = TextOperation.fromJSON({
+        textOperation: [
+          {
+            r: 1,
+            tracking: {
+              type: 'delete',
+              userId: 'user1',
+              ts: '2022-01-01T00:00:00.000Z',
+            },
+          },
+          1,
+        ],
+      })
+      // c inserts between the two chars, breaking their adjacency
+      const c = TextOperation.fromJSON({ textOperation: [1, 'X', 1] })
+
+      const ab_c = a.compose(b).compose(c)
+      const a_bc = a.compose(b.compose(c))
+
+      const ab_c_file = new StringFileData(str, comments)
+      ab_c.apply(ab_c_file)
+
+      const a_bc_file = new StringFileData(str, comments)
+      a_bc.apply(a_bc_file)
+
+      // The two composition orders diverge, but only on the tracked-change
+      // timestamp: (a∘b)∘c merges char 1 down to @2022 before c splits it,
+      // while a∘(b∘c) leaves char 1 at @2023.
+      //
+      // If we fix the associativity for timestamps, feel free to update the
+      // assertions below
+      expect(ab_c_file.toRaw()).to.not.deep.equal(a_bc_file.toRaw())
+      expect(stripTrackedChangeTimestamps(ab_c_file.toRaw())).to.deep.equal(
+        stripTrackedChangeTimestamps(a_bc_file.toRaw())
+      )
+    })
 
     it('composes two operations with comments', function () {
       expect(
@@ -601,6 +735,20 @@ describe('TextOperation', function () {
   })
 
   describe('transform', function () {
+    it('rejects operations built on different content', function () {
+      // Two operations that do not describe the same starting content cannot be
+      // transformed against each other. That is the pair being wrong, not this
+      // process, and a caller that answers a client has to be able to tell the
+      // difference -- an internal error reads as worth retrying, and the same
+      // pair fails the same way every time.
+      const a = new TextOperation().retain(4)
+      const b = new TextOperation().retain(7)
+
+      expect(() => TextOperation.transform(a, b)).to.throw(
+        TextOperation.UnprocessableError
+      )
+    })
+
     it(
       'transforms (randomised)',
       random.test(numTrials, () => {
@@ -625,10 +773,53 @@ describe('TextOperation', function () {
           a: a.toJSON(),
           b: b.toJSON(),
         })
-        expect(abPrime.equals(baPrime)).to.be.equal(true, fuzzingError)
+        // The composition of ab' and ba' is not guaranteed to be equal, but
+        // should converge to the same file contents + ranges.
         expect(abFile.toRaw()).to.deep.equal(baFile.toRaw(), fuzzingError)
       })
     )
+
+    it('chooses lower tracked change timestamp', function () {
+      const ts1 = '2024-01-01T01:00:00.000Z'
+      const ts2 = '2024-01-01T02:00:00.000Z'
+      const str = 'abcde'
+      const comments = []
+
+      const a = new TextOperation()
+        .retain(2, {
+          tracking: TrackingProps.fromRaw({
+            ts: ts1,
+            type: 'insert',
+            userId: 'user1',
+          }),
+        })
+        .retain(1)
+        .retain(2, {
+          tracking: TrackingProps.fromRaw({
+            ts: ts2,
+            type: 'insert',
+            userId: 'user1',
+          }),
+        })
+
+      const b = new TextOperation().retain(1).remove(3).retain(1)
+
+      const [aPrime, bPrime] = TextOperation.transform(a, b)
+      const aComposeBPrime = a.compose(bPrime)
+      const bComposeAPrime = b.compose(aPrime)
+
+      const aBPFile = new StringFileData(str, comments)
+      aComposeBPrime.apply(aBPFile)
+
+      const bAPFile = new StringFileData(str, comments)
+      bComposeAPrime.apply(bAPFile)
+
+      expect(aBPFile.toRaw()).to.deep.equal(bAPFile.toRaw())
+      expect(aBPFile.trackedChanges.length).to.equal(1)
+      expect(
+        aBPFile.trackedChanges.asSorted()[0].tracking.ts.toISOString()
+      ).to.equal(ts1)
+    })
 
     it('adds a tracked change from operation 1', function () {
       expect(
@@ -939,4 +1130,20 @@ function transform(fileData, a, b) {
   expect(resultA).to.deep.equal(resultB)
 
   return aFileData.toRaw()
+}
+
+/**
+ * @param {import('../../lib/types').StringFileRawData} raw
+ */
+function stripTrackedChangeTimestamps(raw) {
+  if (!raw.trackedChanges) {
+    return raw
+  }
+  return {
+    ...raw,
+    trackedChanges: raw.trackedChanges.map(change => {
+      const { ts, ...tracking } = change.tracking
+      return { ...change, tracking }
+    }),
+  }
 }

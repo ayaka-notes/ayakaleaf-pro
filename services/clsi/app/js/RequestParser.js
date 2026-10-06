@@ -65,6 +65,11 @@ function parse(body, callback) {
         type: 'number',
       }
     )
+    response.enableCheckpoint = _parseAttribute(
+      'enableCheckpoint',
+      compile.options.enableCheckpoint,
+      { default: false, type: 'boolean' }
+    )
     response.timeout = _parseAttribute('timeout', compile.options.timeout, {
       default: MAX_TIMEOUT,
       type: 'number',
@@ -81,6 +86,10 @@ function parse(body, callback) {
       }
     )
     response.draft = _parseAttribute('draft', compile.options.draft, {
+      default: false,
+      type: 'boolean',
+    })
+    response.png2pdf = _parseAttribute('png2pdf', compile.options.png2pdf, {
       default: false,
       type: 'boolean',
     })

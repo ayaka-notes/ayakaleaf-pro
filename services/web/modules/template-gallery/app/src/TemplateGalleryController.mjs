@@ -185,6 +185,9 @@ async function getCategoryTemplatesJSON(req, res, next) {
     const result = await TemplateGalleryManager.getCategoryTemplates(req.query)
     res.json(result)
   } catch (error) {
+    if (error.info?.status === 400) {
+      return res.status(400).json({ message: error.message })
+    }
     next(error)
   }
 }

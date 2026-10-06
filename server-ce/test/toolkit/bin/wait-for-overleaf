@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Usage: bin/wait-for-overleaf TIMEOUT_SECONDS
+# Waits until the sharelatex container answers /status.
+
+set -euo pipefail
+
+timeout=$1
+
+echo "Waiting for Overleaf to start..."
+for _ in $(seq "$timeout"); do
+  if docker exec sharelatex curl -fsS http://localhost/status >/dev/null 2>&1; then
+    echo "Overleaf is up"
+    exit 0
+  fi
+  sleep 1
+done
+echo "Overleaf did not start within ${timeout}s"
+docker logs --tail 100 sharelatex
+exit 1

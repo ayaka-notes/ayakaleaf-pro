@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  Dropdown,
-  DropdownHeader,
-  DropdownItem,
-  DropdownMenu,
-  DropdownToggle,
-} from '@/shared/components/dropdown/dropdown-menu'
+  OLDropdown as Dropdown,
+  OLDropdownHeader as DropdownHeader,
+  OLDropdownItem as DropdownItem,
+  OLDropdownMenu as DropdownMenu,
+  OLDropdownToggle as DropdownToggle,
+} from '@/shared/components/ol/ol-dropdown-menu'
 import { useUserListContext } from '../../context/user-list-context'
 import useSort from '../../hooks/use-sort'
 import withContent, { SortBtnProps } from '../sort/with-content'

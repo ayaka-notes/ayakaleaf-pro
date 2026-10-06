@@ -1,5 +1,4 @@
 import { memo } from 'react'
-import OwnerCell from './cells/owner-cell'
 import DateCell from './cells/date-cell'
 import { Filter } from '../../context/project-list-context'
 import ActionsCell from './cells/actions-cell'

@@ -11,5 +11,5 @@ MONO_REPO_ROOT=$(git rev-parse --show-toplevel)
 docker run --rm \
   -v "$MONO_REPO_ROOT":/workspace \
   -w /workspace \
-  node:24.14.1 \
+  node:24.18.1 \
   sh -c "corepack enable && yarn install --mode=update-lockfile"

@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Usage: bin/run-suite SUITE
+#
+# Runs suites/SUITE/*.spec.ts against the deployment from `make setup`. Then,
+# for every subfolder with its own specs (a variant, e.g. a second mode of the
+# same module), applies the subfolder's overleaf.rc / variables.env on top,
+# restarts Overleaf with bin/up and runs the subfolder's specs.
+#
+# Expects TOOLKIT_DIR, TOOLKIT_NETWORK, TEST_ROOT, CYPRESS_IMAGE and
+# STARTUP_TIMEOUT in the environment (set by the Makefile).
+
+set -euo pipefail
+
+suite=$1
+
+# Values from the suite's services, e.g. CYPRESS_AUTHENTIK_TOKEN, which
+# Cypress exposes as Cypress.env('AUTHENTIK_TOKEN')
+env_files=()
+for file in "$TOOLKIT_DIR"/services/*/cypress.env; do
+  [[ -f "$file" ]] && env_files+=(--env-file "$file")
+done
+
+function run_cypress() {
+  docker run --rm \
+    "${env_files[@]}" \
+    --network "$TOOLKIT_NETWORK" \
+    --shm-size 2g \
+    --volume "$TEST_ROOT:/overleaf/server-ce/test" \
+    --workdir /overleaf/server-ce/test/toolkit \
+    --env "SPEC_DIR=$1" \
+    --env CYPRESS_BASE_URL=http://sharelatex \
+    --entrypoint yarn \
+    "$CYPRESS_IMAGE" \
+    cypress run --browser chrome
+}
+
+if compgen -G "suites/$suite/*.spec.ts" >/dev/null; then
+  run_cypress "suites/$suite"
+fi
+
+for dir in "suites/$suite"/*/; do
+  dir=${dir%/}
+  compgen -G "$dir/*.spec.ts" >/dev/null || continue
+  echo "Switching to variant $dir"
+  for f in overleaf.rc variables.env; do
+    if [[ -f "$dir/$f" ]]; then
+      bin/apply-config "$TOOLKIT_DIR/config/$f" "$dir/$f"
+    fi
+  done
+  "$TOOLKIT_DIR/bin/up" -d
+  bin/wait-for-overleaf "$STARTUP_TIMEOUT"
+  run_cypress "$dir"
+done

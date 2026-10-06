@@ -15,7 +15,7 @@ on:
 
 env:
   GHCR_REGISTRY: ghcr.io
-  REGISTRY_IMAGE: ghcr.io/${{ github.repository }}
+  REGISTRY_IMAGE: ghcr.io/ayaka-notes/overleaf-pro
 
 jobs:
   build:
@@ -24,7 +24,7 @@ jobs:
       matrix:
         include:
         - platform: linux/amd64
-          runner: ubuntu-latest
+          runner: ubuntu-24.04
         - platform: linux/arm64
           runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
@@ -33,7 +33,7 @@ jobs:
         run: |
           echo "LATEST_RELEASE_REF=$(git ls-remote --heads --sort='version:refname' https://github.com/ayaka-notes/overleaf-pro.git 'release-v*' | tail -n1 | cut -d/ -f3)" >> $GITHUB_ENV
       - name: "Checkout Repository"
-        uses: actions/checkout@main
+        uses: actions/checkout@v7
         with:
           ref: ${{ env.LATEST_RELEASE_REF }}
       - name: Resolve MONOREPO_REVISION
@@ -54,12 +54,12 @@ jobs:
           echo "version=$version" >> $GITHUB_OUTPUT
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY_IMAGE }}
 
       - name: Login to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.GHCR_REGISTRY }}
           username: ${{github.actor}}
@@ -68,7 +68,7 @@ jobs:
       # --- We need to sync yarn.lock/i18 to ensure consistency ---
       - name: "Sync yarn.lock And Prepare .dockerignore"
         run: |
-          docker run --rm -v "$(pwd)":/workspace -w /workspace node:24.14.1 sh -c "corepack enable && yarn install --mode=update-lockfile"
+          docker run --rm -v "$(pwd)":/workspace -w /workspace node:24.18.1 sh -c "corepack enable && yarn install --mode=update-lockfile"
           # Apply the highest-versioned locale patch over the base locales before extracting
           patch_dir=$(printf '%s\n' services/web/locales/locales_patches/v*/ | sort -V | tail -n1)
           if [ -d "$patch_dir" ]; then
@@ -84,7 +84,7 @@ jobs:
       # --- Set up Docker ---
       # See: https://docs.docker.com/build/ci/github-actions/multi-platform/
       - name: Set up Docker (enable containerd image store)
-        uses: docker/setup-docker-action@v4
+        uses: docker/setup-docker-action@v5
         with:
           daemon-config: |
             {
@@ -93,13 +93,13 @@ jobs:
               }
             }
       - name: Set up Buildx (docker driver)
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
         with:
           driver: docker
 
       - name: Build Base Image
         id: build_base
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./server-ce/Dockerfile-base
@@ -112,7 +112,7 @@ jobs:
           sbom: false
       - name: Build App Image
         id: build_app
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./server-ce/Dockerfile
@@ -134,7 +134,7 @@ jobs:
           touch "${{ runner.temp }}/digests/${digest#sha256:}"
 
       - name: Upload digest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: digests-${{ env.PLATFORM_PAIR }}
           path: ${{ runner.temp }}/digests/*
@@ -143,30 +143,30 @@ jobs:
     outputs:
       version: ${{ steps.set_version.outputs.version }}
   merge:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - build
     steps:
       - name: Download digests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: ${{ runner.temp }}/digests
           pattern: digests-*
           merge-multiple: true
 
       - name: Login to GHCR Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.GHCR_REGISTRY }}
           username: ${{github.actor}}
           password: ${{ secrets.ORGTOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY_IMAGE }}
           tags: |
@@ -185,13 +185,12 @@ jobs:
 
       # --- Retention Policy: Delete old images ---
       - name: Delete old images
-        uses: snok/container-retention-policy@v2
+        uses: snok/container-retention-policy@v3.1.0
         with:
           image-names: overleaf-pro
-          cut-off: 1s, UTC+8
-          account-type: org
-          org-name: ayaka-notes
-          untagged-only: true
+          cut-off: 1s
+          account: ayaka-notes
+          tag-selection: untagged
           token: ${{ secrets.ORGTOKEN }}
 
   build_git_bridge:
@@ -200,7 +199,7 @@ jobs:
       matrix:
         include:
         - platform: linux/amd64
-          runner: ubuntu-latest
+          runner: ubuntu-24.04
         - platform: linux/arm64
           runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
@@ -209,7 +208,7 @@ jobs:
         run: |
           echo "LATEST_RELEASE_REF=$(git ls-remote --heads --sort='version:refname' https://github.com/ayaka-notes/overleaf-pro.git 'release-v*' | tail -n1 | cut -d/ -f3)" >> $GITHUB_ENV
       - name: "Checkout Repository"
-        uses: actions/checkout@main
+        uses: actions/checkout@v7
         with:
           ref: ${{ env.LATEST_RELEASE_REF }}
       - name: Resolve MONOREPO_REVISION
@@ -230,19 +229,19 @@ jobs:
           echo "version=$version" >> $GITHUB_OUTPUT
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY_IMAGE }}/git-bridge
 
       - name: Login to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.GHCR_REGISTRY }}
           username: ${{github.actor}}
           password: ${{ secrets.ORGTOKEN }}
 
       - name: Set up Docker (enable containerd image store)
-        uses: docker/setup-docker-action@v4
+        uses: docker/setup-docker-action@v5
         with:
           daemon-config: |
             {
@@ -251,13 +250,13 @@ jobs:
               }
             }
       - name: Set up Buildx (docker driver)
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
         with:
           driver: docker
 
       - name: Build Git Bridge Image
         id: build_git_bridge
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./services/git-bridge
           file: ./services/git-bridge/Dockerfile
@@ -277,7 +276,7 @@ jobs:
           touch "${{ runner.temp }}/digests/${digest#sha256:}"
 
       - name: Upload digest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: git-bridge-digests-${{ env.PLATFORM_PAIR }}
           path: ${{ runner.temp }}/digests/*
@@ -287,30 +286,30 @@ jobs:
       version: ${{ steps.set_version.outputs.version }}
 
   merge_git_bridge:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - build_git_bridge
     steps:
       - name: Download digests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: ${{ runner.temp }}/digests
           pattern: git-bridge-digests-*
           merge-multiple: true
 
       - name: Login to GHCR Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.GHCR_REGISTRY }}
           username: ${{github.actor}}
           password: ${{ secrets.ORGTOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY_IMAGE }}/git-bridge
           tags: |
@@ -328,11 +327,10 @@ jobs:
           docker buildx imagetools inspect ${{ env.REGISTRY_IMAGE }}/git-bridge:${{ needs.build_git_bridge.outputs.version }}
 
       - name: Delete old images
-        uses: snok/container-retention-policy@v2
+        uses: snok/container-retention-policy@v3.1.0
         with:
           image-names: overleaf-pro/git-bridge
-          cut-off: 1s, UTC+8
-          account-type: org
-          org-name: ayaka-notes
-          untagged-only: true
+          cut-off: 1s
+          account: ayaka-notes
+          tag-selection: untagged
           token: ${{ secrets.ORGTOKEN }}

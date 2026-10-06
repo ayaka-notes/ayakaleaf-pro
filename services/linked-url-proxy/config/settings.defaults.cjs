@@ -7,8 +7,12 @@ const allowedResources = process.env.OVERLEAF_LINKED_URL_ALLOWED_RESOURCES
   ? new RegExp(process.env.OVERLEAF_LINKED_URL_ALLOWED_RESOURCES)
   : null
 
+// Optional HTTP proxy for outbound requests, e.g. http://proxy.internal:3128
+const outboundProxy = process.env.OVERLEAF_LINKED_URL_OUTBOUND_PROXY || null
+
 module.exports = {
   maxRedirects: 5,
+  outboundProxy,
   fetchTimeoutMs: 30000,
   blockedNetworks,
   allowedResources,

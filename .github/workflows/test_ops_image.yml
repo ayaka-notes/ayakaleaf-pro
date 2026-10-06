@@ -1,0 +1,100 @@
+# ---------------------------------
+# This workflow is used to test overleaf image automatically
+#
+# Tested image:
+#     ghcr.io/ayaka-notes/overleaf-pro/ops
+#
+# ---------------------------------
+
+name: Test Operations Image
+on:
+  workflow_dispatch:
+    inputs:
+      ops_tag:
+        description: "Ops image tag to test"
+        type: string
+        default: latest
+  schedule:
+    # One hour after the development images are built
+    - cron: '0 1 * * *'
+permissions:
+  contents: read
+  packages: read
+env:
+  DOCKER_REGISTRY: ghcr.io
+  IMAGE_NAME: ayaka-notes/overleaf-pro
+
+jobs:
+  # Deploy the image with the toolkit and run one suite per runner,
+  # see server-ce/test/README.md
+  e2e-test:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      # Every suite runs a whole Overleaf, keep the number of runners bounded
+      max-parallel: 8
+      matrix:
+        suite:
+          [
+            launchpad,
+            login-register,
+            sandboxed-compiles,
+            symbol-palette,
+            template-gallery,
+            git-bridge,
+            track-changes,
+            open-in-overleaf,
+            learn,
+            reference-picker,
+            github-sync,
+            tpr-webmodule,
+            python-runner,
+            workbench,
+            error-assistant,
+            instance-features,
+            authentication/ldap,
+            authentication/saml,
+            authentication/oidc
+          ]
+    steps:
+      - name: "Checkout Current Repository"
+        uses: actions/checkout@v7
+
+      - name: "Login to GitHub Container Registry"
+        uses: docker/login-action@v4
+        with:
+          registry: ${{env.DOCKER_REGISTRY}}
+          username: ${{github.actor}}
+          password: ${{secrets.GITHUB_TOKEN}}
+
+      # --- Deploy And Test ---
+      - name: "Setup Overleaf With Toolkit"
+        working-directory: ./server-ce/test/toolkit
+        run: |
+          make setup SUITE=${{matrix.suite}} OVERLEAF_IMAGE=${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:${{inputs.ops_tag || 'latest'}}
+      - name: "Run E2E Tests"
+        working-directory: ./server-ce/test/toolkit
+        run: |
+          make test SUITE=${{matrix.suite}}
+
+      # --- Collect Results On Failure ---
+      - name: "Print Overleaf Logs"
+        if: failure()
+        run: |
+          docker logs --tail 200 sharelatex
+          docker exec sharelatex bash -c 'tail -n 100 /var/log/overleaf/*.log'
+      # Artifact names cannot contain the slash of nested suites
+      - name: "Get Artifact Name"
+        id: artifact
+        if: failure()
+        run: |
+          suite="${{matrix.suite}}"
+          echo "name=e2e-${suite//\//-}-screenshots" >> $GITHUB_OUTPUT
+      - name: "Upload Cypress Screenshots"
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{steps.artifact.outputs.name}}
+          path: server-ce/test/toolkit/cypress/results
+          if-no-files-found: ignore
+          retention-days: 7

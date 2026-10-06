@@ -3,8 +3,7 @@ import { Trans, useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { Button } from 'react-bootstrap'
 import { CopyToClipboard } from '@/shared/components/copy-to-clipboard'
-// import LeftMenuButton from '@/shared/components/left-menu/left-menu-button'
-import LeftMenuButton from '@/features/editor-left-menu/components/left-menu-button'
+import OLButton from '@/shared/components/ol/ol-button'
 import { useProjectContext } from '@/shared/context/project-context'
 import getMeta from '@/utils/meta'
 
@@ -21,7 +20,7 @@ import GitFork from '@/shared/svgs/git-fork'
 
 type Props = {
     handleHide: () => void
-    progjectId: string
+    projectId: string
 }
 
 function ModalGitBridgeSync({ handleHide, projectId }: Props) {
@@ -126,15 +125,14 @@ function GitBridgeSyncButton() {
     // https://fonts.google.com/icons?hl=zh-cn
     return (
         <>
-            <LeftMenuButton
+            <OLButton
                 variant="link"
                 className="left-menu-button"
                 onClick={() => setShowGitBridgeSyncModal(true)}
-                icon="commit"
-                icon={<GitFork />}
+                leadingIcon={<GitFork />}
             >
                 {t('git')}
-            </LeftMenuButton>
+            </OLButton>
             <GitBridgeSyncModal
                 show={showGitBridgeSyncModal}
                 handleHide={() => setShowGitBridgeSyncModal(false)}

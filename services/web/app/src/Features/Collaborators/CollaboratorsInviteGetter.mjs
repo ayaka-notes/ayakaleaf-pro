@@ -23,6 +23,7 @@ async function getEditInviteCount(projectId) {
   const count = await ProjectInvite.countDocuments({
     projectId,
     privileges: { $ne: PrivilegeLevels.READ_ONLY },
+    reusable: { $ne: true },
   }).exec()
   return count
 }
@@ -57,11 +58,23 @@ async function getSharingLinkInvite(projectId) {
   return invite
 }
 
+async function getUsableAnonymousSharingLinkInvite(projectId, tokenString) {
+  const invite = await ProjectInvite.findOne({
+    projectId,
+    reusable: true,
+    tokenHmac: CollaboratorsInviteHelper.hashInviteToken(tokenString),
+    subscriptionId: null,
+    privileges: { $ne: PrivilegeLevels.NONE },
+  }).exec()
+  return invite
+}
+
 export default {
   promises: {
     getAllInvites,
     getEditInviteCount,
     getInviteByToken,
     getSharingLinkInvite,
+    getUsableAnonymousSharingLinkInvite,
   },
 }

@@ -1,6 +1,6 @@
 import { useTemplateGalleryContext } from '../context/template-gallery-context'
 import { Sort } from '../types/api'
-import { SortingOrder } from '../../../../../types/sorting-order'
+import { SortingOrder } from '@ol-types/sorting-order'
 
 const toggleSort = (order: SortingOrder): SortingOrder => {
   return order === 'asc' ? 'desc' : 'asc'

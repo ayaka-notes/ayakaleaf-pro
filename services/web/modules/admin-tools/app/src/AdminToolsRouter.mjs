@@ -48,6 +48,14 @@ export default {
       AuthorizationMiddleware.ensureUserIsSiteAdmin,
       UserListController.updateUser,
     )
+    webRouter.get('/admin/user/:userId/ai-usage',
+      AuthorizationMiddleware.ensureUserIsSiteAdmin,
+      UserListController.getAiUsage,
+    )
+    webRouter.post('/admin/user/:userId/ai-usage/reset',
+      AuthorizationMiddleware.ensureUserIsSiteAdmin,
+      UserListController.resetAiUsage,
+    )
     webRouter.delete('/admin/user/:userId',
       AuthorizationMiddleware.ensureUserIsSiteAdmin,
       UserListController.purgeDeletedUser

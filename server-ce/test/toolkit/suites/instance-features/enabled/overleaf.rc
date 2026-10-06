@@ -1,0 +1,4 @@
+# The docs ask for git-bridge before GitHub Sync; without it the editor and
+# the settings hide the GitHub integration. services/git-bridge built the
+# image during setup.
+GIT_BRIDGE_ENABLED=true

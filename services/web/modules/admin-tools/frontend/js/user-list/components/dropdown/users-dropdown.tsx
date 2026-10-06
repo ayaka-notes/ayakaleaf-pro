@@ -5,11 +5,11 @@ import {
   useUserListContext,
 } from '../../context/user-list-context'
 import {
-  Dropdown,
-  DropdownItem,
-  DropdownMenu,
-  DropdownToggle,
-} from '@/shared/components/dropdown/dropdown-menu'
+  OLDropdown as Dropdown,
+  OLDropdownItem as DropdownItem,
+  OLDropdownMenu as DropdownMenu,
+  OLDropdownToggle as DropdownToggle,
+} from '@/shared/components/ol/ol-dropdown-menu'
 import UsersFilterMenu from '../users-filter-menu'
 
 type ItemProps = {

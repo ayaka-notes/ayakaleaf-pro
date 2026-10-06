@@ -1,3 +1,4 @@
+import { rememberExternalAuth } from '../logout.mjs'
 let ldapModule = {}
 if (process.env.EXTERNAL_AUTH?.includes('ldap')) {
   const { default: LDAPModuleManager } = await import('./app/src/LDAPModuleManager.mjs')
@@ -7,6 +8,7 @@ if (process.env.EXTERNAL_AUTH?.includes('ldap')) {
   ldapModule = {
     name: 'ldap-authentication',
     hooks: {
+      preFinishLogin: rememberExternalAuth,
       passportSetup: LDAPModuleManager.passportSetup,
       getContacts: LDAPModuleManager.getContacts,
       getGroupPolicyForUser: LDAPModuleManager.getGroupPolicyForUser,

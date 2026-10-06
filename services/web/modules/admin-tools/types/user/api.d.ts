@@ -47,6 +47,9 @@ export type UserApi = {
   inactive: boolean
   deleted?: boolean
   deletedAt?: Date
+  aiFeatures?: {
+    enabled: boolean
+  }
   features?: {
     collaborators?: number
     compileTimeout?: number

@@ -88,6 +88,17 @@
   }
 }
 
+.compile-button,
+.compile-dropdown-toggle,
+.detach-compile-button {
+  &.compile-button-network-stalled {
+    background-color: var(--bg-disabled-themed) !important;
+    color: var(--content-disabled-themed) !important;
+    pointer-events: auto;
+    cursor: not-allowed;
+  }
+}
+
 .toolbar-pdf-left,
 .toolbar-pdf-right,
 .toolbar-pdf-controls {
@@ -374,6 +385,16 @@
     color: initial !important;
     cursor: initial !important;
   }
+}
+
+.toolbar-pdf-compile-time {
+  color: var(--toolbar-btn-color);
+  font-size: var(--font-size-02);
+  padding: 0 var(--spacing-04);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-02);
+  white-space: nowrap;
 }
 
 .pdfjs-page-number-input {

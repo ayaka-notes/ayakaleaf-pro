@@ -2,6 +2,7 @@ import logger from '@overleaf/logger'
 import passport from 'passport'
 import Settings from '@overleaf/settings'
 import AuthenticationController from '../../../../../app/src/Features/Authentication/AuthenticationController.mjs'
+import AsyncFormHelper from '../../../../../app/src/Features/Helpers/AsyncFormHelper.mjs'
 import { endSession } from '../../../logout.mjs'
 import ThirdPartyIdentityManager from '../../../../../app/src/Features/User/ThirdPartyIdentityManager.mjs'
 import OIDCAuthenticationManager from './OIDCAuthenticationManager.mjs'
@@ -53,7 +54,10 @@ const OIDCAuthenticationController = {
       }
     )(req, res, next)
   },
-  async doPassportLogin(req, issuer, profile, context, idToken, accessToken, refreshToken, done) {
+  async doPassportLogin(req, issuer, uiProfile, idProfile, context, idToken, accessToken, refreshToken, params, done) {
+    // The 10-arg form is the only one where passport-openidconnect exposes the raw
+    // userinfo claims (uiProfile._json), which non-standard admin claims live in
+    const profile = { ...idProfile, ...uiProfile }
     let user, info
     try {
       if(req.session.intent === 'link') {
@@ -160,7 +164,7 @@ const OIDCAuthenticationController = {
     await endSession(req)
     const logoutUrl = process.env.OVERLEAF_OIDC_LOGOUT_URL
     const redirectUri = Settings.siteUrl
-    res.redirect(`${logoutUrl}?id_token_hint=${idTokenHint}&post_logout_redirect_uri=${encodeURIComponent(redirectUri)}`)
+    AsyncFormHelper.redirect(req, res, `${logoutUrl}?id_token_hint=${idTokenHint}&post_logout_redirect_uri=${encodeURIComponent(redirectUri)}`)
   },
   passportLogoutCallback(req, res, next) {
     const redirectUri = Settings.siteUrl

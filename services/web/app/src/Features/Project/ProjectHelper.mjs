@@ -23,6 +23,7 @@ export default {
   isArchived,
   isTrashed,
   isArchivedOrTrashed,
+  isTrackChangesEnabledForUser,
   getAllowedImagesForUser,
   ensureNameIsUnique,
 }
@@ -60,6 +61,22 @@ function isTrashed(project, rawUserId) {
  */
 function isArchivedOrTrashed(project, userId) {
   return isArchived(project, userId) || isTrashed(project, userId)
+}
+
+/**
+ * Whether track changes is enabled for the given user, from the project's
+ * track_changes state: `true` means on for everyone (legacy format),
+ * otherwise it is an object keyed by user id.
+ *
+ * @param {boolean | Record<string, boolean> | undefined} trackChangesState
+ * @param {string | ObjectId | null} userId
+ * @returns {boolean}
+ */
+function isTrackChangesEnabledForUser(trackChangesState, userId) {
+  return (
+    trackChangesState === true ||
+    (userId != null && trackChangesState?.[userId.toString()] === true)
+  )
 }
 
 /**
@@ -149,14 +166,12 @@ function _addNumericSuffixToProjectName(name, allProjectNames, maxLength) {
   return null
 }
 
-async function _monthlyExperimentalImageAllowed(user) {
-  const userId = user?._id?.toString()
-  if (!userId) return false
-  const { variant } = await SplitTestHandler.promises.getAssignmentForUser(
-    userId,
+async function _monthlyExperimentalImageAllowed(req, res) {
+  return await SplitTestHandler.promises.featureFlagEnabled(
+    req,
+    res,
     'monthly-texlive'
   )
-  return variant === 'enabled'
 }
 
 function _imageAllowed(
@@ -173,14 +188,14 @@ function _imageAllowed(
   return true
 }
 
-async function getAllowedImagesForUser(user) {
-  let images = Settings.allowedImageNames || []
+async function getAllowedImagesForUser(req, res, user) {
+  const images = Settings.allowedImageNames || []
 
   const alphaImagesAllowed = Boolean(user?.alphaProgram)
   const monthlyExperimentalImagesAllowed =
-    await _monthlyExperimentalImageAllowed(user)
+    await _monthlyExperimentalImageAllowed(req, res)
 
-  images = images.map(image => {
+  return images.map(image => {
     return {
       ...image,
       allowed: _imageAllowed(
@@ -191,6 +206,4 @@ async function getAllowedImagesForUser(user) {
       rolling: image.monthlyExperimental,
     }
   })
-
-  return images
 }

@@ -13,8 +13,8 @@ import Features from '../../infrastructure/Features.mjs'
 
 const { ObjectId } = mongodb
 
-const READ_AND_WRITE_TOKEN_PATTERN = '([0-9]+[a-z]{6,12})'
-const READ_ONLY_TOKEN_PATTERN = '([a-z]{12})'
+const READ_AND_WRITE_TOKEN_PATTERN = '[0-9]+[a-z]{6,12}'
+const READ_ONLY_TOKEN_PATTERN = '[a-z]{12}'
 
 const TokenAccessHandler = {
   TOKEN_TYPES: {
@@ -154,13 +154,13 @@ const TokenAccessHandler = {
     throw new Error('invalid token type')
   },
 
-  async addReadOnlyUserToProject(userId, projectId, ownerId) {
+  async addReadOnlyUserToProject(userId, projectId, ownerId, session) {
     if (!Features.hasFeature('link-sharing')) {
       throw new Error('link sharing is disabled')
     }
     userId = new ObjectId(userId.toString())
     projectId = new ObjectId(projectId.toString())
-    Analytics.recordEventForUserInBackground(userId, 'project-joined', {
+    Analytics.recordEventForSession(session, 'project-joined', {
       role: PrivilegeLevels.READ_ONLY,
       projectId: projectId.toString(),
       source: 'link-sharing',

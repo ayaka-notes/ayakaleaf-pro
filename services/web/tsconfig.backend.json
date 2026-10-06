@@ -6,9 +6,11 @@
   "include": [
     "app/src/**/*",
     "modules/*/app/src/**/*",
+    "modules/*/shared/**/*",
     "modules/*/test/acceptance/**/*",
     "modules/*/test/unit/**/*",
     "scripts/**/*",
+    "shared/**/*",
     "test/acceptance/**/*",
     "test/unit/**/*",
     "types/backend/**/*"

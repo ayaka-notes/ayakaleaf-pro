@@ -4,7 +4,7 @@ import {
   OLModalFooter,
 } from '@/shared/components/ol/ol-modal'
 import OLButton from '@/shared/components/ol/ol-button'
-import OLNotification from '@/shared/components/ol/ol-notification'
+import Notification from '@/shared/components/notification'
 import { GitSyncModalStatus } from '../../types/git-sync-types'
 
 type GitSyncLoadingModalProps = {
@@ -25,10 +25,12 @@ const GitSyncLoadingModal = ({ handleHide, setModalStatus, errorMessage }: GitSy
       </OLModalBody>
 
       {errorMessage && (
-        <OLNotification
-          type="error"
-          content={errorMessage}
-        />
+        <div className="notification-list">
+          <Notification
+            type="error"
+            content={errorMessage}
+          />
+        </div>
       )}
 
       <OLModalFooter>

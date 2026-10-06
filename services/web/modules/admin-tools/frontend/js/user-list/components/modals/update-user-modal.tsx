@@ -10,16 +10,19 @@ import OLFormCheckbox from '@/shared/components/ol/ol-form-checkbox'
 import OLRow from '@/shared/components/ol/ol-row'
 import OLCol from '@/shared/components/ol/ol-col'
 import { useRefWithAutoFocus } from '@/shared/hooks/use-ref-with-auto-focus'
-import { getAdditionalUserInfo } from '../../util/api'
+import { getAdditionalUserInfo, getAiUsage, resetAiUsage, type AiUsage } from '../../util/api'
+import OLButton from '@/shared/components/ol/ol-button'
 import MaterialIcon from '@/shared/components/material-icon'
+import type { User } from '../../../../../types/user/api'
 
 
 type UpdateUserModalProps = Pick<
   React.ComponentProps<typeof UsersActionModal>,
   'users' | 'actionHandler' | 'showModal' | 'handleCloseModal'
 >
-const pickUserFields = ({ id, firstName, lastName, email, isAdmin, features }) => ({
+const pickUserFields = ({ id, firstName, lastName, email, isAdmin, features, aiFeatures }: User) => ({
   id, firstName, lastName, email, isAdmin,
+  aiFeatures: { enabled: aiFeatures?.enabled !== false },
   features: {
     collaborators: features?.collaborators,
     compileTimeout: features?.compileTimeout,
@@ -196,6 +199,46 @@ function UserFeaturesTab({
   )
 }
 
+function AiUsageControls({ userId }: { userId: string }) {
+  const [usage, setUsage] = useState<AiUsage | null>(null)
+  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+
+  useEffect(() => {
+    let active = true
+    getAiUsage(userId).then(data => {
+      if (active) setUsage(data)
+    }).catch(() => {
+      if (active) setStatus('error')
+    })
+    return () => { active = false }
+  }, [userId])
+
+  const reset = async () => {
+    setStatus('loading')
+    try {
+      setUsage(await resetAiUsage(userId))
+      setStatus('done')
+    } catch {
+      setStatus('error')
+    }
+  }
+
+  return (
+    <div className="d-flex align-items-center gap-3">
+      <span>
+        {usage
+          ? `Usage: ${usage.used?.toLocaleString() ?? '—'} / Limit: ${usage.limit?.toLocaleString() ?? 'Unlimited'} tokens`
+          : status === 'error' ? 'Usage unavailable' : 'Loading usage…'}
+      </span>
+      <OLButton variant="secondary" type="button" onClick={reset} disabled={status === 'loading' || !usage}>
+        {status === 'loading' ? 'Resetting…' : 'Reset'}
+      </OLButton>
+      {status === 'done' && <span role="status">Done</span>}
+      {status === 'error' && <span role="alert">Please try again.</span>}
+    </div>
+  )
+}
+
 function UpdateUserModal({
   users,
   actionHandler,
@@ -207,7 +250,7 @@ function UpdateUserModal({
   const [activeTab, setActiveTab] = useState('basic-info')
 
   if (users.length !== 1) return null
-  const [userData, setUserData] = useState(pickUserFields(users[0]))
+  const [userData, setUserData] = useState<ReturnType<typeof pickUserFields> & { password?: string }>(pickUserFields(users[0]))
   const isSelf = getMeta('ol-user_id') === users[0].id
   const allowUpdateDetails = users[0].allowUpdateDetails
   const allowUpdateIsAdmin = users[0].allowUpdateIsAdmin
@@ -236,6 +279,11 @@ function UpdateUserModal({
   const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, checked } = e.currentTarget
     setUserData(prev => ({ ...prev, [name]: checked }))
+  }
+
+  const handleAiAccessChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const enabled = e.currentTarget.checked
+    setUserData(prev => ({ ...prev, aiFeatures: { enabled } }))
   }
 
   const handleFeatureNumChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -318,6 +366,21 @@ function UpdateUserModal({
                 {t('features')}
               </a>
             </li>
+            <li className="nav-item" role="presentation">
+              <a
+                className={`nav-link ${activeTab === 'ai' ? 'active' : ''}`}
+                href="#user-ai-settings"
+                role="tab"
+                aria-selected={activeTab === 'ai'}
+                aria-controls="user-ai-settings"
+                onClick={event => {
+                  event.preventDefault()
+                  setActiveTab('ai')
+                }}
+              >
+                {t('ai_features')}
+              </a>
+            </li>
           </ul>
         </div>
 
@@ -348,6 +411,17 @@ function UpdateUserModal({
               handleFeatureNumChange={handleFeatureNumChange}
               autoFocusedRef={autoFocusedRef}
             />
+          </div>
+          <div className={`tab-pane ${activeTab === 'ai' ? 'active' : ''}`} role="tabpanel" id="user-ai-settings">
+            <OLFormGroup controlId="user-ai-enabled">
+              <OLFormCheckbox
+                name="aiEnabled"
+                label={t('enable_ai_features')}
+                checked={userData.aiFeatures.enabled}
+                onChange={handleAiAccessChange}
+              />
+            </OLFormGroup>
+            {showModal && activeTab === 'ai' && <AiUsageControls key={userData.id} userId={userData.id} />}
           </div>
         </div>
       </div>

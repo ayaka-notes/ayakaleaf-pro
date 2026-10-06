@@ -1,5 +1,5 @@
 import { useTranslation, Trans } from 'react-i18next'
-import OLNotification from '@/shared/components/ol/ol-notification'
+import Notification from '@/shared/components/notification'
 import {
   OLModalBody,
   OLModalFooter,
@@ -17,20 +17,22 @@ const GitSyncCannotExportModal = ({ projectSyncState, handleHide }: GitSyncCanno
   return (
     <>
       <OLModalBody>
-        <OLNotification
-          type="warning"
-          content={(
-            <Trans
-              i18nKey="only_project_owner_can_link_github"
-              values={{
-                projectOwnerEmail: projectSyncState.ownerEmail ?? '?',
-              }}
-              components={[
-                projectSyncState.ownerEmail ? <a href={`mailto:${projectSyncState.ownerEmail}`} /> : <></>
-              ]}
-            />
-          )}
-        />
+        <div className="notification-list">
+          <Notification
+            type="warning"
+            content={(
+              <Trans
+                i18nKey="only_project_owner_can_link_github"
+                values={{
+                  projectOwnerEmail: projectSyncState.ownerEmail ?? '?',
+                }}
+                components={[
+                  projectSyncState.ownerEmail ? <a href={`mailto:${projectSyncState.ownerEmail}`} /> : <></>
+                ]}
+              />
+            )}
+          />
+        </div>
       </OLModalBody>
       <OLModalFooter>
         <OLButton

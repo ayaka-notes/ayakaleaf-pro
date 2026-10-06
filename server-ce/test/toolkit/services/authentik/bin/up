@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Usage: services/authentik/bin/up
+#
+# Runs after the toolkit's bin/up, once its network exists. Starts authentik,
+# waits until the blueprint created the LDAP outpost, then starts the outpost
+# with its API token. The API is called from the sharelatex container, which
+# reaches authentik the same way Overleaf does.
+#
+# Expects TOOLKIT_DIR and TOOLKIT_NETWORK in the environment.
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+export TOOLKIT_NETWORK
+export AUTHENTIK_STATE_DIR="$TOOLKIT_DIR/services/authentik"
+set -a
+source "$AUTHENTIK_STATE_DIR/secrets.env"
+set +a
+
+docker compose up -d authentik-postgresql authentik-server authentik-worker
+
+function api() {
+  docker exec sharelatex curl -sf -H "Authorization: Bearer $AUTHENTIK_BOOTSTRAP_TOKEN" \
+    "http://authentik:9000/api/v3/$1"
+}
+
+echo "Waiting for authentik..."
+for _ in $(seq 120); do
+  docker exec sharelatex curl -sf -o /dev/null http://authentik:9000/-/health/ready/ && break
+  sleep 3
+done
+
+echo "Waiting for the blueprint to create the LDAP outpost..."
+outpost=""
+for _ in $(seq 120); do
+  # The name filter is not exact, it also returns the embedded outpost.
+  outpost=$(api "outposts/instances/?page_size=100" 2>/dev/null | python3 -c '
+import json, sys
+found = [o["pk"] for o in json.load(sys.stdin)["results"] if o["name"] == "ayakaleaf-ldap-outpost"]
+print(found[0] if found else "")' || true)
+  [[ -n "$outpost" ]] && break
+  sleep 3
+done
+if [[ -z "$outpost" ]]; then
+  echo "The blueprint did not apply" >&2
+  docker compose logs --tail 100 authentik-worker
+  exit 1
+fi
+
+LDAP_OUTPOST_TOKEN=$(api "core/tokens/ak-outpost-$outpost-api/view_key/" \
+  | python3 -c 'import json, sys; print(json.load(sys.stdin)["key"])')
+export LDAP_OUTPOST_TOKEN
+docker compose --profile ldap up -d authentik-ldap
+
+echo "Waiting for the LDAP outpost..."
+for _ in $(seq 60); do
+  docker exec sharelatex bash -c 'echo > /dev/tcp/authentik-ldap/3389' 2>/dev/null && break
+  sleep 2
+done
+echo "authentik is up"

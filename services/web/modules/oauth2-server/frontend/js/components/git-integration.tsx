@@ -1,7 +1,7 @@
 import GitLogoOrange from "@/shared/svgs/git-logo-orange";
 import { Trans, useTranslation } from 'react-i18next'
 import EmailCell from "@/features/settings/components/emails/cell";
-import Button from '@/shared/components/button/button'
+import Button from '@/shared/components/ol/ol-button'
 
 import moment from 'moment';
 

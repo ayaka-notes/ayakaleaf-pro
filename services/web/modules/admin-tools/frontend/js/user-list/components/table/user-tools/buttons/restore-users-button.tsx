@@ -5,7 +5,7 @@ import useIsMounted from '@/shared/hooks/use-is-mounted'
 import { useUserListContext } from '../../../../context/user-list-context'
 import { User } from '../../../../../../../types/user/api'
 import RestoreUserModal from '../../../modals/restore-user-modal'
-import { performRestoreUser, postActions } from '../../../../util/user-actions'
+import { performRestoreUser, type PostActions } from '../../../../util/user-actions'
 
 function RestoreUsersButton() {
   const { t } = useTranslation()

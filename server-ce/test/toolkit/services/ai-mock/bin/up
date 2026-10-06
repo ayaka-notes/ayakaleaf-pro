@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Usage: services/ai-mock/bin/up
+#
+# Runs after the toolkit's bin/up, once its network exists. Starts the mock as
+# api.openai.com, api.tavily.com and docs.overleaf.com, and as ai-mock for the
+# control API.
+#
+# Expects TOOLKIT_DIR and TOOLKIT_NETWORK in the environment.
+
+exec "$(dirname "$0")/../../lib/start-mock" ai-mock \
+  api.openai.com api.tavily.com docs.overleaf.com

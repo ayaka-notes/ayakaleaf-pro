@@ -1,7 +1,7 @@
 import Metrics from '@overleaf/metrics'
 import logger from '@overleaf/logger'
+import OError from '@overleaf/o-error'
 import express from 'express'
-import bodyParser from 'body-parser'
 import * as Errors from './Errors.js'
 import * as Router from './Router.js'
 import { handleValidationError } from '@overleaf/validation-tools'
@@ -39,8 +39,8 @@ HistoryLogger.addSerializers({
 })
 
 export const app = express()
-app.use(bodyParser.json())
-app.use(bodyParser.urlencoded({ extended: true }))
+app.use(express.json())
+app.use(express.urlencoded({ extended: true }))
 app.use(Metrics.http.monitor(logger))
 Router.initialize(app)
 Metrics.injectMetricsRoute(app)
@@ -52,8 +52,18 @@ app.use(function (error, req, res, next) {
     res.sendStatus(400)
   } else if (error instanceof Errors.InconsistentChunkError) {
     res.sendStatus(422)
+  } else if (error instanceof Errors.SyncOngoingError) {
+    logger.error({ err: error, req }, error.message)
+    res.sendStatus(409)
   } else if (error instanceof Errors.TooManyRequestsError) {
     res.status(429).set('Retry-After', 300).end()
+  } else if (
+    error instanceof OError &&
+    error.message === 'Timeout' &&
+    error.info?.key
+  ) {
+    logger.warn({ error, req }, error.message)
+    res.status(423).json({ message: 'redis lock is taken' })
   } else {
     logger.error({ err: error, req }, error.message)
     res.status(500).json({ message: 'an internal error occurred' })
