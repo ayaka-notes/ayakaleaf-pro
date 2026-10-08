@@ -42,7 +42,9 @@ One folder per module in `toolkit/suites/`, named and nested like
 - `symbol-palette/` – opening and closing the palette, switching categories
   by click and keyboard, searching by command, description and character,
   empty search results, inserting symbols by click and keyboard at the editor
-  cursor, the tooltip.
+  cursor, the tooltip. Draw mode: switching to the canvas and back,
+  recognising drawn symbols with the bundled model, inserting a result and
+  clearing the canvas.
 - `track-changes/` – editing, reviewing and viewing modes, tracked insertions
   and deletions, accepting and rejecting them, comments (reply, edit, delete,
   resolve, re-open), and which routes owners, editors, reviewers, viewers,
