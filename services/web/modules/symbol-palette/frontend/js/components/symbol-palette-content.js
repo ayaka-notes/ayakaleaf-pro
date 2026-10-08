@@ -20,6 +20,12 @@ import SymbolPaletteDrawToggle from './symbol-palette-draw-toggle'
 
 const SymbolPaletteDraw = lazy(() => import('./symbol-palette-draw'))
 
+// Recognition rasterises strokes on an OffscreenCanvas in a worker, which
+// Safari 15 (still a supported browser) lacks.
+const drawingSupported =
+  typeof OffscreenCanvas !== 'undefined' &&
+  new OffscreenCanvas(1, 1).getContext('2d') !== null
+
 export default function SymbolPaletteContent({ handleSelect }) {
   const [input, setInput] = useState('')
   const [drawing, setDrawing] = useState(false)
@@ -86,10 +92,12 @@ export default function SymbolPaletteContent({ handleSelect }) {
                 inputRef={inputRef}
                 onFocus={() => setDrawing(false)}
               />
-              <SymbolPaletteDrawToggle
-                active={drawing}
-                setActive={setDrawing}
-              />
+              {drawingSupported && (
+                <SymbolPaletteDrawToggle
+                  active={drawing}
+                  setActive={setDrawing}
+                />
+              )}
             </div>
           </div>
           <div className="symbol-palette-header-group">
