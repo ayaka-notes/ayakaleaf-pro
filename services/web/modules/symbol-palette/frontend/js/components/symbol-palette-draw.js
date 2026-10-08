@@ -20,8 +20,7 @@ export default function SymbolPaletteDraw({ handleSelect }) {
 
   const repaint = useCallback(() => {
     const canvas = canvasRef.current
-    const context = canvas?.getContext('2d')
-    if (!context) return
+    const context = canvas.getContext('2d')
     context.clearRect(0, 0, canvas.width, canvas.height)
     context.strokeStyle = context.fillStyle = '#222'
     context.lineWidth = 4
@@ -119,7 +118,7 @@ export default function SymbolPaletteDraw({ handleSelect }) {
     setRevision(value => value + 1)
     repaint()
   }
-  const focusCanvas = useCallback(() => canvasRef.current?.focus(), [])
+  const focusCanvas = useCallback(() => canvasRef.current.focus(), [])
 
   return (
     <div className="symbol-palette-draw">

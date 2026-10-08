@@ -7,7 +7,6 @@ export default class RecognitionClient {
     this.receive = event => {
       const message = event.data
       const request = this.pending.get(message.id)
-      if (!request) return
       this.pending.delete(message.id)
       clearTimeout(request.timeout)
       if (message.type === 'ready') request.resolve()
@@ -21,7 +20,6 @@ export default class RecognitionClient {
       this.destroy(new Error('Symbol recognition worker failed'))
     worker.addEventListener('message', this.receive)
     worker.addEventListener('error', this.fail)
-    worker.addEventListener('messageerror', this.fail)
   }
 
   request(message) {
@@ -34,11 +32,7 @@ export default class RecognitionClient {
         message.type === 'init' ? 60000 : 30000
       )
       this.pending.set(id, { resolve, reject, timeout })
-      try {
-        this.worker.postMessage({ ...message, id })
-      } catch (error) {
-        this.destroy(error)
-      }
+      this.worker.postMessage({ ...message, id })
     })
   }
 
@@ -47,7 +41,6 @@ export default class RecognitionClient {
     this.destroyed = true
     this.worker.removeEventListener('message', this.receive)
     this.worker.removeEventListener('error', this.fail)
-    this.worker.removeEventListener('messageerror', this.fail)
     this.worker.terminate()
     for (const request of this.pending.values()) {
       clearTimeout(request.timeout)

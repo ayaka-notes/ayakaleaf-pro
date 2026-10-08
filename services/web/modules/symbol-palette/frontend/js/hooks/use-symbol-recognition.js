@@ -35,7 +35,6 @@ export default function useSymbolRecognition() {
 
   const recognize = useCallback(async strokes => {
     const client = clientRef.current
-    if (!client || !strokes.length) return []
     try {
       return await client.recognize(strokes)
     } catch (error) {

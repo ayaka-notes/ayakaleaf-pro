@@ -11,23 +11,17 @@ export function toPaletteSymbols(candidates) {
         !candidate.command.startsWith('\\text')
     )
     .slice(0, config.resultCount)
-    .map(candidate => {
-      const symbol = knownSymbols.get(candidate.command)
-      return symbol
-        ? {
-            ...symbol,
-            character: String.fromCodePoint(
-              parseInt(symbol.codepoint.replace(/^U\+/, ''), 16)
-            ),
-          }
-        : {
-            codepoint: '',
-            command: candidate.command,
-            description: candidate.command,
-            character: '',
-            notes: candidate.package
-              ? `\\usepackage{${candidate.package}}`
-              : undefined,
-          }
-    })
+    // Results are drawn from the sprite sheet, so they need no character
+    .map(
+      candidate =>
+        knownSymbols.get(candidate.command) || {
+          codepoint: '',
+          command: candidate.command,
+          description: candidate.command,
+          character: '',
+          notes: candidate.package
+            ? `\\usepackage{${candidate.package}}`
+            : undefined,
+        }
+    )
 }

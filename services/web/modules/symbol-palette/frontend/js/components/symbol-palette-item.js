@@ -62,13 +62,13 @@ const SymbolPaletteItem = forwardRef(function ({
         tabIndex={focused ? 0 : -1}
         ref={buttonRef}
         role="option"
-        aria-label={symbol.description || symbol.command}
+        aria-label={symbol.description}
         aria-selected={focused ? 'true' : 'false'}
       >
         {spriteStyle ? (
           <span aria-hidden="true" style={spriteStyle} />
-        ) : symbol.character || (
-          <span className="symbol-palette-item-label">{symbol.command}</span>
+        ) : (
+          symbol.character
         )}
       </button>
     </OLTooltip>

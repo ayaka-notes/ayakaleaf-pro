@@ -20,7 +20,6 @@ async function handleMessage(message) {
       })
       self.postMessage({ id, type: 'ready' })
     } else if (type === 'recognize') {
-      if (!session) throw new Error('Recognizer is not initialized')
       const input = new ort.Tensor(
         'float32',
         rasterizeStrokes(message.strokes, preprocessing),
@@ -30,10 +29,6 @@ async function handleMessage(message) {
       try {
         outputs = await session.run({ [modelConfig.inputName]: input })
         const logits = outputs[modelConfig.outputName]
-        if (!logits)
-          throw new Error(
-            'The model output name does not match its configuration'
-          )
         self.postMessage({
           id,
           type: 'result',

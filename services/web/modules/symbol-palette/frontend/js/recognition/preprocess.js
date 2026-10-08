@@ -11,7 +11,6 @@ export function normalizeStrokes(strokes, coordinateSpace) {
       maxY = Math.max(maxY, y)
     }
   }
-  if (minX === Infinity) return []
   if (minX === maxX && minY === maxY) {
     return strokes.map(stroke =>
       stroke.map(() => [coordinateSpace / 2, coordinateSpace / 2])
@@ -36,7 +35,6 @@ export function rasterizeStrokes(strokes, config) {
   const renderSize = size * config.supersample
   const canvas = new OffscreenCanvas(renderSize, renderSize)
   const context = canvas.getContext('2d')
-  if (!context) throw new Error('Canvas rendering is unavailable')
 
   const gray = value => `rgb(${value}, ${value}, ${value})`
   context.fillStyle = gray(config.background)
@@ -52,7 +50,6 @@ export function rasterizeStrokes(strokes, config) {
   const margin = renderSize * config.margin
   const scale = (renderSize * (1 - 2 * config.margin)) / config.coordinateSpace
   for (const stroke of normalizeStrokes(strokes, config.coordinateSpace)) {
-    if (!stroke.length) continue
     const points = stroke.map(([x, y]) => [
       x * scale + margin,
       y * scale + margin,
@@ -69,7 +66,6 @@ export function rasterizeStrokes(strokes, config) {
   }
 
   const output = new OffscreenCanvas(size, size).getContext('2d')
-  if (!output) throw new Error('Canvas rendering is unavailable')
   // Match the browser rasterisation used by the original model, including its
   // supersampling; a different stroke width materially changes predictions.
   output.imageSmoothingEnabled = true
@@ -83,28 +79,12 @@ export function rasterizeStrokes(strokes, config) {
 }
 
 export function rankCandidates(logits, labels, count) {
-  const classes = new Map(
-    labels
-      .filter(label => label.classIndex !== null)
-      .map(label => [label.classIndex, label])
-  )
-  if (
-    logits.length !== classes.size ||
-    [...classes.keys()].some(
-      index => !Number.isInteger(index) || index < 0 || index >= logits.length
-    )
-  ) {
+  if (logits.length !== labels.length) {
     throw new Error('The model output does not match its symbol labels')
   }
-  let maximum = -Infinity
-  for (const value of logits) {
-    if (!Number.isFinite(value)) throw new Error('Invalid model output')
-    maximum = Math.max(maximum, value)
-  }
-  const weights = Array.from(logits, value => Math.exp(value - maximum))
-  const total = weights.reduce((sum, value) => sum + value, 0)
-  return weights
-    .map((weight, index) => ({ ...classes.get(index), score: weight / total }))
-    .sort((a, b) => b.score - a.score)
+  return labels
+    .map((label, index) => ({ label, logit: logits[index] }))
+    .sort((a, b) => b.logit - a.logit)
     .slice(0, count)
+    .map(({ label }) => label)
 }
