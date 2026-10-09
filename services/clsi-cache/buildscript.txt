@@ -1,0 +1,10 @@
+clsi-cache
+--data-dirs=cache
+--dependencies=
+--env-add=
+--env-pass-through=
+--esmock-loader=False
+--node-version=24.14.1
+--package-name=@overleaf/clsi-cache
+--pipeline-owner=32
+--public-repo=True

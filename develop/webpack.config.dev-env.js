@@ -20,6 +20,12 @@ module.exports = merge(base, {
         pathRewrite: { '^/git': '' }
       },
       {
+        // The clsi-cache lookup ends with .json and would otherwise be
+        // swallowed by the static-asset exclusion below.
+        context: '/project/**/output/cached/**',
+        target: 'http://web:3000',
+      },
+      {
         context: ['!**/*.js', '!**/*.css', '!**/*.json'],
         target: 'http://web:3000',
       },

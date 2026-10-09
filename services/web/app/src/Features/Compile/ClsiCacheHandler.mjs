@@ -79,7 +79,7 @@ function getEgressLabel(fsPath) {
  * @return {Promise<void>}
  */
 async function clearCache(projectId, userId) {
-  if (!Features.hasFeature('saas')) return
+  if (!Settings.apis.clsiCache.enabled) return
 
   let path = `/project/${projectId}`
   if (userId) {

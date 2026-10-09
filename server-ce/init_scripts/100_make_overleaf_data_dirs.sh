@@ -14,6 +14,9 @@ chown www-data:www-data /var/lib/overleaf/data/output
 mkdir -p /var/lib/overleaf/data/cache
 chown www-data:www-data /var/lib/overleaf/data/cache
 
+mkdir -p /var/lib/overleaf/data/clsi-cache
+chown www-data:www-data /var/lib/overleaf/data/clsi-cache
+
 mkdir -p /var/lib/overleaf/data/template_files
 chown www-data:www-data /var/lib/overleaf/data/template_files
 
