@@ -1,11 +1,12 @@
 import { useTranslation, Trans } from 'react-i18next'
+import getMeta from '@/utils/meta'
 import useAsync from '@/shared/hooks/use-async'
 import { deleteJSON } from '@/infrastructure/fetch-json'
 import { OLModalBody, OLModalFooter } from '@/shared/components/ol/ol-modal'
 import OLButton from '@/shared/components/ol/ol-button'
 import Notification from '@/shared/components/notification'
 import { debugConsole } from '@/utils/debugging'
-import { ProjectSyncState, GitSyncModalStatus } from '../../types/git-sync-types'
+import { ProjectSyncState, GitSyncModalStatus, GitSyncExposedSettings } from '../../types/git-sync-types'
 
 type GitSyncUnlinkModalProps = {
   handleHide: () => void
@@ -21,6 +22,7 @@ const GitSyncUnlinkModal = ({
   projectId,
 }: GitSyncUnlinkModalProps) => {
   const { t } = useTranslation()
+  const { githubUrl } = getMeta('ol-ExposedSettings') as GitSyncExposedSettings
 
   const {
     error,
@@ -40,7 +42,7 @@ const GitSyncUnlinkModal = ({
         <p>
           {t('project_linked_to')}:&nbsp;
           <a
-            href={`https://github.com/${projectSyncState.repoFullName}`}
+            href={`${githubUrl}/${projectSyncState.repoFullName}`}
             target="_blank"
             rel="noreferrer noopener"
           >

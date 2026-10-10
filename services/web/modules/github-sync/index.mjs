@@ -6,6 +6,19 @@ let GitHubSyncModule = {}
 if (process.env.GITHUB_SYNC_ENABLED?.toLowerCase() === 'true') {
   logger.debug({}, 'Enabling GitHub Sync module')
 
+  // Set before importing the app modules: GitHubApiClient reads the
+  // GitHub endpoints at import time
+  const siteUrl = Settings.siteUrl.replace(/\/+$/, '')
+  Settings.githubSync = {
+    clientID: process.env.GITHUB_SYNC_CLIENT_ID,
+    clientSecret: process.env.GITHUB_SYNC_CLIENT_SECRET,
+    callbackURL: `${siteUrl}/user/github-sync/oauth2/callback`,
+    // GitHub endpoints (web / REST / GraphQL)
+    url: 'https://github.com',
+    apiUrl: 'https://api.github.com',
+    graphqlUrl: 'https://api.github.com/graphql',
+  }
+
   // Import lazily so these modules are only evaluated when GitHub Sync is enabled.
   // TokenManager builds an AccessTokenEncryptor at import time (requiring
   // GITHUB_TOKEN_CIPHER_PASSWORD)
@@ -20,13 +33,6 @@ if (process.env.GITHUB_SYNC_ENABLED?.toLowerCase() === 'true') {
     ])
 
   // Delete project sync state from mongo (hook 'projectExpired')
-
-  const siteUrl = process.env.OVERLEAF_SITE_URL?.replace(/\/+$/, '') || 'http://localhost'
-  Settings.githubSync = {
-    clientID: process.env.GITHUB_SYNC_CLIENT_ID,
-    clientSecret: process.env.GITHUB_SYNC_CLIENT_SECRET,
-    callbackURL: `${siteUrl}/user/github-sync/oauth2/callback`,
-  },
 
   Modules.hooks.attach('projectExpired', async projectId => {
     try {

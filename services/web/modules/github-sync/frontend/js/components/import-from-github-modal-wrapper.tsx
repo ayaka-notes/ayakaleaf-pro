@@ -18,6 +18,7 @@ import {
 import OLButton from '@/shared/components/ol/ol-button'
 import OLSpinner from '@/shared/components/ol/ol-spinner'
 import Notification from '@/shared/components/notification'
+import { GitSyncExposedSettings } from '../types/git-sync-types'
 
 type GitSyncRepo = {
   name: string
@@ -31,7 +32,7 @@ type GitSyncReposResponse = {
 
 function ImportFromGitHubModalContent({ handleHide }: { handleHide: () => void }) {
   const { t } = useTranslation()
-  const { appName } = getMeta('ol-ExposedSettings')
+  const { appName, githubUrl } = getMeta('ol-ExposedSettings') as GitSyncExposedSettings
 
   const {
     isLoading,
@@ -142,7 +143,7 @@ function ImportFromGitHubModalContent({ handleHide }: { handleHide: () => void }
                             {repo.name}
                             <div className="small">
                               <a
-                                href={`https://github.com/${repo.fullName}`}
+                                href={`${githubUrl}/${repo.fullName}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                               >

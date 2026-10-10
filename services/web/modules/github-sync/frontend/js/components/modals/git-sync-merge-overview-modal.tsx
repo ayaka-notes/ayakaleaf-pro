@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import getMeta from '@/utils/meta'
 import useAsync from '@/shared/hooks/use-async'
 import { getJSON } from '@/infrastructure/fetch-json'
 import { OLModalBody, OLModalFooter } from '@/shared/components/ol/ol-modal'
@@ -12,7 +13,7 @@ import OLButton from '@/shared/components/ol/ol-button'
 import OLIconButton from '@/shared/components/ol/ol-icon-button'
 import Notification from '@/shared/components/notification'
 import { debugConsole } from '@/utils/debugging'
-import { ProjectSyncState, GitSyncModalStatus } from '../../types/git-sync-types'
+import { ProjectSyncState, GitSyncModalStatus, GitSyncExposedSettings } from '../../types/git-sync-types'
 import '../../../stylesheets/github-sync.scss'
 
 type GitSyncMergeOverviewModalProps = {
@@ -51,6 +52,7 @@ const GitSyncMergeOverviewModal = ({
 }: GitSyncMergeOverviewModalProps) => {
   const { t } = useTranslation()
   const appName = 'Overleaf'
+  const { githubUrl } = getMeta('ol-ExposedSettings') as GitSyncExposedSettings
 
   const {
     data,
@@ -85,7 +87,7 @@ const GitSyncMergeOverviewModal = ({
         <p>
           {t('project_linked_to')}:&nbsp;
           <a
-            href={`https://github.com/${projectSyncState.repoFullName}`}
+            href={`${githubUrl}/${projectSyncState.repoFullName}`}
             target="_blank"
             rel="noreferrer noopener"
           >
@@ -143,7 +145,7 @@ const GitSyncMergeOverviewModal = ({
                   <div key={commit.sha}>
                     <span className="small float-end">
                       <a
-                        href={`https://github.com/${projectSyncState.repoFullName}/commit/${commit.sha}`}
+                        href={`${githubUrl}/${projectSyncState.repoFullName}/commit/${commit.sha}`}
                         target="_blank"
                         rel="noreferrer noopener"
                       >
@@ -152,7 +154,7 @@ const GitSyncMergeOverviewModal = ({
                     </span>
 
                     <a
-                      href={`https://github.com/${projectSyncState.repoFullName}/commit/${commit.sha}`}
+                      href={`${githubUrl}/${projectSyncState.repoFullName}/commit/${commit.sha}`}
                       target="_blank"
                       className="commit-message"
                       rel="noreferrer noopener"

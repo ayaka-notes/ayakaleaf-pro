@@ -1,3 +1,4 @@
+import Settings from '@overleaf/settings'
 import logger from '@overleaf/logger'
 
 import GitHubSyncController from './GitHubSyncController.mjs'
@@ -7,6 +8,12 @@ import AuthorizationMiddleware from '../../../../app/src/Features/Authorization/
 export default {
   apply(webRouter) {
     logger.debug({}, 'Init github-sync router')
+    // expose the GitHub web URL for repo/commit links in the frontend
+    webRouter.use('/project', (req, res, next) => {
+      res.locals.ExposedSettings.githubUrl = Settings.githubSync.url
+      next()
+    })
+
     // start the GitHub OAuth flow by redirecting to GitHub authorization page
     webRouter.get(
       '/user/github-sync/oauth2',

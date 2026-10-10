@@ -1,11 +1,12 @@
 import { useTranslation, Trans } from 'react-i18next'
+import getMeta from '@/utils/meta'
 import Notification from '@/shared/components/notification'
 import {
   OLModalBody,
   OLModalFooter,
 } from '@/shared/components/ol/ol-modal'
 import OLButton from '@/shared/components/ol/ol-button'
-import { ProjectSyncState } from '../../types/git-sync-types'
+import { ProjectSyncState, GitSyncExposedSettings } from '../../types/git-sync-types'
 
 type GitSyncNeedPermissionModalProps = {
   projectSyncState: ProjectSyncState
@@ -14,6 +15,7 @@ type GitSyncNeedPermissionModalProps = {
 
 const GitSyncNeedPermissionModal = ({ projectSyncState, handleHide }: GitSyncNeedPermissionModalProps) => {
   const { t } = useTranslation()
+  const { githubUrl } = getMeta('ol-ExposedSettings') as GitSyncExposedSettings
   return (
     <>
       <OLModalBody>
@@ -30,7 +32,7 @@ const GitSyncNeedPermissionModal = ({ projectSyncState, handleHide }: GitSyncNee
                 components={[
                   projectSyncState.repoFullName ? (
                     <a
-                      href={`https://github.com/${projectSyncState.repoFullName}`}
+                      href={`${githubUrl}/${projectSyncState.repoFullName}`}
                       target="_blank"
                       rel="noreferrer noopener"
                     />
