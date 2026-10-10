@@ -22,9 +22,11 @@ import {
   AlreadyExistsError,
 } from './GitSyncErrors.mjs'
 
-const GITHUB_URL = 'https://github.com'
-const GITHUB_API_BASE = 'https://api.github.com'
-const GITHUB_GRAPHQL = 'https://api.github.com/graphql'
+const {
+  url: GITHUB_URL,
+  apiUrl: GITHUB_API_BASE,
+  graphqlUrl: GITHUB_GRAPHQL,
+} = Settings.githubSync
 const MAX_PER_PAGE = 100  // GitHub REST API limit
 
 const REQUEST_TIMEOUT_MS = 60 * 1000

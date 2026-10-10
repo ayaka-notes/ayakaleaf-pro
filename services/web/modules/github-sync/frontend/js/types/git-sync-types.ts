@@ -1,3 +1,5 @@
+import { ExposedSettings } from '../../../../../types/exposed-settings'
+
 export type GitSyncModalStatus =
     'loading'
   | 'need-export'
@@ -17,3 +19,6 @@ export type ProjectSyncState = {
   unmergedBranchName: string | null
   ownerEmail?: string
 }
+
+// githubUrl is added to ExposedSettings by GitHubSyncRouter
+export type GitSyncExposedSettings = ExposedSettings & { githubUrl: string }
