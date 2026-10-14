@@ -113,6 +113,17 @@ services:
       - ../services/real-time/app.js:/overleaf/services/real-time/app.js
       - ../services/real-time/config:/overleaf/services/real-time/config
 
+  third-party-datastore:
+    command: ["node", "--watch", "app.mjs"]
+    environment:
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
+    ports:
+      - "127.0.0.1:9242:9229"
+    volumes:
+      - ../services/third-party-datastore/app:/overleaf/services/third-party-datastore/app
+      - ../services/third-party-datastore/app.mjs:/overleaf/services/third-party-datastore/app.mjs
+      - ../services/third-party-datastore/config:/overleaf/services/third-party-datastore/config
+
   web:
     command: ["node", "--watch", "app.mjs", "--watch-locales"]
     environment:

@@ -36,6 +36,7 @@ it('reports every feature off', function () {
     ai: false,
     githubSync: false,
     gitlabSync: false,
+    dropbox: false,
     zotero: false,
     mendeley: false,
   })
@@ -48,6 +49,7 @@ it('hides the integrations in the account settings', function () {
   cy.contains('.settings-widget-container', 'Zotero').should('not.exist')
   cy.contains('.settings-widget-container', 'Mendeley').should('not.exist')
   cy.contains('.settings-widget-container', 'GitHub').should('not.exist')
+  cy.contains('.settings-widget-container', 'Dropbox').should('not.exist')
 })
 
 it('hides the GitHub import in the project list', function () {

@@ -101,6 +101,13 @@ One folder per module in `toolkit/suites/`, named and nested like
   and merges held back by approval or pipeline rules, renames and deletes,
   binary files, force pushes, lost push access, and what collaborators may
   do. Git-bridge is on as the docs require.
+- `dropbox/` – Dropbox Sync against `toolkit/services/dropbox-mock`, which
+  answers as the Dropbox API and sends signed webhooks: linking and unlinking
+  through OAuth, the projects sent when linking (owned and shared), edits
+  sent by Sync now and once the project is closed, binary files, renames,
+  moves, deletions and project folders of the same name both ways, retries,
+  a request that never answers, unusable accounts and disabled users; the
+  `rate-limits` variant checks Sync now's limit.
 - `tpr-webmodule/` – Zotero and Mendeley against `toolkit/services/tpr-mock`:
   linking and unlinking through OAuth 1.0a (Zotero, with its signatures
   checked) and OAuth 2.0 (Mendeley), cancelled and refused links, forged

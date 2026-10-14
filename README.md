@@ -24,6 +24,7 @@
 ## Ayakaleaf Pro Edition
 Ayakaleaf Pro is an enhanced version of Overleaf with almost all features and capabilities. For details, please check [Ayakaleaf Pro](https://ayakaleaf-pro.ayaka.space) page. Features in Ayakaleaf Pro include: 
 
+- 2-way Dropbox Sync (Keep All Your Projects in Sync with Dropbox)
 - MCP Server (Let AI Agents Edit, Compile and Comment)
 - AI Chat Assistant (Chat, Edit and Fix with AI)
 - Error Assistant (Explain and Fix Compile Errors)

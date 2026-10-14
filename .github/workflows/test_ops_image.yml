@@ -51,6 +51,7 @@ jobs:
             reference-picker,
             github-sync,
             gitlab-sync,
+            dropbox,
             tpr-webmodule,
             python-runner,
             workbench,

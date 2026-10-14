@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# Dropbox sync is optional, nothing to run without it
+if [ "$DROPBOX_ENABLED" != "true" ]; then
+    exec sleep infinity
+fi
+
+NODE_PARAMS=""
+if [ "$DEBUG_NODE" == "true" ]; then
+    echo "running debug - third-party-datastore"
+    NODE_PARAMS="--inspect=0.0.0.0:30060"
+fi
+
+source /etc/overleaf/env.sh
+export LISTEN_ADDRESS=127.0.0.1
+
+exec /sbin/setuser www-data /usr/bin/node $NODE_PARAMS /overleaf/services/third-party-datastore/app.mjs >> /var/log/overleaf/third-party-datastore.log 2>&1

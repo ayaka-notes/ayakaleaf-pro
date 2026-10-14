@@ -136,6 +136,13 @@ services:
     env_file:
       - dev.env
 
+  third-party-datastore:
+    build:
+      context: ..
+      dockerfile: services/third-party-datastore/Dockerfile
+    env_file:
+      - dev.env
+
   redis:
     image: redis:7
     ports:
@@ -175,6 +182,7 @@ services:
       - notifications
       - project-history
       - real-time
+      - third-party-datastore
 
   webpack:
     build:

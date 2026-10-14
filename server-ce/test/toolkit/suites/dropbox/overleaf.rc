@@ -1,0 +1,3 @@
+# The settings only show the project sync widgets with git-bridge, as for
+# GitHub and GitLab
+GIT_BRIDGE_ENABLED=true

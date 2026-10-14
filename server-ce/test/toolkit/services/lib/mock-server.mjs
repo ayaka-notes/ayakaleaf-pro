@@ -20,6 +20,10 @@ export class HttpError extends Error {
   }
 }
 
+// Thrown by a handler to leave the request unanswered, like a service that
+// stops responding
+export class NoResponse extends Error {}
+
 // Buffers and strings go out as they are, anything else as JSON
 export function send(res, status, body, headers = {}) {
   if (body === undefined) {
@@ -37,6 +41,10 @@ export function send(res, status, body, headers = {}) {
 async function readBody(req) {
   const chunks = []
   for await (const chunk of req) chunks.push(chunk)
+  // File contents stay bytes
+  if ((req.headers['content-type'] || '').includes('octet-stream')) {
+    return Buffer.concat(chunks)
+  }
   const raw = Buffer.concat(chunks).toString('utf8')
   if (!raw) return {}
   if ((req.headers['content-type'] || '').includes('json')) {
@@ -76,6 +84,7 @@ function serve(routes) {
         : {}
       await found.handler({ req, res, url, body, params: found.params })
     } catch (err) {
+      if (err instanceof NoResponse) return
       if (!(err instanceof HttpError)) {
         console.error(err)
         err = new HttpError(500, err.message)

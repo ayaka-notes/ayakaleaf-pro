@@ -28,6 +28,7 @@ it('reports every feature on', function () {
     ai: true,
     githubSync: true,
     gitlabSync: true,
+    dropbox: true,
     zotero: true,
     mendeley: true,
   })
@@ -43,6 +44,7 @@ it('shows the integrations in the account settings', function () {
     .findByRole('button', { name: 'Link to Mendeley' })
     .should('exist')
   cy.contains('.settings-widget-container', 'GitHub').should('exist')
+  cy.contains('.settings-widget-container', 'Dropbox').should('exist')
 })
 
 it('offers the GitHub import in the project list', function () {
@@ -60,6 +62,7 @@ it('shows the AI assistant and the integrations in the editor', function () {
   cy.findByRole('tab', { name: 'AI assistant' }).should('exist')
   openRailTab('Integrations')
   cy.findByRole('button', { name: /GitHub/ }).should('exist')
+  cy.findByRole('button', { name: /Dropbox/ }).should('exist')
   cy.findByRole('button', { name: /Zotero/ }).should('exist')
   cy.findByRole('button', { name: /Mendeley/ }).should('exist')
 })

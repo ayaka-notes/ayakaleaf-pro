@@ -31,7 +31,10 @@ module.exports = [
   },
   {
     name: 'linked-url-proxy',
-  }
+  },
+  {
+    name: 'third-party-datastore',
+  },
 ]
 
 if (require.main === module) {

@@ -140,6 +140,8 @@ const settings = {
     api: redisConfig,
     pubsub: redisConfig,
     project_history: redisConfig,
+    // third-party-datastore (Dropbox sync)
+    tpds: redisConfig,
 
     project_history_migration: {
       host: redisConfig.host,
