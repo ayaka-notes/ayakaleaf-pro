@@ -21,6 +21,7 @@ COPY libraries/logger/package.json /overleaf/libraries/logger/package.json
 COPY libraries/metrics/package.json /overleaf/libraries/metrics/package.json
 COPY libraries/o-error/package.json /overleaf/libraries/o-error/package.json
 COPY libraries/promise-utils/package.json /overleaf/libraries/promise-utils/package.json
+COPY libraries/redis-wrapper/package.json /overleaf/libraries/redis-wrapper/package.json
 COPY libraries/settings/package.json /overleaf/libraries/settings/package.json
 COPY libraries/validation-tools/package.json /overleaf/libraries/validation-tools/package.json
 COPY services/third-party-datastore/package.json /overleaf/services/third-party-datastore/package.json
@@ -34,6 +35,7 @@ COPY libraries/logger/ /overleaf/libraries/logger/
 COPY libraries/metrics/ /overleaf/libraries/metrics/
 COPY libraries/o-error/ /overleaf/libraries/o-error/
 COPY libraries/promise-utils/ /overleaf/libraries/promise-utils/
+COPY libraries/redis-wrapper/ /overleaf/libraries/redis-wrapper/
 COPY libraries/settings/ /overleaf/libraries/settings/
 COPY libraries/validation-tools/ /overleaf/libraries/validation-tools/
 COPY services/third-party-datastore/ /overleaf/services/third-party-datastore/

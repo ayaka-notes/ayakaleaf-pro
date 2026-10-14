@@ -76,9 +76,12 @@ class DropboxClient {
     this.dbx = dbx
   }
 
-  // Overleaf is the source of the upload, last write wins
-  async upload(path, contents) {
-    const commit = { path, mode: { '.tag': 'overwrite' }, mute: true }
+  // Overleaf is the source of the upload. With the rev last synced, Dropbox
+  // refuses it (conflict) when the file changed in Dropbox since, so that the
+  // poll queued for that change brings it to Overleaf instead
+  async upload(path, contents, rev) {
+    const mode = rev ? { '.tag': 'update', update: rev } : { '.tag': 'overwrite' }
+    const commit = { path, mode, mute: true }
     if (contents.length > SINGLE_UPLOAD_LIMIT) {
       return await this._uploadSession(contents, commit)
     }

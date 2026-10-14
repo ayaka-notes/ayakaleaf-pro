@@ -248,6 +248,19 @@ describe('linking the Dropbox account', function () {
     waitForRevoked()
   })
 
+  it('shows the sync state on the settings page once linked', function () {
+    newUser('dropbox-settings-status')
+    cy.visit('/user/settings')
+    dropboxWidget().find('[data-testid="dropbox-sync-status"]').should('not.exist')
+
+    linkDropboxAccount()
+    waitForSynced()
+    cy.visit('/user/settings')
+    dropboxWidget()
+      .find('[data-testid="dropbox-sync-status"]')
+      .should('contain.text', 'Overleaf and Dropbox have processed all updates')
+  })
+
   describe('when connecting to Dropbox takes over a second', function () {
     afterEach(function () {
       mock('POST', '/connect-delay', { ms: 0 })
@@ -596,6 +609,40 @@ describe('Dropbox to Overleaf', function () {
     })
   })
 
+  it('keeps an edit made in Dropbox when Overleaf sends the file again before reading it', function () {
+    newUser('dropbox-race')
+    const name = projectName('Race')
+    createProject(name).as('projectId')
+    linkDropboxAccount()
+    waitForDropbox(({ files }) => `/${name}/main.tex` in files)
+    waitForSynced()
+    cy.get<string>('@projectId').then(projectId => {
+      // the webhook of the edit comes only after Sync now sent the project
+      mock('POST', '/webhooks', { enabled: false })
+      dropboxFiles().then(({ files }) => {
+        mock('PUT', '/files', {
+          path: `/${name}/main.tex`,
+          content: files[`/${name}/main.tex`] + '\nNewer in Dropbox\n',
+        })
+      })
+      syncProjectNow(projectId)
+      waitForSynced()
+      mock('POST', '/webhooks', { enabled: true })
+      mock('POST', '/notify')
+      waitForSynced()
+
+      dropboxFiles()
+        .its('files')
+        .its(`/${name}/main.tex`)
+        .should('contain', 'Newer in Dropbox')
+      openProject(projectId)
+      cy.get('.cm-content', { timeout: SYNC_TIMEOUT }).should(
+        'contain.text',
+        'Newer in Dropbox'
+      )
+    })
+  })
+
   it('creates a project for a new folder in Dropbox', function () {
     newUser('dropbox-new-project')
     linkDropboxAccount()
@@ -893,6 +940,34 @@ describe('the editor', function () {
       waitForDropbox(({ files }) =>
         (files[`/${name}/main.tex`] || '').includes('Synced now')
       )
+    })
+  })
+
+  it('shows the updates of a sync now while they are sent', function () {
+    newUser('dropbox-sync-now-status')
+    const name = projectName('Sync now')
+    createProject(name).as('projectId')
+    linkDropboxAccount()
+    waitForDropbox(({ files }) => `/${name}/main.tex` in files)
+    waitForSynced()
+    cy.get<string>('@projectId').then(projectId => {
+      openProject(projectId)
+      // no timed checks: the state can only come from the check after the click
+      cy.clock(Date.now(), ['setTimeout', 'clearTimeout'])
+      openRailTab('Integrations')
+      cy.findByRole('button', { name: /Dropbox/ }).click()
+      cy.findByTestId('dropbox-sync-status').should(
+        'contain.text',
+        'Overleaf and Dropbox have processed all updates'
+      )
+      // the first upload fails, so the update waits 10s for its retry
+      mock('POST', '/fail', { endpoint: 'files/upload', status: 500 })
+      cy.findByRole('button', { name: 'sync this project now' }).click()
+      // 'Sending updates to Dropbox', or 'Sending and receiving updates' while
+      // the poll that Sync now queues is waiting too
+      cy.findByTestId('dropbox-sync-status').should('contain.text', 'Sending')
+      cy.clock().invoke('restore')
+      waitForSynced()
     })
   })
 

@@ -73,7 +73,8 @@ function LinkedContents() {
           }
         />
       )}
-      <DropboxSyncStatus />
+      {/* checks again right after a sync now, while its updates are queued */}
+      <DropboxSyncStatus key={syncNow} />
       <p className="small">
         <Trans
           i18nKey="dropbox_sync_troubleshoot"

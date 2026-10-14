@@ -107,7 +107,17 @@ async function addEntity(job, userId, entityPath) {
     return
   }
   const path = await projectPath(userId, client, job, entityPath, true)
-  const metadata = await client.upload(path, contents)
+  const rev = (await StateManager.findEntityByPath(userId, path))?.dropbox.rev
+  let metadata
+  try {
+    metadata = await client.upload(path, contents, rev)
+  } catch (err) {
+    if (rev && isConflict(err)) {
+      logger.debug({ userId, uri: job.uri }, 'tpds: changed in Dropbox, skipping')
+      return
+    }
+    throw err
+  }
   await StateManager.recordEntity(
     userId,
     {

@@ -59,6 +59,10 @@ services:
       dockerfile: services/document-updater/Dockerfile
     env_file:
       - dev.env
+    environment:
+      # Dropbox gets a doc when it is written to Mongo, as with
+      # server-ce/init_scripts/100_dropbox_background_flush.sh
+      - CONTINUOUS_BACKGROUND_FLUSH=true
 
   filestore:
     build:

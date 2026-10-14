@@ -177,7 +177,8 @@ function newRev() {
   return crypto.randomBytes(9).toString('hex')
 }
 
-function writeFile(accountId, pathDisplay, contents) {
+// mode: the WriteMode of an upload, absent for the user's own changes
+function writeFile(accountId, pathDisplay, contents, mode) {
   const acct = account(accountId)
   const path = normalize(pathDisplay)
   const existing = acct.entries.get(path.toLowerCase())
@@ -188,6 +189,10 @@ function writeFile(accountId, pathDisplay, contents) {
   if (existing && existing.contents.equals(contents)) {
     // the same contents: no new revision, like Dropbox
     return existing
+  }
+  if (existing && mode?.['.tag'] === 'update' && mode.update !== existing.rev) {
+    // update overwrites only the given rev
+    throw dropboxError(409, 'path/conflict/file/')
   }
   const entry = {
     tag: 'file',
@@ -482,8 +487,8 @@ const content = [
     ({ req, res, body }) => {
       const { accountId } = requireToken(req)
       call('files/upload')
-      const { path } = arg(req)
-      send(res, 200, metadata(writeFile(accountId, path, body)))
+      const { path, mode } = arg(req)
+      send(res, 200, metadata(writeFile(accountId, path, body, mode)))
     },
   ],
   [
@@ -525,7 +530,11 @@ const content = [
       }
       chunks.push(body)
       state.uploadSessions.delete(cursor.session_id)
-      send(res, 200, metadata(writeFile(accountId, commit.path, Buffer.concat(chunks))))
+      send(
+        res,
+        200,
+        metadata(writeFile(accountId, commit.path, Buffer.concat(chunks), commit.mode))
+      )
     },
   ],
   [

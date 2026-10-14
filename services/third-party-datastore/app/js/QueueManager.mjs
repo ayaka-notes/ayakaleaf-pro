@@ -1,6 +1,6 @@
 import Settings from '@overleaf/settings'
 import Redis from 'ioredis'
-import Redlock from 'redlock'
+import RedisLocker from '@overleaf/redis-wrapper/RedisLocker.js'
 
 const redis = new Redis(Settings.redis.tpds)
 
@@ -21,15 +21,37 @@ const keys = {
 // Only guards against a second connector process: held while a user's jobs
 // are drained
 const LOCK_TTL = 60 * 1000
-const redlock = new Redlock([redis], { retryCount: 0 })
+const locker = new RedisLocker({
+  rclient: redis,
+  getKey: keys.lock,
+  wrapTimeoutError(err, userId) {
+    err.userId = userId
+    return err
+  },
+  metricsPrefix: 'tpds-user',
+  lockTTLSeconds: LOCK_TTL / 1000,
+})
 
 async function push(userId, entry) {
   await redis.lpush(keys.queue(userId), JSON.stringify(entry))
 }
 
+// Expires so that a mark left without its queued poll (push failed, process
+// restarted in between) cannot hold back the user's polls; an extra poll is
+// harmless, it reads on from the cursor
+const POLL_PENDING_TTL = 10 * 60 // seconds
+
 // Returns false when a poll is already queued for the user
 async function markPollPending(userId) {
-  return (await redis.set(keys.pollPending(userId), '1', 'NX')) === 'OK'
+  return (
+    (await redis.set(
+      keys.pollPending(userId),
+      '1',
+      'EX',
+      POLL_PENDING_TTL,
+      'NX'
+    )) === 'OK'
+  )
 }
 
 async function clearPollPending(userId) {
@@ -101,28 +123,18 @@ async function usersWithWork() {
 // Runs fn under the user's lock, renewed while fn runs, or returns false when
 // another process holds it
 async function withUserLock(userId, fn) {
-  let lock
-  try {
-    lock = await redlock.lock(keys.lock(userId), LOCK_TTL)
-  } catch (err) {
-    if (err instanceof Redlock.LockError) {
-      return false
-    }
-    throw err
+  const lockValue = await locker.promises.tryLock(userId)
+  if (!lockValue) {
+    return false
   }
   const renew = setInterval(() => {
-    lock.extend(LOCK_TTL).then(
-      extended => {
-        lock = extended
-      },
-      () => {}
-    )
+    locker.promises.extendLock(userId, lockValue).catch(() => {})
   }, LOCK_TTL / 3)
   try {
     await fn()
   } finally {
     clearInterval(renew)
-    await lock.unlock().catch(() => {})
+    await locker.promises.releaseLock(userId, lockValue).catch(() => {})
   }
   return true
 }

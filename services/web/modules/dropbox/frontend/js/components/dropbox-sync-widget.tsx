@@ -15,6 +15,7 @@ import {
 import Notification from '@/shared/components/notification'
 import DropboxLogo from '@/shared/svgs/dropbox-logo'
 import useInstanceFeatures from '@modules/instance-features/frontend/js/use-instance-features'
+import DropboxSyncStatus from './dropbox-sync-status'
 
 const DropboxSyncWidgetInner = function DropboxSyncWidget() {
   const { t } = useTranslation()
@@ -88,6 +89,8 @@ const DropboxSyncWidgetInner = function DropboxSyncWidget() {
           <p className="small">
             {t('dropbox_sync_description', { appName })}
           </p>
+
+          {isConnected && <DropboxSyncStatus />}
 
           {isErrorConnCheck && (
             <div className="notification-list">
