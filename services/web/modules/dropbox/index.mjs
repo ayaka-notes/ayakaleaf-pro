@@ -38,6 +38,16 @@ if (process.env.DROPBOX_ENABLED?.toLowerCase() === 'true') {
     }
   })
 
+  // Only once the project is purged: a deleted project can still be restored,
+  // and keeps its folder
+  Modules.hooks.attach('projectExpired', async projectId => {
+    try {
+      await DropboxHandler.removeProjectState(projectId)
+    } catch (err) {
+      logger.warn({ projectId, err }, 'on project expire: failed removing Dropbox state')
+    }
+  })
+
   Modules.hooks.attach('expireDeletedUser', async userId => {
     try {
       await DropboxHandler.removeUserState(userId)

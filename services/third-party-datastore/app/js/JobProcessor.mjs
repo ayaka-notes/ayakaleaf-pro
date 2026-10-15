@@ -194,7 +194,15 @@ async function moveEntity(job, userId) {
     return // not in Dropbox (yet), its contents are sent on their next update
   }
   try {
-    await client.move(startPath, endPath)
+    if (startPath.toLowerCase() === endPath.toLowerCase()) {
+      // Dropbox ignores case: a move that only changes it conflicts with the
+      // entity itself, so it goes through another name
+      const temporaryPath = `${endPath}.${Date.now()}`
+      await client.move(startPath, temporaryPath)
+      await client.move(temporaryPath, endPath)
+    } else {
+      await client.move(startPath, endPath)
+    }
   } catch (err) {
     if (isNotFound(err)) {
       // not in Dropbox (yet), its contents are sent on their next update

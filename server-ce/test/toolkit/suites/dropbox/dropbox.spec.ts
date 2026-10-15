@@ -529,6 +529,35 @@ describe('Overleaf to Dropbox', function () {
     })
   })
 
+  // Dropbox ignores case: such a rename conflicts with the entity itself
+  it('renames a doc and a folder when only the case changes', function () {
+    newUser('dropbox-case')
+    const name = projectName('Case')
+    createProject(name).as('projectId')
+    linkDropboxAccount()
+    waitForDropbox(({ files }) => `/${name}/main.tex` in files)
+    cy.get<string>('@projectId').then(projectId => {
+      addFolder(projectId, 'figures').then(folderId => {
+        addDoc(projectId, 'fig.tex', folderId).then(docId => {
+          waitForDropbox(({ files }) => `/${name}/figures/fig.tex` in files)
+          postWithCsrf(`/project/${projectId}/doc/${docId}/rename`, {
+            name: 'Fig.tex',
+          })
+          waitForDropbox(({ files }) => `/${name}/figures/Fig.tex` in files)
+          postWithCsrf(`/project/${projectId}/folder/${folderId}/rename`, {
+            name: 'Figures',
+          })
+          waitForDropbox(({ files }) => `/${name}/Figures/Fig.tex` in files)
+        })
+      })
+      waitForSynced()
+      waitForProject(
+        projectId,
+        paths => paths.join() === '/Figures/Fig.tex,/main.tex'
+      )
+    })
+  })
+
   it('keeps the order of the changes when Dropbox fails for a while', function () {
     newUser('dropbox-order')
     const name = projectName('Order')
@@ -823,6 +852,63 @@ describe('Dropbox to Overleaf', function () {
 })
 
 describe('projects with the same name', function () {
+  it('reads the folder of a purged project as a new project', function () {
+    const email = newUser('dropbox-purged')
+    const name = projectName('Purged')
+    createProject(name).as('projectId')
+    linkDropboxAccount()
+    waitForDropbox(({ files }) => `/${name}/main.tex` in files)
+    cy.get<string>('@projectId').then(projectId => {
+      requestWithCsrf('DELETE', `/project/${projectId}`)
+      login(ADMIN_EMAIL)
+      cy.visit('/project')
+      requestWithCsrf('DELETE', `/admin/project/${projectId}/purge`)
+        .its('status')
+        .should('equal', 200)
+      login(email)
+    })
+    mock('PUT', '/files', { path: `/${name}/after.tex`, content: 'After\n' })
+    const findProject = (attempts = 60) => {
+      cy.request('/user/projects').then(response => {
+        const project = response.body.projects.find(
+          (p: { name: string }) => p.name === name
+        )
+        if (project) return
+        expect(attempts, 'project created').to.be.greaterThan(0)
+        cy.wait(500)
+        findProject(attempts - 1)
+      })
+    }
+    findProject()
+  })
+
+  it('keeps a folder named like a project out of it when the project has a folder of its own', function () {
+    newUser('dropbox-stray')
+    const name = projectName('Stray')
+    createProject(name).as('firstId')
+    linkDropboxAccount()
+    waitForDropbox(({ files }) => `/${name}/main.tex` in files)
+    createProject(name).as('secondId')
+    waitForDropbox(({ folders }) => Boolean(numberedFolder(folders, name)))
+    cy.get<string>('@firstId').then(firstId => {
+      postWithCsrf(`/project/${firstId}/rename`, { newProjectName: `${name}-old` })
+    })
+    waitForDropbox(({ folders }) => !folders.includes(`/${name}`))
+    // a folder of the name of the second project, which syncs with its own
+    mock('PUT', '/files', { path: `/${name}/stray.tex`, content: 'Stray\n' })
+    dropboxFiles().then(({ folders }) => {
+      mock('PUT', '/files', {
+        path: `${numberedFolder(folders, name)}/marker.tex`,
+        content: 'Marker\n',
+      })
+    })
+    cy.get<string>('@secondId').then(secondId => {
+      waitForProject(secondId, paths => paths.includes('/marker.tex'))
+      waitForSynced()
+      projectPaths(secondId).should('not.include', '/stray.tex')
+    })
+  })
+
   it('gives a new project named like another one a folder of its own', function () {
     newUser('dropbox-same-name')
     const name = projectName('Same')

@@ -98,6 +98,11 @@ async function resolveProject(userId, client, folder, projectName) {
   if (status !== 'success') {
     return null
   }
+  if (await StateManager.getFolderOfProject(userId, projectId)) {
+    // that project syncs with a folder of its own, e.g. 'Thesis (1)': this
+    // one is not its folder (left by a deleted project, made in Dropbox)
+    return null
+  }
   const metadata = await client.getMetadata(folder)
   await StateManager.setProjectFolder(userId, projectId, metadata.id, folder)
   return projectId

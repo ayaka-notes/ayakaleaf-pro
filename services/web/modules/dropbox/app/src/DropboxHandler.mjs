@@ -134,6 +134,14 @@ async function removeUserState(userId) {
   await db.dropboxProjects.deleteMany({ userId: uid })
 }
 
+// The project's folders stay in Dropbox, no longer tied to it: an edit there
+// is read as a new project, as for a folder made in Dropbox
+async function removeProjectState(projectId) {
+  const pid = new ObjectId(projectId)
+  await db.dropboxEntities.deleteMany({ 'overleaf.projectId': pid })
+  await db.dropboxProjects.deleteMany({ projectId: pid })
+}
+
 // Revoke the token at Dropbox, best effort
 async function revokeToken(encrypted) {
   try {
@@ -238,6 +246,7 @@ export default {
   unlinkUser,
   isLinked,
   removeUserState,
+  removeProjectState,
   getDuplicateProjectNames,
   getSyncedProjectIds,
   queuePoll,
