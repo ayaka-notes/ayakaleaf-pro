@@ -337,6 +337,17 @@ describe('linking the Dropbox account', function () {
     connectionStatus().should('equal', false)
   })
 
+  it('sends a linked user back to the settings instead of linking again', function () {
+    newUser('dropbox-relink')
+    linkDropboxAccount()
+    cy.request({ url: '/user/dropbox/oauth', followRedirect: false }).then(
+      response => {
+        expect(response.status).to.equal(302)
+        expect(response.redirectedToUrl).to.match(/\/user\/settings\?oauth-complete=dropbox/)
+      }
+    )
+  })
+
   it('refuses to link while projects share a name', function () {
     newUser('dropbox-duplicates')
     const name = projectName('Twin')

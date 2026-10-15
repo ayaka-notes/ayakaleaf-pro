@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Dropbox sync is optional, nothing to run without it
-if [ "$DROPBOX_ENABLED" != "true" ]; then
+if [ "${DROPBOX_ENABLED,,}" != "true" ]; then
     exec sleep infinity
 fi
 

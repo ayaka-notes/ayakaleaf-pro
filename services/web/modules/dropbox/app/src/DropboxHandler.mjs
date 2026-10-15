@@ -212,6 +212,25 @@ async function getSyncedProjectIds(userId) {
   return [...ids.values()]
 }
 
+// The job of TpdsUpdateSender.pollDropboxForUser, whose enqueue only logs a
+// failure. The webhook needs it to answer an error, so that Dropbox retries.
+async function queuePoll(userId) {
+  const { url } = Settings.apis.thirdPartyDataStore
+  await fetchNothing(new URL('/enqueue/web_to_tpds_http_requests', url), {
+    method: 'POST',
+    json: {
+      group: userId,
+      method: 'standardHttpRequest',
+      job: {
+        method: 'post',
+        uri: `${url}/user/poll`,
+        json: { user_ids: [userId] },
+      },
+    },
+    signal: AbortSignal.timeout(5 * 1000),
+  })
+}
+
 export default {
   getAuthorizeUrl,
   exchangeCodeForToken,
@@ -221,4 +240,5 @@ export default {
   removeUserState,
   getDuplicateProjectNames,
   getSyncedProjectIds,
+  queuePoll,
 }

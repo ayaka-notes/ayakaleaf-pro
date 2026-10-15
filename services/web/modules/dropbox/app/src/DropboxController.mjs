@@ -26,6 +26,10 @@ async function oauth2(req, res) {
   if (!user?.features?.dropbox) {
     return HttpErrorHandler.forbidden(req, res)
   }
+  // another account would keep the sync state of this one: unlink first
+  if (await DropboxHandler.isLinked(userId)) {
+    return res.redirect(SETTINGS_URL)
+  }
   const duplicates = await DropboxHandler.getDuplicateProjectNames(userId)
   if (duplicates.length > 0) {
     return redirectWithError(
@@ -171,7 +175,7 @@ async function notifyWebhook(req, res) {
     )
     .toArray()
   for (const user of users) {
-    await TpdsUpdateSender.promises.pollDropboxForUser(user._id.toString())
+    await DropboxHandler.queuePoll(user._id.toString())
   }
   res.sendStatus(200)
 }
