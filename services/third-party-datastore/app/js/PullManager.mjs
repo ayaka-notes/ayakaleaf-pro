@@ -1,4 +1,5 @@
 import logger from '@overleaf/logger'
+import Settings from '@overleaf/settings'
 import { RequestFailedError } from '@overleaf/fetch-utils'
 import DropboxClient from './DropboxClient.mjs'
 import TokenManager from './TokenManager.mjs'
@@ -31,6 +32,8 @@ async function pullForUser(userId) {
   }
 
   let page
+  // the paths of a listing of the whole folder, after a cursor reset
+  let listed = null
   try {
     page = await client.listFolderContinue(dropbox.cursor)
   } catch (err) {
@@ -41,18 +44,43 @@ async function pullForUser(userId) {
     // already in sync are skipped by their content hash
     logger.warn({ userId }, 'tpds: dropbox cursor reset, listing all files')
     page = await client.listFolder()
+    listed = new Set()
   }
   for (;;) {
     for (const entry of page.entries) {
       await applyEntry(userId, client, entry)
+      listed?.add(entry.path_lower)
     }
-    await StateManager.setCursor(userId, accountId, page.cursor)
+    // after a reset the cursor waits for the deletions below, so that a
+    // retry lists the whole folder again
+    if (!listed) {
+      await StateManager.setCursor(userId, accountId, page.cursor)
+    }
     if (!page.has_more) {
       break
     }
     page = await client.listFolderContinue(page.cursor)
   }
+  if (listed) {
+    await applyUnlistedDeletions(userId, client, listed)
+    await StateManager.setCursor(userId, accountId, page.cursor)
+  }
   await StateManager.clearTombstones(userId, startedAt)
+}
+
+// A listing has no deletions in it: what is synced but was not listed has
+// been deleted in Dropbox. A missing project folder covers its files.
+async function applyUnlistedDeletions(userId, client, listed) {
+  const { folders, files } = await StateManager.getSyncedPaths(userId)
+  const goneFolders = folders.filter(folder => !listed.has(folder))
+  const goneFiles = files.filter(
+    file =>
+      !listed.has(file) &&
+      !goneFolders.some(folder => file.startsWith(folder + '/'))
+  )
+  for (const path of [...goneFolders, ...goneFiles]) {
+    await applyEntry(userId, client, { '.tag': 'deleted', path_lower: path })
+  }
 }
 
 async function applyEntry(userId, client, entry) {
@@ -116,6 +144,14 @@ async function applyFile(userId, client, entry) {
   const known = await StateManager.findEntityByPath(userId, entry.path_lower)
   if (known?.dropbox.contentHash === entry.content_hash) {
     return // our own upload, or already applied
+  }
+  if (entry.size > Settings.maxUploadSize) {
+    // web would refuse it, and the download is held in memory
+    logger.warn(
+      { userId, path: entry.path_display, size: entry.size },
+      'tpds: skipping dropbox file over the upload limit'
+    )
+    return
   }
   const projectId = await resolveProject(userId, client, folder, projectName)
   if (!projectId) {

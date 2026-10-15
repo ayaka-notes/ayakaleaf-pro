@@ -156,6 +156,24 @@ async function removeProjectFolder(userId, folderPath) {
   })
 }
 
+// The lower-cased paths of the project folders and of the synced files
+async function getSyncedPaths(userId) {
+  const uid = new ObjectId(userId)
+  const folders = await db.dropboxProjects
+    .find({ userId: uid }, { projection: { pathLower: 1 } })
+    .toArray()
+  const files = await db.dropboxEntities
+    .find(
+      { 'overleaf.userId': uid, tombstone: { $exists: false } },
+      { projection: { 'dropbox.pathLower': 1 } }
+    )
+    .toArray()
+  return {
+    folders: folders.map(folder => folder.pathLower),
+    files: files.map(file => file.dropbox.pathLower),
+  }
+}
+
 // Only while the user is still linked to the same Dropbox account, so that a
 // pull finishing after an unlink cannot write the cursor back
 async function setCursor(userId, accountId, cursor) {
@@ -173,6 +191,7 @@ async function removeUserState(userId) {
 
 export default {
   recordEntity,
+  getSyncedPaths,
   findEntityByPath,
   removeEntities,
   moveEntities,

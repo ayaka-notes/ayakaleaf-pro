@@ -43,6 +43,9 @@ module.exports = {
     tokenCipherPassword: process.env.DROPBOX_TOKEN_CIPHER_PASSWORD,
   },
 
+  // the largest file web takes, read as web reads it
+  maxUploadSize: parseInt(process.env.MAX_UPLOAD_SIZE || '50', 10) * 1024 * 1024,
+
   queue: {
     // users drained in parallel by the worker
     concurrency: parseInt(process.env.TPDS_QUEUE_CONCURRENCY, 10) || 4,

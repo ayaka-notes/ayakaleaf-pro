@@ -734,6 +734,56 @@ describe('Dropbox to Overleaf', function () {
     })
   })
 
+  it('removes what was deleted in Dropbox before its cursor was reset', function () {
+    newUser('dropbox-reset-deleted')
+    const name = projectName('Reset deleted')
+    createProject(name).as('projectId')
+    linkDropboxAccount()
+    cy.get<string>('@projectId').then(projectId => {
+      addDoc(projectId, 'gone.tex')
+      waitForDropbox(({ files }) => `/${name}/gone.tex` in files)
+      waitForSynced()
+      // no notification for the deletion, then its cursor is reset: the
+      // listing after the reset is all that tells of it
+      mock('POST', '/webhooks', { enabled: false })
+      mock('DELETE', '/files', { path: `/${name}/gone.tex` })
+      mock('POST', '/reset-cursors')
+      mock('POST', '/webhooks', { enabled: true })
+      mock('PUT', '/files', { path: `/${name}/after.tex`, content: 'After\n' })
+      waitForProject(projectId, paths => paths.includes('/after.tex'))
+      waitForSynced()
+      projectPaths(projectId).then(paths => {
+        expect(paths).not.to.include('/gone.tex')
+      })
+    })
+  })
+
+  it('skips a file over the upload limit without downloading it', function () {
+    newUser('dropbox-too-large')
+    const name = projectName('Too large')
+    createProject(name).as('projectId')
+    linkDropboxAccount()
+    waitForDropbox(({ files }) => `/${name}/main.tex` in files)
+    waitForSynced()
+    cy.get<string>('@projectId').then(projectId => {
+      // MAX_UPLOAD_SIZE is 50 MB by default
+      mock('PUT', '/files', {
+        path: `/${name}/video.mp4`,
+        size: 51 * 1024 * 1024,
+      })
+      mock('PUT', '/files', { path: `/${name}/after.tex`, content: 'After\n' })
+      waitForProject(projectId, paths => paths.includes('/after.tex'))
+      waitForSynced()
+      projectPaths(projectId).then(paths => {
+        expect(paths).not.to.include('/video.mp4')
+      })
+      // after.tex only
+      mockStats().then(({ calls }) => {
+        expect(calls['files/download']).to.equal(1)
+      })
+    })
+  })
+
   it('adds binary files made in Dropbox as files', function () {
     newUser('dropbox-binary-in')
     const name = projectName('BinaryIn')

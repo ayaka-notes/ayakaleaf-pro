@@ -565,6 +565,10 @@ const routes = {
 // ---------------------------------------------------------------- control
 
 function decode(file) {
+  if (file.size != null) {
+    // a large file without sending it over the control API
+    return Buffer.alloc(file.size, 'x')
+  }
   return file.base64 != null
     ? Buffer.from(file.base64, 'base64')
     : Buffer.from(file.content ?? '')
@@ -617,7 +621,7 @@ const control = [
       send(res, 200, { files, folders: folders.sort() })
     },
   ],
-  // The user changes the app folder. Body: { path, content | base64 }
+  // The user changes the app folder. Body: { path, content | base64 | size }
   [
     'PUT',
     /^\/_mock\/files$/,
