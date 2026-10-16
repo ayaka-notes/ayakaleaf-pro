@@ -227,7 +227,9 @@ async function moveEntity(job, userId) {
       // not in Dropbox (yet), its contents are sent on their next update
       return
     }
-    if (!isConflict(err)) {
+    // a case-only move conflicts at its temporary name, and its target is the
+    // entity itself: nothing to delete
+    if (!isConflict(err) || startPath.toLowerCase() === endPath.toLowerCase()) {
       throw err
     }
     // something is in the way at the target in Dropbox: Overleaf wins

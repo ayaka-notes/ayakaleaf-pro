@@ -7,6 +7,7 @@ import QueueManager from './QueueManager.mjs'
 import JobProcessor from './JobProcessor.mjs'
 import DropboxClient from './DropboxClient.mjs'
 import StateManager from './StateManager.mjs'
+import TokenManager from './TokenManager.mjs'
 import { db, ObjectId } from './mongodb.mjs'
 import { classify, Action } from './Errors.mjs'
 
@@ -24,13 +25,21 @@ const UNLINKED_TEMPLATE_KEYS = {
 }
 
 // The account cannot be used any more: unlink it like the web module does,
-// and drop the pending jobs. The user relinks from the settings.
-async function unlinkUser(userId, accountId, reason, err) {
-  logger.warn({ err, userId, reason }, 'tpds: unlinking dropbox account')
-  await db.users.updateOne(
-    { _id: new ObjectId(userId), 'dropbox.access_token.uid': accountId },
+// and drop the pending jobs. The user relinks from the settings. Returns false
+// when the token is not the linked one any more: the user unlinked Dropbox, or
+// linked it again, while the job ran.
+async function unlinkUser(userId, encrypted, reason, err) {
+  const { modifiedCount } = await db.users.updateOne(
+    {
+      _id: new ObjectId(userId),
+      'dropbox.access_token_oauth2.encrypted': encrypted,
+    },
     { $unset: { dropbox: 1 } }
   )
+  if (modifiedCount === 0) {
+    return false
+  }
+  logger.warn({ err, userId, reason }, 'tpds: unlinking dropbox account')
   await StateManager.removeUserState(userId)
   await QueueManager.clearUser(userId)
   DropboxClient.forget(userId)
@@ -46,6 +55,7 @@ async function unlinkUser(userId, accountId, reason, err) {
   }).catch(err =>
     logger.warn({ err, userId }, 'tpds: failed to notify the unlinked user')
   )
+  return true
 }
 
 // Returns false to stop draining the user until a retry is due
@@ -57,6 +67,9 @@ async function runNextJob(userId) {
   if (entry.retryAt > Date.now()) {
     return false
   }
+  // the token the job runs with
+  const encrypted = (await TokenManager.getUserDropbox(userId))
+    ?.access_token_oauth2?.encrypted
   try {
     await JobProcessor.processJob(entry.job)
     await QueueManager.done(userId)
@@ -76,13 +89,12 @@ async function runNextJob(userId) {
       return false
     }
     if (action === Action.UNLINK) {
-      const { uid } =
-        (await db.users.findOne(
-          { _id: new ObjectId(userId) },
-          { projection: { 'dropbox.access_token.uid': 1 } }
-        ))?.dropbox?.access_token || {}
-      await unlinkUser(userId, uid, reason, err)
-      return false
+      if (await unlinkUser(userId, encrypted, reason, err)) {
+        return false
+      }
+      // refused with a token that was unlinked meanwhile: a new link stays
+      await QueueManager.done(userId)
+      return true
     }
     if (action === Action.SKIP) {
       logger.warn({ ...log, reason }, 'tpds: job skipped')

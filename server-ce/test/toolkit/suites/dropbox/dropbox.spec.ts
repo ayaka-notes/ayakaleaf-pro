@@ -591,6 +591,33 @@ describe('Overleaf to Dropbox', function () {
     })
   })
 
+  it('keeps a doc in Dropbox when the temporary name of a case-only rename is taken', function () {
+    newUser('dropbox-case-taken')
+    const name = projectName('CaseTaken')
+    createProject(name).as('projectId')
+    linkDropboxAccount()
+    cy.get<string>('@projectId').then(projectId => {
+      addDoc(projectId, 'notes.tex').then(docId => {
+        addDoc(projectId, 'Notes.tex.case-rename')
+        waitForDropbox(
+          ({ files }) =>
+            `/${name}/notes.tex` in files &&
+            `/${name}/Notes.tex.case-rename` in files
+        )
+        postWithCsrf(`/project/${projectId}/doc/${docId}/rename`, {
+          name: 'Notes.tex',
+        })
+        waitForCalls('files/move_v2', 1)
+        waitForSynced()
+        // the rename is not made in Dropbox, the doc stays on both sides
+        dropboxFiles()
+          .its('files')
+          .should('have.property', `/${name}/notes.tex`)
+        projectPaths(projectId).should('include', '/Notes.tex')
+      })
+    })
+  })
+
   it('renames the project folder when only the case of the project name changes', function () {
     newUser('dropbox-project-case')
     const name = projectName('projectcase')
@@ -1306,6 +1333,38 @@ describe('a Dropbox account that cannot be used', function () {
     waitForUnlinked()
     cy.visit('/project')
     cy.contains('suspended by Dropbox').should('be.visible')
+  })
+
+  it('stays linked when a request of the old link is refused after linking again', function () {
+    newUser('dropbox-relinked')
+    const name = projectName('Relinked')
+    createProject(name).as('projectId')
+    linkDropboxAccount()
+    cy.get<string>('@projectId').then(projectId => {
+      addDoc(projectId, 'notes.tex').then(docId => {
+        waitForDropbox(({ files }) => `/${name}/notes.tex` in files)
+        // answered once the user linked again, refused like any request with
+        // the token revoked by the unlink
+        mock('POST', '/fail', {
+          endpoint: 'files/delete_v2',
+          status: 401,
+          summary: 'invalid_access_token/',
+          delayMs: 10000,
+        })
+        requestWithCsrf('DELETE', `/project/${projectId}/doc/${docId}`)
+        waitForCalls('files/delete_v2', 1)
+      })
+    })
+    cy.visit('/user/settings')
+    dropboxWidget().findByRole('button', { name: 'Unlink' }).click()
+    cy.findByRole('dialog').findByRole('button', { name: 'Unlink' }).click()
+    dropboxWidget().findByRole('link', { name: 'Link' }).click()
+    cy.location('search').should('contain', 'oauth-complete=dropbox')
+    cy.wait(10000)
+    waitForSynced()
+    connectionStatus().should('equal', true)
+    cy.visit('/project')
+    cy.contains('rejected your stored credentials').should('not.exist')
   })
 })
 

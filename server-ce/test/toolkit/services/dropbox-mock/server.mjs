@@ -16,6 +16,7 @@
 // authorization.
 
 import crypto from 'node:crypto'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { HttpError, listen, NoResponse, send } from './lib/mock-server.mjs'
 
 const APP_KEY = process.env.DROPBOX_MOCK_APP_KEY
@@ -343,7 +344,7 @@ function issueAccessToken(accountId) {
 }
 
 // Calls made, and failures injected with /_mock/fail
-function call(endpoint) {
+async function call(endpoint) {
   state.calls[endpoint] = (state.calls[endpoint] || 0) + 1
   const failure = state.failures.find(f => f.endpoint === endpoint && f.count > 0)
   if (failure) {
@@ -352,6 +353,7 @@ function call(endpoint) {
       return
     }
     failure.count -= 1
+    if (failure.delayMs) await sleep(failure.delayMs)
     if (failure.hang) throw new NoResponse()
     if (failure.body) throw new HttpError(failure.status, 'failure', failure.body)
     throw dropboxError(failure.status, failure.summary || `${failure.status}/`)
@@ -366,9 +368,9 @@ function rpc(endpoint, handler) {
   return [
     'POST',
     new RegExp(`^/2/${endpoint}$`),
-    ({ req, res, body }) => {
+    async ({ req, res, body }) => {
       const { accountId, accessToken } = requireToken(req)
-      call(endpoint)
+      await call(endpoint)
       send(res, 200, handler({ accountId, accessToken, body }))
     },
   ]
@@ -490,9 +492,9 @@ const content = [
   [
     'POST',
     /^\/2\/files\/upload$/,
-    ({ req, res, body }) => {
+    async ({ req, res, body }) => {
       const { accountId } = requireToken(req)
-      call('files/upload')
+      await call('files/upload')
       const { path, mode } = arg(req)
       send(res, 200, metadata(writeFile(accountId, path, body, mode)))
     },
@@ -500,9 +502,9 @@ const content = [
   [
     'POST',
     /^\/2\/files\/upload_session\/start$/,
-    ({ req, res, body }) => {
+    async ({ req, res, body }) => {
       requireToken(req)
-      call('files/upload_session/start')
+      await call('files/upload_session/start')
       const sessionId = crypto.randomBytes(8).toString('hex')
       state.uploadSessions.set(sessionId, [body])
       send(res, 200, { session_id: sessionId })
@@ -511,9 +513,9 @@ const content = [
   [
     'POST',
     /^\/2\/files\/upload_session\/append_v2$/,
-    ({ req, res, body }) => {
+    async ({ req, res, body }) => {
       requireToken(req)
-      call('files/upload_session/append_v2')
+      await call('files/upload_session/append_v2')
       const { cursor } = arg(req)
       const chunks = state.uploadSessions.get(cursor.session_id)
       if (Buffer.concat(chunks).length !== cursor.offset) {
@@ -526,9 +528,9 @@ const content = [
   [
     'POST',
     /^\/2\/files\/upload_session\/finish$/,
-    ({ req, res, body }) => {
+    async ({ req, res, body }) => {
       const { accountId } = requireToken(req)
-      call('files/upload_session/finish')
+      await call('files/upload_session/finish')
       const { cursor, commit } = arg(req)
       const chunks = state.uploadSessions.get(cursor.session_id)
       if (Buffer.concat(chunks).length !== cursor.offset) {
@@ -546,9 +548,9 @@ const content = [
   [
     'POST',
     /^\/2\/files\/download$/,
-    ({ req, res }) => {
+    async ({ req, res }) => {
       const { accountId } = requireToken(req)
-      call('files/download')
+      await call('files/download')
       const { path } = arg(req)
       const entry = account(accountId).entries.get(normalize(path).toLowerCase())
       if (!entry || entry.tag !== 'file') {
@@ -660,11 +662,12 @@ const control = [
       send(res, 200, metadata(movePath(state.accountId, body.from, body.to)))
     },
   ],
-  // Body: { endpoint, status, summary?, count?, skip?, body? } - the next
-  // calls of the endpoint (e.g. 'files/upload') fail with that status and
-  // error_summary, after skip calls that pass; with body, that body is sent
-  // as it is (e.g. Dropbox's 429 with an empty error_summary); with
-  // hang: true instead of a status, they are never answered
+  // Body: { endpoint, status, summary?, count?, skip?, body?, delayMs? } -
+  // the next calls of the endpoint (e.g. 'files/upload') fail with that status
+  // and error_summary, after skip calls that pass; with body, that body is
+  // sent as it is (e.g. Dropbox's 429 with an empty error_summary); with
+  // delayMs, they fail that late; with hang: true instead of a status, they
+  // are never answered
   [
     'POST',
     /^\/_mock\/fail$/,
