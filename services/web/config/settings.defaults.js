@@ -204,7 +204,7 @@ module.exports = {
     thirdPartyDataStore: {
       url:
         process.env.DROPBOX_ENABLED?.toLowerCase() === 'true'
-          ? `http://${process.env.THIRD_PARTY_DATASTORE_HOST || '127.0.0.1'}:3006`
+          ? `http://${process.env.TPDS_HOST || '127.0.0.1'}:3002`
           : undefined,
       // the app folder in Dropbox is Apps/<name of the Dropbox app>
       dropboxAppName: process.env.DROPBOX_APP_NAME,

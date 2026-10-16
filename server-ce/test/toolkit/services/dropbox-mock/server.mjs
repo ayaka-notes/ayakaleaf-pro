@@ -270,7 +270,8 @@ function createFolder(accountId, pathDisplay, autorename = false) {
   let path = normalize(pathDisplay)
   if (acct.entries.has(path.toLowerCase())) {
     if (!autorename) {
-      throw dropboxError(409, 'path/conflict/folder/')
+      const { tag } = acct.entries.get(path.toLowerCase())
+      throw dropboxError(409, `path/conflict/${tag}/`)
     }
     path = freePath(acct, path)
   }
@@ -346,8 +347,13 @@ function call(endpoint) {
   state.calls[endpoint] = (state.calls[endpoint] || 0) + 1
   const failure = state.failures.find(f => f.endpoint === endpoint && f.count > 0)
   if (failure) {
+    if (failure.skip > 0) {
+      failure.skip -= 1
+      return
+    }
     failure.count -= 1
     if (failure.hang) throw new NoResponse()
+    if (failure.body) throw new HttpError(failure.status, 'failure', failure.body)
     throw dropboxError(failure.status, failure.summary || `${failure.status}/`)
   }
 }
@@ -654,9 +660,11 @@ const control = [
       send(res, 200, metadata(movePath(state.accountId, body.from, body.to)))
     },
   ],
-  // Body: { endpoint, status, summary?, count? } - the next calls of the
-  // endpoint (e.g. 'files/upload') fail with that status and error_summary;
-  // with hang: true instead of a status, they are never answered
+  // Body: { endpoint, status, summary?, count?, skip?, body? } - the next
+  // calls of the endpoint (e.g. 'files/upload') fail with that status and
+  // error_summary, after skip calls that pass; with body, that body is sent
+  // as it is (e.g. Dropbox's 429 with an empty error_summary); with
+  // hang: true instead of a status, they are never answered
   [
     'POST',
     /^\/_mock\/fail$/,

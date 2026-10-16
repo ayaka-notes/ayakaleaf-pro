@@ -1,7 +1,7 @@
 module.exports = {
   internal: {
     thirdPartyDataStore: {
-      port: 3006,
+      port: 3002,
       host: process.env.LISTEN_ADDRESS || '127.0.0.1',
     },
   },
@@ -14,6 +14,10 @@ module.exports = {
       }:${process.env.WEB_PORT || 3000}`,
       user: process.env.WEB_API_USER || 'overleaf',
       pass: process.env.WEB_API_PASSWORD || 'password',
+    },
+    // tells a user why their Dropbox was unlinked, in the project list
+    notifications: {
+      url: `http://${process.env.NOTIFICATIONS_HOST || '127.0.0.1'}:3042`,
     },
   },
 

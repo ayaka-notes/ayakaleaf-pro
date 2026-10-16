@@ -558,6 +558,98 @@ describe('Overleaf to Dropbox', function () {
     })
   })
 
+  it('finishes a rename that only changes the case when its second step fails', function () {
+    newUser('dropbox-case-retry')
+    const name = projectName('CaseRetry')
+    createProject(name).as('projectId')
+    linkDropboxAccount()
+    waitForDropbox(({ files }) => `/${name}/main.tex` in files)
+    cy.get<string>('@projectId').then(projectId => {
+      addDoc(projectId, 'notes.tex').then(docId => {
+        waitForDropbox(({ files }) => `/${name}/notes.tex` in files)
+        // the move to the temporary name passes, the move back fails once
+        mock('POST', '/fail', {
+          endpoint: 'files/move_v2',
+          status: 503,
+          skip: 1,
+        })
+        postWithCsrf(`/project/${projectId}/doc/${docId}/rename`, {
+          name: 'Notes.tex',
+        })
+      })
+      // the retry backs off for 10 seconds
+      waitForSynced()
+      dropboxFiles()
+        .its('files')
+        .then(files => {
+          expect(Object.keys(files).sort()).to.deep.equal([
+            `/${name}/Notes.tex`,
+            `/${name}/main.tex`,
+          ])
+        })
+      waitForProject(projectId, paths => paths.join() === '/Notes.tex,/main.tex')
+    })
+  })
+
+  it('renames the project folder when only the case of the project name changes', function () {
+    newUser('dropbox-project-case')
+    const name = projectName('projectcase')
+    createProject(name).as('projectId')
+    linkDropboxAccount()
+    waitForDropbox(({ files }) => `/${name}/main.tex` in files)
+    cy.get<string>('@projectId').then(projectId => {
+      postWithCsrf(`/project/${projectId}/rename`, {
+        newProjectName: name.toUpperCase(),
+      })
+      waitForDropbox(({ files }) => `/${name.toUpperCase()}/main.tex` in files)
+      waitForSynced()
+      // still the same project, not marked as deleted by the old folder
+      cy.request(`/project/${projectId}/entities`).its('status').should('equal', 200)
+    })
+  })
+
+  it('gives a project a folder of its own when a file at the top has its name', function () {
+    newUser('dropbox-top-file')
+    const name = projectName('TopFile')
+    // a file the user keeps at the top of the app folder
+    mock('PUT', '/files', { path: `/${name}`, content: 'Not a project\n' })
+    createProject(name)
+    linkDropboxAccount()
+    waitForDropbox(({ files }) => `/${name} (1)/main.tex` in files)
+    dropboxFiles().its('files').its(`/${name}`).should('equal', 'Not a project\n')
+  })
+
+  it('waits before retrying a write Dropbox refuses as too many', function () {
+    newUser('dropbox-too-many-writes')
+    const name = projectName('TooManyWrites')
+    createProject(name).as('projectId')
+    linkDropboxAccount()
+    waitForDropbox(({ files }) => `/${name}/main.tex` in files)
+    cy.get<string>('@projectId').then(projectId => {
+      // the 429 of Dropbox, whose error_summary is empty
+      mock('POST', '/fail', {
+        endpoint: 'files/upload',
+        status: 429,
+        body: {
+          error_summary: '',
+          error: {
+            reason: { '.tag': 'too_many_write_operations' },
+            retry_after: 1,
+          },
+        },
+      })
+      mockStats().then(({ calls }) => {
+        const before = calls['files/upload'] || 0
+        addDoc(projectId, 'later.tex')
+        waitForCalls('files/upload', before + 1)
+        // retried after 10 seconds, not right away
+        cy.wait(5000)
+        mockStats().its('calls').its('files/upload').should('equal', before + 1)
+      })
+      waitForDropbox(({ files }) => `/${name}/later.tex` in files)
+    })
+  })
+
   it('keeps the order of the changes when Dropbox fails for a while', function () {
     newUser('dropbox-order')
     const name = projectName('Order')
@@ -623,6 +715,35 @@ describe('Dropbox to Overleaf', function () {
 
       mock('DELETE', '/files', { path: `/${name}/chapter.tex` })
       waitForProject(projectId, paths => !paths.includes('/chapter.tex'))
+    })
+  })
+
+  it('applies an edit made in Dropbox while linking sends the projects', function () {
+    newUser('dropbox-linking-edit')
+    const name = projectName('LinkingEdit')
+    createProject(name).as('projectId')
+    // the first poll, which takes the cursor, fails once and is retried after
+    // 10 seconds: with the poll queued after the uploads, the edit below would
+    // be made before the cursor is taken and never read
+    mock('POST', '/fail', {
+      endpoint: 'files/list_folder/get_latest_cursor',
+      status: 503,
+    })
+    linkDropboxAccount()
+    waitForDropbox(({ files }) => `/${name}/main.tex` in files)
+    dropboxFiles().then(({ files }) => {
+      mock('PUT', '/files', {
+        path: `/${name}/main.tex`,
+        content: files[`/${name}/main.tex`] + '\nEdited while linking\n',
+      })
+    })
+    waitForSynced()
+    cy.get<string>('@projectId').then(projectId => {
+      openProject(projectId)
+      cy.get('.cm-content', { timeout: SYNC_TIMEOUT }).should(
+        'contain.text',
+        'Edited while linking'
+      )
     })
   })
 
@@ -1144,6 +1265,13 @@ describe('a Dropbox account that cannot be used', function () {
     dropboxWidget().findByRole('link', { name: 'Link' }).click()
     cy.location('search').should('contain', 'oauth-complete=dropbox')
     waitForUnlinked()
+    // the project list says why, until the account is linked again
+    cy.visit('/project')
+    cy.contains('unlinked because it is full').should('be.visible')
+    linkDropboxAccount()
+    cy.visit('/project')
+    cy.contains(name).should('be.visible')
+    cy.contains('unlinked because it is full').should('not.exist')
   })
 
   it('is unlinked when Dropbox refuses the token', function () {
@@ -1159,6 +1287,25 @@ describe('a Dropbox account that cannot be used', function () {
     dropboxWidget().findByRole('link', { name: 'Link' }).click()
     cy.location('search').should('contain', 'oauth-complete=dropbox')
     waitForUnlinked()
+    cy.visit('/project')
+    cy.contains('rejected your stored credentials').should('be.visible')
+  })
+
+  it('is unlinked when Dropbox suspended the account', function () {
+    newUser('dropbox-suspended')
+    createProject(projectName('Suspended'))
+    // an AuthError, like a refused token
+    mock('POST', '/fail', {
+      endpoint: 'files/upload',
+      status: 401,
+      summary: 'user_suspended/',
+    })
+    cy.visit('/user/settings')
+    dropboxWidget().findByRole('link', { name: 'Link' }).click()
+    cy.location('search').should('contain', 'oauth-complete=dropbox')
+    waitForUnlinked()
+    cy.visit('/project')
+    cy.contains('suspended by Dropbox').should('be.visible')
   })
 })
 

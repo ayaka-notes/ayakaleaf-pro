@@ -73,6 +73,10 @@ async function projectFolder(userId, client, projectId, projectName) {
       }
       // in Dropbox already, but no project's (e.g. synced before an unlink)
       folder = await client.getMetadata(path)
+      if (folder['.tag'] !== 'folder') {
+        // a file of that name at the top level: a folder of its own
+        folder = await client.createFolder(path, true)
+      }
     }
   }
   await StateManager.setProjectFolder(
@@ -149,18 +153,37 @@ async function deleteEntity(job, userId, entityPath) {
   await StateManager.addTombstone(userId, path)
 }
 
+// Dropbox ignores case: a move that only changes it conflicts with the entity
+// itself, so it goes through another name. The name is fixed per move, so
+// that a retry after the first step only does the second one.
+async function moveChangingCase(client, startPath, endPath) {
+  const temporaryPath = `${endPath}.case-rename`
+  try {
+    await client.move(startPath, temporaryPath)
+  } catch (err) {
+    if (!isNotFound(err)) {
+      throw err
+    }
+    // an earlier attempt got as far as the temporary name
+  }
+  return await client.move(temporaryPath, endPath)
+}
+
 // Renaming a project moves its folder ('/old/' -> '/new/'); a name another
 // project's folder has gets a number appended, as for a new project
 async function renameProject(job, userId, client, newName) {
   const projectId = job.headers['x-project-id']
   const mapped = await StateManager.getFolderOfProject(userId, projectId)
   const endPath = dropboxPath(newName)
-  if (!mapped || mapped.pathLower === endPath.toLowerCase()) {
+  if (!mapped) {
     return // its folder is made, under the new name, on its next update
   }
   let folder
   try {
-    folder = await client.move(mapped.pathLower, endPath, true)
+    folder =
+      mapped.pathLower === endPath.toLowerCase()
+        ? await moveChangingCase(client, mapped.pathLower, endPath)
+        : await client.move(mapped.pathLower, endPath, true)
   } catch (err) {
     if (isNotFound(err)) {
       // gone from Dropbox, made again on the project's next update
@@ -195,11 +218,7 @@ async function moveEntity(job, userId) {
   }
   try {
     if (startPath.toLowerCase() === endPath.toLowerCase()) {
-      // Dropbox ignores case: a move that only changes it conflicts with the
-      // entity itself, so it goes through another name
-      const temporaryPath = `${endPath}.${Date.now()}`
-      await client.move(startPath, temporaryPath)
-      await client.move(temporaryPath, endPath)
+      await moveChangingCase(client, startPath, endPath)
     } else {
       await client.move(startPath, endPath)
     }

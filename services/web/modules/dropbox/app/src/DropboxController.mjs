@@ -41,9 +41,11 @@ async function oauth2(req, res) {
   res.redirect(DropboxHandler.getAuthorizeUrl(req.csrfToken()).toString())
 }
 
-// Send the user's projects to Dropbox, then poll once, which sets the cursor
-// the changes in Dropbox are read from
+// Poll first, which sets the cursor the changes in Dropbox are read from
+// before any upload, so that edits made in Dropbox while the user's projects
+// are sent are read by a later poll; then send them and poll again
 async function initialSync(userId) {
+  await TpdsUpdateSender.promises.pollDropboxForUser(userId)
   for (const projectId of await DropboxHandler.getSyncedProjectIds(userId)) {
     try {
       await TpdsProjectFlusher.promises.flushProjectToTpds(projectId)

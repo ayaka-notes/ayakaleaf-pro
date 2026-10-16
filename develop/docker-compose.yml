@@ -168,6 +168,7 @@ services:
       - EMAIL_CONFIRMATION_DISABLED=true
       - NODE_ENV=development
       - OVERLEAF_ALLOW_PUBLIC_ACCESS=true
+      - TPDS_HOST=third-party-datastore
     command: ["node", "app.mjs"]
     volumes:
       - sharelatex-data:/var/lib/overleaf

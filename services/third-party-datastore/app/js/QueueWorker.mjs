@@ -2,6 +2,7 @@ import Settings from '@overleaf/settings'
 import logger from '@overleaf/logger'
 import metrics from '@overleaf/metrics'
 import pLimit from 'p-limit'
+import { fetchNothing } from '@overleaf/fetch-utils'
 import QueueManager from './QueueManager.mjs'
 import JobProcessor from './JobProcessor.mjs'
 import DropboxClient from './DropboxClient.mjs'
@@ -12,6 +13,15 @@ import { classify, Action } from './Errors.mjs'
 const { concurrency, pollIntervalMs, maxAttempts } = Settings.queue
 const RETRY_BASE_MS = 5 * 1000
 const RETRY_MAX_MS = 10 * 60 * 1000
+
+// A notification in the project list says why, until the user links Dropbox
+// again: the web module removes it by its key then
+const UNLINKED_NOTIFICATION_KEY = 'dropbox-unlinked'
+const UNLINKED_TEMPLATE_KEYS = {
+  access_denied: 'dropbox_unlinked_because_access_denied',
+  insufficient_space: 'dropbox_unlinked_because_full',
+  user_suspended: 'dropbox_unlinked_because_suspended',
+}
 
 // The account cannot be used any more: unlink it like the web module does,
 // and drop the pending jobs. The user relinks from the settings.
@@ -24,6 +34,18 @@ async function unlinkUser(userId, accountId, reason, err) {
   await StateManager.removeUserState(userId)
   await QueueManager.clearUser(userId)
   DropboxClient.forget(userId)
+  // as web's NotificationsHandler.createNotification
+  await fetchNothing(`${Settings.apis.notifications.url}/user/${userId}`, {
+    method: 'POST',
+    json: {
+      key: UNLINKED_NOTIFICATION_KEY,
+      templateKey: UNLINKED_TEMPLATE_KEYS[reason],
+      messageOpts: {},
+      forceCreate: true,
+    },
+  }).catch(err =>
+    logger.warn({ err, userId }, 'tpds: failed to notify the unlinked user')
+  )
 }
 
 // Returns false to stop draining the user until a retry is due

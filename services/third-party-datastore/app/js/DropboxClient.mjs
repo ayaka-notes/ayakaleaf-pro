@@ -68,7 +68,10 @@ function errorSummary(err) {
   if (typeof body === 'string') {
     return body
   }
-  return body?.error_summary || body?.error || ''
+  // only 409 bodies are sure to have error_summary; others are JSON or
+  // plain text (Dropbox error handling docs)
+  const summary = body?.error_summary ?? body?.error
+  return typeof summary === 'string' ? summary : ''
 }
 
 class DropboxClient {

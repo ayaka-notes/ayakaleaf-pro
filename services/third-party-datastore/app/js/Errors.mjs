@@ -34,15 +34,16 @@ export function classify(err) {
       return { action: Action.SKIP, reason: TOO_MANY_FILES_ERROR_CODE }
     }
   } else if (typeof status === 'number') {
+    // a 401 too (AuthError), so before the other 401s
+    if (summary.includes('user_suspended')) {
+      return { action: Action.UNLINK, reason: 'user_suspended' }
+    }
     // from Dropbox, or from its token endpoint when refreshing
     if (status === 401 || summary === 'invalid_grant') {
       return { action: Action.UNLINK, reason: 'access_denied' }
     }
     if (summary.includes('insufficient_space')) {
       return { action: Action.UNLINK, reason: 'insufficient_space' }
-    }
-    if (summary.includes('user_suspended')) {
-      return { action: Action.UNLINK, reason: 'user_suspended' }
     }
     if (
       summary.includes('disallowed_name') ||

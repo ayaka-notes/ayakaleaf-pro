@@ -12,6 +12,8 @@ import { HttpsProxyAgent } from 'https-proxy-agent'
 import { db, ObjectId } from '../../../../app/src/infrastructure/mongodb.mjs'
 import ProjectGetter from '../../../../app/src/Features/Project/ProjectGetter.mjs'
 import ProjectHelper from '../../../../app/src/Features/Project/ProjectHelper.mjs'
+import NotificationsHandler from '../../../../app/src/Features/Notifications/NotificationsHandler.mjs'
+import NotificationsBuilder from '../../../../app/src/Features/Notifications/NotificationsBuilder.mjs'
 
 // Dropbox endpoints, the way the dropbox SDK used by third-party-datastore
 // derives them from its `domain` option
@@ -118,6 +120,14 @@ async function linkUser(userId, token) {
     }
     throw err
   }
+  // what a job still running at the last unlink wrote back
+  await removeUserState(userId)
+  // the notices why it was unlinked: of third-party-datastore's QueueWorker,
+  // and of TpdsUpdateHandler for projects with the same name
+  await Promise.all([
+    NotificationsHandler.promises.markAsReadWithKey(userId, 'dropbox-unlinked'),
+    NotificationsBuilder.promises.dropboxDuplicateProjectNames(userId).read(),
+  ]).catch(err => logger.warn({ err, userId }, 'failed to clear the dropbox notices'))
 }
 
 async function isLinked(userId) {

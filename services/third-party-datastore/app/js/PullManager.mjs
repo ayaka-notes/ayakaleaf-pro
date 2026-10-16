@@ -24,7 +24,8 @@ async function pullForUser(userId) {
   const accountId = dropbox.access_token.uid
 
   if (!dropbox.cursor) {
-    // first poll after linking: the projects were just sent to Dropbox
+    // first poll after linking, queued before the projects are sent: our own
+    // uploads after this cursor are skipped by their content hash
     const cursor = await client.latestCursor()
     await StateManager.setCursor(userId, accountId, cursor)
     await StateManager.clearTombstones(userId, startedAt)
@@ -115,13 +116,16 @@ function splitPath(pathDisplay) {
 
 // The project of a Dropbox folder: the mapped one (where web checks write
 // access) or else the project of that name, created when there is none
-async function resolveProject(userId, client, folder, projectName) {
+async function resolveProject(userId, client, folder) {
   const mapped = await StateManager.getProjectByFolder(userId, folder)
   if (mapped) {
     return mapped.projectId.toString()
   }
+  // only the last part of a path_display is sure of its case: the name comes
+  // from the folder itself, not from the path of a file in it
+  const metadata = await client.getMetadata(folder)
   const { status, projectId } = await WebApiClient.resolveProject(userId, {
-    projectName,
+    projectName: metadata.name,
   })
   if (status !== 'success') {
     return null
@@ -131,13 +135,12 @@ async function resolveProject(userId, client, folder, projectName) {
     // one is not its folder (left by a deleted project, made in Dropbox)
     return null
   }
-  const metadata = await client.getMetadata(folder)
   await StateManager.setProjectFolder(userId, projectId, metadata.id, folder)
   return projectId
 }
 
 async function applyFile(userId, client, entry) {
-  const { folder, projectName, path } = splitPath(entry.path_display)
+  const { folder, path } = splitPath(entry.path_display)
   if (!path) {
     return // files at the top level are not in a project
   }
@@ -153,7 +156,7 @@ async function applyFile(userId, client, entry) {
     )
     return
   }
-  const projectId = await resolveProject(userId, client, folder, projectName)
+  const projectId = await resolveProject(userId, client, folder)
   if (!projectId) {
     return
   }
@@ -174,8 +177,8 @@ async function applyFile(userId, client, entry) {
 }
 
 async function applyFolder(userId, client, entry) {
-  const { folder, projectName, path } = splitPath(entry.path_display)
-  const projectId = await resolveProject(userId, client, folder, projectName)
+  const { folder, path } = splitPath(entry.path_display)
+  const projectId = await resolveProject(userId, client, folder)
   if (!projectId || !path) {
     return
   }
