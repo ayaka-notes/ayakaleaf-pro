@@ -78,7 +78,7 @@
     --navbar-toggler-expanded-bg: none;
     --navbar-toggler-expanded-color: var(--content-secondary-themed);
 
-    .navbar-header .navbar-logo {
+    .navbar-header .navbar-brand:not(:has(.navbar-title)) .navbar-logo {
       @include media-breakpoint-up(md) {
         position: relative;
         top: var(--spacing-05);
