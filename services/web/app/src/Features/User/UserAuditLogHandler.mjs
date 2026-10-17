@@ -29,6 +29,7 @@ function _canHaveNoInitiatorId(operation, info) {
   if (operation === 'must-reset-password-set') return true
   if (operation === 'must-reset-password-unset') return true
   if (operation === 'account-suspension' && info.script) return true
+  if (operation === 'account-suspension-lifted' && info.script) return true
   if (operation === 'release-managed-user' && info.script) return true
 }
 

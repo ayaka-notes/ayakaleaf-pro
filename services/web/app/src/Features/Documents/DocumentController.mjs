@@ -123,7 +123,12 @@ const setDocumentSchema = z.object({
     version: z.number().int(),
     ranges: rangesSchemas.ranges,
     lastUpdatedAt: z.coerce.number().int().positive().nullish(),
-    lastUpdatedBy: zz.objectId().nullish(),
+    // document-updater records the acting user of each update it applies and
+    // flushes it back here as lastUpdatedBy (see its RedisManager's
+    // updateMeta.user_id). For a link-sharing visitor with no account that
+    // is the sentinel 'anonymous-user', which real-time sets in Router.js --
+    // never a user id. It is accepted here and normalised to null below.
+    lastUpdatedBy: zz.objectId().or(z.literal('anonymous-user')).nullish(),
   }),
 })
 
@@ -132,7 +137,11 @@ async function setDocument(req, res) {
     logOnly: true,
   })
   const { Project_id: projectId, doc_id: docId } = params
-  const { lines, version, ranges, lastUpdatedAt, lastUpdatedBy } = body
+  const { lines, version, ranges, lastUpdatedAt } = body
+  // an anonymous editor has no user id to record on the project, and
+  // Project.lastUpdatedBy is an ObjectId ref -- see setDocumentSchema
+  const lastUpdatedBy =
+    body.lastUpdatedBy === 'anonymous-user' ? null : body.lastUpdatedBy
   const result = await ProjectEntityUpdateHandler.promises.updateDocLines(
     projectId,
     docId,
