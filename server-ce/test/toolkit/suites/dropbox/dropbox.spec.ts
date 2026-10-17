@@ -1122,6 +1122,15 @@ describe('projects with the same name', function () {
       })
       dropboxFiles().then(({ files, folders }) => {
         expect(files).not.to.have.property(`/${name}/second.tex`)
+        // the sync modal shows that folder, with the case of the project name
+        const folderName = numberedFolder(folders, name)?.slice(1)
+        cy.request(`/project/${secondId}/dropbox`)
+          .its('body')
+          .should('deep.equal', { dropboxFolderName: folderName })
+        openSyncModal(secondId).should(
+          'contain.text',
+          `Apps/Overleaf E2E/${folderName}`
+        )
         // and the changes in its folder go to the second project only
         mock('PUT', '/files', {
           path: `${numberedFolder(folders, name)}/from-dropbox.tex`,

@@ -41,6 +41,13 @@ export default {
       DropboxController.getStatus
     )
 
+    webRouter.get(
+      '/project/:Project_id/dropbox',
+      AuthenticationController.requireLogin(),
+      AuthorizationMiddleware.ensureUserCanReadProject,
+      DropboxController.getProjectFolder
+    )
+
     webRouter.post(
       '/project/:Project_id/dropbox/sync-now',
       AuthenticationController.requireLogin(),

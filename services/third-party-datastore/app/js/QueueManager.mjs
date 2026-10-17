@@ -102,7 +102,11 @@ async function getQueues(userId) {
     redis.llen(keys.processing(userId)),
     redis.exists(keys.pollPending(userId)),
   ])
-  return { tpdsToWeb: pollPending, webToTpds: webToTpds + processing }
+  return {
+    queueName: userId,
+    tpdsToWeb: pollPending,
+    webToTpds: webToTpds + processing,
+  }
 }
 
 async function usersWithWork() {

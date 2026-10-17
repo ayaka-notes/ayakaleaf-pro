@@ -123,6 +123,18 @@ async function getStatus(req, res) {
   res.json(await DropboxHandler.isLinked(userId))
 }
 
+// The project's folder in the user's Dropbox app folder, for the sync modal
+async function getProjectFolder(req, res) {
+  const userId = SessionManager.getLoggedInUserId(req.session)
+  const { Project_id: projectId } = req.params
+  res.json({
+    dropboxFolderName: await DropboxHandler.getProjectFolderName(
+      userId,
+      projectId
+    ),
+  })
+}
+
 // 'Changes not appearing in Dropbox? ... sync this project now': send the
 // project as it is now, then read the changes from Dropbox
 async function syncNow(req, res) {
@@ -187,6 +199,7 @@ export default {
   oauth2Callback: expressify(oauth2Callback),
   unlink: expressify(unlink),
   getStatus: expressify(getStatus),
+  getProjectFolder: expressify(getProjectFolder),
   syncNow: expressify(syncNow),
   verifyWebhook,
   notifyWebhook: expressify(notifyWebhook),

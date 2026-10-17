@@ -5,6 +5,7 @@ import { useProjectContext } from '@/shared/context/project-context'
 import { useIdeReactContext } from '@/features/ide-react/context/ide-react-context'
 import useAbortController from '@/shared/hooks/use-abort-controller'
 import getMeta from '@/utils/meta'
+import { debugConsole } from '@/utils/debugging'
 import {
   OLModal,
   OLModalBody,
@@ -26,6 +27,14 @@ function LinkedContents() {
   const { dropboxAppName } = getMeta('ol-ExposedSettings')
   const { signal } = useAbortController()
   const [syncNow, setSyncNow] = useState<SyncNowState>('idle')
+  // e.g. 'Thesis (1)', when another project has 'Thesis'
+  const [folderName, setFolderName] = useState(name)
+
+  useEffect(() => {
+    getJSON(`/project/${projectId}/dropbox`, { signal })
+      .then(({ dropboxFolderName }) => setFolderName(dropboxFolderName))
+      .catch(debugConsole.error)
+  }, [projectId, signal])
 
   const handleSyncNow = useCallback(() => {
     setSyncNow('sending')
@@ -49,7 +58,7 @@ function LinkedContents() {
         ? 'reviewer_dropbox_sync_message'
         : null
 
-  const folder = `Apps/${dropboxAppName}/${name}`
+  const folder = `Apps/${dropboxAppName}/${folderName}`
   return (
     <>
       <p>

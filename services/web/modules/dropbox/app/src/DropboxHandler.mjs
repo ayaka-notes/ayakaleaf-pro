@@ -215,6 +215,28 @@ async function getDuplicateProjectNames(userId) {
   return [...duplicates]
 }
 
+// The name of the project's folder, e.g. 'Thesis (1)' that Dropbox numbered
+// next to another project's 'Thesis'. third-party-datastore stores only the
+// lower-cased path, so the project name gives back the case; before the first
+// sync, the folder is named after the project.
+async function getProjectFolderName(userId, projectId) {
+  const [project, mapped] = await Promise.all([
+    ProjectGetter.promises.getProject(projectId, { name: 1 }),
+    db.dropboxProjects.findOne(
+      { userId: new ObjectId(userId), projectId: new ObjectId(projectId) },
+      { projection: { pathLower: 1 } }
+    ),
+  ])
+  if (!mapped) {
+    return project.name
+  }
+  const folderName = mapped.pathLower.slice(1)
+  const lowerName = project.name.toLowerCase()
+  return folderName.startsWith(lowerName)
+    ? project.name + folderName.slice(lowerName.length)
+    : folderName
+}
+
 // The projects web sends the changes of to the user's Dropbox: those the user
 // is invited to (TpdsUpdateSender.getProjectUsersIds), not link-shared ones,
 // unless archived or trashed by the user
@@ -258,6 +280,7 @@ export default {
   removeUserState,
   removeProjectState,
   getDuplicateProjectNames,
+  getProjectFolderName,
   getSyncedProjectIds,
   queuePoll,
 }
