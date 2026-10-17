@@ -633,6 +633,23 @@ async function suspendUser(userId, auditLog = {}) {
   )
 }
 
+async function unsuspendUser(userId, auditLog = {}) {
+  const res = await updateUser(
+    { _id: userId, suspended: true },
+    { $set: { suspended: false } }
+  )
+  if (res.matchedCount !== 1) {
+    throw new Errors.NotFoundError('user id not found or not suspended')
+  }
+  await UserAuditLogHandler.promises.addEntry(
+    userId,
+    'account-suspension-lifted',
+    auditLog.initiatorId,
+    auditLog.ip,
+    auditLog.info || {}
+  )
+}
+
 function _securityAlertPrimaryEmailChangedExtraRecipients(
   emailsData,
   oldEmail,
@@ -689,6 +706,7 @@ export default {
   migrateDefaultEmailAddress: callbackify(migrateDefaultEmailAddress),
   updateUser: callbackify(updateUser),
   suspendUser: callbackify(suspendUser),
+  unsuspendUser: callbackify(unsuspendUser),
   promises: {
     addAffiliationForNewUser,
     addEmailAddress,
@@ -702,5 +720,6 @@ export default {
     migrateDefaultEmailAddress,
     updateUser,
     suspendUser,
+    unsuspendUser,
   },
 }
