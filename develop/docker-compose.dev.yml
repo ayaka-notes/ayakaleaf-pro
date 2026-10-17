@@ -11,6 +11,17 @@ services:
       - ../services/clsi/config:/overleaf/services/clsi/config
       - ../services/clsi/seccomp:/overleaf/services/clsi/seccomp
 
+  clsi-cache:
+    command: ["node", "--watch", "app.js"]
+    environment:
+      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+    ports:
+      - "127.0.0.1:9242:9229"
+    volumes:
+      - ../services/clsi-cache/app:/overleaf/services/clsi-cache/app
+      - ../services/clsi-cache/app.js:/overleaf/services/clsi-cache/app.js
+      - ../services/clsi-cache/config:/overleaf/services/clsi-cache/config
+
   chat:
     command: ["node", "--watch", "app.js"]
     environment:

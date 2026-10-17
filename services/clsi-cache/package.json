@@ -1,0 +1,48 @@
+{
+  "name": "@overleaf/clsi-cache",
+  "description": "Cache for compile outputs, shared between the clsi instances and web",
+  "private": true,
+  "main": "app.js",
+  "type": "module",
+  "scripts": {
+    "start": "node app.js",
+    "test:acceptance": "yarn run test:acceptance:_run -- --grep=$MOCHA_GREP",
+    "test:unit": "yarn run test:unit:_run -- --grep=$MOCHA_GREP",
+    "nodemon": "node --watch app.js",
+    "test:acceptance:_run": "mocha --recursive --timeout 15000 --exit --retries=$RETRIES $@ test/acceptance/js",
+    "test:unit:_run": "mocha --recursive --exit $@ test/unit/js",
+    "lint": "eslint --cache --cache-location ../../.cache/eslint/ --max-warnings 0 --format unix .",
+    "lint:fix": "eslint --cache --cache-location ../../.cache/eslint/ --fix .",
+    "types:check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@overleaf/fetch-utils": "workspace:*",
+    "@overleaf/logger": "workspace:*",
+    "@overleaf/metrics": "workspace:*",
+    "@overleaf/o-error": "workspace:*",
+    "@overleaf/object-persistor": "workspace:*",
+    "@overleaf/promise-utils": "workspace:*",
+    "@overleaf/settings": "workspace:*",
+    "@overleaf/stream-utils": "workspace:*",
+    "@overleaf/validation-tools": "workspace:*",
+    "body-parser": "1.20.4",
+    "bunyan": "^1.8.15",
+    "express": "^4.22.1",
+    "p-limit": "^3.1.0",
+    "tar-fs": "^3.1.1"
+  },
+  "devDependencies": {
+    "chai": "^4.3.6",
+    "chai-as-promised": "^7.1.1",
+    "mocha": "^11.1.0",
+    "mocha-junit-reporter": "^2.2.1",
+    "mocha-multi-reporters": "^1.5.1"
+  },
+  "version": "1.0.0",
+  "directories": {
+    "test": "test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "AGPL-3.0"
+}

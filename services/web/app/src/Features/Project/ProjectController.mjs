@@ -1103,8 +1103,9 @@ const _ProjectController = {
         project_id: project._id,
         projectName: project.name,
         canUseClsiCache:
-          Features.hasFeature('saas') &&
-          ownerFeatures?.compileGroup === 'priority',
+          Settings.apis.clsiCache.enabled &&
+          (!Features.hasFeature('saas') ||
+            ownerFeatures?.compileGroup === 'priority'),
         canUsePng2Pdf:
           Features.hasFeature('saas') &&
           ownerFeatures?.compileGroup === 'priority' &&

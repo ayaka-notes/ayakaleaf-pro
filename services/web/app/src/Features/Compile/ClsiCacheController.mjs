@@ -212,7 +212,7 @@ async function getLatestBuildFromCache(req, res) {
 
     let { pdfCachingMinChunkSize, pdfDownloadDomain } =
       await CompileController._getSplitTestOptions(req, res)
-    pdfDownloadDomain += `/zone/${zone}`
+    if (pdfDownloadDomain) pdfDownloadDomain += `/zone/${zone}`
     res.json({
       fromCache: true,
       status: 'success',

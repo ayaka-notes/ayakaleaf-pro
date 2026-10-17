@@ -195,7 +195,10 @@ function notifyCLSICacheAboutBuild({
   }
 
   const isUserCompile = !metricsOpts.path
-  if (!(isUserCompile && compileGroup === 'standard')) {
+  if (
+    Settings.apis.clsiCache.populateForStandardCompiles ||
+    !(isUserCompile && compileGroup === 'standard')
+  ) {
     // PDF preview, skip for free compiles
     enqueue(
       outputFiles
