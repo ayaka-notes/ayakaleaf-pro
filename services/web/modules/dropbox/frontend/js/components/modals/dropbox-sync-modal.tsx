@@ -28,13 +28,22 @@ function LinkedContents() {
   const { signal } = useAbortController()
   const [syncNow, setSyncNow] = useState<SyncNowState>('idle')
   // e.g. 'Thesis (1)', when another project has 'Thesis'
-  const [folderName, setFolderName] = useState(name)
+  const [folderName, setFolderName] = useState<string | null>(null)
+  // opened through a share link: not sent to the user's Dropbox
+  const [linkShared, setLinkShared] = useState(false)
 
   useEffect(() => {
     getJSON(`/project/${projectId}/dropbox`, { signal })
       .then(({ dropboxFolderName }) => setFolderName(dropboxFolderName))
-      .catch(debugConsole.error)
-  }, [projectId, signal])
+      .catch(err => {
+        if (err instanceof FetchError && err.response?.status === 404) {
+          setLinkShared(true)
+        } else {
+          debugConsole.error(err)
+          setFolderName(name)
+        }
+      })
+  }, [projectId, name, signal])
 
   const handleSyncNow = useCallback(() => {
     setSyncNow('sending')
@@ -58,6 +67,12 @@ function LinkedContents() {
         ? 'reviewer_dropbox_sync_message'
         : null
 
+  if (linkShared) {
+    return <p>{t('dropbox_for_link_share_projs')}</p>
+  }
+  if (folderName === null) {
+    return <LoadingSpinner loadingText={t('checking_dropbox_status')} />
+  }
   const folder = `Apps/${dropboxAppName}/${folderName}`
   return (
     <>
@@ -157,7 +172,10 @@ export default function DropboxSyncModal({
       return
     }
     getJSON('/user/dropbox/status', { signal })
-      .then((isLinked: boolean) => setLinked(isLinked))
+      .then((isLinked: boolean) => {
+        setError(false)
+        setLinked(isLinked)
+      })
       .catch(() => setError(true))
   }, [show, signal])
 

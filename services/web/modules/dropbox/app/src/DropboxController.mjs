@@ -127,6 +127,10 @@ async function getStatus(req, res) {
 async function getProjectFolder(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
   const { Project_id: projectId } = req.params
+  // e.g. a project opened through its view link
+  if (!(await DropboxHandler.isProjectSyncedForUser(userId, projectId))) {
+    return res.sendStatus(404)
+  }
   res.json({
     dropboxFolderName: await DropboxHandler.getProjectFolderName(
       userId,
@@ -140,7 +144,10 @@ async function getProjectFolder(req, res) {
 async function syncNow(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
   const { Project_id: projectId } = req.params
-  if (!(await DropboxHandler.isLinked(userId))) {
+  if (
+    !(await DropboxHandler.isLinked(userId)) ||
+    !(await DropboxHandler.isProjectSyncedForUser(userId, projectId))
+  ) {
     return res.sendStatus(404)
   }
   await TpdsProjectFlusher.promises.flushProjectToTpds(projectId)

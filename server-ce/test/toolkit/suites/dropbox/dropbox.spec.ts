@@ -6,7 +6,7 @@ import {
   projectName,
 } from '../../../helpers/project'
 import { postWithCsrf, requestWithCsrf } from '../../../helpers/request'
-import { shareProject } from '../../../helpers/sharing'
+import { shareProject, shareProjectByLink } from '../../../helpers/sharing'
 import { ADMIN_EMAIL, ensureUserExists } from '../../../helpers/users'
 
 // Dropbox sync against services/dropbox-mock, which answers as Dropbox on the
@@ -1282,6 +1282,44 @@ describe('the editor', function () {
         'contain.text',
         'Your account is not linked to Dropbox'
       )
+    })
+  })
+
+  it('clears the status error once a reopened modal loads the status', function () {
+    newUser('dropbox-status-retry')
+    linkDropboxAccount()
+    createProject(projectName('StatusRetry')).then(projectId => {
+      cy.intercept(
+        { method: 'GET', url: '/user/dropbox/status', times: 1 },
+        { statusCode: 500 }
+      )
+      openSyncModal(projectId).should('contain.text', 'there was a problem checking our Dropbox service')
+      cy.findByRole('dialog').findByRole('button', { name: 'Close' }).click()
+      cy.findByRole('button', { name: /Dropbox/ }).click()
+      cy.contains('[role="dialog"]', 'Sync with Dropbox')
+        .should('contain.text', 'Apps/Overleaf E2E/')
+        .and('not.contain.text', 'there was a problem checking our Dropbox service')
+    })
+  })
+
+  it('tells a user who opened the project through a share link that it is not synced', function () {
+    const viewer = newUser('dropbox-link-viewer')
+    linkDropboxAccount()
+    newUser('dropbox-link-owner')
+    createProject(projectName('LinkShared')).then(projectId => {
+      // joining through the edit link makes a collaborator, who is synced;
+      // through the view link, the user stays a link viewer
+      shareProjectByLink(projectId, viewer, 'readOnly')
+      // web never sends a link-shared project to the user's Dropbox
+      cy.request({ url: `/project/${projectId}/dropbox`, failOnStatusCode: false })
+        .its('status')
+        .should('equal', 404)
+      postWithCsrf(`/project/${projectId}/dropbox/sync-now`, {})
+        .its('status')
+        .should('equal', 404)
+      openSyncModal(projectId)
+        .should('contain.text', 'accessed via link-sharing')
+        .and('not.contain.text', 'sync this project now')
     })
   })
 })

@@ -12,6 +12,7 @@ import { HttpsProxyAgent } from 'https-proxy-agent'
 import { db, ObjectId } from '../../../../app/src/infrastructure/mongodb.mjs'
 import ProjectGetter from '../../../../app/src/Features/Project/ProjectGetter.mjs'
 import ProjectHelper from '../../../../app/src/Features/Project/ProjectHelper.mjs'
+import CollaboratorsGetter from '../../../../app/src/Features/Collaborators/CollaboratorsGetter.mjs'
 import NotificationsHandler from '../../../../app/src/Features/Notifications/NotificationsHandler.mjs'
 import NotificationsBuilder from '../../../../app/src/Features/Notifications/NotificationsBuilder.mjs'
 
@@ -215,6 +216,16 @@ async function getDuplicateProjectNames(userId) {
   return [...duplicates]
 }
 
+// Whether web sends the project to the user's Dropbox: its owner and its
+// collaborators are (also those who joined through the edit link, which makes
+// them collaborators), users of the view link are not
+// (TpdsUpdateSender.getProjectUsersIds)
+async function isProjectSyncedForUser(userId, projectId) {
+  const memberIds =
+    await CollaboratorsGetter.promises.getInvitedMemberIds(projectId)
+  return memberIds.some(id => id.toString() === userId.toString())
+}
+
 // The name of the project's folder, e.g. 'Thesis (1)' that Dropbox numbered
 // next to another project's 'Thesis'. third-party-datastore stores only the
 // lower-cased path, so the project name gives back the case; before the first
@@ -281,6 +292,7 @@ export default {
   removeProjectState,
   getDuplicateProjectNames,
   getProjectFolderName,
+  isProjectSyncedForUser,
   getSyncedProjectIds,
   queuePoll,
 }
