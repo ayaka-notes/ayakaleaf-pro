@@ -50,7 +50,13 @@ body {
   .navbar-default {
     position: relative;
 
-    .navbar-header .navbar-logo {
+    // Nudge the logo down and to the right so that it lines up with the
+    // sidebar items below it. Instances that set both a custom header image
+    // and a nav title (OVERLEAF_HEADER_IMAGE_URL and OVERLEAF_NAV_TITLE on
+    // Server Pro) show the title next to the logo, and the nudge would move
+    // only the logo and leave the two misaligned, so skip it in that case and
+    // keep the pair centred in the navbar as it is on every other page.
+    .navbar-header .navbar-brand:not(:has(.navbar-title)) .navbar-logo {
       @include media-breakpoint-up(md) {
         position: relative;
         top: calc(var(--spacing-05) * 2);
