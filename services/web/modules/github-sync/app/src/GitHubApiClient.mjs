@@ -8,7 +8,6 @@ import {
   CustomHttpsAgent,
   fetchJson,
   fetchJsonWithResponse,
-  fetchStreamWithResponse,
   fetchNothing,
   fetchStream,
   RequestFailedError,
@@ -155,12 +154,6 @@ function fetchGitHubJsonWithResponse(url, options, operation) {
   })
 }
 
-function fetchGitHubStreamWithResponse(url, options, operation) {
-  return fetchStreamWithResponse(url, withProxy(options)).catch(err => {
-    normalizeGitHubError(err, operation)
-  })
-}
-
 function fetchGitHubNothing(url, options, operation) {
   return fetchNothing(url, withProxy(options)).catch(err => {
     normalizeGitHubError(err, operation)
@@ -219,30 +212,6 @@ function getUser(token) {
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   }, 'getUser').then(({ id, login, name }) => ({ id, login, name }))
 }
-
-/*
-async function getUserAndOrgsREST(token) {
-  const user = await fetchGitHubJson(`${GITHUB_API_BASE}/user`, {
-    headers: buildHeaders(token),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
-  }, 'getUserAndOrgs:user')
-
-  const page = 1
-  const params = new URLSearchParams({
-    page: page.toString(),
-    per_page: MAX_PER_PAGE.toString(),
-  })
-  const orgs = await fetchGitHubJson(`${GITHUB_API_BASE}/user/orgs?${params}`, {
-    headers: buildHeaders(token),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
-  }, 'getUserAndOrgs:orgs')
-
-  return {
-    user: user.login,
-    orgs: orgs.map(o => o.login)
-  }
-}
-*/
 
 async function getUserAndOrgs(token) {
   const query = `
@@ -505,13 +474,6 @@ async function isBranchMerged(token, repoFullName, { base, baseHead, branch, bra
   return pulls.some(pull => pull.merged_at)
 }
 
-function compareCommits(token, repoFullName, from, to) {
-  return fetchGitHubJson(`${GITHUB_API_BASE}/repos/${repoFullName}/compare/${from}...${to}`, {
-    headers: buildHeaders(token),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
-  }, 'compareCommits').then(r => { r.files || [] })
-}
-
 // zip
 function getRepoZipball(token, repoFullName, sha) {
   return fetchGitHubStream(`${GITHUB_API_BASE}/repos/${repoFullName}/zipball/${sha}`, {
@@ -543,6 +505,5 @@ export default {
   deleteBranch,
   mergeBranch,
   isBranchMerged,
-  compareCommits,
   getRepoZipball,
 }

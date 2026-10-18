@@ -1,6 +1,6 @@
 import { deleteJSON } from '@/infrastructure/fetch-json'
-import React, { useState, useCallback, memo } from 'react'
-import { Button, Modal } from 'react-bootstrap'
+import { useState, memo } from 'react'
+import { Button } from 'react-bootstrap'
 import { useTranslation } from 'react-i18next'
 import {
   OLModal,

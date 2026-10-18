@@ -6,7 +6,6 @@ import {
 } from '../../context/project-list-context'
 import {
   OLDropdown as Dropdown,
-  OLDropdownHeader as DropdownHeader,
   OLDropdownItem as DropdownItem,
   OLDropdownMenu as DropdownMenu,
   OLDropdownToggle as DropdownToggle,

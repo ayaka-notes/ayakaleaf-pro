@@ -1,5 +1,4 @@
 import OLButton from '@/shared/components/ol/ol-button'
-import Button from '@/shared/components/ol/ol-button'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { sendMB } from '@/infrastructure/event-tracking'

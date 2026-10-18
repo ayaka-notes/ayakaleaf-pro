@@ -1,4 +1,4 @@
-import { memo, useState } from 'react'
+import { memo } from 'react'
 import EmailCell from './cells/email-cell'
 import LastActiveCell from './cells/last-active-cell'
 import SignUpDateCell from './cells/sign-up-date-cell'

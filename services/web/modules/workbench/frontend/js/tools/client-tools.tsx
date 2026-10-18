@@ -429,14 +429,3 @@ export const serverTools: Record<string, ClientTool> = {
     renderOutput: part => <div className="my-2">Searched for "{part.input.q}"</div>,
   },
 }
-
-/** Resolve a tool definition by name across both registries. */
-export function getToolDefinition(name: string): ClientTool | undefined {
-  if (name in clientTools) {
-    return clientTools[name]
-  }
-  if (name in serverTools) {
-    return serverTools[name]
-  }
-  return undefined
-}

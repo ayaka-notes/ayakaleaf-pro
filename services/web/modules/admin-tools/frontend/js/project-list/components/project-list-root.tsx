@@ -1,5 +1,4 @@
 import { useEffect } from 'react'
-import { useRef } from 'react'
 import {
   useProjectListContext,
 } from '../context/project-list-context'

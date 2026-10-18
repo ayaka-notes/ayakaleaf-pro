@@ -6,7 +6,6 @@ import UserInfoManager from '../../../../app/src/Features/User/UserInfoManager.m
 import UserInfoController from '../../../../app/src/Features/User/UserInfoController.mjs'
 import DocstoreManager from '../../../../app/src/Features/Docstore/DocstoreManager.mjs'
 import DocumentUpdaterHandler from '../../../../app/src/Features/DocumentUpdater/DocumentUpdaterHandler.mjs'
-import CollaboratorsGetter from '../../../../app/src/Features/Collaborators/CollaboratorsGetter.mjs'
 import { Project } from '../../../../app/src/models/Project.mjs'
 import pLimit from 'p-limit'
 

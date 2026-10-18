@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import ReferencePickerModal from './reference-picker-modal'
 import { useEditorViewContext } from '@/features/ide-react/context/editor-view-context'
 

@@ -5,13 +5,8 @@ import ProjectsList from './projects-list'
 import SelectOwnerForm from '../select-owner-form'
 import { useUserListContext } from '../../../user-list/context/user-list-context'
 import { useProjectListContext } from '../../context/project-list-context'
-import { User } from '../../../../../types/user/api'
-import OLRow from '@/shared/components/ol/ol-row'
-import OLCol from '@/shared/components/ol/ol-col'
 import OLForm from '@/shared/components/ol/ol-form'
 import OLFormGroup from '@/shared/components/ol/ol-form-group'
-import OLFormLabel from '@/shared/components/ol/ol-form-label'
-import OLSpinner from '@/shared/components/ol/ol-spinner'
 import sortUsers from '../../../user-list/util/sort-users'
 
 type TransferProjectModalProps = Pick<

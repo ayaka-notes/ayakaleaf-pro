@@ -1,4 +1,3 @@
-import Settings from '@overleaf/settings'
 import logger from '@overleaf/logger'
 import passport from 'passport'
 import AuthenticationController from '../../../../../app/src/Features/Authentication/AuthenticationController.mjs'

@@ -78,12 +78,6 @@ function waitForProject(
   })
 }
 
-function docText(projectId: string, docId: string) {
-  return cy
-    .request(`/Project/${projectId}/doc/${docId}/download`)
-    .its('body')
-}
-
 // Retries until third-party-datastore has no work queued for the user
 function waitForSynced(attempts = 60) {
   cy.request('/user/tpds/queues').then(({ body }) => {

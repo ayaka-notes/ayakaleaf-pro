@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from 'react'
+import { memo, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Project } from '../../../../../../../types/project/api'
 import DeleteProjectModal from '../../../modals/delete-project-modal'

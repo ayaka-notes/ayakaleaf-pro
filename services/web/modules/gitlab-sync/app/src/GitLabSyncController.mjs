@@ -9,7 +9,7 @@ import GitLabSyncHandler from './GitLabSyncHandler.mjs'
 import TokenManager from './TokenManager.mjs'
 import api from './GitLabApiClient.mjs'
 import { doGitMerge } from './GitMerge.mjs'
-import { InvalidTokenError, GitNotLinkedError } from './GitSyncErrors.mjs'
+import { InvalidTokenError } from './GitSyncErrors.mjs'
 
 async function getConnectionStatus(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)

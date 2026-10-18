@@ -1,7 +1,6 @@
 import logger from '@overleaf/logger'
 import Settings from '@overleaf/settings'
 import LearnProxyController from './LearnProxy.mjs'
-import AuthenticationController from '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
 
 export default {
   apply(webRouter) {

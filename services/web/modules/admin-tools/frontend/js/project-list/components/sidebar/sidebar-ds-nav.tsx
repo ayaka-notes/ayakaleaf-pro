@@ -8,7 +8,6 @@ import getMeta from '@/utils/meta'
 import OLTooltip from '@/shared/components/ol/ol-tooltip'
 import { AccountMenuItems } from '@/shared/components/navbar/account-menu-items'
 import SidebarFilters from './sidebar-filters'
-import { getUserName } from '../../util/user'
 import { useUserIdentityContext } from '../../../user-list/context/user-identity-context'
 import { useProjectListContext } from '../../context/project-list-context'
 

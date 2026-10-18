@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next'
 import { memo, useCallback } from 'react'
-import getMeta from '@/utils/meta'
 import { Project } from '../../../../../../../types/project/api'
 import { useProjectListContext } from '../../../../context/project-list-context'
 import { untrashProjectForUser } from '../../../../util/api'

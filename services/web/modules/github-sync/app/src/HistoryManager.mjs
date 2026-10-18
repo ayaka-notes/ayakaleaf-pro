@@ -1,5 +1,4 @@
 import Settings from '@overleaf/settings'
-import logger from '@overleaf/logger'
 import OError from '@overleaf/o-error'
 import { fetchJson, fetchStream } from '@overleaf/fetch-utils'
 import HistoryManager from '../../../../app/src/Features/History/HistoryManager.mjs'

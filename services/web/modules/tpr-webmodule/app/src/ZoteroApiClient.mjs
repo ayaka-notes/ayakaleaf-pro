@@ -185,32 +185,6 @@ async function _fetchBibtex(apiKey, basePath) {
   return allBibtex
 }
 
-/**
- * Validate a Zotero API key by calling /keys/{key}.
- * Returns { zoteroUserId } on success, throws on failure.
- */
-async function validateApiKey(apiKey) {
-  const url = `${ZOTERO_API_URL}/keys/${encodeURIComponent(apiKey)}`
-  try {
-    const data = await fetchJson(
-      url,
-      withProxy({
-        headers: { 'Zotero-API-Version': '3' },
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      })
-    )
-    if (!data.userID) {
-      throw new Error('Zotero API key response missing userID')
-    }
-    return { zoteroUserId: String(data.userID) }
-  } catch (err) {
-    if (err.response?.status === 404 || err.response?.status === 403) {
-      throw new ZoteroForbiddenError('Invalid Zotero API key')
-    }
-    throw OError.tag(err, 'error validating Zotero API key')
-  }
-}
-
 // ---- Zotero OAuth 1.0a ----------------------------------------------------
 // Zotero authenticates third-party apps with OAuth 1.0a. The access token
 // returned by the final step IS the user's Zotero API key, so it is stored the
@@ -402,7 +376,6 @@ export default {
   getGroupsForUser,
   getUserLibraryBibtex,
   getGroupLibraryBibtex,
-  validateApiKey,
   getOAuthRequestToken,
   getOAuthAuthorizeUrl,
   exchangeOAuthAccessToken,

@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next'
 import { memo, useCallback, useState } from 'react'
-import getMeta from '@/utils/meta'
 import { Project } from '../../../../../../../types/project/api'
 import PurgeProjectModal from '../../../modals/purge-project-modal'
 import useIsMounted from '@/shared/hooks/use-is-mounted'

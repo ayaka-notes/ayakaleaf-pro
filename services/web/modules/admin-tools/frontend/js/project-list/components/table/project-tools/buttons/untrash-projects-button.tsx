@@ -1,4 +1,3 @@
-import { memo } from 'react'
 import OLTooltip from '@/shared/components/ol/ol-tooltip'
 import OLIconButton from '@/shared/components/ol/ol-icon-button'
 import { useTranslation } from 'react-i18next'

@@ -7,7 +7,6 @@ import {
   OLDropdownToggle as DropdownToggle,
 } from '@/shared/components/ol/ol-dropdown-menu'
 import MaterialIcon from '@/shared/components/material-icon'
-import OLSpinner from '@/shared/components/ol/ol-spinner'
 import FlagUserButton from '../table/cells/action-buttons/flag-user-button'
 import DeleteUserButton from '../table/cells/action-buttons/delete-user-button'
 import UpdateUserButton from '../table/cells/action-buttons/update-user-button'

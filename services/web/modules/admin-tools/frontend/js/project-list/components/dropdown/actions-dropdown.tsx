@@ -14,7 +14,6 @@ import PurgeProjectButton from '../table/cells/action-buttons/purge-project-butt
 import TransferProjectButton from '../table/cells/action-buttons/transfer-project-button'
 import { Project } from '../../../../../types/project/api'
 import MaterialIcon from '@/shared/components/material-icon'
-import OLSpinner from '@/shared/components/ol/ol-spinner'
 
 type ActionDropdownProps = {
   project: Project

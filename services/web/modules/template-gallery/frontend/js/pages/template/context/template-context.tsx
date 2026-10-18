@@ -1,12 +1,10 @@
 import {
   createContext,
   FC,
-  useCallback,
   useContext,
   useState,
   useMemo,
 } from 'react'
-import useEventListener from '@/shared/hooks/use-event-listener'
 import getMeta from '@/utils/meta'
 import { Template } from '../../types/template'
 

@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import classnames from 'classnames'
 import { Filter, useUserListContext } from '../../context/user-list-context'
 import { useTranslation } from 'react-i18next'

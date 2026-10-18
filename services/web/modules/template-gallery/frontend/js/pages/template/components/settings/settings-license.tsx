@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next'
 import SettingsMenuSelect from './settings-menu-select'
-import type { Option } from './settings-menu-select'
 
 export const licensesMap = {
   'cc_by_4.0': 'Creative Commons CC BY 4.0',

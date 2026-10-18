@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import {
   useUserListContext,
 } from '../context/user-list-context'

@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useState } from 'react'
+import { memo, useCallback, useState } from 'react'
 import { OLModal } from '@/shared/components/ol/ol-modal'
 import ManageTemplateModalContent from './manage-template-modal-content'
 import type { Template } from '../../../types/template'

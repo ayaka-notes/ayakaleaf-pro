@@ -9,7 +9,6 @@ import {
 } from '@/shared/components/ol/ol-modal'
 import OLFormGroup from '@/shared/components/ol/ol-form-group'
 import OLFormControl from '@/shared/components/ol/ol-form-control'
-import OLFormCheckbox from '@/shared/components/ol/ol-form-checkbox'
 import OLButton from '@/shared/components/ol/ol-button'
 import OLRow from '@/shared/components/ol/ol-row'
 import OLCol from '@/shared/components/ol/ol-col'
