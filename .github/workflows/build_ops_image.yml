@@ -35,7 +35,6 @@ jobs:
       - name: "Checkout Current Repository"
         uses: actions/checkout@v7
         with:
-          fetch-depth: 0
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
       - name: "Login to GitHub Container Registry"
@@ -80,6 +79,7 @@ jobs:
               }
             }
       - name: Set up Buildx (docker driver)
+        id: setup-buildx
         uses: docker/setup-buildx-action@v4
         with:
           driver: docker
@@ -105,19 +105,54 @@ jobs:
       # --- Build Server Image ---
       - name: "Get MONOREPO_REVISION"
         id: vars
-        run: echo "MONOREPO_REVISION=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+        run: |
+          echo "MONOREPO_REVISION=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          github_short_sha=$(echo ${{ github.sha }} | head -c7)
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            github_short_sha=$(echo ${{ github.event.pull_request.head.sha }} | head -c7)
+          fi
+          tag=$(TZ='Asia/Shanghai' date +'%Y%m%d%H%M')-$github_short_sha
+          echo "Building tag: $tag"
+          echo "TAG=$tag" >> $GITHUB_OUTPUT
+          # Scheduled tests use latest; only server-pro builds may update it.
+          if [ "$GITHUB_EVENT_NAME" != "pull_request" ] && [ "$GITHUB_REF" = "refs/heads/server-pro" ]; then
+            echo "LATEST=${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:latest" >> $GITHUB_OUTPUT
+          fi
+
+      # The webpack cache mount of the Dockerfile does not outlive the runner,
+      # keep it in the Actions cache so webpack starts warm
+      - name: "Restore webpack cache"
+        if: ${{ !inputs.no_cache }}
+        uses: actions/cache@v6
+        with:
+          path: webpack-cache
+          key: webpack-cache-${{ github.run_id }}
+          restore-keys: webpack-cache-
+      - name: "Inject webpack cache"
+        if: ${{ !inputs.no_cache }}
+        uses: reproducible-containers/buildkit-cache-dance@v3
+        with:
+          builder: ${{ steps.setup-buildx.outputs.name }}
+          cache-map: |
+            {
+              "webpack-cache": {
+                "target": "/overleaf/services/web/.cache",
+                "id": "server-ce-webpack-cache"
+              }
+            }
       - name: "Build Server image"
         uses: docker/build-push-action@v7
         with:
           context: ./
           file: ./server-ce/Dockerfile
-          load: true
-          push: false
+          # Push straight from the build, new layers compressed with zstd
+          outputs: type=image,push=true,compression=zstd,oci-mediatypes=true
           pull: false
           build-args: |
             OVERLEAF_BASE_TAG=overleaf-pro-base:ci
           tags: |
-            sharelatex/sharelatex:latest
+            ${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:${{ steps.vars.outputs.TAG }}
+            ${{ steps.vars.outputs.LATEST }}
           annotations: |
             org.opencontainers.image.title=overleaf-pro-ops
             org.opencontainers.image.description=Overleaf Pro operations image, built from every push to server-pro, maintained by ayaka-notes. For testing only.
@@ -131,24 +166,6 @@ jobs:
           provenance: false
           sbom: false
       # --- End of Server Image ---
-
-      # --- Push Server Image ---
-      - name: "ReTag Docker Image And Push"
-        run: |
-          cd ./server-ce
-          github_short_sha=$(echo ${{ github.sha }} | head -c7)
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            github_short_sha=$(echo ${{ github.event.pull_request.head.sha }} | head -c7)
-          fi
-          tag=$(TZ='Asia/Shanghai' date +'%Y%m%d%H%M')-$github_short_sha
-          echo "Building tag: $tag"
-          docker tag sharelatex/sharelatex:latest ${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:$tag
-          docker push ${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:$tag
-          # Scheduled tests use latest; only server-pro builds may update it.
-          if [ "$GITHUB_EVENT_NAME" != "pull_request" ] && [ "$GITHUB_REF" = "refs/heads/server-pro" ]; then
-            docker tag sharelatex/sharelatex:latest ${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:latest
-            docker push ${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:latest
-          fi
 
       # --- Retention Policy: Delete old images ---
       - name: Delete old images
