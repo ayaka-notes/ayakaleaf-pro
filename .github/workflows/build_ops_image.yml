@@ -159,10 +159,10 @@ jobs:
             org.opencontainers.image.source=https://github.com/ayaka-notes/ayakaleaf-pro
             org.opencontainers.image.version=${{ steps.vars.outputs.MONOREPO_REVISION }}
             space.ayaka.overleaf-pro.ops.revision=${{ steps.vars.outputs.MONOREPO_REVISION }}
-          # We don't want -${{ github.ref_name }} limit, just more cache hit
+          # Cache from the latest server-pro image, its cache is inlined on push
           no-cache: ${{ inputs.no_cache || false }}
-          cache-from: type=gha,scope=ops
-          cache-to: type=gha,mode=max,scope=ops
+          cache-from: type=registry,ref=${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:latest
+          cache-to: type=inline
           provenance: false
           sbom: false
       # --- End of Server Image ---
@@ -172,6 +172,8 @@ jobs:
         uses: snok/container-retention-policy@v3.1.0
         with:
           image-names: overleaf-pro/ops*
+          # Keep latest, the scheduled tests and the build cache use it
+          image-tags: "!latest"
           cut-off: 7d
           account: ayaka-notes
           tag-selection: both
