@@ -9,6 +9,8 @@ import { GitConflictError, GitNotLinkedError, NotFoundError } from './GitSyncErr
 import TokenManager from './TokenManager.mjs'
 import LockManager from '../../../../app/src/infrastructure/LockManager.mjs'
 import UpdateMerger from '../../../../app/src/Features/ThirdPartyDataStore/UpdateMerger.mjs'
+import EditorController from '../../../../app/src/Features/Editor/EditorController.mjs'
+import Errors from '../../../../app/src/Features/Errors/Errors.js'
 import DocumentUpdaterHandler from '../../../../app/src/Features/DocumentUpdater/DocumentUpdaterHandler.mjs'
 
 // Gitea's REST API cannot create dangling blobs, trees and commits like
@@ -556,9 +558,16 @@ async function applyGitSnapshotToProject({ token, userId, projectId, repoFullNam
     }))
   )
   const localLimit = pLimit(5)
+  // Not UpdateMerger.deleteUpdate: it swallows every error, and the sync
+  // state would move past a file that is still in the project
   await Promise.all(
-    deletions.map(path => localLimit(() => {
-      return UpdateMerger.promises.deleteUpdate(userId, projectId, '/' + path, 'gitea')
+    deletions.map(path => localLimit(async () => {
+      try {
+        await EditorController.promises.deleteEntityWithPath(projectId, '/' + path, 'gitea', userId)
+      } catch (err) {
+        // already gone in Overleaf
+        if (!(err instanceof Errors.NotFoundError)) throw err
+      }
     }))
   )
 
