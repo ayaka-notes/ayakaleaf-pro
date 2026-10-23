@@ -574,7 +574,7 @@ async function isBranchMerged(token, repoFullName, { base, baseHead, branch, bra
   }
 
   try {
-    const pull = await fetchGiteaJson(`${repoUrl(repoFullName)}/pulls/${encodePath(base)}/${encodePath(branch)}`, {
+    const pull = await fetchGiteaJson(`${repoUrl(repoFullName)}/pulls/${encodeURIComponent(base)}/${encodePath(branch)}`, {
       headers: buildHeaders(token),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
     }, 'isBranchMerged:pull')

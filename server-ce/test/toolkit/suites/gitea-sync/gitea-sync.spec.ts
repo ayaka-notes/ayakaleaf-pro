@@ -64,7 +64,7 @@ function toBase64(change: Exclude<Change, null>) {
 }
 
 function treePaths(fullName: string, ref: string): Cypress.Chainable<string[]> {
-  return giteaApi('GET', `repos/${fullName}/git/trees/${ref}?recursive=true&per_page=1000`)
+  return giteaApi('GET', `repos/${fullName}/git/trees/${encodeURIComponent(ref)}?recursive=true&per_page=1000`)
     .its('body.tree')
     .then((entries: { path: string; type: string }[]) =>
       entries.filter(e => e.type === 'blob').map(e => e.path)
@@ -994,11 +994,12 @@ describe('syncing a linked project', function () {
       .and('contain.text', 'Main from Overleaf')
   })
 
-  it('continues after the pull request was squash merged on Gitea', function () {
+  function continueAfterSquashMerge(base: string) {
     commitOnGitea(
       fullName,
       { 'main.tex': main.replace('First line', 'First line from Gitea') },
-      'Main on Gitea'
+      'Main on Gitea',
+      base
     )
     openProject(projectId)
     editMainInOverleaf('Main from Overleaf')
@@ -1010,7 +1011,7 @@ describe('syncing a linked project', function () {
     projectSyncState(projectId).then(state => {
       const branch = state.unmergedBranchName
       cloneRepo(fullName).then(dir => {
-        gitIn(dir, `git checkout -q ${branch} && git merge -q -s ours origin/main`)
+        gitIn(dir, `git checkout -q ${branch} && git merge -q -s ours origin/${base}`)
         writeFiles(dir, {
           'main.tex': main.replace('First line', 'First line from Gitea\nMain from Overleaf'),
         })
@@ -1028,6 +1029,31 @@ describe('syncing a linked project', function () {
     cy.get('.cm-content')
       .should('contain.text', 'First line from Gitea')
       .and('contain.text', 'Main from Overleaf')
+  }
+
+  it('continues after the pull request was squash merged on Gitea', function () {
+    continueAfterSquashMerge('main')
+  })
+
+  it('continues after a squash merge into a default branch with a slash', function () {
+    // Gitea reads the base of pulls/{base}/{head} as one path segment
+    name = projectName('Slash')
+    fullName = `${GITEA_USER}/${name}`
+    seedRepo(name, files)
+    giteaApi('POST', `repos/${fullName}/branches`, {
+      new_branch_name: 'release/main',
+      old_branch_name: 'main',
+    })
+    giteaApi('PATCH', `repos/${fullName}`, { default_branch: 'release/main' })
+    postWithCsrf('/project/new/gitea-sync', {
+      name,
+      fullName,
+      defaultBranchName: 'release/main',
+    }).then(response => {
+      expect(response.status).to.equal(200)
+      projectId = response.body.projectId
+      continueAfterSquashMerge('release/main')
+    })
   })
 
   it('leaves the merge to the user when Gitea requires an approval', function () {
