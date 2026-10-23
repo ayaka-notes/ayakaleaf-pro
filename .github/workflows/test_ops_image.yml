@@ -50,6 +50,7 @@ jobs:
             reference-picker,
             github-sync,
             gitlab-sync,
+            gitea-sync,
             dropbox,
             tpr-webmodule,
             python-runner,

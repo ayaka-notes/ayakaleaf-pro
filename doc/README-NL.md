@@ -53,6 +53,7 @@ Ayakaleaf Pro is een uitgebreide versie van Overleaf met vrijwel alle functies e
 - Python-scriptrunner (Python uitvoeren in je project)
 - Tweerichtingssynchronisatie met GitHub (Enterprise) (pushen en pullen met GitHub)
 - Tweerichtingssynchronisatie met GitLab (GitLab.com of zelf gehoste GitLab)
+- Tweerichtingssynchronisatie met Gitea (Gitea.com of zelf gehoste Gitea)
 - Zotero-integratie (met ondersteuning voor Zotero OAuth)
 - Mendeley-integratie (met ondersteuning voor Mendeley OAuth)
 - Geavanceerd zoeken naar referenties (doorzoek al je Bib-items)

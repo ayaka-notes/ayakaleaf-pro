@@ -1121,6 +1121,10 @@ module.exports = {
       ),
       Path.resolve(
         __dirname,
+        '../modules/gitea-sync/frontend/js/components/gitea-sync-widget.tsx'
+      ),
+      Path.resolve(
+        __dirname,
         '../modules/dropbox/frontend/js/components/dropbox-sync-widget.tsx'
       ),
     ],
@@ -1156,6 +1160,18 @@ module.exports = {
       Path.resolve(
         __dirname,
         '../modules/gitlab-sync/frontend/js/components/import-from-gitlab-menu.tsx'
+      ),
+    ],
+    importProjectFromGiteaModalWrapper: [
+      Path.resolve(
+        __dirname,
+        '../modules/gitea-sync/frontend/js/components/import-from-gitea-modal-wrapper.tsx'
+      ),
+    ],
+    importProjectFromGiteaMenu: [
+      Path.resolve(
+        __dirname,
+        '../modules/gitea-sync/frontend/js/components/import-from-gitea-menu.tsx'
       ),
     ],
     editorLeftMenuSync: [
@@ -1253,6 +1269,10 @@ module.exports = {
       ),
       Path.resolve(
         __dirname,
+        '../modules/gitea-sync/frontend/js/components/gitea-integration-card.tsx'
+      ),
+      Path.resolve(
+        __dirname,
         '../modules/dropbox/frontend/js/components/dropbox-integration-card.tsx'
       ),
       Path.resolve(
@@ -1306,6 +1326,7 @@ module.exports = {
     'mcp-server',
     'github-sync',
     'gitlab-sync',
+    'gitea-sync',
     'dropbox',
     'tpr-webmodule',
     'workbench',

@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Usage: services/gitea/bin/up
+#
+# Runs after the toolkit's bin/up, once its network exists. Attaches the
+# Gitea started by bin/prepare to it as gitea, and waits until Overleaf
+# reaches it there.
+#
+# Expects TOOLKIT_DIR and TOOLKIT_NETWORK in the environment.
+
+set -euo pipefail
+
+container="${CONTAINER_PREFIX:-e2e-}gitea"
+docker network connect --alias gitea "$TOOLKIT_NETWORK" "$container"
+
+echo "Waiting for Gitea..."
+for _ in $(seq 30); do
+  docker exec "${CONTAINER_PREFIX:-}sharelatex" curl -sf -o /dev/null http://gitea:3000/api/healthz \
+    && { echo "Gitea is up"; exit 0; }
+  sleep 1
+done
+echo "Gitea is not reachable as gitea:3000" >&2
+exit 1

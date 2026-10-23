@@ -28,6 +28,7 @@ it('reports every feature on', function () {
     ai: true,
     githubSync: true,
     gitlabSync: true,
+    giteaSync: true,
     dropbox: true,
     zotero: true,
     mendeley: true,

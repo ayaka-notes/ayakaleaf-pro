@@ -53,6 +53,7 @@ Ayakaleaf Pro is an enhanced version of Overleaf with almost all features and ca
 - Python Script Runner (Run Python in Your Project)
 - 2-way GitHub(Enterprise) Sync (Push and Pull with GitHub)
 - 2-way GitLab Sync (GitLab.com or Self-hosted GitLab)
+- 2-way Gitea Sync (Gitea.com or Self-hosted Gitea)
 - Zotero Integration(With Zotero OAuth Support)
 - Mendeley Integration(With Mendeley OAuth Support)
 - Advanced Reference Search (Search All Your Bib Entries)

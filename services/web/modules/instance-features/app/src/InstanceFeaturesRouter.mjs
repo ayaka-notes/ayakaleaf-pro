@@ -9,6 +9,8 @@ import { isConfigured } from '../../../workbench/app/src/WorkbenchAiClient.mjs'
 //    (env var GITHUB_SYNC_ENABLED; via Features.hasFeature, same as git-bridge)
 //    gitlabSync: whether GitLab Sync is enabled (env var GITLAB_SYNC_ENABLED;
 //    the gitlab-sync module sets Settings.gitlabSync only when enabled)
+//    giteaSync: whether Gitea Sync is enabled (env var GITEA_SYNC_ENABLED;
+//    the gitea-sync module sets Settings.giteaSync only when enabled)
 //    dropbox: whether Dropbox sync is enabled (env var DROPBOX_ENABLED;
 //    the dropbox module sets Settings.dropbox only when enabled)
 // 2. zotero / mendeley: whether each reference-manager integration is enabled
@@ -25,6 +27,7 @@ export default {
           ai: isConfigured(),
           githubSync: Features.hasFeature('github-sync'),
           gitlabSync: Boolean(Settings.gitlabSync),
+          giteaSync: Boolean(Settings.giteaSync),
           dropbox: Boolean(Settings.dropbox),
           zotero: Boolean(Settings.enabledLinkedFileTypes?.includes('zotero')),
           mendeley: Boolean(

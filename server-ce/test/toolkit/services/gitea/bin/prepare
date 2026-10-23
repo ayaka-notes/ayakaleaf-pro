@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# Usage: services/gitea/bin/prepare
+#
+# Runs before the toolkit's bin/up. Starts a real Gitea (GITEA_IMAGE, by
+# default the oldest version Gitea Sync supports) with fresh random
+# passwords, then does what a Gitea admin and its users would do: creates the
+# users e2e-tea and e2e-cup, the organization e2e-org owned by e2e-tea, and
+# the OAuth2 application for Overleaf, owned by a third user, e2e-admin, so
+# that the users only see their grant of it. Its client id and secret go into
+# the toolkit's variables.env, the user password into cypress.env.
+#
+# Git LFS is on, as on most instances. Gitea runs as http://gitea:3000, the address Overleaf and the browser in
+# the Cypress container both use; bin/up attaches it to the toolkit's network
+# under that name. Access tokens expire after 4 minutes, within Overleaf's
+# 5 minute refresh margin, and refresh tokens are spent on use, so every sync
+# refreshes and rotates the token.
+#
+# Expects TOOLKIT_DIR in the environment.
+
+set -euo pipefail
+
+state="$TOOLKIT_DIR/services/gitea"
+container="${CONTAINER_PREFIX:-e2e-}gitea"
+image="${GITEA_IMAGE:-gitea/gitea:1.23}"
+mkdir -p "$state"
+
+password="Pw-$(openssl rand -hex 16)"
+
+docker rm --force --volumes "$container" >/dev/null 2>&1 || true
+docker run --detach --name "$container" \
+  --env GITEA__database__DB_TYPE=sqlite3 \
+  --env GITEA__database__SQLITE_JOURNAL_MODE=WAL \
+  --env GITEA__security__INSTALL_LOCK=true \
+  --env GITEA__server__ROOT_URL=http://gitea:3000/ \
+  --env GITEA__server__HTTP_PORT=3000 \
+  --env GITEA__server__DISABLE_SSH=true \
+  --env GITEA__server__LFS_START_SERVER=true \
+  --env GITEA__service__DISABLE_REGISTRATION=true \
+  --env GITEA__repository__DEFAULT_BRANCH=main \
+  --env GITEA__oauth2__ACCESS_TOKEN_EXPIRATION_TIME=240 \
+  --env GITEA__oauth2__INVALIDATE_REFRESH_TOKENS=true \
+  --env GITEA__log__LEVEL=Warn \
+  "$image" >/dev/null
+
+echo "Waiting for Gitea..."
+for _ in $(seq 60); do
+  docker exec "$container" curl -sf -o /dev/null http://localhost:3000/api/healthz && break
+  sleep 1
+done
+
+# The CLI shares Gitea's SQLite database (in WAL mode, without it the CLI
+# finds it locked by the running Gitea)
+for user in e2e-tea e2e-cup e2e-admin; do
+  for attempt in $(seq 10); do
+    docker exec -u git "$container" gitea admin user create \
+      --username "$user" --password "$password" --email "$user@gitea.test" \
+      --must-change-password=false >/dev/null && break
+    [[ $attempt -lt 10 ]] || exit 1
+    sleep 1
+  done
+done
+
+function api() {
+  docker exec "$container" curl -sf -u "$1:$password" \
+    -H 'Content-Type: application/json' -X "$2" "http://localhost:3000/api/v1/$3" \
+    ${4:+--data "$4"}
+}
+
+api e2e-tea POST orgs '{"username":"e2e-org","visibility":"public"}' >/dev/null
+app=$(api e2e-admin POST user/applications/oauth2 \
+  '{"name":"Overleaf","confidential_client":true,"redirect_uris":["http://sharelatex/user/gitea-sync/oauth2/callback"]}')
+client_id=$(python3 -c 'import json, sys; print(json.load(sys.stdin)["client_id"])' <<<"$app")
+client_secret=$(python3 -c 'import json, sys; print(json.load(sys.stdin)["client_secret"])' <<<"$app")
+
+cat >"$state/cypress.env" <<ENV
+CYPRESS_GITEA_PASSWORD=$password
+ENV
+
+"$(dirname "$0")/../../../bin/apply-config" "$TOOLKIT_DIR/config/variables.env" <(cat <<ENV
+GITEA_SYNC_CLIENT_ID=$client_id
+GITEA_SYNC_CLIENT_SECRET=$client_secret
+GITEA_TOKEN_CIPHER_PASSWORD=$(openssl rand -hex 24)
+ENV
+)
+echo "Gitea is set up"

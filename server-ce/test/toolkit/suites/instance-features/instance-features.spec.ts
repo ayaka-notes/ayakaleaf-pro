@@ -36,6 +36,7 @@ it('reports every feature off', function () {
     ai: false,
     githubSync: false,
     gitlabSync: false,
+    giteaSync: false,
     dropbox: false,
     zotero: false,
     mendeley: false,

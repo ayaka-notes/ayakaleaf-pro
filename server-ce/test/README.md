@@ -104,6 +104,17 @@ One folder per module in `toolkit/suites/`, named and nested like
   and merges held back by approval or pipeline rules, renames and deletes,
   binary files, force pushes, lost push access, and what collaborators may
   do. Git-bridge is on as the docs require.
+- `gitea-sync/` – Gitea Sync against `toolkit/services/gitea`, a real Gitea
+  (the oldest supported version, `GITEA_IMAGE` picks another) at
+  `http://gitea:3000`: linking through the OAuth application and Gitea's
+  login, scopes, a cancelled link, tokens refreshed and rotated on every use,
+  a grant revoked in Gitea, exporting into a new repository of the user or an
+  organization, importing, pulling, pushing, a CI workflow changed on Gitea,
+  merging through a pull request with the repository's merge style,
+  conflicts, manual merges in a working copy and squash merges, merges held
+  back by required approvals or status checks, a branch deleted unmerged,
+  renames and deletes, binary files, force pushes, lost push access, and
+  what collaborators may do. Git-bridge is on as the docs require.
 - `dropbox/` – Dropbox Sync against `toolkit/services/dropbox-mock`, which
   answers as the Dropbox API and sends signed webhooks: linking and unlinking
   through OAuth, the projects sent when linking (owned and shared), edits
@@ -175,8 +186,8 @@ Things that need email (activation mails, password reset) are not tested.
   applies them, restarts Overleaf and runs the variant after the main specs.
 - `helpers/` – small functions shared by tests, like logging in or creating
   a user or a project.
-- `toolkit/services/` – extra containers a suite needs, e.g. `authentik/`, or
-  the mocks of external services: `github-mock/` answers as github.com and
+- `toolkit/services/` – extra containers a suite needs, e.g. `authentik/` or
+  a real Gitea in `gitea/`, or the mocks of external services: `github-mock/` answers as github.com and
   api.github.com, `tpr-mock/` as Zotero and Mendeley, `ai-mock/` as the OpenAI-compatible
   gateway, Tavily and the documentation's MCP endpoint, on the toolkit's network
   with a throwaway CA that Overleaf is told to trust. `lib/` holds what the

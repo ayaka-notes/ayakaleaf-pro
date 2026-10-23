@@ -180,6 +180,14 @@ function NewProjectButton({
     onClick: (e: React.MouseEvent) => void
   }> = importProjectFromGitlabMenu?.import.default
 
+  const [importProjectFromGiteaMenu] = importOverleafModules(
+    'importProjectFromGiteaMenu'
+  )
+
+  const ImportProjectFromGiteaMenu: JSXElementConstructor<{
+    onClick: (e: React.MouseEvent) => void
+  }> = importProjectFromGiteaMenu?.import.default
+
   return (
     <>
       <OLDropdown
@@ -274,6 +282,18 @@ function NewProjectButton({
                     handleModalMenuClick(e, {
                       modalVariant: 'import_from_gitlab',
                       dropdownMenuEvent: 'import-from-gitlab',
+                    })
+                  }
+                />
+              </li>
+            )}
+            {ImportProjectFromGiteaMenu && (
+              <li role="none">
+                <ImportProjectFromGiteaMenu
+                  onClick={e =>
+                    handleModalMenuClick(e, {
+                      modalVariant: 'import_from_gitea',
+                      dropdownMenuEvent: 'import-from-gitea',
                     })
                   }
                 />

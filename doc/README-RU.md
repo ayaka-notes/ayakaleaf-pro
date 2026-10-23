@@ -53,6 +53,7 @@ Ayakaleaf Pro — это расширенная версия Overleaf, вклю�
 - Запуск Python-скриптов (выполняйте Python в своём проекте)
 - Двусторонняя синхронизация с GitHub (Enterprise) (push и pull с GitHub)
 - Двусторонняя синхронизация с GitLab (GitLab.com или собственный экземпляр GitLab)
+- Двусторонняя синхронизация с Gitea (Gitea.com или собственный экземпляр Gitea)
 - Интеграция с Zotero (с поддержкой Zotero OAuth)
 - Интеграция с Mendeley (с поддержкой Mendeley OAuth)
 - Расширенный поиск по библиографии (поиск по всем вашим Bib-записям)

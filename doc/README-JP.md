@@ -53,6 +53,7 @@ Ayakaleaf Pro は、ほぼすべての機能を備えた Overleaf の拡張版�
 - Python スクリプトランナー（プロジェクト内で Python を実行）
 - GitHub（Enterprise）双方向同期（GitHub とのプッシュ・プル）
 - GitLab 双方向同期（GitLab.com またはセルフホスト GitLab）
+- Gitea 双方向同期（Gitea.com またはセルフホスト Gitea）
 - Zotero 連携（Zotero OAuth 対応）
 - Mendeley 連携（Mendeley OAuth 対応）
 - 高度な参考文献検索（すべての Bib エントリを検索）

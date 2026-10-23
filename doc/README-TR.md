@@ -53,6 +53,7 @@ Ayakaleaf Pro, neredeyse tüm özellik ve yeteneklere sahip, Overleaf'in gelişt
 - Python betik çalıştırıcı (projenizde Python çalıştırın)
 - Çift yönlü GitHub (Enterprise) senkronizasyonu (GitHub ile push ve pull)
 - Çift yönlü GitLab senkronizasyonu (GitLab.com veya kendi sunucunuzda barındırılan GitLab)
+- Çift yönlü Gitea senkronizasyonu (Gitea.com veya kendi sunucunuzda barındırılan Gitea)
 - Zotero entegrasyonu (Zotero OAuth desteğiyle)
 - Mendeley entegrasyonu (Mendeley OAuth desteğiyle)
 - Gelişmiş kaynakça araması (tüm Bib kayıtlarınızda arama yapın)
