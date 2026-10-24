@@ -107,9 +107,14 @@ describe('the AI assistant', function () {
       reasoning: 'The user wants a definition.',
       text: '**LaTeX** is a typesetting system.',
     })
+    cy.intercept('POST', '/workbench/tex-gpt').as('texGpt')
     openAssistant()
     ask('What is LaTeX?')
 
+    // Compressing proxies would hold the stream until it ends
+    cy.wait('@texGpt')
+      .its('response.headers.cache-control')
+      .should('contain', 'no-transform')
     // Rendered as Markdown
     panel().should('contain.text', 'LaTeX is a typesetting system.')
     panel().should('not.contain.text', '**')

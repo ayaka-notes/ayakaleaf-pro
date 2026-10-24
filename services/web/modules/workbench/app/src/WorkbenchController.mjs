@@ -149,6 +149,8 @@ async function texGpt(req, res) {
       // Suggestion counts are unmetered. Token headers report the balance
       // before this request because headers are sent before streaming completes.
       headers: {
+        // no-transform keeps compressing proxies from holding the stream
+        'Cache-Control': 'no-cache, no-transform',
         'RateLimit-Remaining': '1000000',
         'RateLimit-Reset': '0',
         ...(remainingTokens !== null
