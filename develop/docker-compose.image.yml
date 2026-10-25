@@ -5,9 +5,6 @@ services:
   clsi:
     image: ghcr.io/ayaka-notes/overleaf-pro/dev:clsi
 
-  contacts:
-    image: ghcr.io/ayaka-notes/overleaf-pro/dev:contacts
-
   docstore:
     image: ghcr.io/ayaka-notes/overleaf-pro/dev:docstore
 
@@ -20,6 +17,9 @@ services:
   history-v1:
     image: ghcr.io/ayaka-notes/overleaf-pro/dev:history-v1
 
+  linked-url-proxy:
+    image: ghcr.io/ayaka-notes/overleaf-pro/dev:linked-url-proxy
+
   notifications:
     image: ghcr.io/ayaka-notes/overleaf-pro/dev:notifications
 
@@ -28,6 +28,9 @@ services:
 
   real-time:
     image: ghcr.io/ayaka-notes/overleaf-pro/dev:real-time
+
+  third-party-datastore:
+    image: ghcr.io/ayaka-notes/overleaf-pro/dev:third-party-datastore
 
   web:
     image: ghcr.io/ayaka-notes/overleaf-pro/dev:web

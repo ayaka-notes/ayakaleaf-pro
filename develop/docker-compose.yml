@@ -263,3 +263,5 @@ services:
   ldap:
     restart: always
     image: ghcr.io/rroemhild/docker-test-openldap:v2.5.0
+    healthcheck:
+      test: ["CMD-SHELL", "ldapsearch -H ldap://127.0.0.1:10389 -D \"$${LDAP_BINDDN}\" -w \"$${LDAP_SECRET}\" -b dc=planetexpress,dc=com -s base >/dev/null"]
