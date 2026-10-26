@@ -5,7 +5,12 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useChat } from '@ai-sdk/react'
-import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls, type UIMessage } from 'ai'
+import {
+  DefaultChatTransport,
+  isToolUIPart,
+  lastAssistantMessageIsCompleteWithToolCalls,
+  type UIMessage,
+} from 'ai'
 import type { EditorView } from '@codemirror/view'
 import getMeta from '@/utils/meta'
 import { debugConsole } from '@/utils/debugging'
@@ -34,6 +39,14 @@ const SEARCH_TOOLS = ['web_search', 'search_docs']
 type Summary = { summary: string; upToMessageId: string }
 
 type Selection = { fromLine: number; toLine: number; content: string }
+
+/** Settles with work, or rejects as soon as the signal aborts. */
+function untilAborted<T>(work: Promise<T>, signal: AbortSignal) {
+  return new Promise<T>((resolve, reject) => {
+    signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+    work.then(resolve, reject)
+  })
+}
 
 function contextBlock(path: string, selection: Selection[]) {
   const lines = [CONTEXT_OPEN, `Open file: ${path}`]
@@ -86,6 +99,16 @@ export default function ChatView({ chatId, view }: { chatId: string; view: Edito
   const [quotaHit, setQuotaHit] = useState(false)
   const [summary, setSummary] = useState<Summary | null>(null)
   const summaryRef = useRef<Summary | null>(null)
+  // The open file the model was last told about
+  const toldPath = useRef<string | null>(null)
+  // Browser tools still running, and whether the user stopped the reply
+  const running = useRef(new Set<AbortController>())
+  const [toolsRunning, setToolsRunning] = useState(0)
+  const stopped = useRef(false)
+
+  const { currentDocumentId } = useEditorOpenDocContext()
+  const { pathInFolder } = useFileTreePathContext()
+  const path = (currentDocumentId && pathInFolder(currentDocumentId)) || 'main.tex'
 
   const now = new Date()
   const canChat =
@@ -146,10 +169,12 @@ export default function ChatView({ chatId, view }: { chatId: string; view: Edito
     []
   )
 
-  const { messages, sendMessage, addToolOutput, stop, status } = useChat({
+  const { messages, setMessages, sendMessage, addToolOutput, stop, status } = useChat({
     id: chatId,
     transport,
-    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
+    // A tool that ends after Stop must not start the next step
+    sendAutomaticallyWhen: options =>
+      !stopped.current && lastAssistantMessageIsCompleteWithToolCalls(options),
     onData(part) {
       if (part.type === 'data-compaction') {
         summaryRef.current = part.data as Summary
@@ -171,17 +196,42 @@ export default function ChatView({ chatId, view }: { chatId: string; view: Edito
       const tool = TOOLS[toolCall.toolName]
       // Server tools and the edit proposal are answered elsewhere
       if (!tool?.run) return
+      // Stop and closing the panel both end the tool
+      const controller = new AbortController()
+      const abort = () => controller.abort()
+      signal.addEventListener('abort', abort)
+      running.current.add(controller)
+      setToolsRunning(running.current.size)
       try {
-        const output = await tool.run(toolCall.input, { view, actions: actionsRef.current, signal })
+        const output = await untilAborted(
+          Promise.resolve().then(() =>
+            tool.run!(toolCall.input, {
+              view,
+              openPath: path,
+              actions: actionsRef.current,
+              signal: controller.signal,
+            })
+          ),
+          controller.signal
+        )
         addToolOutput({ tool: toolCall.toolName, toolCallId: toolCall.toolCallId, output: output ?? null } as any)
       } catch (error) {
+        const aborted = controller.signal.aborted
         addToolOutput({
           tool: toolCall.toolName,
           toolCallId: toolCall.toolCallId,
           state: 'output-error',
-          errorText: error instanceof Error ? error.message : String(error),
+          errorText: aborted
+            ? 'Stopped by the user.'
+            : error instanceof Error
+              ? error.message
+              : String(error),
         } as any)
-        if (!(error instanceof ToolRefusal)) setProblem(true)
+        if (!aborted && !(error instanceof ToolRefusal)) setProblem(true)
+      } finally {
+        signal.removeEventListener('abort', abort)
+        running.current.delete(controller)
+        setToolsRunning(running.current.size)
       }
     },
   })
@@ -198,10 +248,13 @@ export default function ChatView({ chatId, view }: { chatId: string; view: Edito
 
   const respond = useCallback<Respond>(output => addToolOutput(output as any), [addToolOutput])
 
+  const stopReply = useCallback(() => {
+    stopped.current = true
+    running.current.forEach(controller => controller.abort())
+    stop()
+  }, [stop])
+
   const { editorSelection } = useEditorSelectionContext()
-  const { currentDocumentId } = useEditorOpenDocContext()
-  const { pathInFolder } = useFileTreePathContext()
-  const path = (currentDocumentId && pathInFolder(currentDocumentId)) || 'main.tex'
   const selection: Selection[] = useMemo(() => {
     const { doc } = view.state
     return (editorSelection?.ranges ?? [])
@@ -217,14 +270,33 @@ export default function ChatView({ chatId, view }: { chatId: string; view: Edito
     (draft: Draft) => {
       if (!canChat) return
       setProblem(false)
-      // The context goes with the first message and whenever text is selected
+      stopped.current = false
+      // An edit still waiting for Apply or Reject would reach the model as a
+      // call without a result, which the gateway refuses
+      setMessages(current =>
+        current.map(message => ({
+          ...message,
+          parts: message.parts.map(part =>
+            isToolUIPart(part) && part.type === 'tool-propose_edit' && part.state === 'input-available'
+              ? {
+                  ...part,
+                  state: 'output-error' as const,
+                  errorText: 'The user wrote again without applying or rejecting this edit; it was not applied.',
+                }
+              : part
+          ),
+        }))
+      )
+      // The context goes with the first message, whenever text is selected
+      // and when another file is open than the model was last told
       const withContext =
-        messages.length === 0 || selection.length > 0
+        toldPath.current !== path || selection.length > 0
           ? `${draft.text}\n\n${contextBlock(path, selection)}`
           : draft.text
+      toldPath.current = path
       sendMessage({ text: withContext, files: draft.files })
     },
-    [canChat, messages.length, path, selection, sendMessage]
+    [canChat, path, selection, sendMessage, setMessages]
   )
 
   const { box, onScroll } = useFollowBottom(messages)
@@ -284,10 +356,10 @@ export default function ChatView({ chatId, view }: { chatId: string; view: Edito
           typeof problem === 'string' ? <ChatNotice type="error" text={problem} /> : <ChatFailedNotice />
         )}
         <Composer
-          status={status}
+          working={status === 'submitted' || status === 'streaming' || toolsRunning > 0}
           selectionNote={selectionNote}
           onSend={send}
-          onStop={stop}
+          onStop={stopReply}
           onProblem={message => setProblem(message)}
         />
         {/* One line, or a break after the first sentence */}

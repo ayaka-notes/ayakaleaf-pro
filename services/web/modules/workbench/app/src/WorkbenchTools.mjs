@@ -8,29 +8,26 @@ import { z } from 'zod'
  */
 
 const lineNumber = z.number().int().min(1)
+const docPath = z.string().min(1).describe('Path of the document in the project.')
 
 export const CLIENT_TOOLS = {
   get_lines: tool({
     description:
-      'Return lines start..end (1-based, inclusive) of the document open in ' +
-      'the editor, as [{ line, content }].',
+      'Return lines start..end (1-based, inclusive) of a project document, ' +
+      'at most 1000, as { path, lineCount, lines: [{ line, content }] }.',
     inputSchema: z.object({
+      path: docPath,
       start: lineNumber.describe('First line to return.'),
       end: lineNumber.describe('Last line to return.'),
     }),
   }),
 
-  get_open_file: tool({
+  find_in_file: tool({
     description:
-      'Return every line of the document open in the editor, as [{ line, content }].',
-    inputSchema: z.object({}),
-  }),
-
-  find_in_open_file: tool({
-    description:
-      'Find lines of the open document that contain the given text. Returns ' +
-      'at most 10 matches as [{ line, content }].',
+      'Find lines of a project document that contain the given text. Returns ' +
+      'at most 10 matches as { path, matches: [{ line, content }] }.',
     inputSchema: z.object({
+      path: docPath,
       text: z.string().describe('Text to look for, matched literally.'),
     }),
   }),
@@ -39,7 +36,7 @@ export const CLIENT_TOOLS = {
     description:
       'Return the errors and warnings of the last compile (file, line, ' +
       'severity, message, log excerpt) and the linter warnings of the open ' +
-      'document. Check compiling, logsReady and hasUncompiledChanges to know ' +
+      'document, editorDiagnosticsFile. Check compiling, logsReady and hasUncompiledChanges to know ' +
       'whether the compile result is current; line is null when the log names none.',
     inputSchema: z.object({}),
   }),
@@ -59,11 +56,9 @@ export const CLIENT_TOOLS = {
 
   get_file: tool({
     description:
-      'Return every line of a project document without changing the open ' +
-      'document, as [{ line, content }].',
-    inputSchema: z.object({
-      path: z.string().describe('Path of the document in the project.'),
-    }),
+      'Return the lines of a project document, the first 1000 of a longer ' +
+      'one, as { path, lineCount, lines: [{ line, content }] }.',
+    inputSchema: z.object({ path: docPath }),
   }),
 
   propose_edit: tool({
@@ -73,7 +68,7 @@ export const CLIENT_TOOLS = {
       'oldText must be the current text of those lines, exactly, so the edit ' +
       'can still be placed if lines moved. Change as little as possible.',
     inputSchema: z.object({
-      path: z.string().min(1).describe('Path of the document in the project.'),
+      path: docPath,
       startLine: lineNumber.describe('First line to replace.'),
       endLine: lineNumber.describe('Last line to replace.'),
       oldText: z.string().describe('The current text of those lines, exactly.'),
@@ -106,7 +101,9 @@ export const CLIENT_TOOLS = {
   }),
 
   get_pdf_outline: tool({
-    description: 'Return the tagged structure of the compiled PDF, page by page.',
+    description:
+      'Return the tagged structure of the compiled PDF, page by page, as ' +
+      '{ pageCount, pages }; a long PDF is cut off after about 40,000 characters.',
     inputSchema: z.object({}),
   }),
 }

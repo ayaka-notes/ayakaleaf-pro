@@ -1,7 +1,7 @@
 /**
  * One proposed fix: the lines before and after as a word diff, copy, and
  * apply. A fix for another file first opens that file; a fix whose lines
- * have changed since cannot be applied.
+ * have changed since cannot be applied, one whose lines moved still can.
  */
 import { useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,23 +14,13 @@ import { useDetachCompileContext } from '@/shared/context/detach-compile-context
 import { useEditorOpenDocContext } from '@/features/ide-react/context/editor-open-doc-context'
 import { useFileTreePathContext } from '@/features/file-tree/contexts/file-tree-path'
 import sparkle from '@/shared/svgs/sparkle.svg'
-import { wordDiff, revealRange } from '@modules/workbench/frontend/js/agent/apply-edit'
+import { applyEdit, findEdit, wordDiff } from '@modules/workbench/frontend/js/agent/apply-edit'
 import type { Fix } from './use-fix-request'
 import { boxed, muted, plain, surface } from '@modules/workbench/frontend/js/chat/themed'
 
 // The old text on light red, the fix on light green, dark text on both
 const REMOVED = { backgroundColor: 'var(--bg-danger-01)', color: 'var(--content-primary-dark)' }
 const ADDED = { backgroundColor: 'var(--bg-accent-01)', color: 'var(--content-primary-dark)', textDecoration: 'none' }
-
-/** Offsets of the lines the fix replaces, if they still hold oldText. */
-function linesToReplace(view: EditorView, fix: Fix) {
-  const { doc } = view.state
-  const lastLine = fix.startLine + fix.oldText.split('\n').length - 1
-  if (lastLine > doc.lines) return null
-  const from = doc.line(fix.startLine).from
-  const to = doc.line(lastLine).to
-  return doc.sliceString(from, to) === fix.oldText ? { from, to } : null
-}
 
 function DiffRow({
   sign,
@@ -85,7 +75,7 @@ export default function FixCard({
 
   const openPath = currentDocumentId ? pathInFolder(currentDocumentId) : null
   const fileIsOpen = openPath === fix.path
-  const target = view && fileIsOpen ? linesToReplace(view, fix) : null
+  const target = view && fileIsOpen ? findEdit(view, fix) : null
   const goToLine = (open = false) =>
     syncToEntry({ file: fix.path, line: fix.startLine, column: 0 }, open)
 
@@ -95,19 +85,17 @@ export default function FixCard({
       return
     }
     // Read again: the document may have changed since this render
-    const range = view && linesToReplace(view, fix)
-    if (!view || !range) {
+    if (!view || findEdit(view, fix) === null) {
       refresh(n => n + 1)
       return
     }
-    view.dispatch({ changes: { ...range, insert: fix.newText } })
-    revealRange(view, range.from, range.from + fix.newText.length)
+    applyEdit(view, fix)
     onApplied()
     refresh(n => n + 1)
     if (recompileAfter) window.setTimeout(startCompile, 500)
   }
 
-  const stale = fileIsOpen && !target
+  const stale = fileIsOpen && target === null
   const button = (
     <OLButton variant="secondary" size="sm" disabled={compiling || stale} onClick={apply}>
       {fileIsOpen ? t('apply_suggestion') : t('open_path', { path: fix.path })}

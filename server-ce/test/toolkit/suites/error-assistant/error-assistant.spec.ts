@@ -208,6 +208,20 @@ describe('suggesting a fix', function () {
     assistant().contains('button', 'Apply suggestion').should('be.disabled')
   })
 
+  it('applies a fix after its line moved', function () {
+    queueReplies(fix)
+    openBrokenProject()
+    suggestFix()
+    assistant().findByText('Suggested code').should('exist')
+    editor().within(() => {
+      cy.findByText('\\section').parent().type('{end}\nA line above the error.')
+    })
+    assistant().findByRole('button', { name: 'Apply suggestion' }).click()
+    editor().should('contain.text', '\\textbf{Hello world.}')
+    editor().should('not.contain.text', '\\fakeCommand')
+    editor().should('contain.text', 'A line above the error.')
+  })
+
   it('suggests a different fix and takes feedback', function () {
     queueReplies(fix, {
       text: 'Or drop the command.',

@@ -28,13 +28,13 @@ function readAsDataUrl(file: File) {
 const Composer = forwardRef<
   HTMLTextAreaElement,
   {
-    status: string
+    working: boolean
     selectionNote?: string
     onSend: (draft: Draft) => void
     onStop: () => void
     onProblem: (message: string | false) => void
   }
->(function Composer({ status, selectionNote, onSend, onStop, onProblem }, ref) {
+>(function Composer({ working, selectionNote, onSend, onStop, onProblem }, ref) {
   const { t } = useTranslation()
   const [text, setText] = useState('')
   const [focused, setFocused] = useState(false)
@@ -43,7 +43,6 @@ const Composer = forwardRef<
   // Object URLs for the previews, released when the images change or go
   const previews = useMemo(() => images.map(file => URL.createObjectURL(file)), [images])
   useEffect(() => () => previews.forEach(url => URL.revokeObjectURL(url)), [previews])
-  const working = status === 'submitted' || status === 'streaming'
 
   const attach = (files: File[]) => {
     onProblem(false)

@@ -17,6 +17,8 @@ import { ToolRefusal } from '../errors'
 // Rendered pages are scaled down to about one megapixel before upload
 const PAGE_PIXEL_BUDGET = 1024 * 1024
 const COMPILE_LOG_WAIT_MS = 15_000
+// The outline stops at the page that takes it past this length
+const OUTLINE_CHARS = 40_000
 const READ_TIMEOUT_MS = 5000
 
 type CompileContext = ReturnType<typeof useDetachCompileContext>
@@ -189,11 +191,14 @@ export function useProjectActions(): ProjectActions {
     async (signal: AbortSignal) => {
       const pdf = await loadPdf()
       const pages = []
-      for (let page = 1; page <= pdf.numPages; page++) {
+      let length = 0
+      for (let page = 1; page <= pdf.numPages && length < OUTLINE_CHARS; page++) {
         signal.throwIfAborted()
-        pages.push({ page, structure: await (await pdf.getPage(page)).getStructTree() })
+        const entry = { page, structure: await (await pdf.getPage(page)).getStructTree() }
+        length += JSON.stringify(entry).length
+        pages.push(entry)
       }
-      return pages
+      return { pageCount: pdf.numPages, pages }
     },
     [loadPdf]
   )

@@ -10,6 +10,7 @@ import {
   setAiFeatures,
   type ChatRequest,
 } from '../../../helpers/ai'
+import { prepareWaitForNextCompileSlot } from '../../../helpers/compile'
 import { login } from '../../../helpers/login'
 import { dataUrl, openInOverleaf } from '../../../helpers/openInOverleaf'
 import { openProject } from '../../../helpers/project'
@@ -148,13 +149,17 @@ describe('the AI assistant', function () {
 
   it('runs a tool in the browser and sends its result back', function () {
     queueReplies(
-      { toolCalls: [{ name: 'get_lines', args: { start: 4, end: 4 } }] },
+      {
+        toolCalls: [
+          { name: 'get_lines', args: { path: 'main.tex', start: 4, end: 4 } },
+        ],
+      },
       { text: 'Line 4 greets the world.' }
     )
     openAssistant()
     ask('What does line 4 say?')
 
-    toolHeader('Read line 4').should('exist')
+    toolHeader('Read line 4 of main.tex').should('exist')
     panel().should('contain.text', 'Line 4 greets the world.')
     chatRequests().then(requests => {
       expect(requests).to.have.length(2)
@@ -267,6 +272,109 @@ describe('the AI assistant', function () {
     })
   })
 
+  it('leaves an undecided edit unapplied when the user writes again', function () {
+    queueReplies(
+      {
+        toolCalls: [
+          {
+            name: 'propose_edit',
+            args: {
+              path: 'main.tex',
+              startLine: 4,
+              endLine: 4,
+              oldText: 'Hello world.',
+              newText: 'Goodbye world.',
+            },
+          },
+        ],
+      },
+      { text: 'Then I will keep the greeting.' }
+    )
+    openAssistant()
+    ask('Change the greeting')
+    panel().findByRole('button', { name: 'Apply' }).should('exist')
+
+    ask('Actually, keep it')
+    panel().should('contain.text', 'Then I will keep the greeting.')
+    panel().findByRole('button', { name: 'Apply' }).should('not.exist')
+    editor().should('contain.text', 'Hello world.')
+    // The gateway refuses a tool call that has no result
+    chatRequests().then(requests => {
+      expect(requests).to.have.length(2)
+      expect(toolResults(requests[1])).to.contain(
+        'The user wrote again without applying or rejecting this edit'
+      )
+      expect(lastUserText(requests[1])).to.contain('Actually, keep it')
+    })
+  })
+
+  it('stops a tool that runs in the browser without carrying on', function () {
+    // The compile on opening the project must be over, or the tool refuses
+    // to start another
+    prepareWaitForNextCompileSlot().waitForCompile(() => cy.reload())
+    // Hold the compile so that Stop comes while the tool runs
+    cy.intercept(
+      { method: 'POST', pathname: /\/project\/[a-fA-F0-9]{24}\/compile$/ },
+      req => {
+        req.on('response', res => {
+          res.setDelay(3000)
+        })
+      }
+    ).as('compile')
+    queueReplies(
+      { toolCalls: [{ name: 'run_compile', args: {} }] },
+      { text: 'This step should not run.' }
+    )
+    openAssistant()
+    ask('Compile it')
+
+    // The browser runs the call while the card shows it waiting
+    toolHeader('Compile').should('contain.text', 'Waiting')
+    panel().findByRole('button', { name: 'Stop' }).click()
+    panel().should('contain.text', 'Stopped by the user.')
+    cy.wait('@compile')
+    panel().should('not.contain.text', 'This step should not run.')
+    chatRequests().should('have.length', 1)
+
+    // The next message goes out with the stopped call answered
+    queueReplies({ text: 'Fine.' })
+    ask('Never mind')
+    panel().should('contain.text', 'Fine.')
+    chatRequests().then(requests => {
+      expect(requests).to.have.length(2)
+      expect(toolResults(requests[1])).to.contain('Stopped by the user.')
+    })
+  })
+
+  it('tells the model again when another file is open', function () {
+    queueReplies(
+      { toolCalls: [{ name: 'new_file', args: { path: 'notes.tex' } }] },
+      { text: 'Created it.' },
+      { text: 'Two.' },
+      { text: 'Three.' }
+    )
+    openAssistant()
+    ask('Make a notes file')
+    panel().should('contain.text', 'Created it.')
+    // new_file opens the document it creates
+    cy.get('[role="treeitem"][aria-selected="true"]').should(
+      'contain.text',
+      'notes.tex'
+    )
+
+    ask('Second question')
+    panel().should('contain.text', 'Two.')
+    ask('Third question')
+    panel().should('contain.text', 'Three.')
+
+    chatRequests().then(requests => {
+      expect(requests).to.have.length(4)
+      expect(lastUserText(requests[0])).to.contain('Open file: main.tex')
+      expect(lastUserText(requests[2])).to.contain('Open file: notes.tex')
+      expect(lastUserText(requests[3])).not.to.contain('<editor-context>')
+    })
+  })
+
   it('searches the web through Tavily', function () {
     aiMock('PUT', '/web-results', {
       results: [
@@ -368,14 +476,14 @@ describe('the AI assistant', function () {
     queueReplies({
       toolCalls: [1, 2, 3, 4].map(line => ({
         name: 'get_lines',
-        args: { start: line, end: line },
+        args: { path: 'main.tex', start: line, end: line },
       })),
     })
     openAssistant()
     ask('Read every line')
 
-    toolHeader('Read line 3').should('exist')
-    toolHeader('Read line 4').should('not.exist')
+    toolHeader('Read line 3 of main.tex').should('exist')
+    toolHeader('Read line 4 of main.tex').should('not.exist')
     panel().should(
       'contain.text',
       'The assistant used all the steps it may take for one message. Reply to let it carry on.'
@@ -490,7 +598,7 @@ describe('the AI assistant', function () {
     queueReplies(
       {
         toolCalls: [
-          { name: 'get_open_file', args: {} },
+          { name: 'get_file', args: { path: 'main.tex' } },
           { name: 'search_docs', args: { query: 'share a project' } },
         ],
       },
@@ -514,7 +622,7 @@ describe('the AI assistant', function () {
       expect(condensed)
         .to.contain('Title: Sharing a project')
         .and.contain('Link: https://docs.overleaf.com/sharing')
-        .and.contain('The file then open, read in an earlier turn')
+        .and.contain('main.tex, read in an earlier turn')
         .and.not.contain('Click Share')
         .and.not.contain('section{Introduction}')
     })

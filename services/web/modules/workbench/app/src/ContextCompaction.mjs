@@ -92,12 +92,7 @@ function clip(text) {
     : text
 }
 
-const FILE_READS = new Set([
-  'get_lines',
-  'get_open_file',
-  'get_file',
-  'find_in_open_file',
-])
+const FILE_READS = new Set(['get_lines', 'get_file', 'find_in_file'])
 
 // File content goes stale once the file is edited, so it is dropped rather
 // than clipped; search results keep their sources, compile results their
@@ -105,10 +100,9 @@ const FILE_READS = new Set([
 function condenseOutput(name, input, output) {
   if (FILE_READS.has(name)) {
     const what = {
-      get_lines: `Lines ${input.start}-${input.end} of the file then open`,
-      get_open_file: 'The file then open',
+      get_lines: `Lines ${input.start}-${input.end} of ${input.path}`,
       get_file: input.path,
-      find_in_open_file: `Search for "${input.text}" in the file then open`,
+      find_in_file: `Search for "${input.text}" in ${input.path}`,
     }[name]
     return `[${what}, read in an earlier turn. Left out because the file may have changed since; read it again if needed.]`
   }

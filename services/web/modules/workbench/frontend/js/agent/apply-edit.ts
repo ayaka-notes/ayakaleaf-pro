@@ -53,31 +53,35 @@ export function wordDiff(before: string, after: string): Change[] {
   return result
 }
 
-/** Offset of oldText starting on a line, nearest to startLine. */
-function locate(view: EditorView, { startLine, oldText }: ProposedEdit) {
+/**
+ * Offset of oldText as whole lines, nearest to startLine, or null when the
+ * document no longer has it there.
+ */
+export function findEdit(view: EditorView, { startLine, oldText }: ProposedEdit) {
   const { doc } = view.state
   if (oldText === '') {
     return doc.line(Math.min(startLine, doc.lines)).from
   }
   const text = doc.toString()
-  let best = -1
-  let bestDrift = Infinity
+  let best: number | null = null
+  let bestDrift = DRIFT_LINES + 1
   for (let at = text.indexOf(oldText); at !== -1; at = text.indexOf(oldText, at + 1)) {
     const line = doc.lineAt(at)
+    const end = at + oldText.length
     const drift = Math.abs(line.number - startLine)
-    if (line.from === at && drift < bestDrift) {
+    if (line.from === at && doc.lineAt(end).to === end && drift < bestDrift) {
       best = at
       bestDrift = drift
     }
-  }
-  if (best === -1 || bestDrift > DRIFT_LINES) {
-    throw new EditMismatchError()
   }
   return best
 }
 
 export function applyEdit(view: EditorView, edit: ProposedEdit, reverting = false) {
-  const start = locate(view, edit)
+  const start = findEdit(view, edit)
+  if (start === null) {
+    throw new EditMismatchError()
+  }
   const changes = []
   let position = start
   for (const part of wordDiff(edit.oldText, edit.newText)) {

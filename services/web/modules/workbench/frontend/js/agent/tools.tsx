@@ -19,6 +19,8 @@ export type Respond = (output: ToolOutput) => void
 
 export type ToolRun = {
   view: EditorView
+  // Project path of the document the view shows
+  openPath: string
   actions: ProjectActions
   signal: AbortSignal
 }
@@ -37,34 +39,43 @@ function numbered(lines: Iterable<string>, first = 1): NumberedLine[] {
 
 const range = (from: number, to: number) => (from === to ? `${from}` : `${from}-${to}`)
 
+// One read returns at most this many lines; lineCount tells the model if
+// there are more
+const MAX_LINES = 1000
+const MAX_MATCHES = 10
+
+async function readLines(
+  { actions, signal }: ToolRun,
+  path: string,
+  start = 1,
+  end = Infinity
+) {
+  const all = (await actions.readFile(path, signal)).split('\n')
+  const first = Math.min(Math.max(start, 1), all.length)
+  const last = Math.min(Math.max(end, first), all.length, first + MAX_LINES - 1)
+  return { path, lineCount: all.length, lines: numbered(all.slice(first - 1, last), first) }
+}
+
 export const TOOLS: Record<string, ToolSpec> = {
   get_lines: {
-    label: ({ start, end }) => `Read line ${range(start, end)}`,
-    run({ start, end }, { view }) {
-      const { doc } = view.state
-      const first = Math.min(Math.max(start, 1), doc.lines)
-      const last = Math.min(Math.max(end, first), doc.lines)
-      return numbered(doc.iterLines(first, last + 1), first)
-    },
+    label: ({ path, start, end }) => `Read line ${range(start, end)} of ${path}`,
+    run: ({ path, start, end }, context) => readLines(context, path, start, end),
   },
 
-  get_open_file: {
-    label: () => 'Read the open file',
-    run: (input, { view }) => numbered(view.state.doc.iterLines()),
-  },
-
-  find_in_open_file: {
-    label: ({ text }) => `Find “${text ?? ''}”`,
-    run({ text }, { view }) {
-      return numbered(view.state.doc.iterLines())
-        .filter(({ content }) => content.includes(text))
-        .slice(0, 10)
+  find_in_file: {
+    label: ({ path, text }) => `Find “${text ?? ''}” in ${path}`,
+    async run({ path, text }, { actions, signal }) {
+      const lines = numbered((await actions.readFile(path, signal)).split('\n'))
+      return {
+        path,
+        matches: lines.filter(({ content }) => content.includes(text)).slice(0, MAX_MATCHES),
+      }
     },
   },
 
   get_problems: {
     label: () => 'Check the compile log',
-    run(input, { view, actions }) {
+    run(input, { view, openPath, actions }) {
       const { doc } = view.state
       const lint: { fromLine: number; toLine: number; severity: string; message: string }[] = []
       forEachDiagnostic(view.state, (diagnostic, from, to) => {
@@ -77,7 +88,7 @@ export const TOOLS: Record<string, ToolSpec> = {
           message: diagnostic.message,
         })
       })
-      return { ...actions.lastCompile(), editorDiagnostics: lint }
+      return { ...actions.lastCompile(), editorDiagnosticsFile: openPath, editorDiagnostics: lint }
     },
   },
 
@@ -93,9 +104,7 @@ export const TOOLS: Record<string, ToolSpec> = {
 
   get_file: {
     label: ({ path }) => `Read ${path}`,
-    async run({ path }, { actions, signal }) {
-      return numbered((await actions.readFile(path, signal)).split('\n'))
-    },
+    run: ({ path }, context) => readLines(context, path),
   },
 
   propose_edit: {
