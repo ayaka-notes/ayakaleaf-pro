@@ -182,6 +182,9 @@ async function texGpt(req, res) {
       return 'The AI service returned an error. Please try again.'
     }
     const stream = createUIMessageStream({
+      // Continues the last assistant message after browser tool calls;
+      // without it every response would start a new message
+      originalMessages: messages,
       execute({ writer }) {
         // The browser sends the summary and the later messages from now on
         if (compaction) {
