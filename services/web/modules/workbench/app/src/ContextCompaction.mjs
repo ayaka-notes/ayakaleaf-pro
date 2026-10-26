@@ -24,9 +24,9 @@ const TOOL_RESULT_CHARS = 2_000
 // An image or rendered PDF page, roughly.
 const IMAGE_TOKENS = 1_500
 
-const CJK = /[　-鿿가-힯豈-﫿＀-￯]/g
+const CJK = /[\u3000-\u9fff\uac00-\ud7af\uf900-\ufaff\uff00-\uffef]/g
 
-const SUMMARY_PROMPT = `You summarize the earlier part of a conversation between a user and the Overleaf AI assistant, so that the assistant can continue the conversation from your summary alone.
+const SUMMARY_PROMPT = `You summarize the earlier part of a conversation between a user and an AI assistant working in their LaTeX project, so that the assistant can continue the conversation from your summary alone.
 
 Write the summary in Markdown with these sections:
 - Goal: what the user is working on and wants to achieve.
@@ -58,8 +58,8 @@ function partTokens(part) {
   if (part.type === 'file') return IMAGE_TOKENS
   if (isToolPart(part)) {
     const input = textTokens(JSON.stringify(part.input ?? ''))
-    // view_page returns the page as base64 PNG
-    if (toolName(part) === 'view_page') return input + IMAGE_TOKENS
+    // render_pdf_page returns the page as base64 PNG
+    if (toolName(part) === 'render_pdf_page') return input + IMAGE_TOKENS
     return input + textTokens(JSON.stringify(part.output ?? part.errorText ?? ''))
   }
   return 0
@@ -92,12 +92,7 @@ function clip(text) {
     : text
 }
 
-const FILE_READS = new Set([
-  'read_lines',
-  'read_current_file',
-  'open_file',
-  'search_file',
-])
+const FILE_READS = new Set(['get_lines', 'get_file', 'find_in_file'])
 
 // File content goes stale once the file is edited, so it is dropped rather
 // than clipped; search results keep their sources, compile results their
@@ -105,22 +100,21 @@ const FILE_READS = new Set([
 function condenseOutput(name, input, output) {
   if (FILE_READS.has(name)) {
     const what = {
-      read_lines: `Lines ${input.fromLine}-${input.toLine} of the file then open`,
-      read_current_file: 'The file then open',
-      open_file: input.path,
-      search_file: `Search for "${input.query}" in the file then open`,
+      get_lines: `Lines ${input.start}-${input.end} of ${input.path}`,
+      get_file: input.path,
+      find_in_file: `Search for "${input.text}" in ${input.path}`,
     }[name]
     return `[${what}, read in an earlier turn. Left out because the file may have changed since; read it again if needed.]`
   }
   let kept = output
-  if (name === 'compile' || name === 'get_diagnostics') {
+  if (name === 'run_compile' || name === 'get_problems') {
     kept = {
       ...output,
       diagnostics: output.diagnostics.map(({ raw, ...entry }) => entry),
     }
   } else if (name === 'web_search') {
     kept = { action: output.action, sources: output.sources }
-  } else if (name === 'search_documentation') {
+  } else if (name === 'search_docs') {
     kept = output.content
       .map(item =>
         item.text
@@ -148,11 +142,11 @@ export function condenseOldToolOutputs(messages) {
     const parts = [...messages[i].parts]
     for (let j = parts.length - 1; j >= 0; j--) {
       const part = parts[j]
-      // view_page output is the rendered page, sent as an image
+      // render_pdf_page output is the rendered page, sent as an image
       if (
         !isToolPart(part) ||
         part.state !== 'output-available' ||
-        toolName(part) === 'view_page'
+        toolName(part) === 'render_pdf_page'
       ) {
         continue
       }
@@ -188,7 +182,7 @@ function transcript(messages, summary) {
       } else if (isToolPart(part)) {
         const name = toolName(part)
         const output =
-          name === 'view_page'
+          name === 'render_pdf_page'
             ? '[rendered PDF page]'
             : clip(JSON.stringify(part.output ?? part.errorText ?? null))
         lines.push(`[tool ${name} ${JSON.stringify(part.input ?? {})}] -> ${output}`)

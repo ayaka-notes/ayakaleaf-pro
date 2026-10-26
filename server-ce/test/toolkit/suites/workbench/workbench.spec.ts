@@ -10,6 +10,7 @@ import {
   setAiFeatures,
   type ChatRequest,
 } from '../../../helpers/ai'
+import { prepareWaitForNextCompileSlot } from '../../../helpers/compile'
 import { login } from '../../../helpers/login'
 import { dataUrl, openInOverleaf } from '../../../helpers/openInOverleaf'
 import { openProject } from '../../../helpers/project'
@@ -52,7 +53,7 @@ function editor() {
 }
 
 function panel() {
-  return cy.get('.workbench-panel')
+  return cy.get('[data-assistant-panel]')
 }
 
 // The editor remembers the open rail tab, clicking it again would close it
@@ -70,7 +71,7 @@ function ask(text: string) {
 }
 
 function toolHeader(title: string) {
-  return panel().contains('.tool-header', title)
+  return panel().contains('[data-tool-call]', title)
 }
 
 function lastUserText(request: ChatRequest) {
@@ -107,7 +108,7 @@ describe('the AI assistant', function () {
       reasoning: 'The user wants a definition.',
       text: '**LaTeX** is a typesetting system.',
     })
-    cy.intercept('POST', '/workbench/tex-gpt').as('texGpt')
+    cy.intercept('POST', '/workbench/chat').as('texGpt')
     openAssistant()
     ask('What is LaTeX?')
 
@@ -118,10 +119,10 @@ describe('the AI assistant', function () {
     // Rendered as Markdown
     panel().should('contain.text', 'LaTeX is a typesetting system.')
     panel().should('not.contain.text', '**')
-    panel().should('contain.text', 'Thought for')
+    panel().should('contain.text', 'Reasoned for')
     // The context block goes to the model, not into the chat
     panel().should('contain.text', 'What is LaTeX?')
-    panel().should('not.contain.text', 'START CONTEXT')
+    panel().should('not.contain.text', '<editor-context>')
 
     chatRequests().then(requests => {
       expect(requests).to.have.length(1)
@@ -129,32 +130,36 @@ describe('the AI assistant', function () {
       expect(request.model).to.equal('e2e-model')
       expect(request.messages[0].role).to.equal('system')
       expect(messageText(request.messages[0])).to.contain(
-        'You are the Overleaf AI assistant'
+        'You work inside a collaborative LaTeX editor'
       )
       expect(lastUserText(request))
         .to.contain('What is LaTeX?')
-        .and.contain('--- START CONTEXT')
-        .and.contain('Current path: main.tex')
+        .and.contain('<editor-context>')
+        .and.contain('Open file: main.tex')
       // Documentation and web search are on by default
       expect(request.tools).to.include.members([
-        'read_lines',
-        'replace_lines',
-        'compile',
+        'get_lines',
+        'propose_edit',
+        'run_compile',
         'web_search',
-        'search_documentation',
+        'search_docs',
       ])
     })
   })
 
   it('runs a tool in the browser and sends its result back', function () {
     queueReplies(
-      { toolCalls: [{ name: 'read_lines', args: { fromLine: 4, toLine: 4 } }] },
+      {
+        toolCalls: [
+          { name: 'get_lines', args: { path: 'main.tex', start: 4, end: 4 } },
+        ],
+      },
       { text: 'Line 4 greets the world.' }
     )
     openAssistant()
     ask('What does line 4 say?')
 
-    toolHeader('Read line 4').should('exist')
+    toolHeader('Read line 4 of main.tex').should('exist')
     panel().should('contain.text', 'Line 4 greets the world.')
     chatRequests().then(requests => {
       expect(requests).to.have.length(2)
@@ -167,14 +172,14 @@ describe('the AI assistant', function () {
       {
         toolCalls: [
           {
-            name: 'replace_lines',
+            name: 'propose_edit',
             args: {
               path: 'main.tex',
-              fromLine: 4,
-              toLine: 4,
-              existingContent: 'Hello world.',
-              newContent: 'Hello AI world.',
-              rationale: 'Mention the assistant.',
+              startLine: 4,
+              endLine: 4,
+              oldText: 'Hello world.',
+              newText: 'Hello AI world.',
+              reason: 'Mention the assistant.',
             },
           },
         ],
@@ -194,7 +199,7 @@ describe('the AI assistant', function () {
     panel().should('contain.text', 'I changed the greeting.')
     chatRequests().then(requests => {
       expect(requests).to.have.length(2)
-      expect(toolResults(requests[1])).to.contain('Change applied')
+      expect(toolResults(requests[1])).to.contain('Edit applied.')
     })
 
     panel().findByRole('button', { name: 'Undo' }).click()
@@ -209,13 +214,13 @@ describe('the AI assistant', function () {
       {
         toolCalls: [
           {
-            name: 'replace_lines',
+            name: 'propose_edit',
             args: {
               path: 'main.tex',
-              fromLine: 4,
-              toLine: 4,
-              existingContent: 'Hello world.',
-              newContent: 'Goodbye world.',
+              startLine: 4,
+              endLine: 4,
+              oldText: 'Hello world.',
+              newText: 'Goodbye world.',
             },
           },
         ],
@@ -231,7 +236,7 @@ describe('the AI assistant', function () {
     chatRequests().then(requests => {
       expect(requests).to.have.length(2)
       expect(JSON.stringify(requests[1].messages)).to.contain(
-        'The user chose not to accept this edit.'
+        'The user declined this edit.'
       )
     })
   })
@@ -241,13 +246,13 @@ describe('the AI assistant', function () {
       {
         toolCalls: [
           {
-            name: 'replace_lines',
+            name: 'propose_edit',
             args: {
               path: 'main.tex',
-              fromLine: 4,
-              toLine: 4,
-              existingContent: 'Text that is not there.',
-              newContent: 'Replacement.',
+              startLine: 4,
+              endLine: 4,
+              oldText: 'Text that is not there.',
+              newText: 'Replacement.',
             },
           },
         ],
@@ -262,8 +267,111 @@ describe('the AI assistant', function () {
     editor().should('not.contain.text', 'Replacement.')
     chatRequests().then(requests => {
       expect(JSON.stringify(requests[1].messages)).to.contain(
-        'The current text no longer matches this suggestion.'
+        'The document no longer contains the text this edit replaces, so it was not applied.'
       )
+    })
+  })
+
+  it('leaves an undecided edit unapplied when the user writes again', function () {
+    queueReplies(
+      {
+        toolCalls: [
+          {
+            name: 'propose_edit',
+            args: {
+              path: 'main.tex',
+              startLine: 4,
+              endLine: 4,
+              oldText: 'Hello world.',
+              newText: 'Goodbye world.',
+            },
+          },
+        ],
+      },
+      { text: 'Then I will keep the greeting.' }
+    )
+    openAssistant()
+    ask('Change the greeting')
+    panel().findByRole('button', { name: 'Apply' }).should('exist')
+
+    ask('Actually, keep it')
+    panel().should('contain.text', 'Then I will keep the greeting.')
+    panel().findByRole('button', { name: 'Apply' }).should('not.exist')
+    editor().should('contain.text', 'Hello world.')
+    // The gateway refuses a tool call that has no result
+    chatRequests().then(requests => {
+      expect(requests).to.have.length(2)
+      expect(toolResults(requests[1])).to.contain(
+        'The user wrote again without applying or rejecting this edit'
+      )
+      expect(lastUserText(requests[1])).to.contain('Actually, keep it')
+    })
+  })
+
+  it('stops a tool that runs in the browser without carrying on', function () {
+    // The compile on opening the project must be over, or the tool refuses
+    // to start another
+    prepareWaitForNextCompileSlot().waitForCompile(() => cy.reload())
+    // Hold the compile so that Stop comes while the tool runs
+    cy.intercept(
+      { method: 'POST', pathname: /\/project\/[a-fA-F0-9]{24}\/compile$/ },
+      req => {
+        req.on('response', res => {
+          res.setDelay(3000)
+        })
+      }
+    ).as('compile')
+    queueReplies(
+      { toolCalls: [{ name: 'run_compile', args: {} }] },
+      { text: 'This step should not run.' }
+    )
+    openAssistant()
+    ask('Compile it')
+
+    // The browser runs the call while the card shows it waiting
+    toolHeader('Compile').should('contain.text', 'Waiting')
+    panel().findByRole('button', { name: 'Stop' }).click()
+    panel().should('contain.text', 'Stopped by the user.')
+    cy.wait('@compile')
+    panel().should('not.contain.text', 'This step should not run.')
+    chatRequests().should('have.length', 1)
+
+    // The next message goes out with the stopped call answered
+    queueReplies({ text: 'Fine.' })
+    ask('Never mind')
+    panel().should('contain.text', 'Fine.')
+    chatRequests().then(requests => {
+      expect(requests).to.have.length(2)
+      expect(toolResults(requests[1])).to.contain('Stopped by the user.')
+    })
+  })
+
+  it('tells the model again when another file is open', function () {
+    queueReplies(
+      { toolCalls: [{ name: 'new_file', args: { path: 'notes.tex' } }] },
+      { text: 'Created it.' },
+      { text: 'Two.' },
+      { text: 'Three.' }
+    )
+    openAssistant()
+    ask('Make a notes file')
+    panel().should('contain.text', 'Created it.')
+    // new_file opens the document it creates
+    cy.get('[role="treeitem"][aria-selected="true"]').should(
+      'contain.text',
+      'notes.tex'
+    )
+
+    ask('Second question')
+    panel().should('contain.text', 'Two.')
+    ask('Third question')
+    panel().should('contain.text', 'Three.')
+
+    chatRequests().then(requests => {
+      expect(requests).to.have.length(4)
+      expect(lastUserText(requests[0])).to.contain('Open file: main.tex')
+      expect(lastUserText(requests[2])).to.contain('Open file: notes.tex')
+      expect(lastUserText(requests[3])).not.to.contain('<editor-context>')
     })
   })
 
@@ -284,8 +392,8 @@ describe('the AI assistant', function () {
     openAssistant()
     ask('Any news?')
 
-    panel().should('contain.text', 'Searched for "e2e news"')
-    panel().findByRole('button', { name: /Used 1 sources/ }).click()
+    toolHeader('Search the web for “e2e news”').should('exist')
+    panel().findByRole('button', { name: '1 source' }).click()
     panel()
       .findByRole('link', { name: 'https://news.example.com/e2e' })
       .should('have.attr', 'href', 'https://news.example.com/e2e')
@@ -314,7 +422,7 @@ describe('the AI assistant', function () {
     queueReplies(
       {
         toolCalls: [
-          { name: 'search_documentation', args: { query: 'share a project' } },
+          { name: 'search_docs', args: { query: 'share a project' } },
         ],
       },
       { text: 'Use the Share button.' }
@@ -322,8 +430,8 @@ describe('the AI assistant', function () {
     openAssistant()
     ask('How do I share a project?')
 
-    toolHeader('Search Overleaf documentation').should('exist')
-    panel().findByRole('button', { name: /Used 1 sources/ }).click()
+    toolHeader('Search the help pages for “share a project”').should('exist')
+    panel().findByRole('button', { name: '1 source' }).click()
     panel()
       .findByRole('link', { name: 'Sharing a project' })
       .should('have.attr', 'href', 'https://docs.overleaf.com/sharing')
@@ -343,7 +451,7 @@ describe('the AI assistant', function () {
     queueReplies({ text: 'A single pixel.' })
     openAssistant()
     panel()
-      .findByLabelText('Upload files')
+      .findByLabelText('Attach images')
       .selectFile(
         {
           contents: Cypress.Buffer.from(png, 'base64'),
@@ -367,18 +475,18 @@ describe('the AI assistant', function () {
     // AI_MAX_STEPS=3, the fourth call is dropped
     queueReplies({
       toolCalls: [1, 2, 3, 4].map(line => ({
-        name: 'read_lines',
-        args: { fromLine: line, toLine: line },
+        name: 'get_lines',
+        args: { path: 'main.tex', start: line, end: line },
       })),
     })
     openAssistant()
     ask('Read every line')
 
-    toolHeader('Read line 3').should('exist')
-    toolHeader('Read line 4').should('not.exist')
+    toolHeader('Read line 3 of main.tex').should('exist')
+    toolHeader('Read line 4 of main.tex').should('not.exist')
     panel().should(
       'contain.text',
-      'Tool call limit reached for this message. Send another message to continue.'
+      'The assistant used all the steps it may take for one message. Reply to let it carry on.'
     )
     // The follow-up with the results was refused before reaching the model
     chatRequests().should('have.length', 1)
@@ -386,6 +494,20 @@ describe('the AI assistant', function () {
     queueReplies({ text: 'Here is the rest.' })
     ask('Go on')
     panel().should('contain.text', 'Here is the rest.')
+  })
+
+  it('renders math in single and double dollars, and prices as text', function () {
+    queueReplies({
+      text: 'The roots of $ax^2 + bx + c = 0$ are $$x = \\frac{-b}{2a}$$ and it costs $5 and $10.\n\n$$y = mx + c$$',
+    })
+    openAssistant()
+    ask('Solve it')
+
+    // The formulas typeset by KaTeX, the prices left as text, and $$...$$ on
+    // a line of its own displayed as a block
+    panel().find('.katex').should('have.length', 3)
+    panel().find('.katex-display').should('have.length', 1)
+    panel().should('contain.text', 'costs $5 and $10.')
   })
 
   it('shows an error when the gateway fails and recovers', function () {
@@ -431,7 +553,7 @@ describe('the AI assistant', function () {
     panel().should('contain.text', 'Second answer.')
     panel().should(
       'contain.text',
-      'The messages above are summarized for the assistant.'
+      'The assistant now sees the messages above as a summary.'
     )
     ask('Third question')
     panel().should('contain.text', 'Third answer.')
@@ -476,8 +598,8 @@ describe('the AI assistant', function () {
     queueReplies(
       {
         toolCalls: [
-          { name: 'read_current_file', args: {} },
-          { name: 'search_documentation', args: { query: 'share a project' } },
+          { name: 'get_file', args: { path: 'main.tex' } },
+          { name: 'search_docs', args: { query: 'share a project' } },
         ],
       },
       { text: 'Use the Share button.' },
@@ -500,7 +622,7 @@ describe('the AI assistant', function () {
       expect(condensed)
         .to.contain('Title: Sharing a project')
         .and.contain('Link: https://docs.overleaf.com/sharing')
-        .and.contain('The file then open, read in an earlier turn')
+        .and.contain('main.tex, read in an earlier turn')
         .and.not.contain('Click Share')
         .and.not.contain('section{Introduction}')
     })
@@ -554,7 +676,7 @@ describe('the AI assistant', function () {
         {
           toolCalls: [
             {
-              name: 'search_documentation',
+              name: 'search_docs',
               args: { query: 'share a project' },
             },
           ],
@@ -663,7 +785,7 @@ describe('AI turned off for a user', function () {
       .its('body')
       .should('deep.equal', { allowed: false, errorAssistant: false })
     cy.visit('/project')
-    postWithCsrf('/workbench/tex-gpt', { messages: [] }).then(response => {
+    postWithCsrf('/workbench/chat', { messages: [] }).then(response => {
       expect(response.status).to.equal(403)
       expect(response.body).to.deep.equal({ error: 'ai_access_denied' })
     })
@@ -671,7 +793,7 @@ describe('AI turned off for a user', function () {
     openNewProject()
     openAssistant()
     panel().findByRole('region', { name: 'Give AI consent' }).should('not.exist')
-    panel().find('.conversation-footer').should('have.attr', 'inert')
+    panel().find('[data-chat-input]').should('have.attr', 'inert')
     chatRequests().should('have.length', 0)
   })
 
@@ -707,35 +829,37 @@ describe('the chat endpoint', function () {
 
   it('declares only the search tools the user turned on', function () {
     queueReplies({ text: 'One.' }, { text: 'Two.' })
-    postWithCsrf('/workbench/tex-gpt', {
+    postWithCsrf('/workbench/chat', {
       messages: [message('Hi')],
       enabledTools: [],
     })
       .its('status')
       .should('equal', 200)
-    postWithCsrf('/workbench/tex-gpt', {
+    postWithCsrf('/workbench/chat', {
       messages: [message('Hi')],
       enabledTools: ['web_search'],
     })
       .its('status')
       .should('equal', 200)
     chatRequests().then(([withNone, withWeb]) => {
-      expect(withNone.tools).to.include('read_lines')
+      expect(withNone.tools).to.include('get_lines')
       expect(withNone.tools).not.to.include('web_search')
-      expect(withNone.tools).not.to.include('search_documentation')
+      expect(withNone.tools).not.to.include('search_docs')
       expect(withWeb.tools).to.include('web_search')
-      expect(withWeb.tools).not.to.include('search_documentation')
-      expect(messageText(withWeb.messages[0])).to.contain('web_search tool')
+      expect(withWeb.tools).not.to.include('search_docs')
+      expect(messageText(withWeb.messages[0])).to.contain(
+        'web_search looks things up'
+      )
     })
   })
 
   it('refuses malformed messages and images from URLs', function () {
-    postWithCsrf('/workbench/tex-gpt', { messages: 'Hi' }).then(response => {
+    postWithCsrf('/workbench/chat', { messages: 'Hi' }).then(response => {
       expect(response.status).to.equal(400)
       expect(response.body).to.deep.equal({ error: 'invalid_request' })
     })
     // The server would fetch a remote image from its own network
-    postWithCsrf('/workbench/tex-gpt', {
+    postWithCsrf('/workbench/chat', {
       messages: [
         {
           id: 'm1',

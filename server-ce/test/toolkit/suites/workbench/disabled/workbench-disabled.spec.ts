@@ -22,7 +22,7 @@ it('hides the AI assistant and refuses the chat', function () {
   cy.request('/workbench/access')
     .its('body')
     .should('deep.equal', { allowed: false, errorAssistant: false })
-  postWithCsrf('/workbench/tex-gpt', {
+  postWithCsrf('/workbench/chat', {
     messages: [{ id: 'm1', role: 'user', parts: [{ type: 'text', text: 'Hi' }] }],
   }).then(response => {
     expect(response.status).to.equal(403)

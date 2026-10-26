@@ -38,11 +38,12 @@ const fix: Reply = {
   text: 'The command is not defined, use \\textbf instead.',
   toolCalls: [
     {
-      name: 'suggestLineChange',
+      name: 'propose_fix',
       args: {
         path: 'main.tex',
-        from: { line: 4, content: '\\fakeCommand{Hello world.}' },
-        to: { content: '\\textbf{Hello world.}' },
+        startLine: 4,
+        oldText: '\\fakeCommand{Hello world.}',
+        newText: '\\textbf{Hello world.}',
       },
     },
   ],
@@ -103,7 +104,7 @@ function suggestFix() {
 }
 
 function assistant() {
-  return cy.get('.ai-error-assistant')
+  return cy.get('[data-fix-panel]')
 }
 
 before(function () {
@@ -141,15 +142,16 @@ describe('suggesting a fix', function () {
       const [request] = requests
       expect(request.model).to.equal('e2e-model')
       // Only the edit tool, the source is in the prompt
-      expect(request.tools).to.deep.equal(['suggestLineChange'])
+      expect(request.tools).to.deep.equal(['propose_fix'])
       expect(messageText(request.messages[0])).to.contain(
-        'Fix exactly ONE LaTeX compile error'
+        'propose the smallest edit that removes it'
       )
       const prompt = messageText(request.messages[1])
       expect(prompt)
-        .to.contain('File: ./main.tex')
+        .to.contain('File: main.tex')
         .and.contain('Line: 4')
         .and.contain('Undefined control sequence')
+        .and.contain('Source of main.tex:')
         .and.contain('4: \\fakeCommand{Hello world.}')
     })
 
@@ -206,16 +208,31 @@ describe('suggesting a fix', function () {
     assistant().contains('button', 'Apply suggestion').should('be.disabled')
   })
 
+  it('applies a fix after its line moved', function () {
+    queueReplies(fix)
+    openBrokenProject()
+    suggestFix()
+    assistant().findByText('Suggested code').should('exist')
+    editor().within(() => {
+      cy.findByText('\\section').parent().type('{end}\nA line above the error.')
+    })
+    assistant().findByRole('button', { name: 'Apply suggestion' }).click()
+    editor().should('contain.text', '\\textbf{Hello world.}')
+    editor().should('not.contain.text', '\\fakeCommand')
+    editor().should('contain.text', 'A line above the error.')
+  })
+
   it('suggests a different fix and takes feedback', function () {
     queueReplies(fix, {
       text: 'Or drop the command.',
       toolCalls: [
         {
-          name: 'suggestLineChange',
+          name: 'propose_fix',
           args: {
             path: 'main.tex',
-            from: { line: 4, content: '\\fakeCommand{Hello world.}' },
-            to: { content: 'Hello world.' },
+            startLine: 4,
+            oldText: '\\fakeCommand{Hello world.}',
+            newText: 'Hello world.',
           },
         },
       ],
@@ -223,11 +240,6 @@ describe('suggesting a fix', function () {
     openBrokenProject()
     suggestFix()
     assistant().findByText('Suggested code').should('exist')
-
-    assistant().findByRole('button', { name: 'This was helpful' }).click()
-    assistant()
-      .find('.ai-error-assistant-feedback-positive')
-      .should('have.class', 'active')
 
     assistant().findByRole('button', { name: 'Suggest a different fix' }).click()
     assistant().findByText('Or drop the command.').should('exist')
@@ -243,7 +255,7 @@ describe('suggesting a fix', function () {
         'exist'
       )
       cy.findByText('Suggested code').should('not.exist')
-      cy.findByRole('button', { name: 'This was helpful' }).should('exist')
+      cy.findByRole('button', { name: 'Suggest a different fix' }).should('exist')
     })
   })
 
@@ -252,8 +264,8 @@ describe('suggesting a fix', function () {
       text: 'Here is a broken suggestion.',
       toolCalls: [
         {
-          name: 'suggestLineChange',
-          args: { path: 'main.tex', from: { line: 4 } },
+          name: 'propose_fix',
+          args: { path: 'main.tex', startLine: 4 },
         },
       ],
     })
@@ -261,7 +273,7 @@ describe('suggesting a fix', function () {
     suggestFix()
     assistant().within(() => {
       cy.findByText('Here is a broken suggestion.').should('exist')
-      cy.findByRole('button', { name: 'This was helpful' }).should('exist')
+      cy.findByRole('button', { name: 'Suggest a different fix' }).should('exist')
       cy.findByText('Suggested code').should('not.exist')
     })
   })
@@ -340,8 +352,8 @@ describe('AI turned off for a user', function () {
     openBrokenProject().then(projectId => {
       errorEntry()
       cy.findByRole('button', { name: 'Suggest fix' }).should('not.exist')
-      postWithCsrf(`/project/${projectId}/suggest-fix`, {
-        logEntry: { file: 'main.tex', line: 4, raw: 'Undefined control sequence' },
+      postWithCsrf(`/project/${projectId}/ai/fix-error`, {
+        entry: { file: 'main.tex', line: 4, raw: 'Undefined control sequence' },
       }).then(response => {
         expect(response.status).to.equal(403)
         expect(response.body).to.deep.equal({ error: 'ai_access_denied' })
@@ -351,9 +363,9 @@ describe('AI turned off for a user', function () {
   })
 })
 
-describe('the suggest-fix endpoint', function () {
+describe('the fix-error endpoint', function () {
   const stranger = `error-assistant-stranger-${Date.now()}@example.com`
-  const logEntry = {
+  const entry = {
     file: 'main.tex',
     line: 4,
     raw: 'Undefined control sequence',
@@ -371,18 +383,18 @@ describe('the suggest-fix endpoint', function () {
       snip_name: 'main.tex',
     }).then(projectId => {
       cy.visit('/project')
-      postWithCsrf(`/project/${projectId}/suggest-fix`, {}).then(response => {
+      postWithCsrf(`/project/${projectId}/ai/fix-error`, {}).then(response => {
         expect(response.status).to.equal(400)
-        expect(response.body).to.deep.equal({ error: 'missing_log_entry' })
+        expect(response.body).to.deep.equal({ error: 'invalid_request' })
       })
-      postWithCsrf(`/project/${projectId}/suggest-fix`, {
-        logEntry: { ...logEntry, file: undefined },
+      postWithCsrf(`/project/${projectId}/ai/fix-error`, {
+        entry: { ...entry, file: undefined },
       }).then(response => {
         expect(response.status).to.equal(400)
-        expect(response.body).to.deep.equal({ error: 'missing_file' })
+        expect(response.body).to.deep.equal({ error: 'invalid_request' })
       })
-      postWithCsrf(`/project/${projectId}/suggest-fix`, {
-        logEntry: { ...logEntry, file: 'missing.tex' },
+      postWithCsrf(`/project/${projectId}/ai/fix-error`, {
+        entry: { ...entry, file: 'missing.tex' },
       }).then(response => {
         expect(response.status).to.equal(404)
         expect(response.body).to.deep.equal({ error: 'file_not_found' })
@@ -399,7 +411,7 @@ describe('the suggest-fix endpoint', function () {
     }).then(projectId => {
       login(stranger)
       giveAiConsent()
-      postWithCsrf(`/project/${projectId}/suggest-fix`, { logEntry })
+      postWithCsrf(`/project/${projectId}/ai/fix-error`, { entry })
         .its('status')
         .should('equal', 403)
     })

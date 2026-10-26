@@ -17,10 +17,10 @@ export default {
     // Workbench AI chat (Vercel AI SDK useChat endpoint). The global JSON body
     // parser (12 MB by default) handles the UI-message history payload.
     webRouter.post(
-      '/workbench/tex-gpt',
+      '/workbench/chat',
       AuthenticationController.requireLogin(),
       PermissionsMiddleware.requireAiAccess,
-      WorkbenchController.texGpt
+      WorkbenchController.chat
     )
   },
 }

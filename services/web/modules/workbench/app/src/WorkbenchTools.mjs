@@ -2,178 +2,152 @@ import { convertToModelMessages, tool } from 'ai'
 import { z } from 'zod'
 
 /**
- * Declares the schemas of chat tools executed in the browser.
- * These tools omit server-side execute handlers so the AI SDK forwards calls
- * to the editor, where document state and user approval are available. The
- * client returns tool results and continues the conversation.
+ * Tools the browser runs: it holds the open documents, the compile state and
+ * the user's approval. They have no execute here, so the AI SDK hands each
+ * call to the client, which posts the result back with the next request.
  */
+
+const lineNumber = z.number().int().min(1)
+const docPath = z.string().min(1).describe('Path of the document in the project.')
+
 export const CLIENT_TOOLS = {
-  read_lines: tool({
+  get_lines: tool({
     description:
-      'Read a range of lines from the file currently open in the editor. ' +
-      'Lines are 1-indexed and the range is inclusive. Returns an array of ' +
-      '{ line, content }.',
+      'Return lines start..end (1-based, inclusive) of a project document, ' +
+      'at most 1000, as { path, lineCount, lines: [{ line, content }] }.',
     inputSchema: z.object({
-      fromLine: z.number().int().describe('First line to read (1-indexed, inclusive).'),
-      toLine: z.number().int().describe('Last line to read (1-indexed, inclusive).'),
+      path: docPath,
+      start: lineNumber.describe('First line to return.'),
+      end: lineNumber.describe('Last line to return.'),
     }),
   }),
 
-  read_current_file: tool({
+  find_in_file: tool({
     description:
-      'Read the entire contents of the file currently open in the editor, ' +
-      'returned as an array of { line, content }.',
+      'Find lines of a project document that contain the given text. Returns ' +
+      'at most 10 matches as { path, matches: [{ line, content }] }.',
+    inputSchema: z.object({
+      path: docPath,
+      text: z.string().describe('Text to look for, matched literally.'),
+    }),
+  }),
+
+  get_problems: tool({
+    description:
+      'Return the errors and warnings of the last compile (file, line, ' +
+      'severity, message, log excerpt) and the linter warnings of the open ' +
+      'document, editorDiagnosticsFile. Check compiling, logsReady and hasUncompiledChanges to know ' +
+      'whether the compile result is current; line is null when the log names none.',
     inputSchema: z.object({}),
   }),
 
-  search_file: tool({
-    description:
-      'Search the file currently open in the editor for a substring. Returns ' +
-      'up to the first 10 matching lines as { line, content }.',
-    inputSchema: z.object({
-      query: z.string().describe('The substring to search for.'),
-    }),
-  }),
-
-  get_diagnostics: tool({
-    description:
-      'Read the latest project compilation diagnostics, including file, line, ' +
-      'severity, message and raw log context, plus editor lint diagnostics for ' +
-      'the current file. A null line means the compiler did not report a line. ' +
-      'Check logsReady, compiling and hasUncompiledChanges before treating logs as current.',
+  list_project_files: tool({
+    description: 'Return the path of every file in the project.',
     inputSchema: z.object({}),
   }),
 
-  list_files: tool({
-    description: 'List the paths of all files in the current project.',
+  new_file: tool({
+    description:
+      'Create an empty document at a project path and open it in the editor.',
+    inputSchema: z.object({
+      path: z.string().describe('Path in the project, e.g. "chapters/results.tex".'),
+    }),
+  }),
+
+  get_file: tool({
+    description:
+      'Return the lines of a project document, the first 1000 of a longer ' +
+      'one, as { path, lineCount, lines: [{ line, content }] }.',
+    inputSchema: z.object({ path: docPath }),
+  }),
+
+  propose_edit: tool({
+    description:
+      'Suggest replacing lines startLine..endLine of a project document. ' +
+      'The user sees the change as a diff and decides whether to apply it. ' +
+      'oldText must be the current text of those lines, exactly, so the edit ' +
+      'can still be placed if lines moved. Change as little as possible.',
+    inputSchema: z.object({
+      path: docPath,
+      startLine: lineNumber.describe('First line to replace.'),
+      endLine: lineNumber.describe('Last line to replace.'),
+      oldText: z.string().describe('The current text of those lines, exactly.'),
+      newText: z.string().describe('The text to put in their place.'),
+      reason: z.string().optional().describe('Why, in one short sentence.'),
+    }),
+  }),
+
+  run_compile: tool({
+    description:
+      'Compile the project, wait for the new log and return its errors and ' +
+      'warnings with log excerpts.',
     inputSchema: z.object({}),
   }),
 
-  create_file: tool({
-    description:
-      'Create a new file at the given project-relative path and open it in the editor.',
+  choose_compiler: tool({
+    description: 'Switch the TeX engine of the project.',
     inputSchema: z.object({
-      path: z
-        .string()
-        .describe(
-          'Project-relative path of the file to create, e.g. "sections/intro.tex".'
-        ),
+      compiler: z.enum(['pdflatex', 'xelatex', 'lualatex', 'latex']),
     }),
   }),
 
-  open_file: tool({
+  render_pdf_page: tool({
     description:
-      'Read the entire contents of a project file without switching the editor. ' +
-      'Returns an array of { line, content } with 1-indexed lines.',
+      'Render one page of the compiled PDF and return it as an image, to ' +
+      'check how the output looks.',
     inputSchema: z.object({
-      path: z.string().describe('Project-relative path of the file to read.'),
+      page: lineNumber.describe('Page number, starting at 1.'),
     }),
   }),
 
-  replace_lines: tool({
+  get_pdf_outline: tool({
     description:
-      'Propose replacing a range of lines in a project file. The ' +
-      'user is shown a diff and must approve it before the change is applied, ' +
-      'so provide its project-relative path and the exact current content of ' +
-      'the lines being replaced ' +
-      '(so the edit can be located even if the document shifted) together with ' +
-      'the full replacement content. Keep edits as small as possible.',
-    inputSchema: z.object({
-      path: z
-        .string()
-        .min(1)
-        .describe('Project-relative path of the file whose content is being replaced.'),
-      fromLine: z
-        .number()
-        .int()
-        .describe('First line of the range to replace (1-indexed, inclusive).'),
-      toLine: z
-        .number()
-        .int()
-        .describe('Last line of the range to replace (1-indexed, inclusive).'),
-      existingContent: z
-        .string()
-        .describe(
-          'The exact current content of the lines being replaced, verbatim as it ' +
-            'appears in the document.'
-        ),
-      newContent: z
-        .string()
-        .describe('The replacement content for those lines.'),
-      rationale: z
-        .string()
-        .optional()
-        .describe('A short explanation of why this change is being made.'),
-    }),
-  }),
-
-  compile: tool({
-    description:
-      'Compile the current project and wait for its new diagnostics. Returns ' +
-      'compilation errors, warnings and their raw log context; inspect these ' +
-      'to determine whether compilation succeeded.',
-    inputSchema: z.object({}),
-  }),
-
-  set_compiler: tool({
-    description: 'Set the LaTeX compiler used to build the project.',
-    inputSchema: z.object({
-      compiler: z
-        .enum(['pdflatex', 'xelatex', 'lualatex', 'latex'])
-        .describe('The compiler to use.'),
-    }),
-  }),
-
-  view_page: tool({
-    description:
-      'Render a page of the compiled PDF and return it as an image, so you can ' +
-      'inspect the visual output of the document.',
-    inputSchema: z.object({
-      page: z.number().int().describe('1-indexed PDF page number to view.'),
-    }),
-  }),
-
-  view_struct_tree: tool({
-    description:
-      'Get the structure tree (document outline) of the compiled PDF.',
+      'Return the tagged structure of the compiled PDF, page by page, as ' +
+      '{ pageCount, pages }; a long PDF is cut off after about 40,000 characters.',
     inputSchema: z.object({}),
   }),
 }
 
 export default CLIENT_TOOLS
 
+const PNG_SIGNATURE = Buffer.from('89504e470d0a1a0a', 'hex')
+
+/**
+ * UI messages to model messages. A rendered page comes back from the browser
+ * as base64 PNG text; Chat Completions tool results are text only, so the
+ * page goes to the model in a user message right after the tool message.
+ */
 export async function convertWorkbenchMessages(messages) {
   const converted = await convertToModelMessages(messages)
   return converted.flatMap(message => {
     if (message.role !== 'tool') return [message]
 
-    const images = []
+    const pages = []
     const content = message.content.map(part => {
       if (
         part.type !== 'tool-result' ||
-        part.toolName !== 'view_page' ||
+        part.toolName !== 'render_pdf_page' ||
         part.output.type !== 'text'
       ) {
         return part
       }
       const image = part.output.value
-      const data = Buffer.from(image, 'base64')
+      const bytes = Buffer.from(image, 'base64')
       if (
-        data.toString('base64') !== image ||
-        !data.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))
+        bytes.toString('base64') !== image ||
+        !bytes.subarray(0, 8).equals(PNG_SIGNATURE)
       ) {
         throw new Error('Invalid PDF page image')
       }
-      images.push(
-        { type: 'text', text: `PDF page from tool call ${part.toolCallId}:` },
+      pages.push(
+        { type: 'text', text: `Rendered page for call ${part.toolCallId}:` },
         { type: 'image', image, mediaType: 'image/png' }
       )
-      return { ...part, output: { type: 'text', value: 'PDF page image attached.' } }
+      return { ...part, output: { type: 'text', value: 'The page is attached below.' } }
     })
 
-    // Chat Completions tool messages accept text; images need a user message.
-    return images.length
-      ? [{ ...message, content }, { role: 'user', content: images }]
+    return pages.length
+      ? [{ ...message, content }, { role: 'user', content: pages }]
       : [message]
   })
 }

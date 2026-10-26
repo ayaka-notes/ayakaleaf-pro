@@ -96,6 +96,21 @@ function streamReply(res, model, reply) {
   res.end()
 }
 
+// The ids of tool calls that no tool message answers. OpenAI refuses a
+// request with any: each assistant message with tool_calls must be followed
+// by a tool message for every tool_call_id.
+function unansweredToolCalls(messages) {
+  return messages.flatMap((message, index) => {
+    const answered = new Set()
+    for (let next = index + 1; messages[next]?.role === 'tool'; next++) {
+      answered.add(messages[next].tool_call_id)
+    }
+    return (message.tool_calls || [])
+      .map(call => call.id)
+      .filter(id => !answered.has(id))
+  })
+}
+
 const openai = [
   [
     'POST',
@@ -107,6 +122,14 @@ const openai = [
         tools: (body.tools || []).map(tool => tool.function.name),
         messages: body.messages,
       })
+      const unanswered = unansweredToolCalls(body.messages)
+      if (unanswered.length > 0) {
+        throw new HttpError(
+          400,
+          "An assistant message with 'tool_calls' must be followed by tool messages responding to each 'tool_call_id'. " +
+            `The following tool_call_ids did not have response messages: ${unanswered.join(', ')}`
+        )
+      }
       const reply = state.replies.shift()
       if (!reply) throw new HttpError(500, 'no reply queued')
       if (reply.status) {

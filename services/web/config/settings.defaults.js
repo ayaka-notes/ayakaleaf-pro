@@ -1048,7 +1048,7 @@ module.exports = {
     sourceEditorExtensions: [
       Path.resolve(
         __dirname,
-        '../modules/error-assistant/frontend/js/extensions/previous-fix'
+        '../modules/error-assistant/frontend/js/last-fix-store'
       ),
     ],
     sourceEditorVisualExtensions: [],
@@ -1056,19 +1056,19 @@ module.exports = {
     pdfLogEntryHeaderActionComponents: [
       Path.resolve(
         __dirname,
-        '../modules/error-assistant/frontend/js/components/suggest-fix-button'
+        '../modules/error-assistant/frontend/js/fix-button'
       ),
     ],
     pdfLogEntryComponents: [
       Path.resolve(
         __dirname,
-        '../modules/error-assistant/frontend/js/components/error-assistant'
+        '../modules/error-assistant/frontend/js/fix-panel'
       ),
     ],
     pdfLogEntriesComponents: [
       Path.resolve(
         __dirname,
-        '../modules/error-assistant/frontend/js/components/previous-fix-entry'
+        '../modules/error-assistant/frontend/js/last-fix-entry'
       ),
     ],
     pdfPreviewPromotions: [],
@@ -1087,7 +1087,7 @@ module.exports = {
     rootContextProviders: [
       Path.resolve(
         __dirname,
-        '../modules/workbench/frontend/js/context/workbench-settings-context'
+        '../modules/workbench/frontend/js/assistant-dock-context'
       ),
     ],
     mainEditorLayoutModals: [
@@ -1099,7 +1099,7 @@ module.exports = {
     mainEditorLayoutPanels: [
       Path.resolve(
         __dirname,
-        '../modules/workbench/frontend/js/components/workbench-dock'
+        '../modules/workbench/frontend/js/assistant-right-panel'
       ),
     ],
     pythonRunner: [
@@ -1301,7 +1301,7 @@ module.exports = {
     railEntries: [
       Path.resolve(
         __dirname,
-        '../modules/workbench/frontend/js/workbench-rail-entry'
+        '../modules/workbench/frontend/js/assistant-rail-entry'
       ),
     ],
     railPopovers: [],

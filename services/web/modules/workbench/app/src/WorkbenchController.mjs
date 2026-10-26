@@ -50,7 +50,7 @@ function hasValidAttachments(messages) {
 }
 
 /**
- * POST /workbench/tex-gpt
+ * POST /workbench/chat
  *
  * The workbench AI chat endpoint. Drives the Vercel AI SDK `useChat` client:
  * it condenses old tool output and summarizes the older turns of a long
@@ -60,7 +60,7 @@ function hasValidAttachments(messages) {
  * client-executed tool set declared, and pipes the resulting UI-message stream
  * straight back to the browser (`x-vercel-ai-ui-message-stream: v1`).
  */
-async function texGpt(req, res) {
+async function chat(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
 
   if (!isConfigured()) {
@@ -114,19 +114,18 @@ async function texGpt(req, res) {
     : []
   // Server-side search tools can run alongside browser document tools.
   const webSearch = enabledTools.includes('web_search') && isWebSearchConfigured()
-  const docsSearch =
-    enabledTools.includes('search_documentation') && isDocsSearchConfigured()
+  const docsSearch = enabledTools.includes('search_docs') && isDocsSearchConfigured()
   const tools = { ...CLIENT_TOOLS }
   if (webSearch) tools.web_search = WEB_SEARCH_TOOL
-  if (docsSearch) tools.search_documentation = DOCS_SEARCH_TOOL
+  if (docsSearch) tools.search_docs = DOCS_SEARCH_TOOL
 
   // Include instructions for the search tools available in this request.
   let system = SYSTEM_PROMPT
   if (webSearch) {
-    system += `\n\nYou have a web_search tool. When the user asks for current events, real-time data (weather, news, prices, latest versions) or anything beyond your training data, you MUST call web_search and answer from the results, citing the source URLs. Never say you cannot access the internet.`
+    system += `\n\nweb_search looks things up on the internet. Use it for anything recent or outside what you know, such as news, prices or the latest version of a package, answer from what it returns and link the pages you used. You do have internet access through it.`
   }
   if (docsSearch) {
-    system += `\n\nYou have a search_documentation tool that searches the documentation of this Overleaf instance. When the user asks how Overleaf itself works — features, settings, account/project management, administration — call search_documentation and answer from the results, linking the source pages. Prefer it over web_search for questions about Overleaf itself.`
+    system += `\n\nsearch_docs searches the help pages of this editor. Use it, rather than web_search, when the user asks how the editor itself works (its features, settings, projects, accounts or administration), and link the pages you used.`
   }
 
   let condensed
@@ -135,7 +134,7 @@ async function texGpt(req, res) {
     condensed = condenseOldToolOutputs(messages)
     modelMessages = await convertWorkbenchMessages(condensed)
   } catch (err) {
-    logger.warn({ err, userId }, 'workbench tex-gpt: could not parse messages')
+    logger.warn({ err, userId }, 'workbench chat: could not parse messages')
     return res.status(400).json({ error: 'invalid_messages' })
   }
 
@@ -146,7 +145,7 @@ async function texGpt(req, res) {
     compaction = await compactHistory({ messages: condensed, summary, userId })
   } catch (err) {
     // Send the whole history rather than fail the chat
-    logger.warn({ err, userId }, 'workbench tex-gpt: could not summarize history')
+    logger.warn({ err, userId }, 'workbench chat: could not summarize history')
   }
   if (compaction) {
     history = compaction.messages
@@ -178,7 +177,7 @@ async function texGpt(req, res) {
     })
 
     const onError = err => {
-      logger.err({ err, userId }, 'workbench tex-gpt stream error')
+      logger.err({ err, userId }, 'workbench chat stream error')
       return 'The AI service returned an error. Please try again.'
     }
     const stream = createUIMessageStream({
@@ -225,7 +224,7 @@ async function texGpt(req, res) {
       },
     })
   } catch (err) {
-    logger.err({ err, userId }, 'workbench tex-gpt failed')
+    logger.err({ err, userId }, 'workbench chat failed')
     if (!res.headersSent) {
       res.status(500).json({ error: 'internal' })
     }
@@ -238,5 +237,5 @@ export default {
     const access = await getAiAccess(SessionManager.getLoggedInUserId(req.session))
     res.json({ allowed: access.chat, errorAssistant: access.errorAssistant })
   }),
-  texGpt,
+  chat,
 }

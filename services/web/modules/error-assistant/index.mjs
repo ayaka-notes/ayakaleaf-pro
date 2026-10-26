@@ -1,8 +1,7 @@
-import ErrorAssistantRouter from './app/src/ErrorAssistantRouter.mjs'
+import FixErrorRouter from './app/src/FixErrorRouter.mjs'
 
-// AI Error Assistant backend — the "suggest fix" agent for compile errors.
-// Reuses the workbench AI gateway config (Settings.workbenchAi, set from
-// AI_BASE_URL / AI_API_KEY / AI_MODEL by the workbench module).
+// Suggests a fix for one compile error from the log. It uses the AI gateway,
+// quota and access settings of workbench (AI_BASE_URL, AI_API_KEY, AI_MODEL).
 export default {
-  router: ErrorAssistantRouter,
+  router: FixErrorRouter,
 }
