@@ -278,45 +278,6 @@ export const clientTools: Record<string, ClientTool> = {
       />
     ),
   },
-  image_generation: {
-    title: () => 'Generate image',
-    renderOutput(part) {
-      const src = 'data:image/png;base64,' + part.output.result
-      return (
-        <div style={{ width: '100%' }}>
-          <img src={src} alt="Generated" style={{ maxWidth: '100%', overflow: 'hidden' }} />
-        </div>
-      )
-    },
-  },
-  code_interpreter: {
-    title: () => 'Run code',
-    renderOutput: part => (
-      <div>
-        {part.output.outputs?.map((output: any, index: number) => {
-          switch (output.type) {
-            case 'logs':
-              return (
-                <pre className="p-2" key={index}>
-                  {output.logs}
-                </pre>
-              )
-            case 'image':
-              return (
-                <img
-                  src={output.url}
-                  alt="Generated"
-                  style={{ maxWidth: '100%', overflow: 'hidden' }}
-                  key={index}
-                />
-              )
-            default:
-              return null
-          }
-        })}
-      </div>
-    ),
-  },
   web_search: {
     title: () => 'Web search',
     renderOutput(part) {
@@ -423,9 +384,5 @@ export const serverTools: Record<string, ClientTool> = {
         </CollapsibleSources>
       )
     },
-  },
-  search_publications_dimensions: {
-    title: () => 'Search publications',
-    renderOutput: part => <div className="my-2">Searched for "{part.input.q}"</div>,
   },
 }

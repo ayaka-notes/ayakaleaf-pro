@@ -403,6 +403,64 @@ describe('the AI assistant', function () {
     panel().should('contain.text', 'Working again.')
   })
 
+  it('summarizes the earlier turns once the chat gets long', function () {
+    // About 112k tokens at 4 characters a token, over the 100k limit
+    const long = `Remember this: ${'word '.repeat(90000)}`
+    queueReplies(
+      { text: 'Noted.' },
+      { text: 'SUMMARY-OF-EARLIER-TURNS' },
+      { text: 'Second answer.' },
+      { text: 'Third answer.' }
+    )
+    openAssistant()
+    // Typing it would take minutes, so set the value the way a paste does
+    panel()
+      .findByPlaceholderText('What would you like to do?')
+      .then($textarea => {
+        const textarea = $textarea[0] as HTMLTextAreaElement
+        Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype,
+          'value'
+        )!.set!.call(textarea, long)
+        textarea.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+    panel().findByPlaceholderText('What would you like to do?').type('{enter}')
+    panel().should('contain.text', 'Noted.')
+
+    ask('Second question')
+    panel().should('contain.text', 'Second answer.')
+    panel().should(
+      'contain.text',
+      'The messages above are summarized for the assistant.'
+    )
+    ask('Third question')
+    panel().should('contain.text', 'Third answer.')
+
+    chatRequests().then(requests => {
+      expect(requests).to.have.length(4)
+      const [first, summarize, second, third] = requests
+      expect(lastUserText(first)).to.contain('Remember this')
+      // The first turn is summarized, without tools
+      expect(summarize.tools).to.be.empty
+      expect(messageText(summarize.messages[0])).to.contain(
+        'You summarize the earlier part'
+      )
+      expect(messageText(summarize.messages[1]))
+        .to.contain('Remember this')
+        .and.contain('Noted.')
+      // From then on the summary replaces the first turn
+      for (const request of [second, third]) {
+        expect(messageText(request.messages[0])).to.contain(
+          'SUMMARY-OF-EARLIER-TURNS'
+        )
+        const sent = request.messages.map(messageText).join('\n')
+        expect(sent).not.to.contain('Remember this')
+        expect(sent).to.contain('Second question')
+      }
+      expect(lastUserText(third)).to.contain('Third question')
+    })
+  })
+
   describe('when connecting takes over a second', function () {
     afterEach(function () {
       aiMock('POST', '/connect-delay', { ms: 0 })

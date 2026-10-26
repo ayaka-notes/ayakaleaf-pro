@@ -3,26 +3,14 @@
   --consent-notice-border: var(--green-20);
   --consent-notice-background: var(--bg-accent-03);
   --consent-filter: rgba(0, 0, 0, 0.1);
-  --upgrade-notification-background: var(--bg-info-03);
-  --upgrade-notification-color: var(--content-primary);
-  --upgrade-notification-border-color: var(--blue-60);
-  --empty-state-highlight-background: var(--green-10);
-  --empty-state-highlight-border: var(--green-20);
 }
-.citations-reviewer.dark,
 .conversation-footer.dark,
 .conversation.dark {
   --consent-notice-border: var(--border-primary);
   --consent-notice-background: var(--bg-dark-secondary);
   --consent-filter: hsla(0, 0%, 100%, 0.2);
-  --upgrade-notification-background: var(--bg-dark-secondary);
-  --upgrade-notification-color: var(--content-primary-dark);
-  --upgrade-notification-border-color: var(--blue-30);
-  --empty-state-highlight-background: var(--green-70);
-  --empty-state-highlight-border: var(--green-50);
 }
-[data-theme="default"] .workbench-chat-pane,
-[data-theme="default"] .workbench-feedback-link {
+[data-theme="default"] .workbench-chat-pane {
   --link-color: var(--link-color-dark);
   --link-hover-color: var(--link-hover-color-dark);
   --link-visited-color: var(--link-visited-color-dark);
@@ -33,23 +21,11 @@
   height: 100%;
   padding: var(--spacing-02);
 }
-.workbench-panel .dropdown-no-arrow.dropdown-toggle:after {
-  display: none;
-}
 .workbench-panel .workbench-panel-title-inner {
   align-items: center;
   container-type: inline-size;
   display: flex;
   gap: var(--spacing-03);
-}
-.workbench-panel .workbench-panel-title-inner .workbench-feedback-link {
-  display: none;
-  font-weight: 400;
-}
-@container (min-width: 212px) {
-  .workbench-panel .workbench-panel-title-inner .workbench-feedback-link {
-    display: block;
-  }
 }
 .conversation-content {
   min-height: 100%;
@@ -98,11 +74,6 @@
   text-align: left;
   width: 100%;
 }
-.conversation-empty-state .empty-state-action-list-item.highlighted {
-  background-color: var(--empty-state-highlight-background);
-  border-color: var(--empty-state-highlight-border);
-  color: var(--content-primary-themed);
-}
 .conversation-empty-state
   .empty-state-action-list-item
   .empty-state-action-list-item-icon {
@@ -123,26 +94,8 @@
   .empty-state-action-list-item-text {
   font-weight: var(--font-weight-semibold);
 }
-.conversation-empty-state
-  .empty-state-action-list-item
-  .empty-state-action-list-item-description {
-  color: var(--content-secondary-themed);
-  font-size: var(--font-size-01);
-  line-height: var(--line-height-01);
-}
 .conversation-empty-state .empty-state-action-list-item:disabled {
   border-color: var(--border-disabled-themed);
-  color: var(--content-disabled-themed);
-}
-.conversation-empty-state
-  .empty-state-action-list-item:disabled
-  .empty-state-action-list-item-description {
-  color: var(--content-disabled-themed);
-}
-.conversation-empty-state-title {
-  font-weight: var(--font-weight-semibold);
-}
-.conversation-empty-state-subtitle {
   color: var(--content-disabled-themed);
 }
 .conversation {
@@ -351,12 +304,6 @@
 .workbench-code-block .workbench-copy-code .btn {
   color: inherit;
 }
-.workbench-code-block-header .button-content {
-  color: var(--neutral-70);
-}
-.workbench-code-block-title {
-  font-size: var(--font-size-02);
-}
 .workbench-code-diff {
   background-color: var(--bg-primary-themed);
   border: 1px solid var(--border-primary-themed);
@@ -454,64 +401,6 @@
   color: var(--content-placeholder-themed);
   font-size: var(--font-size-01);
 }
-.tool-use .tool-codeblock {
-  font-size: 0.8rem;
-  line-height: 1.2;
-  max-height: 200px;
-  overflow-y: auto;
-}
-.workbench-editor-selection {
-  max-height: 5em;
-  overflow-y: auto;
-}
-.workbench-editor-selection pre {
-  background: var(--bg-secondary-themed);
-  border-radius: var(--border-radius-medium);
-  color: var(--content-primary-themed);
-  font-size: var(--font-size-01);
-  line-height: var(--line-height-02);
-  margin: var(--spacing-04);
-  padding: var(--spacing-04);
-  white-space: pre-wrap;
-}
-.chat-settings-popover {
-  background-color: var(--bg-primary-themed);
-  border: var(--dropdown-border-width) solid var(--dropdown-border-color);
-  color: var(--content-primary-themed);
-  min-width: 240px;
-  padding: 0;
-}
-.chat-settings-popover .popover-header {
-  border-bottom: none;
-  font-weight: var(--font-weight-semibold);
-  padding: var(--spacing-03) var(--spacing-04);
-}
-.chat-settings-popover .popover-body {
-  padding: var(--spacing-04) var(--spacing-04) var(--spacing-04);
-}
-.chat-settings-popover .settings-list {
-  background-color: var(--bg-primary-themed);
-  color: var(--content-primary-themed);
-  display: flex;
-  flex-direction: column;
-  font-size: var(--font-size-02);
-  gap: var(--spacing-03);
-}
-.chat-settings-popover .settings-list .form-check-label,
-.chat-settings-popover .settings-list .settings-section-heading {
-  color: inherit;
-}
-.chat-settings-popover .form-check {
-  margin: 0;
-}
-.chat-settings-popover .form-check .form-check-label {
-  cursor: pointer;
-}
-.chat-settings-popover .settings-separator {
-  border: 0;
-  border-top: 1px solid var(--neutral-20);
-  margin: var(--spacing-02) 0;
-}
 .workbench-tab-content {
   height: 100%;
   overflow: auto;
@@ -604,13 +493,6 @@
   background-color: var(--bg-secondary-themed);
   border-radius: var(--border-radius-base);
 }
-.workbench-chat-notification {
-  margin: 4px 4px 8px;
-  width: auto;
-}
-.workbench-menu-header {
-  font-size: var(--font-size-02);
-}
 .conversation.dark .workbench-code-diff-code ins {
   background-color: var(--green-70);
   color: var(--white);
@@ -633,17 +515,6 @@
 }
 .conversation-footer.dark .workbench-prompt-input-textarea {
   background: transparent;
-}
-.workbench-upgrade-notification {
-  background-color: var(--upgrade-notification-background) !important;
-  border: 2px solid var(--upgrade-notification-border-color) !important;
-  color: var(--upgrade-notification-color) !important;
-}
-.workbench-upgrade-notification .workbench-upgrade-notification-content {
-  align-items: flex-start;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-06);
 }
 .workbench-consent-wrapper {
   color: var(--content-primary-themed);

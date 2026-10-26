@@ -1,7 +1,8 @@
 /**
  * Manages the AI chat stream and browser-side tool calls.
  * Sends the current file path and selection as context, renders responses and tool
- * results, and handles consent, access, and usage-limit notices.
+ * results, and handles consent, access, and usage-limit notices. Once the server
+ * summarizes the earlier turns, sends the summary in place of them.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import classNames from 'classnames'
@@ -19,7 +20,6 @@ import { useEditorOpenDocContext } from '@/features/ide-react/context/editor-ope
 import { useFileTreePathContext } from '@/features/file-tree/contexts/file-tree-path'
 import useAiAccess from '@modules/workbench/frontend/js/hooks/use-ai-access'
 import { useActiveOverallTheme } from '@/shared/hooks/use-active-overall-theme'
-import { useFeatureFlag } from '@/shared/context/split-test-context'
 import useAiConsent from '@/shared/hooks/use-ai-consent'
 import useAbortController from '@/shared/hooks/use-abort-controller'
 import AiPaywallNotification from '@/shared/components/ai-paywall-notification'
@@ -27,7 +27,7 @@ import Notification from '@/shared/components/notification'
 import { formatSecondsToHoursAndMinutes } from '@/shared/utils/time'
 import { useTranslation } from 'react-i18next'
 import type { EditorView } from '@codemirror/view'
-import { useWorkbenchSettings, type WorkbenchTab } from '../context/workbench-settings-context'
+import { useWorkbenchSettings } from '../context/workbench-settings-context'
 import { useWorkbenchFileActions } from '../hooks/use-file-actions'
 import { clientTools, serverTools } from '../tools/client-tools'
 import { RateLimitError, ForbiddenError, ToolRejectionError, ToolCallLimitError } from '../errors'
@@ -53,6 +53,9 @@ import WorkbenchErrorNotification, { type WorkbenchError } from './error-notific
 import AiAssistantDisabled from './ai-assistant-disabled'
 
 const CONTEXT_MARKER = '--- START CONTEXT'
+
+/** The server's summary of the turns up to and including upToMessageId. */
+type Compaction = { summary: string; upToMessageId: string }
 
 // Identify message parts for their corresponding renderers.
 const isTextPart = (part: any) => part.type === 'text'
@@ -95,12 +98,10 @@ export default function WorkbenchChat({
   const [error, setError] = useState<WorkbenchError | 'paywalled' | false>(false)
   const {
     hasSuggestionsLeft,
-    suggestionsLeft,
     premiumSuggestionResetDate,
     setSuggestionsLeft,
     setPremiumSuggestionResetDate,
     hasTokensLeft,
-    tokensLeft,
     setTokensLeft,
     tokenResetDate,
     setTokenResetDate,
@@ -110,7 +111,7 @@ export default function WorkbenchChat({
   const { hasGivenAiConsent } = useAiConsent()
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const { signal } = useAbortController()
-  const { enabledTools, setTab, position, model } = useWorkbenchSettings()
+  const { position } = useWorkbenchSettings()
 
   // Check whether the user has access to AI features.
   const hasAiFeatures = useAiAccess()
@@ -120,16 +121,14 @@ export default function WorkbenchChat({
   const canChat =
     hasGivenAiConsent && hasAiFeatures && suggestionsOk && tokensOk && !showAiFeaturesDisabled
 
-  const configRef = useRef({ enabledTools, model })
-  useEffect(() => {
-    configRef.current = { enabledTools, model }
-  }, [enabledTools, model])
-
   const fileActions = useWorkbenchFileActions()
   const fileActionsRef = useRef(fileActions)
   useEffect(() => {
     fileActionsRef.current = fileActions
   }, [fileActions])
+
+  const [compaction, setCompaction] = useState<Compaction | null>(null)
+  const compactionRef = useRef<Compaction | null>(null)
 
   const transportRef = useRef<InstanceType<typeof DefaultChatTransport> | null>(null)
   if (transportRef.current === null) {
@@ -139,10 +138,26 @@ export default function WorkbenchChat({
         'X-Csrf-Token': getMeta('ol-csrfToken'),
       },
       body: () => ({
-        enabledTools: Array.from(configRef.current.enabledTools),
-        model: configRef.current.model,
-        chatId,
+        // Both search tools are on; the server adds the ones it has configured.
+        enabledTools: ['search_documentation', 'web_search'],
       }),
+      // Same body as the default, with the summarized turns left out
+      prepareSendMessagesRequest({ id, messages, body, trigger, messageId }) {
+        const compaction = compactionRef.current
+        const start = compaction
+          ? messages.findIndex(message => message.id === compaction.upToMessageId) + 1
+          : 0
+        return {
+          body: {
+            ...body,
+            id,
+            messages: messages.slice(start),
+            trigger,
+            messageId,
+            summary: compaction?.summary,
+          },
+        }
+      },
       async fetch(input: RequestInfo | URL, init?: RequestInit) {
         const response = await fetch(input, init)
         if (response.headers.get('RateLimit-Reset')) {
@@ -183,6 +198,12 @@ export default function WorkbenchChat({
     id: chatId,
     transport: transportRef.current,
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
+    onData(part: { type: string; data: unknown }) {
+      if (part.type === 'data-compaction') {
+        compactionRef.current = part.data as Compaction
+        setCompaction(part.data as Compaction)
+      }
+    },
     onError(err: unknown) {
       if (err instanceof RateLimitError) {
         setError('paywalled')
@@ -313,8 +334,6 @@ export default function WorkbenchChat({
   )
 
   const themeClass = classNames({ dark: overallTheme === 'dark' })
-  const showUsageIndicator = useFeatureFlag('testing-ai-usage')
-
   return (
     <PromptInputProvider>
       <Conversation
@@ -329,7 +348,6 @@ export default function WorkbenchChat({
             <ConversationEmptyState
               hasSelection={!selectionEmpty}
               sendMessage={handleSend}
-              setTab={setTab as (tab: WorkbenchTab) => void}
               disabled={!canChat}
             />
           ) : (
@@ -420,6 +438,11 @@ export default function WorkbenchChat({
                     })}
                   </MessageContent>
                 </Message>
+                {message.id === compaction?.upToMessageId && (
+                  <div className="text-muted small text-center my-2">
+                    The messages above are summarized for the assistant.
+                  </div>
+                )}
               </div>
             ))
           )}
@@ -459,12 +482,6 @@ export default function WorkbenchChat({
         <div className="workbench-ai-message">
           <span>AI can make mistakes.</span>
           <span>Always check responses.</span>
-          {showUsageIndicator && (
-            <div className="mx-3 small premium-suggestion-indicator">
-              {`you have ${suggestionsLeft} suggestions left`}
-              {` you have ${tokensLeft} tokens remaining`}
-            </div>
-          )}
         </div>
       </div>
     </PromptInputProvider>

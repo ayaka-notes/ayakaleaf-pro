@@ -2,14 +2,13 @@
  * Displays starter prompts for a new conversation.
  * Suggestions depend on the editor selection and available LaTeX diagnostics.
  */
-import { useCallback, useMemo, type FC, type PropsWithChildren, type ReactNode } from 'react'
+import { useCallback, useMemo, type FC, type PropsWithChildren } from 'react'
 import { shuffle } from 'lodash'
 import { diagnosticCount } from '@codemirror/lint'
 import MaterialIcon from '@/shared/components/material-icon'
 import { useEditorViewContext } from '@/features/ide-react/context/editor-view-context'
 import { sendMB } from '@/infrastructure/event-tracking'
 import { usePromptInput } from './prompt-input'
-import type { WorkbenchTab } from '../context/workbench-settings-context'
 
 type PromptSuggestion = {
   title: string
@@ -62,11 +61,6 @@ const GENERAL_SUGGESTIONS: PromptSuggestion[] = [
     title: 'Summarize this file',
     category: 'thinking',
   },
-  {
-    title: 'Find relevant research',
-    category: 'thinking',
-    prompt: 'Find research papers relevant to this project',
-  },
 ]
 
 // Starter prompts for the current editor selection.
@@ -86,11 +80,6 @@ const SELECTION_SUGGESTIONS: PromptSuggestion[] = [
   {
     title: 'Explain the LaTeX code used here',
     category: 'latex',
-  },
-  {
-    title: 'Suggest citation',
-    category: 'thinking',
-    prompt: 'Suggest a citation for this statement',
   },
   {
     title: 'Explain what this means',
@@ -122,12 +111,10 @@ function pickRandom<T>(items: T[], count: number): T[] {
 export const ConversationEmptyState = ({
   hasSelection,
   sendMessage,
-  setTab,
   disabled,
 }: {
   hasSelection: boolean
   sendMessage: (message: { text: string }) => void
-  setTab: (tab: WorkbenchTab) => void
   disabled: boolean
 }) => {
   const { view } = useEditorViewContext()
@@ -148,7 +135,7 @@ export const ConversationEmptyState = ({
         <EmptyStateActionList>
           <PromptSuggestionItem
             text="What can the assistant do for me?"
-            prompt="Succinctly explain your capabilities and what you can do for me in Overleaf. This should include help with LaTeX, refining writing, reviewing their content, and finding citations."
+            prompt="Succinctly explain your capabilities and what you can do for me in Overleaf. This should include help with LaTeX, refining writing and reviewing their content."
             sendMessage={sendMessage}
             disabled={disabled}
           />
@@ -189,38 +176,25 @@ const EmptyStateActionList: FC<PropsWithChildren> = ({ children }) => (
 
 export const EmptyStateActionItem = ({
   title,
-  description,
   icon,
-  postfix,
   onClick,
   disabled,
-  isHighlighted,
 }: {
   title: string
-  description?: string
   icon: string
-  postfix?: ReactNode
   onClick: () => void
   disabled?: boolean
-  isHighlighted?: boolean
 }) => (
   <li>
     <button
-      className={
-        'empty-state-action-list-item' +
-        (isHighlighted && !disabled ? ' highlighted' : '')
-      }
+      className="empty-state-action-list-item"
       onClick={onClick}
       disabled={disabled}
     >
       <MaterialIcon type={icon} className="empty-state-action-list-item-icon" />
       <div className="empty-state-action-list-item-content">
         <span className="empty-state-action-list-item-text">{title}</span>
-        {description && (
-          <span className="empty-state-action-list-item-description">{description}</span>
-        )}
       </div>
-      {!disabled && postfix}
     </button>
   </li>
 )

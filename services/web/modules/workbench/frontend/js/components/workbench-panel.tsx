@@ -11,14 +11,9 @@ import OLIconButton from '@/shared/components/ol/ol-icon-button'
 import OLTooltip from '@/shared/components/ol/ol-tooltip'
 import { useEditorViewContext } from '@/features/ide-react/context/editor-view-context'
 import { useRailContext } from '@/features/ide-react/context/rail-context'
-import useAiAccess from '@modules/workbench/frontend/js/hooks/use-ai-access'
-import useAiConsent from '@/shared/hooks/use-ai-consent'
 import { sendMB } from '@/infrastructure/event-tracking'
 import type { EditorView } from '@codemirror/view'
-import {
-  useWorkbenchSettings,
-  type WorkbenchTab,
-} from '../context/workbench-settings-context'
+import { useWorkbenchSettings } from '../context/workbench-settings-context'
 import WorkbenchChat from './workbench-chat'
 
 /** Dock-side switcher. */
@@ -90,16 +85,11 @@ const WorkbenchPanelInner = memo(function WorkbenchPanelInner({
   view: EditorView
 }) {
   const { t } = useTranslation()
-  const { tab, setTab, position, setOpen } = useWorkbenchSettings()
+  const { position, setOpen } = useWorkbenchSettings()
   const { isOpen, setIsOpen } = useRailContext()
   const [chatId, setChatId] = useState(() => uuid())
 
-  const hasAiFeatures = useAiAccess()
-  const { hasGivenAiConsent } = useAiConsent()
-  const showFeedbackLink = hasAiFeatures && hasGivenAiConsent
-
   const handleNewChat = useCallback(() => {
-    setTab('chat')
     const newChatId = uuid()
     setChatId(newChatId)
     sendMB('ai-chat', {
@@ -107,7 +97,7 @@ const WorkbenchPanelInner = memo(function WorkbenchPanelInner({
       action: 'start-new-chat',
       chatId: newChatId,
     })
-  }, [setTab])
+  }, [])
 
   const handleClose = useCallback(() => {
     setOpen(false)
@@ -136,8 +126,7 @@ const WorkbenchPanelInner = memo(function WorkbenchPanelInner({
         mountOnEnter
         unmountOnExit={false}
         transition={false}
-        activeKey={tab}
-        onSelect={key => setTab((key as WorkbenchTab) ?? 'chat')}
+        activeKey="chat"
         id="workbench-tabs"
       >
         <Tab.Content className="workbench-tab-content">
