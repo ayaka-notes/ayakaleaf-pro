@@ -197,6 +197,7 @@ const heading =
 const COMPONENTS = {
   // Blocks are spaced by the gap of the wrapper, not by their own margins
   p: ({ node, ...props }: any) => <p {...props} className="mb-0" />,
+  hr: ({ node, ...props }: any) => <hr {...props} className="my-1" />,
   h1: heading('h1', '--font-size-05', '--line-height-04'),
   h2: heading('h2', '--font-size-04', '--line-height-03'),
   h3: heading('h3', '--font-size-03', '--line-height-02'),

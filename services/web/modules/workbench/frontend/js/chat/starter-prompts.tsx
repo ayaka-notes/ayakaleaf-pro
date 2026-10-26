@@ -6,7 +6,7 @@ import { useMemo } from 'react'
 import { sampleSize } from 'lodash'
 import { useDetachCompileContext } from '@/shared/context/detach-compile-context'
 import MaterialIcon from '@/shared/components/material-icon'
-import { boxed, muted, plain } from './themed'
+import { boxed, muted, plain, ruleAbove } from './themed'
 
 type Idea = { label: string; message: string }
 
@@ -31,16 +31,28 @@ const ABOUT_THE_SELECTION: Idea[] = [
   { label: 'Make it a list', message: 'Turn the selection into a bulleted list.' },
 ]
 
-function IdeaButton({ idea, onPick, disabled }: { idea: Idea; onPick: (text: string) => void; disabled: boolean }) {
+function IdeaButton({
+  idea,
+  onPick,
+  disabled,
+  first,
+}: {
+  idea: Idea
+  onPick: (text: string) => void
+  disabled: boolean
+  first: boolean
+}) {
   return (
     <button
       type="button"
-      className="btn btn-link text-start text-decoration-none rounded d-flex align-items-center gap-2 px-3 py-2"
-      style={
-        disabled
-          ? { ...boxed, borderColor: 'var(--border-disabled-themed)', color: 'var(--content-disabled-themed)', opacity: 1, fontSize: 'inherit' }
-          : { ...boxed, ...plain, fontSize: 'inherit' }
-      }
+      className="btn btn-link text-start text-decoration-none rounded-0 d-flex align-items-center gap-2 px-3 py-2"
+      // One block: a line between the ideas, no gaps
+      style={{
+        border: 'none',
+        ...(first ? {} : ruleAbove),
+        ...(disabled ? { color: 'var(--content-disabled-themed)', opacity: 1 } : plain),
+        fontSize: 'inherit',
+      }}
       disabled={disabled}
       onClick={() => onPick(idea.message)}
     >
@@ -77,9 +89,9 @@ export default function StarterPrompts({
       <p className="mb-2" style={{ ...muted, fontSize: 'var(--font-size-01)' }}>
         Start a chat
       </p>
-      <div className="d-flex flex-column gap-2">
-        {ideas.map(idea => (
-          <IdeaButton idea={idea} onPick={onPick} disabled={disabled} key={idea.label} />
+      <div className="d-flex flex-column rounded overflow-hidden" style={boxed}>
+        {ideas.map((idea, i) => (
+          <IdeaButton idea={idea} onPick={onPick} disabled={disabled} first={i === 0} key={idea.label} />
         ))}
       </div>
     </div>
