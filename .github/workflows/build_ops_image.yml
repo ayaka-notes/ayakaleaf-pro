@@ -8,12 +8,46 @@
 
 name: Build Operations Image
 on:
+  # Skip pushes that only touch files the image does not contain
+  # (see server-ce/Dockerfile and server-ce/.dockerignore)
   push:
     branches:
       - server-pro
+    paths-ignore:
+      - 'server-ce/test/**'
+      - 'server-ce/hotfix/**'
+      - 'services/git-bridge/**'
+      - 'develop/**'
+      - 'doc/**'
+      - 'bin/**'
+      - '.devcontainer/**'
+      - 'docker-compose*.yml'
+      - 'LICENSE'
+      - '**/*.md'
+      - '.github/workflows/build_dev_image.yml'
+      - '.github/workflows/build_release_image.yml'
+      - '.github/workflows/sync_upstream.yml'
+      - '.github/workflows/test_criticality_score.yml'
+      - '.github/workflows/test_ops_image.yml'
   pull_request:
     branches:
       - server-pro
+    paths-ignore:
+      - 'server-ce/test/**'
+      - 'server-ce/hotfix/**'
+      - 'services/git-bridge/**'
+      - 'develop/**'
+      - 'doc/**'
+      - 'bin/**'
+      - '.devcontainer/**'
+      - 'docker-compose*.yml'
+      - 'LICENSE'
+      - '**/*.md'
+      - '.github/workflows/build_dev_image.yml'
+      - '.github/workflows/build_release_image.yml'
+      - '.github/workflows/sync_upstream.yml'
+      - '.github/workflows/test_criticality_score.yml'
+      - '.github/workflows/test_ops_image.yml'
   workflow_dispatch:
     inputs:
       no_cache:
