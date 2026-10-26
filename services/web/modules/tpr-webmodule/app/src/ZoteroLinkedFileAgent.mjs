@@ -88,6 +88,24 @@ async function refreshLinkedFile(
 async function _getBibtex(linkedFileData) {
   const userId = linkedFileData.importer_id
   try {
+    // Files created from a selection of items carry the exact keys to export.
+    if (
+      Array.isArray(linkedFileData.item_keys) &&
+      linkedFileData.item_keys.length
+    ) {
+      const libraryId =
+        linkedFileData.library && linkedFileData.library !== 'user'
+          ? linkedFileData.library
+          : null
+      const items = await ZoteroApiClient.getItemsBibtex(userId, {
+        libraryId,
+        itemKeys: linkedFileData.item_keys,
+      })
+      return items
+        .map(item => item.bibtex)
+        .filter(Boolean)
+        .join('\n\n')
+    }
     if (linkedFileData.group_id) {
       return await ZoteroApiClient.getGroupLibraryBibtex(
         userId,
@@ -113,6 +131,13 @@ function _sanitizeData(data) {
     ...(data.group_id && {
       group_id: data.group_id,
     }),
+    // Selection-based files keep everything needed for a later incremental
+    // sync (which items, which library/collection, at which versions).
+    ...(data.library && { library: data.library }),
+    ...(data.collection && { collection: data.collection }),
+    ...(Array.isArray(data.item_keys) && { item_keys: data.item_keys }),
+    ...(data.item_versions && { item_versions: data.item_versions }),
+    ...(data.mirror != null && { mirror: Boolean(data.mirror) }),
     importedAt: data.importedAt,
     ...(data.importer_id && {
       importer_id: String(data.importer_id),

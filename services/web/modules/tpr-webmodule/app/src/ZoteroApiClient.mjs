@@ -358,6 +358,343 @@ async function unlinkAccount(userId) {
   ).exec()
 }
 
+
+// ---- libraries, collections and items ------------------------------------
+//
+// Everything below backs the reference picker (search + cite) and collection
+// sync. Items are addressed through a library: 'user' for the personal
+// library, or the numeric id of a Zotero group.
+
+function _libraryPath(libraryId, zoteroUserId) {
+  return libraryId && libraryId !== 'user'
+    ? `/groups/${encodeURIComponent(libraryId)}`
+    : `/users/${encodeURIComponent(zoteroUserId)}`
+}
+
+/**
+ * Authenticated GET against the Zotero API. `pathOrFn` may be a function of the
+ * decrypted credentials when the path needs the Zotero user id.
+ */
+async function _request(userId, pathOrFn) {
+  const credentials = await _getCredentials(userId)
+  if (!credentials) {
+    throw new ZoteroAccountNotLinkedError()
+  }
+  const path =
+    typeof pathOrFn === 'function' ? pathOrFn(credentials) : pathOrFn
+  try {
+    const { body, response } = await fetchStringWithResponse(
+      `${ZOTERO_API_URL}${path}`,
+      withProxy({
+        headers: {
+          'Zotero-API-Version': '3',
+          'Zotero-API-Key': credentials.apiKey,
+        },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      })
+    )
+    return { body, response, credentials }
+  } catch (err) {
+    if (err.response?.status === 403) {
+      throw new ZoteroForbiddenError('Zotero API returned 403')
+    }
+    throw OError.tag(err, 'error requesting Zotero API', { path })
+  }
+}
+
+/**
+ * Personal library plus the groups the linked account can read.
+ */
+async function getLibraries(userId) {
+  const me = JSON.parse((await _request(userId, '/keys/current')).body)
+  const groups = JSON.parse(
+    (
+      await _request(
+        userId,
+        credentials => `/users/${credentials.zoteroUserId}/groups`
+      )
+    ).body
+  )
+  return {
+    personal: { id: 'user', name: me.username || 'My Library' },
+    groups: groups.map(group => ({
+      id: String(group.id),
+      name: group.data?.name || `Group ${group.id}`,
+    })),
+  }
+}
+
+/**
+ * Collections of one library, flat, with their parent collection key.
+ */
+async function getCollections(userId, { libraryId }) {
+  const body = (
+    await _request(
+      userId,
+      credentials =>
+        `${_libraryPath(libraryId, credentials.zoteroUserId)}/collections?limit=100`
+    )
+  ).body
+  const collections = JSON.parse(body).map(collection => ({
+    key: collection.key,
+    name: collection.data?.name || collection.key,
+    numItems: collection.meta?.numItems ?? null,
+    parent: collection.data?.parentCollection || null,
+    deleted: Boolean(collection.data?.deleted),
+  }))
+
+  // Zotero keeps deleted collections (and their children) in the trash; the
+  // list endpoint still returns them. Hide the whole subtree.
+  const byKey = new Map(collections.map(collection => [collection.key, collection]))
+  const isTrashed = collection => {
+    let current = collection
+    const seen = new Set()
+    while (current) {
+      if (current.deleted) {
+        return true
+      }
+      if (!current.parent || seen.has(current.parent)) {
+        return false
+      }
+      seen.add(current.parent)
+      current = byKey.get(current.parent)
+    }
+    return false
+  }
+
+  return collections
+    .filter(collection => !isTrashed(collection))
+    .map(({ deleted, ...collection }) => collection)
+}
+
+function _isReferenceItem(item) {
+  const type = item?.data?.itemType
+  return type !== 'attachment' && type !== 'note' && !item?.data?.deleted
+}
+
+function _mapItem(item) {
+  const data = item.data || {}
+  return {
+    key: item.key,
+    version: item.version,
+    itemType: data.itemType,
+    title: data.title || '',
+    date: data.date || '',
+    publication:
+      data.publicationTitle || data.bookTitle || data.proceedingsTitle || '',
+    creators: (data.creators || []).map(creator => ({
+      firstName: creator.firstName || '',
+      lastName: creator.lastName || '',
+      name: creator.name || '',
+    })),
+    url: data.url || '',
+    doi: data.DOI || '',
+  }
+}
+
+/**
+ * One page of references in a library or collection.
+ */
+async function listItems(
+  userId,
+  { libraryId, collectionKey = null, q, limit = 50, start = 0, mode = 'library' }
+) {
+  if (mode === 'trash') {
+    return await listTrashedItems(userId, { libraryId, limit, start })
+  }
+  if (mode === 'unfiled') {
+    return await listUnfiledItems(userId, { libraryId, q, limit, start })
+  }
+
+  const params = new URLSearchParams({
+    limit: String(limit),
+    start: String(start),
+    itemType: '-attachment',
+  })
+  if (q) {
+    params.set('q', q)
+  }
+  const { body, response } = await _request(userId, credentials => {
+    const base = _libraryPath(libraryId, credentials.zoteroUserId)
+    const collection = collectionKey
+      ? `/collections/${encodeURIComponent(collectionKey)}`
+      : ''
+    return `${base}${collection}/items?${params.toString()}`
+  })
+  const parsed = JSON.parse(body)
+  return {
+    items: parsed.filter(_isReferenceItem).map(_mapItem),
+    total: Number(response.headers.get('Total-Results') || 0),
+    fetched: parsed.length,
+    libraryVersion: Number(response.headers.get('Last-Modified-Version') || 0),
+  }
+}
+
+/**
+ * Page through a library/collection (Zotero caps a page at 100 items).
+ */
+async function listAllItems(
+  userId,
+  { libraryId, collectionKey = null, max = 2000 }
+) {
+  const items = []
+  let start = 0
+  while (items.length < max) {
+    const page = await listItems(userId, {
+      libraryId,
+      collectionKey,
+      limit: 100,
+      start,
+    })
+    items.push(...page.items)
+    if (page.fetched === 0 || start + page.fetched >= page.total) {
+      break
+    }
+    start += page.fetched
+  }
+  return items
+}
+
+/**
+ * Metadata (including the library version) for specific items.
+ */
+
+/**
+ * Items in the Zotero trash. Read-only for our purposes.
+ */
+async function listTrashedItems(userId, { libraryId, limit = 50, start = 0 }) {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    start: String(start),
+  })
+  const { body, response } = await _request(
+    userId,
+    credentials =>
+      `${_libraryPath(libraryId, credentials.zoteroUserId)}/items/trash?${params.toString()}`
+  )
+  const parsed = JSON.parse(body)
+  return {
+    items: parsed.filter(item => item.data?.itemType !== 'attachment').map(_mapItem),
+    total: Number(response.headers.get('Total-Results') || 0),
+    fetched: parsed.length,
+    libraryVersion: Number(response.headers.get('Last-Modified-Version') || 0),
+  }
+}
+
+/**
+ * Top-level items that belong to no collection ("Unfiled Items" in Zotero).
+ * The public API has no unfiled filter, so scan the top-level items once and
+ * filter client-side. Capped to keep a single request bounded.
+ */
+async function listUnfiledItems(
+  userId,
+  { libraryId, q, limit = 50, start = 0, max = 1000 }
+) {
+  const unfiled = []
+  let pageStart = 0
+  let libraryVersion = 0
+
+  while (pageStart < max) {
+    const params = new URLSearchParams({
+      limit: '100',
+      start: String(pageStart),
+      itemType: '-attachment',
+    })
+    if (q) {
+      params.set('q', q)
+    }
+    const { body, response } = await _request(
+      userId,
+      credentials =>
+        `${_libraryPath(libraryId, credentials.zoteroUserId)}/items/top?${params.toString()}`
+    )
+    libraryVersion = Number(
+      response.headers.get('Last-Modified-Version') || libraryVersion
+    )
+    const page = JSON.parse(body)
+    for (const item of page) {
+      if (
+        _isReferenceItem(item) &&
+        (item.data?.collections || []).length === 0
+      ) {
+        unfiled.push(_mapItem(item))
+      }
+    }
+    const total = Number(response.headers.get('Total-Results') || 0)
+    if (page.length === 0 || pageStart + 100 >= total) {
+      break
+    }
+    pageStart += 100
+  }
+
+  return {
+    items: unfiled.slice(start, start + limit),
+    total: unfiled.length,
+    fetched: Math.min(unfiled.length, start + limit),
+    libraryVersion,
+  }
+}
+
+async function getItems(userId, { libraryId, itemKeys }) {
+  if (!itemKeys?.length) {
+    return []
+  }
+  const params = new URLSearchParams({
+    itemKey: itemKeys.join(','),
+    limit: String(itemKeys.length),
+  })
+  const { body } = await _request(
+    userId,
+    credentials =>
+      `${_libraryPath(libraryId, credentials.zoteroUserId)}/items?${params.toString()}`
+  )
+  return JSON.parse(body).filter(_isReferenceItem).map(_mapItem)
+}
+
+/**
+ * BibTeX for a single item, together with the citation key Zotero generates
+ * for it (used directly inside \cite{...}).
+ */
+async function getItemBibtex(userId, { libraryId, itemKey }) {
+  const { body } = await _request(
+    userId,
+    credentials =>
+      `${_libraryPath(libraryId, credentials.zoteroUserId)}/items/${encodeURIComponent(
+        itemKey
+      )}?format=bibtex`
+  )
+  const match = body.match(/@\w+\s*\{\s*([^,\s]+)\s*,/)
+  return {
+    itemKey,
+    bibtex: body.trim(),
+    citationKey: match ? match[1] : null,
+  }
+}
+
+/**
+ * BibTeX for several items. Zotero has no batch "give me citation keys" API,
+ * so items are fetched individually with a small concurrency limit.
+ */
+async function getItemsBibtex(userId, { libraryId, itemKeys }) {
+  const results = []
+  const queue = [...new Set(itemKeys || [])]
+  const workers = Array.from(
+    { length: Math.min(4, queue.length) },
+    async () => {
+      while (queue.length) {
+        const itemKey = queue.shift()
+        try {
+          results.push(await getItemBibtex(userId, { libraryId, itemKey }))
+        } catch (err) {
+          logger.warn({ err, itemKey }, 'failed to fetch Zotero item bibtex')
+        }
+      }
+    }
+  )
+  await Promise.all(workers)
+  return results
+}
+
 export class ZoteroForbiddenError extends Error {
   constructor(message) {
     super(message)
@@ -374,6 +711,13 @@ export class ZoteroAccountNotLinkedError extends Error {
 
 export default {
   getGroupsForUser,
+  getLibraries,
+  getCollections,
+  listItems,
+  listAllItems,
+  getItems,
+  getItemBibtex,
+  getItemsBibtex,
   getUserLibraryBibtex,
   getGroupLibraryBibtex,
   getOAuthRequestToken,

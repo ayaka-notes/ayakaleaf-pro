@@ -1243,6 +1243,10 @@ module.exports = {
         __dirname,
         '../modules/full-project-search/frontend/js/components/full-project-search-button.tsx'
       ),
+      Path.resolve(
+        __dirname,
+        '../modules/tpr-webmodule/frontend/js/components/zotero-sync-button.tsx'
+      ),
     ],
     fullProjectSearchPanel: [
       Path.resolve(
