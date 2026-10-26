@@ -10,6 +10,8 @@ import {
 } from '@/shared/components/ol/ol-modal'
 import OLButton from '@/shared/components/ol/ol-button'
 import OLFormSelect from '@/shared/components/ol/ol-form-select'
+import OLFormSwitch from '@/shared/components/ol/ol-form-switch'
+import { useDetachCompileContext } from '@/shared/context/detach-compile-context'
 import { useIdeReactContext } from '@/features/ide-react/context/ide-react-context'
 import { usePermissionsContext } from '@/features/ide-react/context/permissions-context'
 import { useProjectContext } from '@/shared/context/project-context'
@@ -18,6 +20,8 @@ import { getJSON, postJSON } from '@/infrastructure/fetch-json'
 import { isValidTeXFile } from '@/main/is-valid-tex-file'
 import getMeta from '@/utils/meta'
 import { debugConsole } from '@/utils/debugging'
+import usePersistedState from '@/shared/hooks/use-persisted-state'
+import { COMPILE_SETUP_PROMPT_ENABLED_KEY } from '../compile-setup-prompt'
 import type {
   ImageName,
   MainDocument,
@@ -41,6 +45,8 @@ const COMPILER_LABELS: Record<ProjectCompiler, string> = {
 }
 
 const FALLBACK_COMPILER: ProjectCompiler = 'pdflatex'
+
+type CompileMode = 'normal' | 'fast_draft'
 
 function getDefaultCompiler(): ProjectCompiler {
   const configured = getMeta('ol-defaultLatexCompiler')
@@ -66,6 +72,7 @@ function getBareImageName(imageName?: string) {
  * The "already asked" state is stored per project on the server, so any
  * collaborator who confirms the settings once silences the prompt for
  * everybody. Closing the dialog does not mark the project as configured.
+ * Users can turn the prompt off from the Compiler settings tab.
  */
 export default function CompileSetupModal() {
   const { t } = useTranslation()
@@ -73,13 +80,30 @@ export default function CompileSetupModal() {
   const { projectJoined } = useIdeReactContext()
   const { write } = usePermissionsContext()
   const { docs } = useFileTreeData()
+  const {
+    draft,
+    autoCompile,
+    stopOnFirstError,
+    setDraft,
+    setAutoCompile,
+    setStopOnFirstError,
+  } = useDetachCompileContext()
 
   const [show, setShow] = useState(false)
   const [saving, setSaving] = useState(false)
   const [compiler, setCompiler] = useState<ProjectCompiler>(FALLBACK_COMPILER)
   const [imageName, setImageName] = useState('')
   const [rootDocId, setRootDocId] = useState('')
+  const [compileMode, setCompileMode] = useState<CompileMode>('normal')
+  const [stopOnFirstErrorValue, setStopOnFirstErrorValue] = useState(false)
+  const [autoCompileValue, setAutoCompileValue] = useState(false)
   const checkedRef = useRef(false)
+
+  const [promptEnabled] = usePersistedState(
+    COMPILE_SETUP_PROMPT_ENABLED_KEY,
+    true,
+    { listen: true }
+  )
 
   const imageNames = useMemo(
     () => (getMeta('ol-imageNames') || []) as ImageName[],
@@ -110,7 +134,7 @@ export default function CompileSetupModal() {
   )
 
   useEffect(() => {
-    if (checkedRef.current) {
+    if (checkedRef.current || !promptEnabled) {
       return
     }
     if (
@@ -151,6 +175,9 @@ export default function CompileSetupModal() {
         )
         setImageName(matchingImage?.imageName || fallbackImage?.imageName || '')
         setRootDocId(project.rootDocId || '')
+        setCompileMode(draft ? 'fast_draft' : 'normal')
+        setStopOnFirstErrorValue(stopOnFirstError)
+        setAutoCompileValue(autoCompile)
         setShow(true)
       } catch (err) {
         debugConsole.error(err)
@@ -162,7 +189,18 @@ export default function CompileSetupModal() {
     return () => {
       cancelled = true
     }
-  }, [docs, imageNames, project, projectId, projectJoined, write])
+  }, [
+    docs,
+    imageNames,
+    project,
+    projectId,
+    projectJoined,
+    write,
+    promptEnabled,
+    draft,
+    stopOnFirstError,
+    autoCompile,
+  ])
 
   const canSave =
     !saving &&
@@ -187,6 +225,16 @@ export default function CompileSetupModal() {
       await postJSON(`/project/${projectId}/settings`, { body: settings })
       await postJSON(`/project/${projectId}/compile-setup`, { body: {} })
 
+      if (compileMode !== (draft ? 'fast_draft' : 'normal')) {
+        setDraft(compileMode === 'fast_draft')
+      }
+      if (stopOnFirstErrorValue !== stopOnFirstError) {
+        setStopOnFirstError(stopOnFirstErrorValue)
+      }
+      if (autoCompileValue !== autoCompile) {
+        setAutoCompile(autoCompileValue)
+      }
+
       updateProject({
         compiler,
         ...(imageName ? { imageName } : {}),
@@ -198,7 +246,23 @@ export default function CompileSetupModal() {
     } finally {
       setSaving(false)
     }
-  }, [canSave, compiler, imageName, projectId, rootDocId, updateProject])
+  }, [
+    autoCompile,
+    autoCompileValue,
+    canSave,
+    compileMode,
+    compiler,
+    draft,
+    imageName,
+    projectId,
+    rootDocId,
+    setAutoCompile,
+    setDraft,
+    setStopOnFirstError,
+    stopOnFirstError,
+    stopOnFirstErrorValue,
+    updateProject,
+  ])
 
   return (
     <OLModal
@@ -214,6 +278,37 @@ export default function CompileSetupModal() {
       </OLModalHeader>
       <OLModalBody>
         <div className="compile-setup-form">
+          <div className="compile-setup-row">
+            <label
+              className="compile-setup-label"
+              htmlFor="compile-setup-root-doc"
+            >
+              {hasTexDocs && (
+                <span className="compile-setup-required" aria-hidden="true">
+                  *
+                </span>
+              )}
+              {t('main_document')}
+            </label>
+            <OLFormSelect
+              id="compile-setup-root-doc"
+              value={rootDocId}
+              disabled={!hasTexDocs}
+              onChange={event => setRootDocId(event.target.value)}
+            >
+              {!rootDocId && (
+                <option value="" disabled={hasTexDocs}>
+                  None
+                </option>
+              )}
+              {rootDocOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </OLFormSelect>
+          </div>
+
           <div className="compile-setup-row">
             <label
               className="compile-setup-label"
@@ -268,32 +363,48 @@ export default function CompileSetupModal() {
           <div className="compile-setup-row">
             <label
               className="compile-setup-label"
-              htmlFor="compile-setup-root-doc"
+              htmlFor="compile-setup-compile-mode"
             >
-              {hasTexDocs && (
-                <span className="compile-setup-required" aria-hidden="true">
-                  *
-                </span>
-              )}
-              {t('main_document')}
+              {t('compile_mode')}
             </label>
             <OLFormSelect
-              id="compile-setup-root-doc"
-              value={rootDocId}
-              disabled={!hasTexDocs}
-              onChange={event => setRootDocId(event.target.value)}
+              id="compile-setup-compile-mode"
+              value={compileMode}
+              onChange={event =>
+                setCompileMode(event.target.value as CompileMode)
+              }
             >
-              {!rootDocId && (
-                <option value="" disabled={hasTexDocs}>
-                  None
-                </option>
-              )}
-              {rootDocOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
+              <option value="normal">{t('normal')}</option>
+              <option value="fast_draft">{t('fast_draft')}</option>
             </OLFormSelect>
+          </div>
+
+          <div className="compile-setup-row">
+            <span className="compile-setup-label">
+              {t('stop_on_first_error')}
+            </span>
+            <div className="compile-setup-switch">
+              <OLFormSwitch
+                id="compile-setup-stop-on-first-error"
+                label={t('stop_on_first_error')}
+                checked={stopOnFirstErrorValue}
+                onChange={event =>
+                  setStopOnFirstErrorValue(event.target.checked)
+                }
+              />
+            </div>
+          </div>
+
+          <div className="compile-setup-row">
+            <span className="compile-setup-label">{t('autocompile')}</span>
+            <div className="compile-setup-switch">
+              <OLFormSwitch
+                id="compile-setup-auto-compile"
+                label={t('autocompile')}
+                checked={autoCompileValue}
+                onChange={event => setAutoCompileValue(event.target.checked)}
+              />
+            </div>
           </div>
         </div>
       </OLModalBody>

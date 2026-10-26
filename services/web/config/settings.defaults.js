@@ -1291,6 +1291,12 @@ module.exports = {
     referenceSearchSetting: [],
     settingsModalEditorTabSections: [],
     settingsModalSpellcheckSections: [],
+    settingsModalCompilerTabSettings: [
+      Path.resolve(
+        __dirname,
+        '../modules/compile-setup/frontend/js/components/compile-setup-prompt-setting'
+      ),
+    ],
     editorFloatingMenuActions: [],
     referenceIndices: [
       Path.resolve(
