@@ -2,8 +2,9 @@
  * One tool call in the conversation: what it does, where it stands, and the
  * tool's own content (an edit to review, a rendered page, the sources found).
  */
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import MaterialIcon from '@/shared/components/material-icon'
+import SourceLinks, { type Link } from './source-links'
 import { faint, muted } from './themed'
 
 function StateMark({ state }: { state: string }) {
@@ -32,20 +33,47 @@ export default function ToolCard({
   state,
   label,
   errorText,
+  links,
   children,
 }: {
   name: string
   state: string
   label: string
   errorText?: string
+  links?: Link[]
   children?: ReactNode
 }) {
+  const [open, setOpen] = useState(false)
+  const header = (truncate: boolean) => (
+    <>
+      <StateMark state={state} />
+      <span className={truncate ? 'text-truncate' : undefined}>{label}</span>
+    </>
+  )
   return (
     <div style={{ fontSize: 'var(--font-size-01)' }}>
       <div className="d-flex align-items-center gap-1" style={faint} data-tool-call={name}>
-        <StateMark state={state} />
-        <span>{label}</span>
+        {links?.length ? (
+          // The whole row opens the results; the count and arrow sit at its end
+          <button
+            type="button"
+            className="btn btn-link btn-sm p-0 flex-grow-1 text-start text-reset text-decoration-none d-flex align-items-center gap-1"
+            // A long query is cut short rather than pushing the count out
+            style={{ fontSize: 'inherit', minWidth: 0 }}
+            aria-expanded={open}
+            onClick={() => setOpen(!open)}
+          >
+            {header(true)}
+            <span className="ms-auto flex-shrink-0 d-flex align-items-center">
+              {links.length === 1 ? '1 result' : `${links.length} results`}
+              <MaterialIcon type={open ? 'keyboard_arrow_down' : 'keyboard_arrow_right'} />
+            </span>
+          </button>
+        ) : (
+          header(false)
+        )}
       </div>
+      {open && links?.length ? <SourceLinks links={links} /> : null}
       {state === 'output-error' && errorText && (
         <div className="ms-4" style={muted}>
           {errorText}

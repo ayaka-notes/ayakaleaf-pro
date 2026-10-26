@@ -1,38 +1,36 @@
 /**
- * The pages a search tool returned, folded behind a count until opened.
+ * The pages a search tool returned, one link a row, shown when its tool card
+ * is opened.
  */
-import { useState } from 'react'
-import MaterialIcon from '@/shared/components/material-icon'
-import { link as linkColor } from './themed'
+import { boxed, faint, muted, plain, ruleAbove } from './themed'
 
-type Link = { href?: string; text?: string }
+export type Link = { href?: string; text?: string }
+
+const domainOf = (href?: string) => (href ? new URL(href).hostname.replace(/^www\./, '') : '')
 
 export default function SourceLinks({ links }: { links: Link[] }) {
-  const [open, setOpen] = useState(false)
-  if (links.length === 0) return null
   return (
-    <div style={{ fontSize: 'var(--font-size-01)' }}>
-      <button
-        type="button"
-        className="btn btn-link btn-sm p-0 text-reset text-decoration-none d-inline-flex align-items-center"
-        style={{ fontSize: 'inherit' }}
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      >
-        {links.length === 1 ? '1 source' : `${links.length} sources`}
-        <MaterialIcon type={open ? 'keyboard_arrow_down' : 'keyboard_arrow_right'} />
-      </button>
-      {open && (
-        <ul className="list-unstyled mb-0 ps-2 d-flex flex-column gap-1">
-          {links.map(link => (
-            <li key={link.href}>
-              <a href={link.href} style={linkColor} target="_blank" rel="noreferrer">
-                {link.text}
-              </a>
-            </li>
-          ))}
-        </ul>
-      )}
+    <div className="rounded overflow-hidden mt-1 mb-1" style={boxed}>
+      <div className="px-2 py-1" style={muted}>
+        Results
+      </div>
+      {links.map(link => (
+        <a
+          className="d-flex align-items-center gap-2 px-2 py-1 text-decoration-none"
+          style={ruleAbove}
+          href={link.href}
+          target="_blank"
+          rel="noreferrer"
+          key={link.href}
+        >
+          <span className="text-truncate" style={plain}>
+            {link.text}
+          </span>
+          <span className="ms-auto flex-shrink-0" style={faint}>
+            {domainOf(link.href)}
+          </span>
+        </a>
+      ))}
     </div>
   )
 }

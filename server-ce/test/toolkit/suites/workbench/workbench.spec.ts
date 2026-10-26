@@ -393,9 +393,9 @@ describe('the AI assistant', function () {
     ask('Any news?')
 
     toolHeader('Search the web for “e2e news”').should('exist')
-    panel().findByRole('button', { name: '1 source' }).click()
+    panel().findByRole('button', { name: /1 result/ }).click()
     panel()
-      .findByRole('link', { name: 'https://news.example.com/e2e' })
+      .findByRole('link', { name: /^E2E news/ })
       .should('have.attr', 'href', 'https://news.example.com/e2e')
     panel().should('contain.text', 'The news says the tests passed.')
 
@@ -431,9 +431,9 @@ describe('the AI assistant', function () {
     ask('How do I share a project?')
 
     toolHeader('Search the help pages for “share a project”').should('exist')
-    panel().findByRole('button', { name: '1 source' }).click()
+    panel().findByRole('button', { name: /1 result/ }).click()
     panel()
-      .findByRole('link', { name: 'Sharing a project' })
+      .findByRole('link', { name: /^Sharing a project/ })
       .should('have.attr', 'href', 'https://docs.overleaf.com/sharing')
     panel().should('contain.text', 'Use the Share button.')
 

@@ -8,7 +8,7 @@ import type { EditorView } from '@codemirror/view'
 import { forEachDiagnostic } from '@codemirror/lint'
 import type { ProjectActions } from '../hooks/use-project-actions'
 import EditProposal, { type EditPart } from '../chat/edit-proposal'
-import SourceLinks from '../chat/source-links'
+import type { Link } from '../chat/source-links'
 import { boxed } from '../chat/themed'
 
 export type ToolOutput =
@@ -29,6 +29,8 @@ export type ToolSpec = {
   label: (input: any) => string
   run?: (input: any, context: ToolRun) => unknown
   body?: (part: any, respond: Respond) => ReactNode
+  /** The pages a search found, listed when its card is opened */
+  links?: (part: any) => Link[] | undefined
 }
 
 type NumberedLine = { line: number; content: string }
@@ -144,28 +146,25 @@ export const TOOLS: Record<string, ToolSpec> = {
   // The server runs these two; the browser only shows what they found
   web_search: {
     label: ({ query }) => `Search the web for “${query ?? ''}”`,
-    body: part =>
-      part.state === 'output-available' && (
-        <SourceLinks
-          links={part.output.sources.map((source: { url: string }) => ({
+    links: part =>
+      part.state === 'output-available'
+        ? part.output.sources.map((source: { url: string; title?: string }) => ({
             href: source.url,
-            text: source.url,
-          }))}
-        />
-      ),
+            text: source.title || source.url,
+          }))
+        : undefined,
   },
 
   search_docs: {
     label: ({ query }) => `Search the help pages for “${query ?? ''}”`,
-    body(part) {
-      if (part.state !== 'output-available') return null
+    links(part) {
+      if (part.state !== 'output-available') return undefined
       // Each block of the docs MCP result has "Title: ..." and "Link: ..." lines
-      const links = part.output.content.slice(0, 3).map((block: { text: string }) => {
+      return part.output.content.slice(0, 3).map((block: { text: string }) => {
         const field = (name: string) =>
           block.text.match(new RegExp(`^${name}: (.*)$`, 'm'))?.[1]
         return { href: field('Link'), text: field('Title') ?? field('Link') }
       })
-      return <SourceLinks links={links} />
     },
   },
 }

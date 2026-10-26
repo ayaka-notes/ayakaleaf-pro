@@ -91,6 +91,7 @@ function AssistantMessage({
         state={part.state}
         label={tool && part.input ? tool.label(part.input) : name}
         errorText={part.errorText}
+        links={tool?.links?.(part)}
       >
         {tool?.body?.(part, respond)}
       </ToolCard>,
