@@ -479,6 +479,11 @@ async function deleteUser(req, res, next) {
 
   logger.debug({ deleterUserId, userId }, 'admin is trying to delete user account')
 
+  // The list hides Delete on the own account, refuse a direct request too
+  if (userId == deleterUserId) {
+    return HttpErrorHandler.unprocessableEntity(req, res, 'You cannot delete your own account')
+  }
+
   if (toUserId) {
     try {
       await OwnershipTransferHandler.promises.transferAllProjectsToUser({
@@ -603,6 +608,11 @@ async function updateUser(req, res, next) {
   const { body } = req
 
   const updatesInput = { ...body }
+  // The list hides Disable and locks Set as admin on the own account, refuse
+  // a direct request too
+  if (userId == actorUserId && (updatesInput.suspended === true || updatesInput.isAdmin === false)) {
+    return HttpErrorHandler.unprocessableEntity(req, res, 'You cannot disable your own account or remove your own admin rights')
+  }
   if (
     'aiFeatures' in updatesInput &&
     (typeof updatesInput.aiFeatures?.enabled !== 'boolean' ||

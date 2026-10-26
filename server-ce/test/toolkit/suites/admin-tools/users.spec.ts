@@ -801,6 +801,25 @@ describe('the own account', function () {
     userRow(ADMIN_EMAIL).find('input[type="checkbox"]').should('be.disabled')
     cy.get('thead input[type="checkbox"]').should('be.disabled')
   })
+
+  it('refuses a direct request to disable, delete or demote it', function () {
+    login(ADMIN_EMAIL)
+    adminUserInfo(ADMIN_EMAIL).then(admin => {
+      for (const [url, body] of [
+        [`/admin/user/${admin.id}/update`, { suspended: true }],
+        [`/admin/user/${admin.id}/update`, { isAdmin: false }],
+        [`/admin/user/${admin.id}/delete`, {}],
+      ] as const) {
+        postWithCsrf(url, body).its('status').should('equal', 422)
+      }
+    })
+    // Still an admin, not disabled, not deleted
+    adminUserInfo(ADMIN_EMAIL).then(admin => {
+      expect(admin.isAdmin).to.equal(true)
+      expect(admin.suspended).to.equal(undefined)
+      expect(admin.deleted).to.equal(false)
+    })
+  })
 })
 
 describe('the list', function () {
