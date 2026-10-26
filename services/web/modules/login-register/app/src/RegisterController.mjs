@@ -5,6 +5,21 @@ import AuthenticationManager from '../../../../app/src/Features/Authentication/A
 import EmailHelper from '../../../../app/src/Features/Helpers/EmailHelper.mjs'
 import HaveIBeenPwned from '../../../../app/src/Features/Authentication/HaveIBeenPwned.mjs'
 
+// OVERLEAF_ALLOW_PUBLIC_REGISTRATION starting with '@' lists the domains that
+// can sign up with an activation email, separated by commas:
+// '@example.com' only that domain, '@*.example.com' only its subdomains,
+// '@*' any domain
+function isAllowedDomain(domain) {
+  return process.env.OVERLEAF_ALLOW_PUBLIC_REGISTRATION.split(',')
+    .map(pattern => pattern.trim().replace(/^@/, '').toLowerCase())
+    .filter(Boolean)
+    .some(pattern => {
+      if (pattern === '*') return true
+      if (pattern.startsWith('*.')) return domain.endsWith(pattern.slice(1))
+      return domain === pattern
+    })
+}
+
 export default {
   async registerPage(req, res, next) {
     // Check if the user is already logged in
@@ -40,10 +55,8 @@ export default {
       })
     }
 
-    // If public registration is restricted to a specific email domain,
-    // check that the email domain is allowed
     const domain = EmailHelper.getDomain(email)
-    if (domain == null || domain !== process.env.OVERLEAF_ALLOW_PUBLIC_REGISTRATION.slice(1)) {
+    if (domain == null || !isAllowedDomain(domain)) {
       return res.status(400).json({
         message: 'Email domain not allowed for registration',
       })

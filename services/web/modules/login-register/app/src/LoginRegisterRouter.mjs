@@ -36,7 +36,7 @@ export default {
         process.env.OVERLEAF_ALLOW_PUBLIC_REGISTRATION
 
       // If set to 'true', allow registration via username and password
-      // If set to an email domain (e.g., '@example.com'), allow registration via email only for that domain
+      // If set to email domains (e.g., '@example.com,@*.example.org' or '@*'), allow registration via an activation email for those domains
       if (allowedRegistrationDomain != null && allowedRegistrationDomain == 'true') {
         webRouter.post(
           '/register',

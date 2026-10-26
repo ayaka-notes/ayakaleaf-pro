@@ -39,8 +39,9 @@ One folder per module in `toolkit/suites/`, named and nested like
 
 - `launchpad/` – creating the first admin, status checks, admin adds a user.
 - `login-register/` – login, logout and public sign up with email and
-  password. The `domain/` variant runs afterwards with sign up restricted to
-  one email domain.
+  password. The variants sign up with an activation email: `any-domain/`
+  for any domain (`@*`), `domain/` for one domain, `domains/` for a list
+  with a `*.` subdomain wildcard.
 - `sandboxed-compiles/` – compiling in sibling containers, switching between
   two TeX Live images, XeLaTeX, errors, stopping a compile, SyncTeX.
 - `symbol-palette/` – opening and closing the palette, switching categories
