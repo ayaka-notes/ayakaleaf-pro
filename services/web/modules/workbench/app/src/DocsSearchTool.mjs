@@ -67,14 +67,11 @@ async function _searchDocumentation(query) {
 
 export const DOCS_SEARCH_TOOL = tool({
   description:
-    'Search across the Overleaf documentation to find relevant ' +
-    'information, guides and how-tos. Use this tool when you need to answer ' +
-    'questions about how Overleaf itself works — its features, settings, ' +
-    'account/project management or administration. The search returns ' +
-    'contextual content with titles and direct links to the documentation ' +
-    'pages.',
+    'Search the help pages of this editor and return matching passages ' +
+    'with their titles and links. For questions about the editor itself: ' +
+    'features, settings, projects, accounts and administration.',
   inputSchema: z.object({
-    query: z.string().describe('The documentation search query.'),
+    query: z.string().describe('What to look for in the help pages.'),
   }),
   execute: async ({ query }) => {
     if (!isDocsSearchConfigured()) {
@@ -83,7 +80,7 @@ export const DOCS_SEARCH_TOOL = tool({
     try {
       return await _searchDocumentation(query)
     } catch (err) {
-      logger.err({ err, query }, 'search_documentation (docs MCP) failed')
+      logger.err({ err, query }, 'search_docs (docs MCP) failed')
       return { content: [], error: 'docs_search_failed' }
     }
   },

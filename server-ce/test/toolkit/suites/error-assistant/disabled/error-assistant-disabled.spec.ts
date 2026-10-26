@@ -39,8 +39,8 @@ it('offers no fixes for compile errors', function () {
     cy.contains('.log-entry', 'Undefined control sequence').should('be.visible')
     cy.findByRole('button', { name: 'Suggest fix' }).should('not.exist')
 
-    postWithCsrf(`/project/${projectId}/suggest-fix`, {
-      logEntry: { file: 'main.tex', line: 4, raw: 'Undefined control sequence' },
+    postWithCsrf(`/project/${projectId}/ai/fix-error`, {
+      entry: { file: 'main.tex', line: 4, raw: 'Undefined control sequence' },
     }).then(response => {
       expect(response.status).to.equal(403)
       expect(response.body).to.deep.equal({ error: 'ai_access_denied' })
