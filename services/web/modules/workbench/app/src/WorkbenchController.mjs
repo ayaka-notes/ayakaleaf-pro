@@ -20,7 +20,7 @@ import { CLIENT_TOOLS, convertWorkbenchMessages } from './WorkbenchTools.mjs'
 import { WEB_SEARCH_TOOL, isWebSearchConfigured } from './WebSearchTool.mjs'
 import { DOCS_SEARCH_TOOL, isDocsSearchConfigured } from './DocsSearchTool.mjs'
 import { createToolCallLimit } from './ToolCallLimit.mjs'
-import { compactHistory } from './ContextCompaction.mjs'
+import { condenseOldToolOutputs, compactHistory } from './ContextCompaction.mjs'
 import {
   isQuotaEnabled,
   getRemainingTokens,
@@ -53,7 +53,8 @@ function hasValidAttachments(messages) {
  * POST /workbench/tex-gpt
  *
  * The workbench AI chat endpoint. Drives the Vercel AI SDK `useChat` client:
- * it summarizes the older turns of a long history (ContextCompaction),
+ * it condenses old tool output and summarizes the older turns of a long
+ * history (ContextCompaction),
  * converts the incoming UI-message history to model messages, runs
  * `streamText` against the operator-configured OpenAI-compatible model with the
  * client-executed tool set declared, and pipes the resulting UI-message stream
@@ -128,19 +129,21 @@ async function texGpt(req, res) {
     system += `\n\nYou have a search_documentation tool that searches the documentation of this Overleaf instance. When the user asks how Overleaf itself works — features, settings, account/project management, administration — call search_documentation and answer from the results, linking the source pages. Prefer it over web_search for questions about Overleaf itself.`
   }
 
+  let condensed
   let modelMessages
   try {
-    modelMessages = await convertWorkbenchMessages(messages)
+    condensed = condenseOldToolOutputs(messages)
+    modelMessages = await convertWorkbenchMessages(condensed)
   } catch (err) {
     logger.warn({ err, userId }, 'workbench tex-gpt: could not parse messages')
     return res.status(400).json({ error: 'invalid_messages' })
   }
 
-  let history = messages
+  let history = condensed
   let historySummary = summary
   let compaction = null
   try {
-    compaction = await compactHistory({ messages, summary, userId })
+    compaction = await compactHistory({ messages: condensed, summary, userId })
   } catch (err) {
     // Send the whole history rather than fail the chat
     logger.warn({ err, userId }, 'workbench tex-gpt: could not summarize history')

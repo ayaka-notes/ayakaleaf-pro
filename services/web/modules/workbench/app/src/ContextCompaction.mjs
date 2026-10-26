@@ -4,7 +4,8 @@ import { recordTokenUsage } from './TokenQuota.mjs'
 
 /**
  * Keeps long chats within the model's context window. The browser sends the
- * whole history with every request; once it is estimated at COMPACT_AT_TOKENS,
+ * whole history with every request. Old tool output beyond a budget is
+ * condensed (condenseOldToolOutputs); once the history is estimated at COMPACT_AT_TOKENS,
  * the older turns are summarized and only the recent ones go to the model.
  * The browser keeps the summary and from then on sends it with the messages
  * after it, so each part of the history is summarized once.
@@ -14,7 +15,11 @@ import { recordTokenUsage } from './TokenQuota.mjs'
 export const COMPACT_AT_TOKENS = 100_000
 // Recent turns kept verbatim, as many as fit in this budget (at least one).
 const KEEP_RECENT_TOKENS = 20_000
-// Tool output in the transcript to summarize is clipped to this length.
+// Tool output kept as is, newest first; older output of earlier turns is
+// condensed.
+const KEEP_TOOL_OUTPUT_TOKENS = 20_000
+// Condensed tool output, and tool output in the transcript to summarize, is
+// clipped to this length.
 const TOOL_RESULT_CHARS = 2_000
 // An image or rendered PDF page, roughly.
 const IMAGE_TOKENS = 1_500
@@ -83,8 +88,89 @@ function findCut(messages) {
 
 function clip(text) {
   return text.length > TOOL_RESULT_CHARS
-    ? `${text.slice(0, TOOL_RESULT_CHARS)} [clipped]`
+    ? `${text.slice(0, TOOL_RESULT_CHARS)} [clipped ${text.length - TOOL_RESULT_CHARS} characters]`
     : text
+}
+
+const FILE_READS = new Set([
+  'read_lines',
+  'read_current_file',
+  'open_file',
+  'search_file',
+])
+
+// File content goes stale once the file is edited, so it is dropped rather
+// than clipped; search results keep their sources, compile results their
+// messages.
+function condenseOutput(name, input, output) {
+  if (FILE_READS.has(name)) {
+    const what = {
+      read_lines: `Lines ${input.fromLine}-${input.toLine} of the file then open`,
+      read_current_file: 'The file then open',
+      open_file: input.path,
+      search_file: `Search for "${input.query}" in the file then open`,
+    }[name]
+    return `[${what}, read in an earlier turn. Left out because the file may have changed since; read it again if needed.]`
+  }
+  let kept = output
+  if (name === 'compile' || name === 'get_diagnostics') {
+    kept = {
+      ...output,
+      diagnostics: output.diagnostics.map(({ raw, ...entry }) => entry),
+    }
+  } else if (name === 'web_search') {
+    kept = { action: output.action, sources: output.sources }
+  } else if (name === 'search_documentation') {
+    kept = output.content
+      .map(item =>
+        item.text
+          .split('\n')
+          .filter(line => /^(Title|Link): /.test(line))
+          .join('\n')
+      )
+      .join('\n\n')
+  }
+  return clip(typeof kept === 'string' ? kept : JSON.stringify(kept))
+}
+
+/**
+ * Condenses the output of tool calls before the latest user message once the
+ * newer tool output has used KEEP_TOOL_OUTPUT_TOKENS, so file reads, compile
+ * logs and search results of earlier turns do not fill the context. The
+ * current turn keeps its output in full; the model can call a tool again.
+ */
+export function condenseOldToolOutputs(messages) {
+  const lastUser = messages.findLastIndex(message => message.role === 'user')
+  let budget = KEEP_TOOL_OUTPUT_TOKENS
+  const condensed = [...messages]
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role !== 'assistant') continue
+    const parts = [...messages[i].parts]
+    for (let j = parts.length - 1; j >= 0; j--) {
+      const part = parts[j]
+      // view_page output is the rendered page, sent as an image
+      if (
+        !isToolPart(part) ||
+        part.state !== 'output-available' ||
+        toolName(part) === 'view_page'
+      ) {
+        continue
+      }
+      const tokens = textTokens(JSON.stringify(part.output))
+      if (i > lastUser || tokens <= budget) {
+        budget = Math.max(0, budget - tokens)
+        continue
+      }
+      // Older output than this is condensed too, even if it would fit
+      budget = 0
+      parts[j] = {
+        ...part,
+        output: condenseOutput(toolName(part), part.input, part.output),
+      }
+    }
+    condensed[i] = { ...messages[i], parts }
+  }
+  return condensed
 }
 
 function transcript(messages, summary) {
@@ -146,4 +232,4 @@ export async function compactHistory({ messages, summary, userId }) {
   }
 }
 
-export default { compactHistory, COMPACT_AT_TOKENS }
+export default { condenseOldToolOutputs, compactHistory, COMPACT_AT_TOKENS }

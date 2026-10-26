@@ -461,6 +461,51 @@ describe('the AI assistant', function () {
     })
   })
 
+  it('condenses the tool output of earlier turns', function () {
+    // About 22k tokens, over the 20k kept as is
+    const details = 'More detail. '.repeat(7000)
+    aiMock('PUT', '/docs-pages', {
+      pages: [
+        {
+          title: 'Sharing a project',
+          link: 'https://docs.overleaf.com/sharing',
+          content: `Click Share to invite collaborators. ${details}`,
+        },
+      ],
+    })
+    queueReplies(
+      {
+        toolCalls: [
+          { name: 'read_current_file', args: {} },
+          { name: 'search_documentation', args: { query: 'share a project' } },
+        ],
+      },
+      { text: 'Use the Share button.' },
+      { text: 'Anything else?' }
+    )
+    openAssistant()
+    ask('How do I share a project?')
+    panel().should('contain.text', 'Use the Share button.')
+    ask('Thanks')
+    panel().should('contain.text', 'Anything else?')
+
+    chatRequests().then(requests => {
+      expect(requests).to.have.length(3)
+      // The turn that read them gets both results in full
+      expect(toolResults(requests[1]))
+        .to.contain('section{Introduction}')
+        .and.contain(details.trim())
+      // The next turn keeps the sources and leaves the file out
+      const condensed = toolResults(requests[2])
+      expect(condensed)
+        .to.contain('Title: Sharing a project')
+        .and.contain('Link: https://docs.overleaf.com/sharing')
+        .and.contain('The file then open, read in an earlier turn')
+        .and.not.contain('Click Share')
+        .and.not.contain('section{Introduction}')
+    })
+  })
+
   describe('when connecting takes over a second', function () {
     afterEach(function () {
       aiMock('POST', '/connect-delay', { ms: 0 })
