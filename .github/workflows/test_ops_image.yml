@@ -30,8 +30,9 @@ jobs:
     runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
-      # Every suite runs a whole Overleaf, keep the number of runners bounded
-      max-parallel: 8
+      # Every suite runs a whole Overleaf; pulling the ops image takes about 20s
+      # per job, and a failed setup (e.g. a rate-limited pull) is retried below
+      max-parallel: 20
       matrix:
         suite:
           [
