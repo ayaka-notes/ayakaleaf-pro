@@ -1,7 +1,7 @@
 /**
  * Provides the chat composer, attachment state, and submission controls.
  * Converts attachments to data URLs for submission and supports editor
- * selection context, model and tool menus, and voice input.
+ * selection context.
  */
 import {
   createContext,
@@ -10,7 +10,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useId,
   useMemo,
   useRef,
   useState,
@@ -25,19 +24,8 @@ import { Form, InputGroup, OverlayTrigger, Popover } from 'react-bootstrap'
 import { v4 as uuid } from 'uuid'
 import OLIconButton from '@/shared/components/ol/ol-icon-button'
 import OLTooltip from '@/shared/components/ol/ol-tooltip'
-import OLFormSwitch from '@/shared/components/ol/ol-form-switch'
 import MaterialIcon from '@/shared/components/material-icon'
-import {
-  OLDropdown as Dropdown,
-  OLDropdownToggle as DropdownToggle,
-  OLDropdownMenu as DropdownMenu,
-  OLDropdownItem as DropdownItem,
-  OLDropdownHeader as DropdownHeader,
-} from '@/shared/components/ol/ol-dropdown-menu'
-import getMeta from '@/utils/meta'
-import { debugConsole } from '@/utils/debugging'
 import { sendMB } from '@/infrastructure/event-tracking'
-import { useWorkbenchSettings } from '../context/workbench-settings-context'
 
 export type PromptAttachment = {
   id: string
@@ -510,327 +498,6 @@ const AttachButton = () => {
   )
 }
 
-/** A tool on/off row inside the tools menu. */
-const ToolMenuItem = ({
-  tool,
-  label,
-  description,
-  className,
-}: {
-  tool: string
-  label: string
-  description?: string
-  className?: string
-}) => {
-  const { enabledTools, toggleTool } = useWorkbenchSettings()
-  const switchId = useId()
-  const checked = enabledTools.has(tool)
-  const handleClick = useCallback(
-    (event: React.MouseEvent) => {
-      event.preventDefault()
-      toggleTool(tool)
-    },
-    [toggleTool, tool]
-  )
-  const handleChange = useCallback(
-    (event: React.ChangeEvent) => {
-      event.stopPropagation()
-      toggleTool(tool)
-    },
-    [toggleTool, tool]
-  )
-  return (
-    <li role="none">
-      <DropdownItem
-        as="button"
-        role="menuitemcheckbox"
-        aria-checked={checked}
-        className={classNames('w-100', className)}
-        onClick={handleClick}
-        trailingIcon={
-          <OLFormSwitch
-            id={`workbench-tools-switch-${switchId}`}
-            label={label}
-            checked={checked}
-            onChange={handleChange}
-            onClick={(e: React.MouseEvent) => e.stopPropagation()}
-          />
-        }
-      >
-        <div className="d-flex align-items-center justify-content-between gap-3 w-100 me-5">
-          <div className="d-flex flex-column flex-grow-1">
-            <span>{label}</span>
-            {description && <span className="text-muted small">{description}</span>}
-          </div>
-        </div>
-      </DropdownItem>
-    </li>
-  )
-}
-
-const ToolsMenuToggle = forwardRef<HTMLButtonElement, any>(
-  function ToolsMenuToggle({ className, onClick }, ref) {
-    return (
-      <OLIconButton
-        ref={ref}
-        onClick={onClick}
-        icon="build"
-        variant="ghost"
-        accessibilityLabel="Open tools menu"
-        className={classNames('dropdown-toggle dropdown-no-arrow', className)}
-      />
-    )
-  }
-)
-
-/** Tools dropdown. */
-const ToolsMenu = () => {
-  const [show, setShow] = useState(false)
-  return (
-    <Dropdown align="end" autoClose="outside" show={show} onToggle={open => setShow(open)}>
-      <OLTooltip id="chat-prompt-tools" description="Tools">
-        <span>
-          <DropdownToggle as={ToolsMenuToggle} id="chat-prompt-tools-toggle" />
-        </span>
-      </OLTooltip>
-      <DropdownMenu className="workbench-tools-menu">
-        <DropdownHeader className="workbench-menu-header">Tools</DropdownHeader>
-        <ToolMenuItem
-          tool="search_publications_dimensions"
-          label="Publications"
-          description="Search in Dimensions"
-        />
-        <ToolMenuItem tool="code_interpreter" label="Code" description="Execute Python code" />
-        <ToolMenuItem tool="image_generation" label="Images" description="Generate images" />
-        <ToolMenuItem
-          tool="search_documentation"
-          label="Documentation"
-          description="Help with Overleaf"
-        />
-        <ToolMenuItem tool="web_search" label="Web" description="Read online content" />
-      </DropdownMenu>
-    </Dropdown>
-  )
-}
-
-const SPEECH_PHRASES = [
-  { phrase: 'latex', boost: 5 },
-  { phrase: 'tex', boost: 5 },
-  { phrase: 'tikz', boost: 5 },
-]
-const SPEECH_LANG = 'en-US'
-
-/** Web Speech API voice input. */
-const SpeechButton = ({
-  onStart,
-  onTranscriptionChange,
-  accessibilityLabel,
-  value,
-  ...props
-}: {
-  onStart: () => void
-  onTranscriptionChange: (text: string) => void
-  accessibilityLabel: string
-  value: string
-} & any) => {
-  const [status, setStatus] = useState<string | null>(null)
-  const recognitionRef = useRef<any>(null)
-  const baseValueRef = useRef(value)
-  const lastValueRef = useRef(value)
-
-  const createRecognition = useCallback(async () => {
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    const recognition = new SpeechRecognition()
-    recognition.continuous = true
-    recognition.interimResults = true
-    recognition.onstart = () => {
-      onStart()
-      setStatus(recognition.processLocally ? 'local' : 'remote')
-    }
-    recognition.onspeechend = () => {
-      recognitionRef.current?.stop()
-      setStatus(null)
-    }
-    recognition.onresult = (event: any) => {
-      const text = [
-        baseValueRef.current,
-        ...Array.from(event.results ?? []).map((result: any) => result[0].transcript),
-      ].join(' ')
-      lastValueRef.current = text
-      onTranscriptionChange(text)
-    }
-    recognition.onerror = (event: any) => {
-      debugConsole.error('Speech recognition error:', event.error)
-      if (event.error !== 'no-speech') {
-        setStatus('error')
-      }
-    }
-    const configureLocal = () => {
-      recognition.processLocally = true
-      recognition.phrases = SPEECH_PHRASES.map(
-        ({ phrase, boost }) => new (window as any).SpeechRecognitionPhrase(phrase, boost)
-      )
-    }
-    if ('available' in SpeechRecognition) {
-      const options = { langs: [SPEECH_LANG], processLocally: true }
-      const availability = await SpeechRecognition.available(options)
-      switch (availability) {
-        case 'unavailable':
-          debugConsole.error(`${SPEECH_LANG} not available to download at this time`)
-          break
-        case 'available':
-          configureLocal()
-          debugConsole.log('Speech recognition ready')
-          break
-        case 'downloadable':
-        case 'downloading':
-          debugConsole.log(`${SPEECH_LANG} language pack downloading`)
-          setStatus('downloading')
-          if (!(await SpeechRecognition.install(options))) {
-            debugConsole.error(`${SPEECH_LANG} language pack failed to download`)
-            return null
-          }
-          debugConsole.log(`${SPEECH_LANG} language pack downloaded`)
-          configureLocal()
-          debugConsole.log('Speech recognition ready')
-          break
-        default:
-          debugConsole.log(`Unknown result ${availability}`)
-      }
-    }
-    return recognition
-  }, [onStart, onTranscriptionChange])
-
-  useEffect(() => {
-    if (value !== lastValueRef.current) {
-      lastValueRef.current = value
-      recognitionRef.current?.stop()
-    }
-  }, [value])
-
-  useEffect(
-    () => () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop()
-      }
-    },
-    []
-  )
-
-  const handleClick = useCallback(async () => {
-    if (status) {
-      lastValueRef.current = value
-      recognitionRef.current?.stop()
-      return
-    }
-    recognitionRef.current = await createRecognition()
-    if (recognitionRef.current) {
-      lastValueRef.current = value
-      baseValueRef.current = value
-      recognitionRef.current.start()
-    }
-  }, [createRecognition, value, status])
-
-  return (
-    <OLIconButton
-      {...props}
-      icon="mic"
-      variant={
-        status === 'error'
-          ? 'danger-ghost'
-          : status === 'downloading'
-            ? 'secondary'
-            : status === 'local' || status === 'remote'
-              ? 'primary'
-              : 'ghost'
-      }
-      accessibilityLabel={accessibilityLabel}
-      onClick={handleClick}
-    />
-  )
-}
-
-const ModelsMenuToggle = forwardRef<HTMLButtonElement, any>(
-  function ModelsMenuToggle({ className, onClick }, ref) {
-    return (
-      <OLIconButton
-        ref={ref}
-        onClick={onClick}
-        icon="robot_2"
-        variant="ghost"
-        accessibilityLabel="Open models menu"
-        className={classNames('dropdown-toggle dropdown-no-arrow', className)}
-      />
-    )
-  }
-)
-
-// Groups displayed in the model picker.
-const MODEL_GROUPS: { label: string; models: [string, string][] }[] = [
-  {
-    label: 'Vertex',
-    models: [
-      ['gemini-3.1-pro-preview', 'Gemini 3.1 Pro'],
-      ['gemini-3-flash-preview', 'Gemini 3 Flash'],
-      ['gemini-3.1-flash-lite-preview', 'Gemini 3.1 Flash Lite'],
-    ],
-  },
-  {
-    label: 'OpenAI',
-    models: [
-      ['gpt-5.4', 'GPT 5.4'],
-      ['gpt-5.4-mini', 'GPT 5.4 Mini'],
-      ['gpt-5.4-nano', 'GPT 5.4 Nano'],
-      ['gpt-5.3-codex', 'GPT 5.3 Codex'],
-      ['gpt-5.3-chat-latest', 'GPT 5.3 Instant'],
-      ['', 'GPT 5.2'],
-      ['gpt-5.2-codex', 'GPT 5.2 Codex'],
-      ['gpt-5.1', 'GPT 5.1'],
-      ['gpt-5-mini', 'GPT 5 Mini'],
-      ['gpt-5-nano', 'GPT 5 Nano'],
-    ],
-  },
-]
-
-/** Models dropdown. */
-const ModelsMenu = () => {
-  const [show, setShow] = useState(false)
-  const { model, setModel } = useWorkbenchSettings()
-  return (
-    <Dropdown align="end" autoClose="outside" show={show} onToggle={open => setShow(open)}>
-      <OLTooltip id="chat-prompt-models" description="Models">
-        <span>
-          <DropdownToggle as={ModelsMenuToggle} id="chat-prompt-models-toggle" />
-        </span>
-      </OLTooltip>
-      <DropdownMenu className="workbench-model-menu">
-        {MODEL_GROUPS.map(({ label, models }) => (
-          <span key={label}>
-            <DropdownHeader className="workbench-menu-header">{label}</DropdownHeader>
-            <div className="p-2">
-              {models.map(([value, name]) => (
-                <Form.Check
-                  type="radio"
-                  id={`model-${value}`}
-                  name="model"
-                  value={value}
-                  label={name}
-                  checked={model === value}
-                  onChange={() => {
-                    setModel(value)
-                  }}
-                  key={value}
-                />
-              ))}
-            </div>
-          </span>
-        ))}
-      </DropdownMenu>
-    </Dropdown>
-  )
-}
-
 export type EditorSelectionRange = {
   fromLine: number
   toLine: number
@@ -881,27 +548,6 @@ export const PromptInput = forwardRef<
     editorSelectionRanges &&
     editorSelectionRanges.some(range => !range.empty)
 
-  const { alphaProgram } = getMeta('ol-user')
-
-  const handleTranscription = useCallback(
-    (text: string) => {
-      api.textInput.setInput(text)
-    },
-    [api]
-  )
-
-  const focusTextarea = useCallback(() => {
-    const textarea = (ref as RefObject<HTMLTextAreaElement>)?.current
-    if (textarea) {
-      textarea.focus()
-      const { length } = textarea.value
-      textarea.setSelectionRange(length, length)
-    }
-  }, [ref])
-
-  const speechAvailable =
-    'SpeechRecognition' in window || 'webkitSpeechRecognition' in window
-
   return (
     <PromptInputForm
       onSubmit={async payload => {
@@ -944,28 +590,8 @@ export const PromptInput = forwardRef<
       <div className="d-flex align-items-end justify-content-between gap-2">
         <div className="d-flex align-items-center gap-2">
           <AttachButton />
-          {alphaProgram && <ToolsMenu />}
-          {alphaProgram && <ModelsMenu />}
         </div>
         <div className="d-flex align-items-center gap-2">
-          {alphaProgram && (
-            <OLTooltip
-              id="chat-prompt-voice-input"
-              description={
-                speechAvailable ? t('speak') : t('speech_input_not_available')
-              }
-            >
-              <span>
-                <SpeechButton
-                  onStart={focusTextarea}
-                  value={api.textInput.value}
-                  onTranscriptionChange={handleTranscription}
-                  accessibilityLabel={t('speak')}
-                  disabled={!speechAvailable}
-                />
-              </span>
-            </OLTooltip>
-          )}
           <OLTooltip
             id="chat-prompt-send-message"
             description={

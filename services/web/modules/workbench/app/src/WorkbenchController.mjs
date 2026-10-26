@@ -1,7 +1,13 @@
 import logger from '@overleaf/logger'
 import { expressify } from '@overleaf/promise-utils'
 import { getAiAccess } from './PermissionsMiddleware.mjs'
-import { consumeStream, streamText, wrapLanguageModel } from 'ai'
+import {
+  consumeStream,
+  createUIMessageStream,
+  pipeUIMessageStreamToResponse,
+  streamText,
+  wrapLanguageModel,
+} from 'ai'
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
 import {
   isConfigured,
@@ -14,6 +20,7 @@ import { CLIENT_TOOLS, convertWorkbenchMessages } from './WorkbenchTools.mjs'
 import { WEB_SEARCH_TOOL, isWebSearchConfigured } from './WebSearchTool.mjs'
 import { DOCS_SEARCH_TOOL, isDocsSearchConfigured } from './DocsSearchTool.mjs'
 import { createToolCallLimit } from './ToolCallLimit.mjs'
+import { condenseOldToolOutputs, compactHistory } from './ContextCompaction.mjs'
 import {
   isQuotaEnabled,
   getRemainingTokens,
@@ -46,7 +53,9 @@ function hasValidAttachments(messages) {
  * POST /workbench/tex-gpt
  *
  * The workbench AI chat endpoint. Drives the Vercel AI SDK `useChat` client:
- * it converts the incoming UI-message history to model messages, runs
+ * it condenses old tool output and summarizes the older turns of a long
+ * history (ContextCompaction),
+ * converts the incoming UI-message history to model messages, runs
  * `streamText` against the operator-configured OpenAI-compatible model with the
  * client-executed tool set declared, and pipes the resulting UI-message stream
  * straight back to the browser (`x-vercel-ai-ui-message-stream: v1`).
@@ -63,8 +72,12 @@ async function texGpt(req, res) {
     return res.status(403).json({ error: 'ai_not_configured' })
   }
 
-  const { messages } = req.body || {}
-  if (!Array.isArray(messages)) {
+  // summary: the earlier turns, summarized by a previous request
+  const { messages, summary } = req.body || {}
+  if (
+    !Array.isArray(messages) ||
+    (summary !== undefined && typeof summary !== 'string')
+  ) {
     return res.status(400).json({ error: 'invalid_request' })
   }
   if (!hasValidAttachments(messages)) {
@@ -116,15 +129,35 @@ async function texGpt(req, res) {
     system += `\n\nYou have a search_documentation tool that searches the documentation of this Overleaf instance. When the user asks how Overleaf itself works — features, settings, account/project management, administration — call search_documentation and answer from the results, linking the source pages. Prefer it over web_search for questions about Overleaf itself.`
   }
 
+  let condensed
   let modelMessages
   try {
-    modelMessages = await convertWorkbenchMessages(messages)
+    condensed = condenseOldToolOutputs(messages)
+    modelMessages = await convertWorkbenchMessages(condensed)
   } catch (err) {
     logger.warn({ err, userId }, 'workbench tex-gpt: could not parse messages')
     return res.status(400).json({ error: 'invalid_messages' })
   }
 
-  const resolvedModel = resolveModel(messages)
+  let history = condensed
+  let historySummary = summary
+  let compaction = null
+  try {
+    compaction = await compactHistory({ messages: condensed, summary, userId })
+  } catch (err) {
+    // Send the whole history rather than fail the chat
+    logger.warn({ err, userId }, 'workbench tex-gpt: could not summarize history')
+  }
+  if (compaction) {
+    history = compaction.messages
+    historySummary = compaction.summary
+    modelMessages = await convertWorkbenchMessages(history)
+  }
+  if (historySummary) {
+    system += `\n\nThe earlier part of this conversation was summarized:\n\n${historySummary}`
+  }
+
+  const resolvedModel = resolveModel(history)
 
   try {
     const result = streamText({
@@ -144,7 +177,34 @@ async function texGpt(req, res) {
       },
     })
 
-    result.pipeUIMessageStreamToResponse(res, {
+    const onError = err => {
+      logger.err({ err, userId }, 'workbench tex-gpt stream error')
+      return 'The AI service returned an error. Please try again.'
+    }
+    const stream = createUIMessageStream({
+      // Continues the last assistant message after browser tool calls;
+      // without it every response would start a new message
+      originalMessages: messages,
+      execute({ writer }) {
+        // The browser sends the summary and the later messages from now on
+        if (compaction) {
+          writer.write({
+            type: 'data-compaction',
+            data: {
+              summary: compaction.summary,
+              upToMessageId: compaction.upToMessageId,
+            },
+            transient: true,
+          })
+        }
+        writer.merge(result.toUIMessageStream({ onError }))
+      },
+      onError,
+    })
+
+    pipeUIMessageStreamToResponse({
+      response: res,
+      stream,
       consumeSseStream: consumeStream,
       // Suggestion counts are unmetered. Token headers report the balance
       // before this request because headers are sent before streaming completes.
@@ -162,10 +222,6 @@ async function texGpt(req, res) {
               'Token-RateLimit-Remaining': '100000000',
               'Token-RateLimit-Reset': '0',
             }),
-      },
-      onError(err) {
-        logger.err({ err, userId }, 'workbench tex-gpt stream error')
-        return 'The AI service returned an error. Please try again.'
       },
     })
   } catch (err) {
