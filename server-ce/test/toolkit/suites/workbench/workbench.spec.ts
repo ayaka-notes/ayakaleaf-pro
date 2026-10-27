@@ -41,11 +41,18 @@ const main = [
 const png =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
-function openNewProject() {
+// The model only sees the bytes, so any will do
+const pdf = Cypress.Buffer.from('%PDF-1.4 e2e').toString('base64')
+
+function newProject() {
   return openInOverleaf({
     snip_uri: dataUrl('text/plain', main),
     snip_name: 'main.tex',
-  }).then(openProject)
+  })
+}
+
+function openNewProject() {
+  return newProject().then(openProject)
 }
 
 function editor() {
@@ -68,6 +75,15 @@ function ask(text: string) {
   panel()
     .findByPlaceholderText('What would you like to do?')
     .type(`${text}{enter}`)
+}
+
+function attachFile(fileName: string, base64: string, mimeType: string) {
+  panel()
+    .findByLabelText('Attach images or PDF files')
+    .selectFile(
+      { contents: Cypress.Buffer.from(base64, 'base64'), fileName, mimeType },
+      { force: true }
+    )
 }
 
 function toolHeader(title: string) {
@@ -528,30 +544,6 @@ describe('the AI assistant', function () {
     })
   })
 
-  it('sends chats with an image to the image model', function () {
-    queueReplies({ text: 'A single pixel.' })
-    openAssistant()
-    panel()
-      .findByLabelText('Attach images')
-      .selectFile(
-        {
-          contents: Cypress.Buffer.from(png, 'base64'),
-          fileName: 'pixel.png',
-          mimeType: 'image/png',
-        },
-        { force: true }
-      )
-    ask('What is in this image?')
-
-    panel().should('contain.text', 'A single pixel.')
-    chatRequests().then(([request]) => {
-      expect(request.model).to.equal('e2e-vision-model')
-      expect(JSON.stringify(request.messages)).to.contain(
-        `data:image/png;base64,${png}`
-      )
-    })
-  })
-
   it('stops after the tool calls allowed for one message', function () {
     // AI_MAX_STEPS=3, the fourth call is dropped
     queueReplies({
@@ -777,6 +769,84 @@ describe('the AI assistant', function () {
   })
 })
 
+// One project for these, so that the suite stays within Open in
+// Overleaf's 20 projects a minute
+describe('attachments', function () {
+  let projectId: string
+
+  before(function () {
+    login(user)
+    newProject().then(id => {
+      projectId = id
+    })
+  })
+
+  beforeEach(function () {
+    login(user)
+    openProject(projectId)
+  })
+
+  it('sends chats with an image to the image model', function () {
+    queueReplies({ text: 'A single pixel.' })
+    openAssistant()
+    attachFile('pixel.png', png, 'image/png')
+    ask('What is in this image?')
+
+    panel().should('contain.text', 'A single pixel.')
+    chatRequests().then(([request]) => {
+      expect(request.model).to.equal('e2e-vision-model')
+      expect(JSON.stringify(request.messages)).to.contain(
+        `data:image/png;base64,${png}`
+      )
+    })
+  })
+
+  it('sends chats with a PDF file to the PDF model', function () {
+    queueReplies({ text: 'A short paper.' })
+    openAssistant()
+    attachFile('paper.pdf', pdf, 'application/pdf')
+    ask('What is in this paper?')
+
+    panel().should('contain.text', 'A short paper.')
+    panel().should('contain.text', 'paper.pdf')
+    chatRequests().then(([request]) => {
+      expect(request.model).to.equal('e2e-pdf-model')
+      // As a Chat Completions file part, not as text or an image
+      const user = JSON.stringify(request.messages.findLast(m => m.role === 'user'))
+      expect(user)
+        .to.contain('"type":"file"')
+        .and.contain(`"file_data":"data:application/pdf;base64,${pdf}"`)
+    })
+  })
+
+  it('says so when the model cannot read the PDF file', function () {
+    // Like vLLM: "Unsupported chat content part type: 'file'"
+    queueReplies({ status: 400 })
+    openAssistant()
+    attachFile('paper.pdf', pdf, 'application/pdf')
+    ask('What is in this paper?')
+
+    panel().should(
+      'contain.text',
+      'The AI model cannot read PDF files. Ask your administrator to set AI_PDF_MODEL to a model that can.'
+    )
+  })
+
+  it('refuses attachments it cannot send', function () {
+    openAssistant()
+    attachFile(
+      'big.pdf',
+      Cypress.Buffer.alloc(2 * 1024 * 1024 + 1).toString('base64'),
+      'application/pdf'
+    )
+    panel().should('contain.text', 'Files must be smaller than 2 MB.')
+    attachFile('notes.txt', Cypress.Buffer.from('notes').toString('base64'), 'text/plain')
+    panel().should('contain.text', 'Only images and PDF files can be attached.')
+    panel().should('not.contain.text', 'big.pdf')
+    panel().should('not.contain.text', 'notes.txt')
+  })
+})
+
 describe('AI consent', function () {
   const newUser = `workbench-consent-${Date.now()}@example.com`
 
@@ -952,6 +1022,25 @@ describe('the chat endpoint', function () {
             {
               type: 'file',
               mediaType: 'image/png',
+              url: 'http://ai-mock:8080/_mock/requests',
+            },
+          ],
+        },
+      ],
+    }).then(response => {
+      expect(response.status).to.equal(400)
+      expect(response.body).to.deep.equal({ error: 'invalid_attachments' })
+    })
+    // PDF files too
+    postWithCsrf('/workbench/chat', {
+      messages: [
+        {
+          id: 'm1',
+          role: 'user',
+          parts: [
+            {
+              type: 'file',
+              mediaType: 'application/pdf',
               url: 'http://ai-mock:8080/_mock/requests',
             },
           ],

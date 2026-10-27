@@ -1,5 +1,6 @@
 /**
- * Where the user writes: a growing text box, images by picker, paste or drop,
+ * Where the user writes: a growing text box, images and PDF files by picker,
+ * paste or drop,
  * a note of the selected lines that go along, and send or stop.
  */
 import { forwardRef, useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent } from 'react'
@@ -11,10 +12,12 @@ import MaterialIcon from '@/shared/components/material-icon'
 import { boxed, flatGhost, plain, surface } from './themed'
 import ImagePreview from './image-preview'
 
-const MAX_IMAGE_BYTES = 2 * 1024 * 1024
+const MAX_FILE_BYTES = 2 * 1024 * 1024
 const MAX_ROWS = 8
 
 export type Draft = { text: string; files: FileUIPart[] }
+
+const isPdf = (file: File) => file.type === 'application/pdf'
 
 function readAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -38,27 +41,30 @@ const Composer = forwardRef<
   const { t } = useTranslation()
   const [text, setText] = useState('')
   const [focused, setFocused] = useState(false)
-  const [images, setImages] = useState<File[]>([])
+  const [attached, setAttached] = useState<File[]>([])
   const picker = useRef<HTMLInputElement>(null)
-  // Object URLs for the previews, released when the images change or go
-  const previews = useMemo(() => images.map(file => URL.createObjectURL(file)), [images])
-  useEffect(() => () => previews.forEach(url => URL.revokeObjectURL(url)), [previews])
+  // Object URLs for the image previews, released when the files change or go
+  const previews = useMemo(
+    () => attached.map(file => (isPdf(file) ? undefined : URL.createObjectURL(file))),
+    [attached]
+  )
+  useEffect(() => () => previews.forEach(url => url && URL.revokeObjectURL(url)), [previews])
 
   const attach = (files: File[]) => {
     onProblem(false)
-    if (files.some(file => !file.type.startsWith('image/'))) {
-      onProblem('Only images can be attached.')
-    } else if (files.some(file => file.size > MAX_IMAGE_BYTES)) {
-      onProblem('Images must be smaller than 2 MB.')
+    if (files.some(file => !file.type.startsWith('image/') && !isPdf(file))) {
+      onProblem('Only images and PDF files can be attached.')
+    } else if (files.some(file => file.size > MAX_FILE_BYTES)) {
+      onProblem('Files must be smaller than 2 MB.')
     } else {
-      setImages(current => [...current, ...files])
+      setAttached(current => [...current, ...files])
     }
   }
 
   const send = async () => {
     if (working || !text.trim()) return
     const files = await Promise.all(
-      images.map(async file => ({
+      attached.map(async file => ({
         type: 'file' as const,
         mediaType: file.type,
         filename: file.name,
@@ -67,7 +73,7 @@ const Composer = forwardRef<
     )
     onSend({ text, files })
     setText('')
-    setImages([])
+    setAttached([])
   }
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -107,25 +113,31 @@ const Composer = forwardRef<
       onDragOver={event => event.dataTransfer.types.includes('Files') && event.preventDefault()}
       onDrop={onDrop}
     >
-      {(selectionNote || images.length > 0) && (
+      {(selectionNote || attached.length > 0) && (
         <div className="d-flex flex-wrap gap-1 small">
           {selectionNote && (
             <span className="badge d-inline-flex align-items-center gap-1" style={{ ...surface, ...plain }}>
               <MaterialIcon type="code" /> {selectionNote}
             </span>
           )}
-          {images.map((image, index) => (
+          {attached.map((file, index) => (
             <span className="badge d-inline-flex align-items-center gap-1" style={{ ...surface, ...plain }} key={index}>
-              <ImagePreview src={previews[index]} name={image.name}>
-                <span className="d-inline-flex align-items-center gap-1" tabIndex={0}>
-                  <MaterialIcon type="image" /> {image.name}
+              {isPdf(file) ? (
+                <span className="d-inline-flex align-items-center gap-1">
+                  <MaterialIcon type="picture_as_pdf" /> {file.name}
                 </span>
-              </ImagePreview>
+              ) : (
+                <ImagePreview src={previews[index]!} name={file.name}>
+                  <span className="d-inline-flex align-items-center gap-1" tabIndex={0}>
+                    <MaterialIcon type="image" /> {file.name}
+                  </span>
+                </ImagePreview>
+              )}
               <button
                 type="button"
                 className="btn btn-link p-0 text-reset d-inline-flex"
-                aria-label={`Remove ${image.name}`}
-                onClick={() => setImages(images.filter((_, other) => other !== index))}
+                aria-label={`Remove ${file.name}`}
+                onClick={() => setAttached(attached.filter((_, other) => other !== index))}
               >
                 <MaterialIcon type="close" />
               </button>
@@ -150,10 +162,10 @@ const Composer = forwardRef<
         <input
           ref={picker}
           type="file"
-          accept="image/*"
+          accept="image/*,application/pdf"
           multiple
           hidden
-          aria-label="Attach images"
+          aria-label="Attach images or PDF files"
           onChange={event => {
             attach(Array.from(event.target.files ?? []))
             event.target.value = ''

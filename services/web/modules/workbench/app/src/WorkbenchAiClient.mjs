@@ -69,11 +69,23 @@ export function getProvider() {
   return _provider
 }
 
+/** Whether a user attached a PDF anywhere in the conversation. */
+export function hasPdf(messages = []) {
+  return messages.some(message =>
+    message.parts?.some(
+      part => part.type === 'file' && part.mediaType === 'application/pdf'
+    )
+  )
+}
+
 /**
- * Selects the instance's configured text or image model for a request.
+ * Selects the instance's configured text, image or PDF model for a request.
  */
 export function resolveModel(messages = []) {
-  // Follow-up requests retain earlier images, so route the entire conversation.
+  // Follow-up requests retain earlier attachments, so route the entire conversation.
+  if (Settings.workbenchAi?.pdfModel && hasPdf(messages)) {
+    return Settings.workbenchAi.pdfModel
+  }
   if (
     Settings.workbenchAi?.imageModel &&
     messages.some(message =>

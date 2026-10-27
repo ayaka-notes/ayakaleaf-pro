@@ -186,6 +186,11 @@ export default function ChatView({ chatId, view }: { chatId: string; view: Edito
         setQuotaHit(true)
       } else if (error instanceof ToolBudgetError) {
         setProblem(error.message)
+      } else if (error.message === 'ai_pdf_not_supported') {
+        // Set by the server when the model refused a chat with a PDF file
+        setProblem(
+          'The AI model cannot read PDF files. Ask your administrator to set AI_PDF_MODEL to a model that can.'
+        )
       } else {
         debugConsole.error(error)
         setProblem(true)

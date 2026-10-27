@@ -2,6 +2,7 @@ import logger from '@overleaf/logger'
 import { expressify } from '@overleaf/promise-utils'
 import { getAiAccess } from './PermissionsMiddleware.mjs'
 import {
+  APICallError,
   consumeStream,
   createUIMessageStream,
   pipeUIMessageStreamToResponse,
@@ -13,6 +14,7 @@ import {
   isConfigured,
   getProvider,
   resolveModel,
+  hasPdf,
   getMaxSteps,
   SYSTEM_PROMPT,
 } from './WorkbenchAiClient.mjs'
@@ -37,7 +39,7 @@ function hasValidAttachments(messages) {
       if (
         typeof part.url !== 'string' ||
         typeof part.mediaType !== 'string' ||
-        !/^image\/[a-z0-9.+-]+$/.test(part.mediaType)
+        !/^(image\/[a-z0-9.+-]+|application\/pdf)$/.test(part.mediaType)
       ) {
         return false
       }
@@ -188,6 +190,14 @@ async function chat(req, res) {
 
     const onError = err => {
       logger.err({ err, userId }, 'workbench chat stream error')
+      // Gateways that take images but not PDF files refuse the request
+      if (
+        hasPdf(history) &&
+        APICallError.isInstance(err) &&
+        [400, 415, 422].includes(err.statusCode)
+      ) {
+        return 'ai_pdf_not_supported'
+      }
       return 'The AI service returned an error. Please try again.'
     }
     const stream = createUIMessageStream({

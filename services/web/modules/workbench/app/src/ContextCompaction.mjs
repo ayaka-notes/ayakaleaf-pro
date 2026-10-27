@@ -21,7 +21,7 @@ const KEEP_TOOL_OUTPUT_TOKENS = 20_000
 // Condensed tool output, and tool output in the transcript to summarize, is
 // clipped to this length.
 const TOOL_RESULT_CHARS = 2_000
-// An image or rendered PDF page, roughly.
+// An attached image or PDF, or a rendered PDF page, roughly.
 const IMAGE_TOKENS = 1_500
 
 const CJK = /[\u3000-\u9fff\uac00-\ud7af\uf900-\ufaff\uff00-\uffef]/g
@@ -181,7 +181,7 @@ function transcript(messages, summary) {
       if (part.type === 'text') {
         lines.push(part.text)
       } else if (part.type === 'file') {
-        lines.push('[image attached]')
+        lines.push(part.mediaType === 'application/pdf' ? '[PDF attached]' : '[image attached]')
       } else if (isToolPart(part)) {
         const name = toolName(part)
         const output =

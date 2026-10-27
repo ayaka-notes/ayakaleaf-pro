@@ -4,6 +4,7 @@
  */
 import { memo, type ReactNode } from 'react'
 import type { UIMessage } from 'ai'
+import MaterialIcon from '@/shared/components/material-icon'
 import { TOOLS, type Respond } from '../agent/tools'
 import Markdown from './markdown'
 import Thinking from './thinking'
@@ -26,6 +27,13 @@ function UserMessage({ message }: { message: UIMessage }) {
       {message.parts.map((part, index) => {
         if (part.type === 'text') {
           return <Markdown text={part.text.split(CONTEXT_OPEN)[0].trimEnd()} key={index} />
+        }
+        if (part.type === 'file' && part.mediaType === 'application/pdf') {
+          return (
+            <span className="badge d-inline-flex align-items-center gap-1 me-1" style={{ ...boxed, ...plain }} key={index}>
+              <MaterialIcon type="picture_as_pdf" /> {part.filename ?? 'Attached PDF'}
+            </span>
+          )
         }
         if (part.type === 'file') {
           const name = part.filename ?? 'Attached image'
