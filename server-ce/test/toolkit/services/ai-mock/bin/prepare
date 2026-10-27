@@ -2,9 +2,9 @@
 # Usage: services/ai-mock/bin/prepare
 #
 # Runs before the toolkit's bin/up. Writes the mock's certificate for
-# api.openai.com, api.tavily.com and docs.overleaf.com, puts its CA into
-# data/overleaf/certs/ where the suite's NODE_EXTRA_CA_CERTS points, and
-# gives Overleaf and the mock the same random API keys.
+# api.openai.com, api.tavily.com, docs.overleaf.com and news.example.com,
+# puts its CA into data/overleaf/certs/ where the suite's NODE_EXTRA_CA_CERTS
+# points, and gives Overleaf and the mock the same random API keys.
 #
 # Expects TOOLKIT_DIR in the environment.
 
@@ -13,7 +13,8 @@ set -euo pipefail
 services="$(cd "$(dirname "$0")/../.." && pwd)"
 state="$TOOLKIT_DIR/services/ai-mock"
 
-"$services/lib/make-tls" "$state" api.openai.com api.tavily.com docs.overleaf.com
+"$services/lib/make-tls" "$state" api.openai.com api.tavily.com docs.overleaf.com \
+  news.example.com
 mkdir -p "$TOOLKIT_DIR/data/overleaf/certs"
 cp "$state/ca.crt" "$TOOLKIT_DIR/data/overleaf/certs/ai-mock-ca.pem"
 

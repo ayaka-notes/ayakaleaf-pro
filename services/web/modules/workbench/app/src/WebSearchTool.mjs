@@ -55,6 +55,15 @@ async function _tavilySearch(query) {
   }))
 }
 
+// The model gets the results as Markdown; sources are for the chat renderer
+function formatResults({ results, error }) {
+  if (error) return `The search failed (${error}).`
+  if (!results.length) return 'No results.'
+  return results
+    .map(r => `## [${r.title || r.url}](${r.url})\n\n${r.content}`)
+    .join('\n\n')
+}
+
 export const WEB_SEARCH_TOOL = tool({
   description:
     'Search the web for up-to-date information (current events, recent facts, ' +
@@ -80,6 +89,11 @@ export const WEB_SEARCH_TOOL = tool({
       return { action, sources: [], results: [], error: 'web_search_failed' }
     }
   },
+  // Output of earlier turns arrives condensed to a string (ContextCompaction)
+  toModelOutput: ({ output }) => ({
+    type: 'text',
+    value: typeof output === 'string' ? output : formatResults(output),
+  }),
 })
 
 export default { WEB_SEARCH_TOOL, isWebSearchConfigured }

@@ -95,9 +95,12 @@ function clip(text) {
 const FILE_READS = new Set(['get_lines', 'get_file', 'find_in_file'])
 
 // File content goes stale once the file is edited, so it is dropped rather
-// than clipped; search results keep their sources, compile results their
-// messages.
+// than clipped, and so is a web page, which the model can read again; search
+// results keep their sources, compile results their messages.
 function condenseOutput(name, input, output) {
+  if (name === 'web_fetch') {
+    return `[The page ${input.url}, read in an earlier turn. Left out to save space; read it again if needed.]`
+  }
   if (FILE_READS.has(name)) {
     const what = {
       get_lines: `Lines ${input.start}-${input.end} of ${input.path}`,

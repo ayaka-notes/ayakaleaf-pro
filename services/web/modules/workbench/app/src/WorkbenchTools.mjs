@@ -116,9 +116,10 @@ const PNG_SIGNATURE = Buffer.from('89504e470d0a1a0a', 'hex')
  * UI messages to model messages. A rendered page comes back from the browser
  * as base64 PNG text; Chat Completions tool results are text only, so the
  * page goes to the model in a user message right after the tool message.
+ * Tools with toModelOutput format their output of earlier steps too.
  */
-export async function convertWorkbenchMessages(messages) {
-  const converted = await convertToModelMessages(messages)
+export async function convertWorkbenchMessages(messages, tools) {
+  const converted = await convertToModelMessages(messages, { tools })
   return converted.flatMap(message => {
     if (message.role !== 'tool') return [message]
 

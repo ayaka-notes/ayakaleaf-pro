@@ -1,10 +1,11 @@
 // A stand-in for the AI services of the workbench and error-assistant
 // modules: an OpenAI-compatible gateway (api.openai.com, streamed chat
 // completions), Tavily web search (api.tavily.com) and the GitBook MCP
-// endpoint of the Overleaf documentation (docs.overleaf.com). The tests queue
-// the model's replies; everything lives in memory.
+// endpoint of the Overleaf documentation (docs.overleaf.com), and a web page
+// on news.example.com. The tests queue the model's replies; everything lives
+// in memory.
 //
-// Port 443 serves the three hosts over TLS, see services/lib/mock-server.mjs.
+// Port 443 serves the four hosts over TLS, see services/lib/mock-server.mjs.
 // Port 8080 is the control API for the tests (http://ai-mock:8080/_mock/...):
 // reset, queue replies, set the search results, and read back the chat
 // requests and the search queries Overleaf sent.
@@ -155,6 +156,30 @@ const tavily = [
   ],
 ]
 
+// -------------------------------------------------------------------- news
+
+// A web page for web_fetch, which reads it through the linked-url-proxy
+const news = [
+  [
+    'GET',
+    /^\/e2e$/,
+    ({ res }) => {
+      send(
+        res,
+        200,
+        [
+          '<!doctype html><html><head><title>E2E news</title>',
+          '<style>p { color: red }</style>',
+          "<script>window.tracker = 'e2e-script'</script></head>",
+          '<body><h1>E2E news</h1><p>The e2e tests passed today.</p>',
+          '<p>Fish &amp; chips</p></body></html>',
+        ].join(''),
+        { 'Content-Type': 'text/html; charset=utf-8' }
+      )
+    },
+  ],
+]
+
 // -------------------------------------------------------------------- docs
 
 // The MCP server answers a tools/call of searchDocumentation over streamable
@@ -245,6 +270,7 @@ listen({
     'api.openai.com': openai,
     'api.tavily.com': tavily,
     'docs.overleaf.com': docs,
+    'news.example.com': news,
   },
   control,
 })

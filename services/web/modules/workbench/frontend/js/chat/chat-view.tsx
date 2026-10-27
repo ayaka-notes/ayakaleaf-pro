@@ -32,8 +32,8 @@ import ConsentCard from './consent-card'
 import { AiOffNotice, ChatFailedNotice, ChatNotice, QuotaNotice } from './notices'
 import { faint, muted, plain, ruleAbove } from './themed'
 
-// The browser offers both searches; the server adds the configured ones
-const SEARCH_TOOLS = ['web_search', 'search_docs']
+// The browser offers the server tools; the server adds the configured ones
+const SERVER_TOOLS = ['web_search', 'web_fetch', 'search_docs']
 
 /** Set by the server when it summarizes turns up to and including a message. */
 type Summary = { summary: string; upToMessageId: string }
@@ -153,7 +153,7 @@ export default function ChatView({ chatId, view }: { chatId: string; view: Edito
               messageId,
               messages: messages.slice(from),
               summary: kept?.summary,
-              enabledTools: SEARCH_TOOLS,
+              enabledTools: SERVER_TOOLS,
             },
           }
         },

@@ -15,7 +15,7 @@ function StateMark({ state }: { state: string }) {
     case 'output-denied':
       return <MaterialIcon type="close" style={{ color: 'var(--content-danger-themed)' }} accessibilityLabel="Failed" />
     case 'input-available':
-      return <MaterialIcon type="pending" style={muted} accessibilityLabel="Waiting" />
+      return <MaterialIcon type="schedule" style={muted} accessibilityLabel="Waiting" />
     default:
       return (
         <span
@@ -44,10 +44,13 @@ export default function ToolCard({
   children?: ReactNode
 }) {
   const [open, setOpen] = useState(false)
-  const header = (truncate: boolean) => (
+  // One line a call: a long label, such as a URL, is cut short
+  const header = (
     <>
       <StateMark state={state} />
-      <span className={truncate ? 'text-truncate' : undefined}>{label}</span>
+      <span className="text-truncate" title={label}>
+        {label}
+      </span>
     </>
   )
   return (
@@ -63,14 +66,14 @@ export default function ToolCard({
             aria-expanded={open}
             onClick={() => setOpen(!open)}
           >
-            {header(true)}
+            {header}
             <span className="ms-auto flex-shrink-0 d-flex align-items-center">
               {links.length === 1 ? '1 result' : `${links.length} results`}
               <MaterialIcon type={open ? 'keyboard_arrow_down' : 'keyboard_arrow_right'} />
             </span>
           </button>
         ) : (
-          header(false)
+          header
         )}
       </div>
       {open && links?.length ? <SourceLinks links={links} /> : null}

@@ -19,6 +19,7 @@ import {
 import { CLIENT_TOOLS, convertWorkbenchMessages } from './WorkbenchTools.mjs'
 import { WEB_SEARCH_TOOL, isWebSearchConfigured } from './WebSearchTool.mjs'
 import { DOCS_SEARCH_TOOL, isDocsSearchConfigured } from './DocsSearchTool.mjs'
+import { WEB_FETCH_TOOL, isWebFetchConfigured } from './WebFetchTool.mjs'
 import { createToolCallLimit } from './ToolCallLimit.mjs'
 import { condenseOldToolOutputs, compactHistory } from './ContextCompaction.mjs'
 import {
@@ -112,17 +113,26 @@ async function chat(req, res) {
   const enabledTools = Array.isArray(req.body?.enabledTools)
     ? req.body.enabledTools
     : []
-  // Server-side search tools can run alongside browser document tools.
+  // Server-side web and docs tools can run alongside browser document tools.
   const webSearch = enabledTools.includes('web_search') && isWebSearchConfigured()
   const docsSearch = enabledTools.includes('search_docs') && isDocsSearchConfigured()
+  const webFetch = enabledTools.includes('web_fetch') && isWebFetchConfigured()
   const tools = { ...CLIENT_TOOLS }
   if (webSearch) tools.web_search = WEB_SEARCH_TOOL
   if (docsSearch) tools.search_docs = DOCS_SEARCH_TOOL
+  if (webFetch) tools.web_fetch = WEB_FETCH_TOOL
 
-  // Include instructions for the search tools available in this request.
+  // Include instructions for the server tools available in this request.
   let system = SYSTEM_PROMPT
+  if (webSearch || webFetch) {
+    // The model would otherwise take its training cutoff for today
+    system += `\n\nToday is ${new Date().toISOString().slice(0, 10)}.`
+  }
   if (webSearch) {
     system += `\n\nweb_search looks things up on the internet. Use it for anything recent or outside what you know, such as news, prices or the latest version of a package, answer from what it returns and link the pages you used. You do have internet access through it.`
+  }
+  if (webFetch) {
+    system += `\n\nweb_fetch reads a web page by its URL. Use it for a link the user gives, or to read a page web_search found when its snippet is not enough, and link the pages you used.`
   }
   if (docsSearch) {
     system += `\n\nsearch_docs searches the help pages of this editor. Use it, rather than web_search, when the user asks how the editor itself works (its features, settings, projects, accounts or administration), and link the pages you used.`
@@ -132,7 +142,7 @@ async function chat(req, res) {
   let modelMessages
   try {
     condensed = condenseOldToolOutputs(messages)
-    modelMessages = await convertWorkbenchMessages(condensed)
+    modelMessages = await convertWorkbenchMessages(condensed, tools)
   } catch (err) {
     logger.warn({ err, userId }, 'workbench chat: could not parse messages')
     return res.status(400).json({ error: 'invalid_messages' })
@@ -150,7 +160,7 @@ async function chat(req, res) {
   if (compaction) {
     history = compaction.messages
     historySummary = compaction.summary
-    modelMessages = await convertWorkbenchMessages(history)
+    modelMessages = await convertWorkbenchMessages(history, tools)
   }
   if (historySummary) {
     system += `\n\nThe earlier part of this conversation was summarized:\n\n${historySummary}`

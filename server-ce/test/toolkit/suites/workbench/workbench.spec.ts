@@ -142,6 +142,7 @@ describe('the AI assistant', function () {
         'propose_edit',
         'run_compile',
         'web_search',
+        'web_fetch',
         'search_docs',
       ])
     })
@@ -405,7 +406,87 @@ describe('the AI assistant', function () {
     // The server ran the search and continued in the same request
     chatRequests().then(requests => {
       expect(requests).to.have.length(2)
-      expect(toolResults(requests[1])).to.contain('The e2e tests passed today.')
+      // As Markdown, without the sources the chat lists
+      expect(toolResults(requests[1]))
+        .to.contain(
+          '## [E2E news](https://news.example.com/e2e)\n\nThe e2e tests passed today.'
+        )
+        .and.not.contain('"sources"')
+      expect(messageText(requests[1].messages[0])).to.match(
+        /Today is \d{4}-\d{2}-\d{2}\./
+      )
+    })
+  })
+
+  it('reads a web page through the linked-url-proxy', function () {
+    // About 22k tokens, so that the next turn condenses the page as well
+    aiMock('PUT', '/docs-pages', {
+      pages: [
+        {
+          title: 'Sharing a project',
+          link: 'https://docs.overleaf.com/sharing',
+          content: 'More detail. '.repeat(7000),
+        },
+      ],
+    })
+    queueReplies(
+      {
+        toolCalls: [
+          { name: 'web_fetch', args: { url: 'https://news.example.com/e2e' } },
+          { name: 'search_docs', args: { query: 'share a project' } },
+        ],
+      },
+      { text: 'The page says the tests passed.' },
+      { text: 'Anything else?' }
+    )
+    openAssistant()
+    ask('What does https://news.example.com/e2e say?')
+
+    // A long label stays on one line, cut short
+    toolHeader('Read https://news.example.com/e2e')
+      .find('[title="Read https://news.example.com/e2e"]')
+      .should('have.css', 'white-space', 'nowrap')
+      .and('have.css', 'text-overflow', 'ellipsis')
+    panel().should('contain.text', 'The page says the tests passed.')
+    ask('Thanks')
+    panel().should('contain.text', 'Anything else?')
+
+    chatRequests().then(requests => {
+      expect(requests).to.have.length(3)
+      // The text of the page, without its markup, scripts and styles
+      expect(toolResults(requests[1]))
+        .to.contain('# E2E news\nURL: https://news.example.com/e2e')
+        .and.contain('E2E news\nThe e2e tests passed today.\nFish & chips')
+        .and.not.contain('<p>')
+        .and.not.contain('e2e-script')
+        .and.not.contain('color: red')
+      // The next turn leaves the page out
+      expect(toolResults(requests[2]))
+        .to.contain('The page https://news.example.com/e2e, read in an earlier turn')
+        .and.not.contain('The e2e tests passed today.')
+    })
+  })
+
+  it('does not read pages on the internal network', function () {
+    // Two calls, so that the turn stays within AI_MAX_STEPS
+    const urls = [
+      'http://127.0.0.1:3000/status',
+      'http://169.254.169.254/latest/meta-data/',
+    ]
+    queueReplies(
+      { toolCalls: urls.map(url => ({ name: 'web_fetch', args: { url } })) },
+      { text: 'Those pages cannot be read.' }
+    )
+    openAssistant()
+    ask('Read these pages')
+
+    panel().should('contain.text', 'Those pages cannot be read.')
+    chatRequests().then(requests => {
+      // The linked-url-proxy refuses private addresses
+      const results = toolResults(requests[1])
+      for (const url of urls) {
+        expect(results).to.contain(`Could not read ${url} (HTTP 403).`)
+      }
     })
   })
 
@@ -845,8 +926,11 @@ describe('the chat endpoint', function () {
       expect(withNone.tools).to.include('get_lines')
       expect(withNone.tools).not.to.include('web_search')
       expect(withNone.tools).not.to.include('search_docs')
+      expect(withNone.tools).not.to.include('web_fetch')
+      expect(messageText(withNone.messages[0])).not.to.contain('Today is')
       expect(withWeb.tools).to.include('web_search')
       expect(withWeb.tools).not.to.include('search_docs')
+      expect(withWeb.tools).not.to.include('web_fetch')
       expect(messageText(withWeb.messages[0])).to.contain(
         'web_search looks things up'
       )

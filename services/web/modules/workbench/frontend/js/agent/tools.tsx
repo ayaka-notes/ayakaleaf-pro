@@ -143,7 +143,7 @@ export const TOOLS: Record<string, ToolSpec> = {
     run: (input, { actions, signal }) => actions.pdfOutline(signal),
   },
 
-  // The server runs these two; the browser only shows what they found
+  // The server runs these three; the browser only shows what they found
   web_search: {
     label: ({ query }) => `Search the web for “${query ?? ''}”`,
     links: part =>
@@ -153,6 +153,10 @@ export const TOOLS: Record<string, ToolSpec> = {
             text: source.title || source.url,
           }))
         : undefined,
+  },
+
+  web_fetch: {
+    label: ({ url }) => `Read ${url ?? ''}`,
   },
 
   search_docs: {
