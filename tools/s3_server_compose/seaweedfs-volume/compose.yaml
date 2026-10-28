@@ -1,0 +1,24 @@
+services:
+  seaweedfs-volume:
+    image: chrislusf/seaweedfs:latest
+    container_name: seaweedfs-volume
+    # no host port mapping: volume is only reached inside the network as
+    # volume:8080 (host 8080 is taken by another service) — gRPC stays mapped.
+    ports:
+      - "18080:18080" # volume gRPC
+    command: 'volume -mserver="master:9333" -ip=volume -ip.bind=0.0.0.0 -port=8080 -dir=/data -max=0'
+    volumes:
+      - ./data:/data
+    networks:
+      default:
+        aliases:
+          - volume
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+

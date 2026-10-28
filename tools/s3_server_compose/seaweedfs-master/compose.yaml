@@ -1,0 +1,26 @@
+services:
+  seaweedfs-master:
+    image: chrislusf/seaweedfs:latest
+    container_name: seaweedfs-master
+    hostname: seaweedfs-master
+    ports:
+      - "9333:9333"   # master HTTP
+      - "19333:19333" # master gRPC
+    command: "master -ip=master -ip.bind=0.0.0.0 -metricsPort=9327"
+    volumes:
+      - ./data:/data
+    networks:
+      default:
+        # classic seaweedfs names (master:9333 etc.) must resolve on the shared
+        # network while the container keeps its seaweedfs-* name.
+        aliases:
+          - master
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9333/cluster/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
