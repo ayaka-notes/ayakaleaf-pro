@@ -1,11 +1,13 @@
 # SVG Editor module (`svgeditor`)
 
 Adds an **Edit SVG** action to the file view header for `.svg` files: the
-file view shows an SVG preview with **Download** and **Edit** buttons (same
-header as the raster image views). **Edit** opens the SVG-Edit editor in a
-full-space Overleaf modal; **Save** re-uploads the edited SVG under the
-original file name (replacing the file) and refreshes the preview to the
-new hash.
+file view shows an SVG preview, with **Download**, **Edit** buttons (same
+header as the raster image views), and **Convert to PDF** / **Convert to
+PNG** items in the file-tree right-click menu. **Edit** opens the SVG-Edit
+editor in a full-space Overleaf modal; **Save** re-uploads the edited SVG
+under the original file name (replacing the file) and refreshes the
+preview to the new hash. Conversions create companion files (vector PDF
+for `\includegraphics`, raster PNG) in the same folder as the source SVG.
 
 Ported from the `diagram` module of the legacy `overleaf-cep` checkout
 (same embedded SVG-Edit 7.4.2 + same-origin iframe bridge), re-structured
@@ -21,10 +23,13 @@ modules/svgeditor/
 │   ├── components/
 │   │   ├── svg-editor-button.tsx      file-view "Edit SVG" button (slot entry)
 │   │   ├── svg-editor-modal.tsx       full-space modal: iframe, bridge, save, guard
-│   │   └── svg-editor.css             full-bleed modal + overlay styles
+│   │   ├── svg-editor.css             full-bleed modal + overlay styles
+│   │   ├── svg-convert-menu-item.tsx  context menu "Convert to PDF/PNG" (slot entry)
+│   │   └── svg-convert-toasts.tsx     success/error toasts (toastGenerators slot)
 │   └── util/
 │       ├── svg-editor-utils.ts        pure helpers (tested)
-│       └── svg-editor-save.ts         upload flow (tested)
+│       ├── svg-editor-save.ts         editor save/upload flow (tested)
+│       └── svg-convert.ts             SVG→PDF/PNG + upload orchestration (tested)
 ├── test/unit/src/                     vitest unit tests
 └── ../../public/static/svgeditor/     vendored SVG-Edit 7.4.2 assets + bridge
 ```
@@ -57,12 +62,40 @@ modules/svgeditor/
 - **Mount backstop**: if the bridge is not ready within 30 s the error
   panel offers Retry (iframe remount) and Open original.
 
+## Converting SVG → PDF / PNG (file-tree context menu)
+
+Plain SVG cannot be `\includegraphics`-ed by pdfLaTeX, so right-clicking a
+`.svg` file in the file tree offers **Convert to PDF** and **Convert to
+ PNG** (rendered by `svg-convert-menu-item.tsx` via the
+`fileTreeContextMenuItems` slot):
+
+- **PDF** stays **vector**: the SVG DOM is translated to PDF operators with
+  `svg2pdf.js` 2.8.x into a jsPDF 3.x page sized to the SVG
+  (explicit width/height, else viewBox aspect, else 1200 px). Verified:
+  output contains path operators and no `/Image` XObjects, so
+  `\includegraphics{figure.pdf}` renders crisp at any zoom.
+- **PNG** rasterises the SVG through `<img>` + `<canvas>` at the SVG's
+  pixel size (same object-URL trick as the file-view preview).
+- The browser does the conversion (no new server surface); the blob is
+  uploaded with the standard `/project/:id/upload` endpoint into the
+  **same folder** as the source: `logo.svg` → `logo.pdf` / `logo.png`
+  (names already taken get `-1`, `-2`, …). Success/error toasts
+  (`toastGenerators` slot) confirm the created file or show the error
+  detail.
+- `jspdf` + `svg2pdf.js` are code-split (lazy webpack chunk), keeping the
+  main IDE bundle unchanged.
+
 ## Integration points (this app)
 
-- `config/settings.defaults.js`: `fileViewButtons` slot entry +
+- `config/settings.defaults.js`: `fileViewButtons` +
+  `fileTreeContextMenuItems` + `toastGenerators` slot entries, and
   `moduleImportSequence` (`svgeditor`).
 - `frontend/js/features/file-view/components/file-view-header.tsx`:
   renders the slot buttons next to Download.
+- `frontend/js/features/file-tree/components/file-tree-item/file-tree-item-menu-items.tsx`:
+  renders the `fileTreeContextMenuItems` slot entries right after
+  Download (each entry component returns null unless it handles the
+  selected file).
 - `frontend/js/features/file-view/components/file-view.tsx` previews `.svg`
   through `FileViewSvg`: the project blob endpoint serves blobs as
   `application/octet-stream` (raster previews rely on browser sniffing),
@@ -73,18 +106,19 @@ modules/svgeditor/
 
 ## Tests
 
-- `yarn test:unit` (services/web) — vitest picks up
-  `modules/svgeditor/test/unit/src/*.test.mjs` (save flow + pure helpers).
-- `yarn webpack:production` — bundles the module components (0 errors).
-- Live browser E2E: preview + Edit + modify + Save (hash change) + unsaved
-  guard + zero external requests, against the Overleaf test server
-  (Playwright).
+- `yarn vitest run modules/svgeditor` — save flow + conversion helpers
+  (naming collisions, size computation, convert-and-upload orchestration
+  with injected fetch/convert).
+- `yarn webpack:production` — bundles the module components (0 errors);
+  `jspdf`/`svg2pdf.js` land in their own lazy chunk.
+- Live browser E2E (Playwright, against the Overleaf test server):
+  preview + Edit + modify + Save (hash change) + unsaved guard + zero
+  external requests; context menu conversion — PDF/PNG appear in the tree,
+  success toasts, `%PDF-`/PNG magic bytes on the downloaded files, vector
+  PDF (no image XObjects).
 
 ## Not in scope (possible follow-ups)
 
-- Companion renderings (PNG/PDF) for `\includegraphics` — the legacy
-  `diagram` module exported those as sibling files on save; this editor
-  keeps the single-source SVG (the file is replaced in place).
 - The legacy module's editor-pane "visual editor" mode for `.svg`
   documents (replacing the code editor) — this module is the file view
   editor only.
