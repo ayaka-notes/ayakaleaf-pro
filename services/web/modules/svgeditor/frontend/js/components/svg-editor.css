@@ -1,0 +1,140 @@
+/* Full available space (user request: editor uses the WHOLE space).
+   This codebase's OLModal (react-bootstrap) has no "full" size, so the
+   dialog is stretched to the viewport with CSS scoped to this modal —
+   the rest of the app keeps standard OL styling. */
+.svg-editor-modal .modal {
+  padding: 0;
+}
+
+.svg-editor-modal .modal-dialog {
+  max-width: none;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+.svg-editor-modal .modal-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.svg-editor-modal .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  position: relative; /* anchor for the unsaved-changes guard overlay */
+}
+
+/* Header: title left, Save action right (close X at the far right,
+   provided by the header's close button). */
+.svg-editor-modal .modal-header {
+  padding: 10px 16px;
+}
+
+.svg-editor-modal .modal-header .btn {
+  margin-left: 8px;
+}
+
+/* The embedded SVG-Edit app fills its iframe at 100%/100% (see
+   public/static/svgeditor/embed.css); the iframe itself must be the full
+   body and never scroll (the app manages its own panels). */
+.svg-editor-modal .svg-editor-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+
+/* Loading state while the embed boots. */
+.svg-editor-modal .svg-editor-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  padding: 24px;
+  background: #fff;
+  z-index: 10;
+}
+
+.svg-editor-modal .svg-editor-loading-inner {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+/* Startup-failure panel (30 s backstop / load failure). */
+.svg-editor-modal .svg-editor-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.96);
+  z-index: 12;
+  padding: 24px;
+}
+
+.svg-editor-modal .svg-editor-error-card {
+  max-width: 480px;
+  width: calc(100% - 48px);
+  text-align: center;
+}
+
+.svg-editor-modal .svg-editor-error-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.svg-editor-modal .svg-editor-error-message {
+  font-size: 13px;
+  color: #555;
+  margin-bottom: 16px;
+}
+
+.svg-editor-modal .svg-editor-error-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+/* Unsaved-changes guard (floating card over the editor). */
+.svg-editor-modal .svg-editor-guard {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 30;
+}
+
+.svg-editor-modal .svg-editor-guard-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 22px 26px;
+  max-width: 440px;
+  width: calc(100% - 48px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.28);
+  text-align: center;
+}
+
+.svg-editor-modal .svg-editor-guard-question {
+  margin: 0 0 16px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.svg-editor-modal .svg-editor-guard-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}

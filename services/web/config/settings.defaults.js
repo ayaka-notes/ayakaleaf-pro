@@ -1303,6 +1303,14 @@ module.exports = {
     railPopovers: [],
     railActions: [],
     railModals: [],
+    // Buttons rendered next to the download button in the file view header
+    // (e.g. the "Edit SVG" action from the svgeditor module).
+    fileViewButtons: [
+      Path.resolve(
+        __dirname,
+        '../modules/svgeditor/frontend/js/components/svg-editor-button'
+      ),
+    ],
   },
 
   moduleImportSequence: [
@@ -1332,7 +1340,8 @@ module.exports = {
     'workbench',
     'error-assistant',
     'instance-features',
-    'open-in-overleaf'
+    'open-in-overleaf',
+    'svgeditor'
   ],
   viewIncludes: {},
 
