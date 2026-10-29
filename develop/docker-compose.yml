@@ -113,6 +113,8 @@ services:
       - ../bin/shared/mongodb-init-replica-set.js:/docker-entrypoint-initdb.d/mongodb-init-replica-set.js
     environment:
       MONGO_INITDB_DATABASE: sharelatex
+      # mongo 8 fails on kernel 6.19+ (SERVER-121912), as in the e2e config
+      GLIBC_TUNABLES: glibc.pthread.rseq=1
     extra_hosts:
       # Required when using the automatic database setup for initializing the
       # replica set. This override is not needed when running the setup after
@@ -160,6 +162,7 @@ services:
       dockerfile: services/web/Dockerfile
       target: dev
     env_file:
+      - authentication/authentication.env
       - dev.env
     environment:
       - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs
@@ -174,6 +177,7 @@ services:
       - sharelatex-data:/var/lib/overleaf
       - web-data:/overleaf/services/web/data
       - ./data/certs/:/var/lib/overleaf/certs/
+      - ./authentication/saml/idp.crt:/etc/saml/idp.crt:ro
     depends_on:
       - mongo
       - redis
@@ -258,10 +262,13 @@ services:
     environment:
       ME_CONFIG_MONGODB_SERVER: mongo
   
-  # For ldap testing
-  # https://github.com/rroemhild/docker-test-openldap
+  # LDAP and SAML test users, see authentication/README.md
   ldap:
-    restart: always
-    image: ghcr.io/rroemhild/docker-test-openldap:v2.5.0
+    build: ./authentication/ldap
     healthcheck:
-      test: ["CMD-SHELL", "ldapsearch -H ldap://127.0.0.1:10389 -D \"$${LDAP_BINDDN}\" -w \"$${LDAP_SECRET}\" -b dc=planetexpress,dc=com -s base >/dev/null"]
+      test: ["CMD-SHELL", "ldapsearch -x -H ldap:/// -b dc=planetexpress,dc=com -s base >/dev/null"]
+
+  saml:
+    build: ./authentication/saml
+    env_file:
+      - dev.env
