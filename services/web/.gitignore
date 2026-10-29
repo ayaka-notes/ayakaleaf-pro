@@ -8,6 +8,10 @@ public/minjs
 public/stylesheets
 public/fonts
 public/images
+# webpack build artifacts emitted loose at the public root (e.g. the
+# onnxruntime-web chunk for the symbol-palette recognition worker)
+public/*.mjs
+public/*.mjs.LICENSE.txt
 
 modules/**/Makefile
 
