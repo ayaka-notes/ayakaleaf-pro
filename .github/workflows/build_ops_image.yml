@@ -61,8 +61,39 @@ env:
   DOCKER_REGISTRY: ghcr.io
 
 jobs:
-  build-image:
+  # One tag for both platforms, computed once
+  prepare:
     runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.vars.outputs.TAG }}
+      revision: ${{ steps.vars.outputs.MONOREPO_REVISION }}
+      latest: ${{ steps.vars.outputs.LATEST }}
+    steps:
+      - name: "Get MONOREPO_REVISION"
+        id: vars
+        run: |
+          revision=${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          echo "MONOREPO_REVISION=$revision" >> $GITHUB_OUTPUT
+          tag=$(TZ='Asia/Shanghai' date +'%Y%m%d%H%M')-${revision:0:7}
+          echo "Building tag: $tag"
+          echo "TAG=$tag" >> $GITHUB_OUTPUT
+          # Scheduled tests use latest; only server-pro builds may update it.
+          if [ "$GITHUB_EVENT_NAME" != "pull_request" ] && [ "$GITHUB_REF" = "refs/heads/server-pro" ]; then
+            echo "LATEST=true" >> $GITHUB_OUTPUT
+          fi
+
+  # Each platform builds on its own runner, the merge job joins them
+  build-image:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       # If the event is a pull request, checkout the head sha of the PR
       - name: "Checkout Current Repository"
@@ -133,29 +164,13 @@ jobs:
           tags: |
             overleaf-pro-base:ci
           no-cache: ${{ inputs.no_cache || false }}
-          cache-from: type=gha,scope=base-${{ hashFiles('server-ce/Dockerfile-base') }}
-          cache-to: type=gha,mode=max,scope=base-${{ hashFiles('server-ce/Dockerfile-base') }}
+          cache-from: type=gha,scope=base-${{ matrix.arch }}-${{ hashFiles('server-ce/Dockerfile-base') }}
+          cache-to: type=gha,mode=max,scope=base-${{ matrix.arch }}-${{ hashFiles('server-ce/Dockerfile-base') }}
           provenance: false
           sbom: false
       # --- End of Base Image ---
       
       # --- Build Server Image ---
-      - name: "Get MONOREPO_REVISION"
-        id: vars
-        run: |
-          echo "MONOREPO_REVISION=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
-          github_short_sha=$(echo ${{ github.sha }} | head -c7)
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            github_short_sha=$(echo ${{ github.event.pull_request.head.sha }} | head -c7)
-          fi
-          tag=$(TZ='Asia/Shanghai' date +'%Y%m%d%H%M')-$github_short_sha
-          echo "Building tag: $tag"
-          echo "TAG=$tag" >> $GITHUB_OUTPUT
-          # Scheduled tests use latest; only server-pro builds may update it.
-          if [ "$GITHUB_EVENT_NAME" != "pull_request" ] && [ "$GITHUB_REF" = "refs/heads/server-pro" ]; then
-            echo "LATEST=${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:latest" >> $GITHUB_OUTPUT
-          fi
-
       # The webpack cache mount of the Dockerfile does not outlive the runner,
       # keep it in the Actions cache so webpack starts warm
       - name: "Restore webpack cache"
@@ -163,8 +178,8 @@ jobs:
         uses: actions/cache@v6
         with:
           path: webpack-cache
-          key: webpack-cache-${{ github.run_id }}
-          restore-keys: webpack-cache-
+          key: webpack-cache-${{ matrix.arch }}-${{ github.run_id }}
+          restore-keys: webpack-cache-${{ matrix.arch }}-
       - name: "Inject webpack cache"
         if: ${{ !inputs.no_cache }}
         uses: reproducible-containers/buildkit-cache-dance@v3
@@ -188,21 +203,55 @@ jobs:
           build-args: |
             OVERLEAF_BASE_TAG=overleaf-pro-base:ci
           tags: |
-            ${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:${{ steps.vars.outputs.TAG }}
-            ${{ steps.vars.outputs.LATEST }}
+            ${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:${{ needs.prepare.outputs.tag }}-${{ matrix.arch }}
+            ${{ needs.prepare.outputs.latest && format('{0}/{1}/ops:latest-{2}', env.DOCKER_REGISTRY, env.IMAGE_NAME, matrix.arch) || '' }}
           annotations: |
             org.opencontainers.image.title=overleaf-pro-ops
             org.opencontainers.image.description=Overleaf Pro operations image, built from every push to server-pro, maintained by ayaka-notes. For testing only.
             org.opencontainers.image.source=https://github.com/ayaka-notes/ayakaleaf-pro
-            org.opencontainers.image.version=${{ steps.vars.outputs.MONOREPO_REVISION }}
-            space.ayaka.overleaf-pro.ops.revision=${{ steps.vars.outputs.MONOREPO_REVISION }}
-          # Cache from the latest server-pro image, its cache is inlined on push
+            org.opencontainers.image.version=${{ needs.prepare.outputs.revision }}
+            space.ayaka.overleaf-pro.ops.revision=${{ needs.prepare.outputs.revision }}
+          # Cache from the latest server-pro image of this platform, its cache is inlined on push
           no-cache: ${{ inputs.no_cache || false }}
-          cache-from: type=registry,ref=${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:latest
+          cache-from: type=registry,ref=${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops:latest-${{ matrix.arch }}
           cache-to: type=inline
           provenance: false
           sbom: false
       # --- End of Server Image ---
+
+  # Join both platforms under ops:<tag> (and ops:latest)
+  merge:
+    needs: [prepare, build-image]
+    runs-on: ubuntu-24.04
+    steps:
+      # GHCR image names must be lowercase
+      - name: "Set image name"
+        run: echo "IMAGE_NAME=${GITHUB_REPOSITORY_OWNER,,}/overleaf-pro" >> $GITHUB_ENV
+
+      - name: "Login to GitHub Container Registry"
+        uses: docker/login-action@v4
+        with:
+          registry: ${{env.DOCKER_REGISTRY}}
+          username: ${{github.actor}}
+          password: ${{secrets.GITHUB_TOKEN}}
+
+      - name: "Create manifest list and push"
+        run: |
+          image=${{env.DOCKER_REGISTRY}}/${{env.IMAGE_NAME}}/ops
+          tag=${{ needs.prepare.outputs.tag }}
+          tags=(--tag "$image:$tag")
+          if [ "${{ needs.prepare.outputs.latest }}" = true ]; then
+            tags+=(--tag "$image:latest")
+          fi
+          revision=${{ needs.prepare.outputs.revision }}
+          docker buildx imagetools create "${tags[@]}" \
+            --annotation "index:org.opencontainers.image.title=overleaf-pro-ops" \
+            --annotation "index:org.opencontainers.image.description=Overleaf Pro operations image, built from every push to server-pro, maintained by ayaka-notes. For testing only." \
+            --annotation "index:org.opencontainers.image.source=https://github.com/ayaka-notes/ayakaleaf-pro" \
+            --annotation "index:org.opencontainers.image.version=$revision" \
+            --annotation "index:space.ayaka.overleaf-pro.ops.revision=$revision" \
+            "$image:$tag-amd64" "$image:$tag-arm64"
+          docker buildx imagetools inspect "$image:$tag"
 
       # --- Retention Policy: Delete old images ---
       - name: Delete old images
@@ -210,8 +259,8 @@ jobs:
         uses: snok/container-retention-policy@v3.1.0
         with:
           image-names: overleaf-pro/ops*
-          # Keep latest, the scheduled tests and the build cache use it
-          image-tags: "!latest"
+          # Keep latest and latest-<arch>, the scheduled tests and the build cache use them
+          image-tags: "!latest*"
           cut-off: 7d
           account: ayaka-notes
           tag-selection: both

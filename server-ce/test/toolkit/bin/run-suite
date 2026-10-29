@@ -20,6 +20,10 @@ for file in "$TOOLKIT_DIR"/services/*/cypress.env; do
   [[ -f "$file" ]] && env_files+=(--env-file "$file")
 done
 
+# Chrome has no linux/arm64 build, the arm64 Cypress image ships Electron
+browser=chrome
+[[ $(uname -m) == @(aarch64|arm64) ]] && browser=electron
+
 function run_cypress() {
   docker run --rm \
     "${env_files[@]}" \
@@ -33,7 +37,7 @@ function run_cypress() {
     --env CYPRESS_BASE_URL=http://sharelatex \
     --entrypoint yarn \
     "$CYPRESS_IMAGE" \
-    cypress run --browser chrome
+    cypress run --browser "$browser"
 }
 
 if compgen -G "suites/$suite/*.spec.ts" >/dev/null; then
