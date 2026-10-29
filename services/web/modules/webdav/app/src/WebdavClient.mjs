@@ -137,7 +137,7 @@ export function createWebdavClient(baseUrl, username, password, rootPath = '/') 
      * @returns {Promise<Buffer>} File content as ArrayBuffer
      */
     async get(resourcePath) {
-      const content = await clientInstance.getFileContents(resourcePath)
+      const content = await clientInstance.getFileContents(resourcePath, { format: 'binary' })
       if (typeof content === 'string') {
         return new TextEncoder().encode(content).buffer
       }
@@ -483,12 +483,20 @@ export default class WebdavClient {
    */
    async put(resourcePath, body, { etag } = {}) {
      try {
-       // Convert ArrayBuffer/Buffer to string if needed
-       const content = 
-         typeof body === 'string' ? body :
-         body instanceof ArrayBuffer ? new TextDecoder().decode(body) :
-         Buffer.isBuffer(body) ? body :  // ← Keep binary buffers as-is!
-         body
+       // Binary-safe body conversion. CRITICAL: ArrayBuffer/TypedArray must
+       // be byte-copied — TextDecoder.decode() UTF-8-encodes raw bytes and
+       // corrupts every non-UTF-8 byte (PNG/PDF/JPG) into U+FFFD (this was
+       // the "binary files on DAV are broken" bug). Strings pass through:
+       // the npm layer UTF-8-encodes them on the wire, which is correct
+       // for text documents (pushed .tex).
+       const content =
+         Buffer.isBuffer(body)
+           ? body
+           : body instanceof ArrayBuffer
+             ? Buffer.from(body)
+             : ArrayBuffer.isView(body)
+               ? Buffer.from(body.buffer, body.byteOffset, body.byteLength)
+               : body
 
        await this._executeWithRetry(() => this.client.putFileContents(resourcePath, content, {
          overwrite: true,
@@ -525,7 +533,9 @@ export default class WebdavClient {
    */
   async get(resourcePath) {
     try {
-      const content = await this._executeWithRetry(() => this.client.getFileContents(resourcePath))
+      // format: 'binary' is the npm default (Buffer on Node); be explicit so a
+      // 'text' round-trip can never reintroduce the byte-corruption bug.
+      const content = await this._executeWithRetry(() => this.client.getFileContents(resourcePath, { format: 'binary' }))
       
       // webdav package returns content as string by default
       // Convert to ArrayBuffer matching previous behavior
