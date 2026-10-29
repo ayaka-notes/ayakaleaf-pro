@@ -257,6 +257,22 @@ export default function SvgEditorModal({
       }
       const uploadedId = result.uploadedId
       const uploadedHash = result.uploadedHash
+      // Capture the CURRENT preview source before the replace: the refresh
+      // below succeeds when the pane shows a DIFFERENT source (for SVG the
+      // preview is a content-addressed object URL with an explicit
+      // image/svg+xml type — the blob endpoint serves octet-stream and
+      // browsers refuse SVG in <img> otherwise; for other types the hash in
+      // the src changes).
+      const preSaveSrc = (() => {
+        try {
+          const img = document.querySelector(
+            '.file-view img'
+          ) as HTMLImageElement | null
+          return img?.src || ''
+        } catch (e) {
+          return ''
+        }
+      })()
 
       // CRITICAL ORDER (same lesson as the raster editor): close FIRST,
       // then refresh — detached. The replace commits a real-time delete of
@@ -295,13 +311,15 @@ export default function SvgEditorModal({
         }
       }
       const paneShowsNewFile = (): boolean => {
-        // The SVG preview renders as <img> in the file view (FileViewImage),
-        // same as raster previews.
+        // The SVG preview renders as <img> in the file view (FileViewSvg),
+        // same as raster previews (FileViewImage).
         const img = document.querySelector(
           '.file-view img'
         ) as HTMLImageElement | null
         if (!img || !img.src) return false
+        if (preSaveSrc) return img.src !== preSaveSrc
         if (uploadedHash) return img.src.includes(uploadedHash)
+        // No baseline captured: accept any preview that is not the old file.
         return !img.src.includes(file.hash)
       }
       const refreshDetached = async () => {

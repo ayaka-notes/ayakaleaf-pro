@@ -63,9 +63,12 @@ modules/svgeditor/
   `moduleImportSequence` (`svgeditor`).
 - `frontend/js/features/file-view/components/file-view-header.tsx`:
   renders the slot buttons next to Download.
-- `frontend/js/features/file-view/components/file-view.tsx`: `svg` added
-  to the previewable image extensions (SVG preview renders via the same
-  `<img>` as raster previews).
+- `frontend/js/features/file-view/components/file-view.tsx` previews `.svg`
+  through `FileViewSvg`: the project blob endpoint serves blobs as
+  `application/octet-stream` (raster previews rely on browser sniffing),
+  which browsers reject for SVG in `<img>` — so the SVG is fetched as text
+  and rendered via a same-origin object URL with an explicit
+  `image/svg+xml` type (still an `<img>` embed: no script execution).
 - Locale strings in `locales/en.json` / `frontend/extracted-translations.json`.
 
 ## Tests

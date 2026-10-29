@@ -19,6 +19,15 @@
   flex-direction: column;
 }
 
+/* OLModal wraps the header/body in a focus-trap div; it must join the
+   flex column or the body collapses to its content height. */
+.svg-editor-modal .focus-trap-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
 .svg-editor-modal .modal-body {
   flex: 1 1 auto;
   min-height: 0;
