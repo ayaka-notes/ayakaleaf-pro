@@ -1,0 +1,91 @@
+/* Full available space (user request: editor uses the WHOLE space, no
+   OL header/footer rows). This codebase's OLModal (react-bootstrap) has
+   no "full" size, so the dialog is stretched to the viewport with CSS
+   scoped to this modal — the rest of the app keeps standard OL styling. */
+.toast-image-editor-modal .modal {
+  padding: 0;
+}
+
+.toast-image-editor-modal .modal-dialog {
+  max-width: none;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+.toast-image-editor-modal .modal-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.toast-image-editor-modal .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  position: relative; /* anchor for the unsaved-changes guard overlay */
+}
+
+/* FIE host: the FIE app root (styled-components) fills its container at
+   100%/100%, so the host must be the full body. FIE manages its own
+   topbar (~95px) + canvas sizing internally — do not override its
+   internal layout. */
+.toast-image-editor-modal .toast-image-editor-host,
+.toast-image-editor-modal .toast-image-editor-host > div {
+  width: 100%;
+  height: 100%;
+}
+
+/* Loading/fallback states while the lazy editor chunk resolves. */
+.toast-image-editor-modal .toast-image-editor-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  height: 100%;
+  justify-content: center;
+  padding: 24px;
+}
+
+.toast-image-editor-modal .toast-image-editor-loading-inner {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+/* Unsaved-changes guard (floating card over the editor — replaces the old
+   footer guard now that the OL header/footer are removed). */
+.toast-image-editor-modal .toast-image-guard {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 30;
+}
+
+.toast-image-editor-modal .toast-image-guard-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 22px 26px;
+  max-width: 440px;
+  width: calc(100% - 48px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.28);
+  text-align: center;
+}
+
+.toast-image-editor-modal .toast-image-guard-question {
+  margin: 0 0 16px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.toast-image-editor-modal .toast-image-guard-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}

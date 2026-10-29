@@ -3463,5 +3463,17 @@
   "zotero_sync_success_plural": "Synced __count__ references from Zotero.",
   "zotero_sync_up_to_date": "Your Zotero references are already up to date.",
   "zotero_upgrade_prompt_content": "Link your Zotero account to search and add your references from Zotero directly in your project—they’ll automatically be added to your .bib file. Or import them as a file into your __appName__ projects.",
-  "zotero_upgrade_prompt_title": "Cite from Zotero"
+  "zotero_upgrade_prompt_title": "Cite from Zotero",
+  "edit_image": "Edit Image",
+  "discard": "Discard",
+  "keep_editing": "Keep editing",
+  "retry": "Retry",
+  "unsaved_image_changes": "You have unsaved image edits. Discard them?",
+  "image_edit_failed": "Failed to edit the image",
+  "image_edit_upload_failed": "Upload failed: {{status}}",
+  "image_edit_upload_read_failed": "Could not read the edited image ({{status}})",
+  "image_edit_backstop": "The image editor could not be initialized. You can still open the original image.",
+  "image_edit_open_original": "Open original image",
+  "image_edit_loading": "Loading the image editor…",
+  "image_edit_save_hint": "Use the Save button in the editor toolbar to apply your changes."
 }
