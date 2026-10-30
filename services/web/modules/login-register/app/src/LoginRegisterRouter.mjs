@@ -4,6 +4,7 @@ import RegisterController from './RegisterController.mjs'
 import LoginController, { localLoginDisabled } from "./LoginController.mjs"
 import AuthenticationController from '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
 import RateLimiterMiddleware from "../../../../app/src/Features/Security/RateLimiterMiddleware.mjs"
+import CaptchaMiddleware from "../../../../app/src/Features/Captcha/CaptchaMiddleware.mjs"
 import { RateLimiter } from "../../../../app/src/infrastructure/RateLimiter.mjs"
 
 // Limit registration attempts to 3 per minute per IP
@@ -41,6 +42,7 @@ export default {
         webRouter.post(
           '/register',
           RateLimiterMiddleware.rateLimit(registrationRateLimiters.postRegister),
+          CaptchaMiddleware.validateCaptcha('register'),
           RegisterController.registerWithUsernameAndPassword
         )
       }
@@ -48,6 +50,7 @@ export default {
         webRouter.post(
           '/register',
           RateLimiterMiddleware.rateLimit(registrationRateLimiters.postRegister),
+          CaptchaMiddleware.validateCaptcha('register'),
           RegisterController.registerWithEmail
         )
       }
@@ -65,6 +68,8 @@ export default {
     AuthenticationController.addEndpointToLoginWhitelist('/login')
     // Where suspended users are sent on login, they have no session
     AuthenticationController.addEndpointToLoginWhitelist('/account-suspended')
+    // The login form asks it before the captcha, with no session yet
+    AuthenticationController.addEndpointToLoginWhitelist('/login/can-skip-captcha')
 
     if (Settings.ldap && Settings.ldap.enable) {
       webRouter.get('/ldap/login', LoginController.ldapLoginPage)
