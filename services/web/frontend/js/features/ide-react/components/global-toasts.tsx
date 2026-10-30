@@ -9,6 +9,7 @@ import clipboardToastGenerators from '@/features/source-editor/components/clipbo
 import exportDocumentToastGenerators from '@/features/ide-react/components/toolbar/export-document-toasts'
 import connectionRestoredToastGenerators from '@/features/ide-react/components/connection-restored-toast'
 import deepLinkToastGenerators from '@/features/ide-react/components/deep-link-toasts'
+import fileTreeDuplicateToastGenerators from '@/features/file-tree/components/file-tree-duplicate-toasts'
 
 const moduleGeneratorsImport = importOverleafModules('toastGenerators') as {
   import: { default: GlobalToastGeneratorEntry[] }
@@ -33,6 +34,7 @@ const GENERATOR_LIST: GlobalToastGeneratorEntry[] = [
   ...exportDocumentToastGenerators,
   ...connectionRestoredToastGenerators,
   ...deepLinkToastGenerators,
+  ...fileTreeDuplicateToastGenerators,
 ]
 const GENERATOR_MAP: Map<string, GlobalToastGenerator> = new Map(
   GENERATOR_LIST.map(({ key, generator }) => [key, generator])
