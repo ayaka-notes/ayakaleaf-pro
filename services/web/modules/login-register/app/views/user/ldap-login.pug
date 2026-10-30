@@ -7,15 +7,13 @@ block content
 	main#main-content.content.content-alt
 		.container
 			.row
-				.col-lg-6.offset-lg-3.col-xl-4.offset-xl-4
-					.card
-						.card-body
-							.page-header
-								if login_support_title
-									h1 !{login_support_title}
-								else
-									h1.h3 #{translate("log_in")} LDAP
-							.login-register-hr-text-container(style='margin-top: 1px; padding: 5px 0;')
+				.col-md-8.col-lg-6.col-xl-5.mx-auto
+					.card.rounded-4.border-0.shadow.bg-white
+						.card-body.ciam-enabled.p-4.p-sm-5
+							if login_support_title
+								h1.pb-3 !{login_support_title}
+							else
+								h1.pb-3 #{translate("log_in")} LDAP
 							form(name='loginForm' data-ol-async-form action='/ldap/login' method='POST')
 								input(name='_csrf' type='hidden' value=csrfToken)
 								+formMessagesNewStyle
@@ -25,9 +23,9 @@ block content
 										| #{translate('reset_password_link')}
 								+customFormMessageNewStyle('password-compromised')
 									| !{translate('password_compromised_try_again_or_use_known_device_or_reset', {}, [{name: 'a', attrs: {href: 'https://haveibeenpwned.com/passwords', rel: 'noopener noreferrer', target: '_blank'}}, {name: 'a', attrs: {href: '/user/password/reset', target: '_blank'}}])}.
-								.form-group
+								.form-group.form-group-ds
 									label(for='login') #{(settings.ldap && settings.ldap.placeholder) ? settings.ldap.placeholder : 'LDAP Username'}
-									input#login.form-control(
+									input#login.form-control.form-control-ds.form-control-lg(
 										name='login'
 										type='text'
 										required
@@ -35,9 +33,9 @@ block content
 										autofocus='true'
 										autocomplete='username'
 									)
-								.form-group
+								.form-group.form-group-ds
 									label(for='password') #{translate("password")}
-									input#password.form-control(
+									input#password.form-control.form-control-ds.form-control-lg(
 										name='password'
 										type='password'
 										autocomplete='current-password'
@@ -45,7 +43,7 @@ block content
                                         placeholder='********'
 									)
 								.actions
-									button.btn-primary.btn(type='submit' data-ol-disabled-inflight)
+									button.btn.btn-ds.btn-lg.btn-primary.w-100(type='submit' data-ol-disabled-inflight)
 										span(data-ol-inflight='idle') #{translate("login")}
 										span(hidden data-ol-inflight='pending') #{translate("logging_in")}…
 								if login_support_text
@@ -56,18 +54,16 @@ block content
 									span.ciam-login-register-or-text #{translate("or")}
 							if settings.saml && settings.saml.enable
 								.actions(style='margin-top: 15px;')
-									a.button.btn-secondary.btn(
+									a.btn.btn-ds.btn-lg.btn-secondary.w-100(
 									href='/saml/login',
-										style="width: 100%;"
 										data-ol-disabled-inflight
 									)
 										span(data-ol-inflight="idle") #{settings.saml.identityServiceName}
 										span(hidden data-ol-inflight="pending") #{translate("logging_in")}…
 							if settings.oidc && settings.oidc.enable
 								.actions(style='margin-top: 15px;')
-									a.button.btn-secondary.btn(
+									a.btn.btn-ds.btn-lg.btn-secondary.w-100(
 										href='/oidc/login',
-										style="width: 100%;"
 										data-ol-disabled-inflight
 									)
 										span(data-ol-inflight="idle") #{settings.oidc.identityServiceName}
