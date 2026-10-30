@@ -40,6 +40,7 @@ import { setDocName } from '@/features/source-editor/extensions/doc-name'
 import { captureException } from '@/infrastructure/error-reporter'
 import grammarlyExtensionPresent from '@/shared/utils/grammarly'
 import { debugConsole } from '@/utils/debugging'
+import getMeta from '@/utils/meta'
 import { useMetadataContext } from '@/features/ide-react/context/metadata-context'
 import { useUserContext } from '@/shared/context/user-context'
 import { useReferencesContext } from '@/features/ide-react/context/references-context'
@@ -108,6 +109,33 @@ function useCodeMirrorScope(view: EditorView) {
   }
 
   const hunspellManager = useHunspell(spellCheckLanguage)
+
+  // ── LanguageTool grammar check (project-wide settings) ─────────────────────
+  // Stored on the project (shared by all collaborators). Defaults when unset:
+  // enabled + picky ON → level=picky. Values are handed to the CodeMirror
+  // extension through `createExtensions` below, and every change is
+  // announced with a window event the extension listens for.
+  const languageTool = {
+    available:
+      getMeta('ol-ExposedSettings')?.languageToolAvailable === true,
+    // off for read-only views (like spell-checking)
+    enabled:
+      (permissions.write || permissions.trackedWrite) &&
+      project?.languageToolEnabled !== false,
+    picky: project?.languageToolPicky !== false,
+    language: project?.languageToolLanguage || 'auto',
+  }
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent('lt:settings-changed', { detail: languageTool })
+    )
+  }, [
+    languageTool.available,
+    languageTool.enabled,
+    languageTool.picky,
+    languageTool.language,
+  ])
 
   const { showVisual: visual, trackChanges } = useEditorPropertiesContext()
 
@@ -362,6 +390,7 @@ function useCodeMirrorScope(view: EditorView) {
           settings: settingsRef.current,
           phrases: phrasesRef.current,
           spelling: spellingRef.current,
+          languageTool,
           showVisual: showVisualRef.current,
           previewByPath: previewByPathRef.current,
           currentDocFolder: dirnameRef.current(currentDocument.doc_id),

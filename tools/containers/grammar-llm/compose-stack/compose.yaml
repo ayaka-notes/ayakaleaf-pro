@@ -1,0 +1,34 @@
+services:
+  grammar-llm:
+    image: grammar-llm:latest
+    container_name: languagetool
+    hostname: languagetool
+    restart: unless-stopped
+
+    # Optional environment (uncomment and set as a mapping — compose rejects
+    # an environment key with no entries):
+    # environment:
+    #   GRAMMAR_LLM_MODEL_FILE: GRMR-V3-G4B-Q8_0.gguf     # optional: higher-quality (slower) quant
+    #   GRAMMAR_LLM_MODEL_URL: "..."                       # optional: custom model source
+    #   GRAMMAR_LLM_DOWNLOAD_AT_START: "true"              # default: download model on first start
+    #   GRAMMAR_LLM_REQUEST_TIMEOUT_MS: "55000"            # per-request time budget
+    #   GRAMMAR_LLM_PRELOAD: "true"                        # load model at boot
+    volumes:
+      - ./models:/models                  # the model downloaded here (make download-model → ./models/GRMR-V3-G4B-Q4_K_M.gguf); survives container recreation
+    # For NVIDIA GPU inference (build with the linux-x64-cuda prebuilt and
+    # uncomment; node-llama-cpp auto-detects CUDA when available):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+    networks:
+      - overleaf-network
+
+networks:
+  overleaf-network:
+    external: true
+

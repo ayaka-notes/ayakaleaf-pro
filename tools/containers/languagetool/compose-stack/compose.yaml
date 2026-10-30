@@ -1,0 +1,35 @@
+# languagetool container — overleaf-network variant (mirrors the grammar-llm
+# container's compose-stack layout: same container_name/hostname as the
+# original deploy so Overleaf reaches it as `http://languagetool:8010`).
+#
+# Requires an existing external Docker network `overleaf-network` created by
+# the main Overleaf stack (override the name via LTOOL_NETWORK).
+
+services:
+  languagetool:
+    image: ${LTOOL_IMAGE:-erikvl87/languagetool:latest}
+    container_name: languagetool
+    hostname: languagetool
+    restart: unless-stopped
+
+    environment:
+      Java_Xms: ${LTOOL_JAVA_XMS:-512m}
+      Java_Xmx: ${LTOOL_JAVA_XMX:-2g}
+      langtool_languageModel: ${LTOOL_NGRAMS_PATH:-/ngrams}
+
+    volumes:
+      - ${LTOOL_NGRAMS_DIR:-./ngrams}:/ngrams:ro
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --spider --timeout=5 http://localhost:8010/v2/languages 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+    networks:
+      - ${LTOOL_NETWORK:-overleaf-network}
+
+networks:
+  ${LTOOL_NETWORK:-overleaf-network}:
+    external: true

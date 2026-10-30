@@ -3,6 +3,7 @@ import type { ProjectSettings } from '../utils/api'
 import useRootDocId from './use-root-doc-id'
 import useSaveProjectSettings from './use-save-project-settings'
 import useSetSpellCheckLanguage from './use-set-spell-check-language'
+import useSetLanguageToolSetting from './use-set-language-tool'
 import { debugConsole } from '@/utils/debugging'
 import { useProjectContext } from '@/shared/context/project-context'
 import getMeta from '@/utils/meta'
@@ -49,6 +50,9 @@ export default function useProjectWideSettings() {
 
   const { setRootDocId, rootDocId } = useRootDocId()
   const setSpellCheckLanguage = useSetSpellCheckLanguage()
+  const setLanguageToolEnabled = useSetLanguageToolSetting('languageToolEnabled')
+  const setLanguageToolPicky = useSetLanguageToolSetting('languageToolPicky')
+  const setLanguageToolLanguage = useSetLanguageToolSetting('languageToolLanguage')
 
   return {
     compiler: project?.compiler,
@@ -63,5 +67,11 @@ export default function useProjectWideSettings() {
     setRootDocId,
     spellCheckLanguage: project?.spellCheckLanguage,
     setSpellCheckLanguage,
+    languageToolEnabled: project?.languageToolEnabled,
+    setLanguageToolEnabled,
+    languageToolPicky: project?.languageToolPicky,
+    setLanguageToolPicky,
+    languageToolLanguage: project?.languageToolLanguage,
+    setLanguageToolLanguage,
   }
 }

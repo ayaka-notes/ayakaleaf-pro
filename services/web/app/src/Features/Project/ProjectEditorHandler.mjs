@@ -25,6 +25,12 @@ export default ProjectEditorHandler = {
       description: project.description,
       spellCheckLanguage: project.spellCheckLanguage,
       referenceFormat: project.referenceFormat,
+      // LanguageTool grammar check (project-wide settings — the Settings
+      // modal reads these back through the project context; without them the
+      // client never sees saved values and changes look "not stored").
+      languageToolEnabled: project.languageToolEnabled,
+      languageToolPicky: project.languageToolPicky,
+      languageToolLanguage: project.languageToolLanguage,
       png2pdf: project.png2pdf,
       deletedByExternalDataSource: project.deletedByExternalDataSource || false,
       imageName:
