@@ -1095,6 +1095,10 @@ module.exports = {
         __dirname,
         '../modules/reference-picker/frontend/js/components/reference-picker-controller.tsx'
       ),
+      Path.resolve(
+        __dirname,
+        '../modules/compile-setup/frontend/js/components/compile-setup-modal'
+      ),
     ],
     mainEditorLayoutPanels: [
       Path.resolve(
@@ -1287,6 +1291,12 @@ module.exports = {
     referenceSearchSetting: [],
     settingsModalEditorTabSections: [],
     settingsModalSpellcheckSections: [],
+    settingsModalCompilerTabSettings: [
+      Path.resolve(
+        __dirname,
+        '../modules/compile-setup/frontend/js/components/compile-setup-prompt-setting'
+      ),
+    ],
     editorFloatingMenuActions: [],
     referenceIndices: [
       Path.resolve(
@@ -1322,6 +1332,7 @@ module.exports = {
     'login-register',
     'oauth2-server',
     'reference-picker',
+    'compile-setup',
     'git-bridge',
     'mcp-server',
     'github-sync',
