@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid'
 import { setSuspended } from '../../../helpers/adminTools'
 import { DEFAULT_PASSWORD, login } from '../../../helpers/login'
+import { resetRecaptchaMock, verifiedTokens } from '../../../helpers/recaptcha'
 import { postRegister, waitForRegisterSlot } from '../../../helpers/register'
 import { postWithCsrf } from '../../../helpers/request'
 import { ADMIN_EMAIL, ensureUserExists } from '../../../helpers/users'
@@ -42,6 +43,16 @@ describe('login', function () {
     cy.findByLabelText('Password').type(DEFAULT_PASSWORD)
     cy.findByRole('button', { name: 'Login' }).click()
     cy.url().should('contain', '/project')
+  })
+
+  it('logs in without a captcha when no site key is set', function () {
+    resetRecaptchaMock()
+    cy.get('script[src*="recaptcha"]').should('not.exist')
+    cy.findByLabelText('Email').type(user)
+    cy.findByLabelText('Password').type(DEFAULT_PASSWORD)
+    cy.findByRole('button', { name: 'Login' }).click()
+    cy.url().should('contain', '/project')
+    verifiedTokens().should('deep.equal', [])
   })
 
   it('treats the email case-insensitively', function () {

@@ -1,11 +1,28 @@
 extends ../../../../../app/views/layout-marketing
+include ../../../../../app/views/_mixins/recaptcha
 
 block vars
 	- isWebsiteRedesign = true
 
 
 block content
-	main#main-content.content.content-alt
+	- var showCaptcha = settings.recaptcha && settings.recaptcha.siteKey && !(settings.recaptcha.disabled && settings.recaptcha.disabled.register)
+
+	if showCaptcha
+		script(
+			type='text/javascript'
+			nonce=scriptNonce
+			src='https://www.recaptcha.net/recaptcha/api.js?render=explicit'
+		)
+		div(
+			id='recaptcha'
+			class='g-recaptcha'
+			data-sitekey=settings.recaptcha.siteKey
+			data-size='invisible'
+			data-badge='inline'
+		)
+
+	main#main-content.content.content-alt(data-ol-captcha-retry-trigger-area='')
 		.container
 			.row
 				.col-md-8.col-lg-6.col-xl-5.mx-auto
@@ -18,6 +35,8 @@ block content
 								action="/register",
 								method="POST",
 								aria-label=translate('create_account')
+								captcha-action-name=showCaptcha ? 'register' : false
+								captcha=showCaptcha ? '' : false
 							)
 								input(name='_csrf' type='hidden' value=csrfToken)
 								+formMessages()
@@ -56,6 +75,8 @@ block content
 									)
 										span(data-ol-inflight="idle") #{translate("create_account")}
 										span(hidden data-ol-inflight="pending") #{translate("registering")}…
+								if showCaptcha
+									+recaptchaConditions
 							if (settings.ldap && settings.ldap.enable) || (settings.saml && settings.saml.enable) || (settings.oidc && settings.oidc.enable)
 								p.ciam-login-register-or-text-container
 									span.ciam-login-register-or-text #{translate("or")}
