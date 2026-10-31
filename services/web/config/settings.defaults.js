@@ -1083,7 +1083,12 @@ module.exports = {
     sourceEditorToolbarStartButtons: [],
     sourceEditorToolbarButtonGroups: [],
     sourceEditorToolbarComponents: [],
-    sourceEditorToolbarEndButtons: [],
+    sourceEditorToolbarEndButtons: [
+      Path.resolve(
+        __dirname,
+        '../modules/autoformatter/frontend/components/autoformat-button'
+      ),
+    ],
     rootContextProviders: [
       Path.resolve(
         __dirname,
@@ -1332,7 +1337,8 @@ module.exports = {
     'workbench',
     'error-assistant',
     'instance-features',
-    'open-in-overleaf'
+    'open-in-overleaf',
+    'autoformatter'
   ],
   viewIncludes: {},
 
