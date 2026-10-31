@@ -1,0 +1,52 @@
+# grammar-llm container — docker-compose (modeled on docker-languagetool's
+# compose so admins can swap containers with a one-line service change).
+#
+# Mirrors erikvl87/languagetool: same default port 8010, /v2/* API.
+# The model is kept in a named volume (auto-downloaded on first start from
+# Hugging Face unless you pre-place it), so it survives container recreation.
+
+
+services:
+  grammar-llm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: grammar-llm:latest
+    container_name: grammar-llm
+    restart: unless-stopped
+    ports:
+      - 8010:8010                        # same default port as docker-languagetool
+    # Optional environment (uncomment and set as a mapping — compose rejects
+    # an environment key with no entries):
+    # environment:
+    #   GRAMMAR_LLM_MODEL_FILE: GRMR-V3-G4B-Q8_0.gguf     # optional: higher-quality (slower) quant
+    #   GRAMMAR_LLM_MODEL_URL: "..."                       # optional: custom model source
+    #   GRAMMAR_LLM_DOWNLOAD_AT_START: "true"              # default: download model on first start
+    #   GRAMMAR_LLM_REQUEST_TIMEOUT_MS: "55000"            # per-request time budget
+    #   GRAMMAR_LLM_PRELOAD: "true"                        # load model at boot
+    #   # — (a) real LanguageTool first, LLM second (compute-saving cascade) —
+    #   GRAMMAR_LLM_LANGUAGETOOL_URL: "http://languagetool:8010"   # optional; empty = LLM only
+    #   GRAMMAR_LLM_CASCADE_BUDGET_MS: "55000"         # shared LT+LLM time budget (keep < LT-client cap; Overleaf: 60 s)
+    #   GRAMMAR_LLM_LANGUAGETOOL_TIMEOUT_MS: "45000"   # LT's window to win the race
+    #   GRAMMAR_LLM_LLM_GRACE_MS: "400"                # ms before the LLM starts in parallel (0 = pure parallel)
+    #   # — (b) route the LLM step to a remote OpenAI-compatible API —
+    #   GRAMMAR_LLM_BACKEND: "openai"                    # local (default) | openai
+    #   GRAMMAR_LLM_OPENAI_BASE_URL: "https://api.openai.com/v1"
+    #   GRAMMAR_LLM_OPENAI_MODEL: "gpt-4o-mini"          # required when backend=openai
+    #   GRAMMAR_LLM_OPENAI_API_KEY: "sk-..."             # only if the endpoint needs one
+    #   # — (c) level used when the client sends none —
+    #   GRAMMAR_LLM_DEFAULT_LEVEL: "default"             # default | picky
+    volumes:
+      - grammar-llm-models:/models       # persistent model storage (~2.5 GB)
+    # For NVIDIA GPU inference (build with the linux-x64-cuda prebuilt and
+    # uncomment; node-llama-cpp auto-detects CUDA when available):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+volumes:
+  grammar-llm-models:
