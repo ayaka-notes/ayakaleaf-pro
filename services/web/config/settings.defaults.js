@@ -1017,6 +1017,11 @@ module.exports = {
         __dirname,
         '../modules/tpr-webmodule/frontend/js/components/create-file-mode-mendeley'
       ),
+      // drawio module: "New file > Diagram (draw.io)" (.drawio)
+      Path.resolve(
+        __dirname,
+        '../modules/drawio/frontend/js/components/create-drawio-file'
+      ),
     ],
     devToolbar: [],
     // WYSIWYG TikZ editor: file-tree "Export to PNG/SVG/PDF" for .tikz/.pgf files
@@ -1225,6 +1230,11 @@ module.exports = {
         __dirname,
         '../modules/tikz/frontend/js/visual-editor-provider'
       ),
+      // drawio module: draw.io canvas editor claims *.drawio
+      Path.resolve(
+        __dirname,
+        '../modules/drawio/frontend/js/visual-editor-provider'
+      ),
     ],
     usGovBanner: [],
     rollingBuildsUpdatedAlert: [],
@@ -1253,6 +1263,10 @@ module.exports = {
       Path.resolve(
         __dirname,
         '../modules/tikz/frontend/js/toastGenerators'
+      ),
+      Path.resolve(
+        __dirname,
+        '../modules/drawio/frontend/js/components/drawio-convert-toasts'
       ),
     ],
     editorSidebarComponents: [
@@ -1326,6 +1340,14 @@ module.exports = {
     railPopovers: [],
     railActions: [],
     railModals: [],
+    // Items appended to the file tree right-click (context) menu
+    // (e.g. draw.io -> PDF/PNG conversion from the drawio module).
+    fileTreeContextMenuItems: [
+      Path.resolve(
+        __dirname,
+        '../modules/drawio/frontend/js/components/drawio-convert-menu-item'
+      ),
+    ],
   },
 
   moduleImportSequence: [
@@ -1355,7 +1377,8 @@ module.exports = {
     'workbench',
     'error-assistant',
     'instance-features',
-    'open-in-overleaf'
+    'open-in-overleaf',
+    'drawio'
   ],
   viewIncludes: {},
 

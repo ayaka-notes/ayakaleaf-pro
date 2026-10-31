@@ -526,6 +526,8 @@
   "continue_with_free_plan": "Continue with free plan",
   "continue_with_service": "Continue with __service__",
   "conversion_error_details": "Conversion error details",
+  "convert_to_pdf": "Convert to PDF",
+  "convert_to_png": "Convert to PNG",
   "cookie_banner": "Cookie banner",
   "cookie_banner_info": "We use cookies to improve your experience on our site, for analytics, and to support marketing, which may involve the sharing of data. You can find out more in our <0>cookie policy</0>.",
   "copied": "Copied",
@@ -3475,5 +3477,12 @@
   "tikz_export_created": "__fileName__ — exported to the project",
   "tikz_export_created_fallback": "TikZ figure exported to the project",
   "tikz_export_failed": "TikZ export failed: __detail__",
-  "tikz_export_failed_fallback": "TikZ export failed."
+  "tikz_export_failed_fallback": "TikZ export failed.",
+  "drawio_title": "draw.io diagram",
+  "drawio_status_loading": "Loading draw.io…",
+  "drawio_status_ready": "Ready — edit on the canvas; changes save to the file",
+  "drawio_error_boot": "draw.io failed to load",
+  "drawio_new_file": "Diagram (draw.io)",
+  "drawio_convert_done": "Created __name__",
+  "drawio_convert_failed": "Sorry, the diagram could not be converted."
 }

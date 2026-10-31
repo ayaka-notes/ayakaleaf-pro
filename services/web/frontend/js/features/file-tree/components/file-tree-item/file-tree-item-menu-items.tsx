@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { ComponentType } from 'react'
 import { useTranslation } from 'react-i18next'
 import * as eventTracking from '../../../../infrastructure/event-tracking'
 import { useProjectContext } from '@/shared/context/project-context'
@@ -9,8 +10,14 @@ import {
 } from '@/shared/components/ol/ol-dropdown-menu'
 import { useFileTreeActionable } from '../../contexts/file-tree-actionable'
 import useIsNetworkStalled from '@/features/ide-react/hooks/use-is-network-stalled'
-
 import importOverleafModules from '../../../../../macros/import-overleaf-module.macro'
+
+// Context menu items contributed by modules (e.g. the draw.io -> PDF/PNG
+// conversion actions of the drawio module). Each component returns null
+// unless the currently selected file is one it handles.
+const fileTreeContextMenuItems = importOverleafModules(
+  'fileTreeContextMenuItems'
+) as { import: { default: ComponentType<any> }; path: string }[]
 
 type TikzFileExportApi = {
   formats: ('png' | 'svg' | 'pdf')[]
@@ -49,6 +56,7 @@ function FileTreeItemMenuItems() {
     canSetRootDocId,
     setRootDocId,
     parentFolderId,
+    isDuplicate,
   } = useFileTreeActionable()
 
   const { project, projectId } = useProjectContext()
@@ -162,6 +170,18 @@ function FileTreeItemMenuItems() {
           </li>
         </>
       ) : null}
+      {/* Module-provided actions for this file (e.g. draw.io -> PDF/PNG). */}
+      {fileTreeContextMenuItems.map(({ import: { default: MenuItem }, path }) => (
+        <MenuItem
+          key={path}
+          fileName={selectedFileName}
+          downloadPath={downloadPath}
+          parentFolderId={parentFolderId ?? ''}
+          isDuplicate={(name: string) =>
+            isDuplicate(parentFolderId ?? '', name)
+          }
+        />
+      ))}
       {canSetRootDocId ? (
         <>
           <OLDropdownDivider />
