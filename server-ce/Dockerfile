@@ -6,6 +6,9 @@
 ARG OVERLEAF_BASE_TAG=sharelatex/sharelatex-base:latest
 FROM $OVERLEAF_BASE_TAG
 
+# For old CPUs without AVX2. There is problem with rollup version 4.67.2. 4.66.0 is okay.
+# ENV npm_config_before=2026-10-29T00:00:00Z
+
 WORKDIR /overleaf
 
 # Add required source files for yarn install
@@ -26,6 +29,20 @@ RUN --mount=type=cache,target=/root/.cache \
     --mount=type=cache,target=/root/.yarn/berry/cache,id=server-ce-yarn-cache \
     --mount=type=cache,target=/usr/local/share/.cache/yarn,id=server-ce-yarn-fallback-cache \
     --mount=type=tmpfs,target=/tmp node genScript install | bash
+
+# Install tex-fmt for LaTeX auto-formatting (autoformatter module)
+# https://github.com/WGUNDERWOOD/tex-fmt
+# ------------------------------------------
+ARG TEX_FMT_VERSION=v0.5.7
+RUN --mount=type=tmpfs,target=/tmp \
+    ARCH=$(dpkg --print-architecture) \
+&&  if [ "$ARCH" = "amd64" ]; then TEX_FMT_ARCH="x86_64-linux"; \
+    elif [ "$ARCH" = "arm64" ]; then TEX_FMT_ARCH="aarch64-linux"; \
+    else echo "Unsupported architecture: $ARCH" && exit 1; fi \
+&&  wget -qO /tmp/tex-fmt.tar.gz \
+      "https://github.com/WGUNDERWOOD/tex-fmt/releases/download/${TEX_FMT_VERSION}/tex-fmt-${TEX_FMT_ARCH}.tar.gz" \
+&&  tar -xzf /tmp/tex-fmt.tar.gz -C /usr/local/bin tex-fmt \
+&&  chmod +x /usr/local/bin/tex-fmt
 
 # Add the actual source files
 # ---------------------------
