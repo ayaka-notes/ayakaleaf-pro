@@ -35,13 +35,6 @@
   color: var(--overleaf-red, #dc3545);
 }
 
-.drawio-viewer-switch
-{
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-}
-
 .drawio-viewer-frame
 {
   flex: 1 1 auto;

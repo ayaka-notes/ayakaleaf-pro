@@ -5,18 +5,17 @@ import DrawioViewer from './components/drawio-viewer'
  * Visual-editor provider (Overleaf `visualEditorProviders` hook) for the
  * draw.io canvas editor (modules/drawio, AK-11 owner request 2026-10-08).
  *
- * When this provider claims a file (`.drawio`), the code editor is hidden
- * and the full canvas editor (the vendored draw.io app in an iframe) is
- * rendered in the editor pane — the "Code | Visual" switch in the editor
- * toolbar toggles between the raw XML source and the canvas (same
- * house pattern as the tikz + diagram providers).
+ * When this provider claims a file (`.drawio`), the canvas editor (the
+ * vendored draw.io app in an iframe) is rendered in the editor pane.
+ * Owner 2026-10-13 (round 2, c): `.drawio` is FIXED TO VISUAL — the
+ * Code|Visual toggle is not offered for this file type (the viewer no
+ * longer mounts it); the provider defaults to visual mode.
  */
 
 const STORAGE_KEY = 'editor.lastUsedMode.drawio'
 
-// Product default: open .drawio documents in the canvas editor; the user
-// can switch to the raw source at any time (last-used mode remembered —
-// house convention, same as the tikz + diagram modules).
+// Product default: open .drawio documents in the canvas editor (visual is
+// the only mode offered in the UI).
 try {
   if (customLocalStorage.getItem(STORAGE_KEY) === null) {
     customLocalStorage.setItem(STORAGE_KEY, 'visual')

@@ -22,10 +22,11 @@ Adds a canvas editor/preview for `.drawio` (draw.io / diagrams.net) documents:
     `location.hash = "#R" + Graph.compress(modelXml)` (the hash protocol
     carries the `mxGraphModel`, draw.io's canonical share form; compressed
     document bodies are pushed as their payload)
-  - app → host: polls the app's hash; on a diagram change, decodes it with the
-    app's own `Graph.decompress` (uses the app's pako, so the round-trip is exact)
-    and writes the XML back to the OpenDocument (wrapped as a classic inline
-    `.drawio` document, `buildDrawioFile`).
+  - app → host: reads the app's LIVE graph model (`Graph.app.editor.graph`,
+    encoded with the app's own mxCodec/mxUtils — hash decode as fallback)
+    within the poll interval and writes it into the CodeMirror-backed
+    document (wrapped as a classic inline `.drawio` document,
+    `buildDrawioFile`).
   - boot: an **empty** (pre-)created file is seeded with the canonical blank
     diagram (`DEFAULT_DRAWIO_XML`) — both into the document (Overleaf
     autosave persists it) and into the app — so the editor always has a valid
@@ -49,35 +50,56 @@ Adds a canvas editor/preview for `.drawio` (draw.io / diagrams.net) documents:
   the viewer boot — the create API has no content field).
 - `components/drawio-viewer.css` — viewer pane layout.
 
-## Save policy and host constraints (owner requirement 2026-10-13)
+## Save policy and host constraints (owner requirements 2026-10-13)
 
-"New, Open from, Open Recent, Save As, Share, Rename, Make Copy are
-contradicting that this is an editor for the file that this was opened for.
-These need to go. Save is only allowed to save into the overleaf file tree
-with the pre-created file."
+Round 1: "New, Open from, Open Recent, Save As, Share, Rename, Make Copy
+are contradicting that this is an editor for the file that this was opened
+for. These need to go. Save is only allowed to save into the overleaf file
+tree with the pre-created file."
 
-- **Autosave is the save.** Every canvas edit is pulled into the Overleaf
-  document within the poll interval; the normal Overleaf document autosave
-  persists it into the file tree. There is no other save target — the app's
-  own save dialog, "Open/Save as", share link, device downloads, libraries
-  and external providers are removed:
-  - URL params (verified against the vendored bundle): `noSaveBtn=1`,
-    `noExitBtn=1`, `saveAndExit=0` drop the primary button and the related
-    menu entries;
-  - `util/drawio-app.ts` removes the Share button and multi-page tab bar,
-    rewrites the "Unsaved changes. Click here to save." alert into the
-    autosave status, strips the blocked File-menu rows from rendered menus,
-    and intercepts their clicks/shortcuts in the capture phase.
-- **File \u003e Save and Ctrl/Cmd+S** are intercepted in the capture phase and
-  flush the sync immediately (app state → document → Overleaf autosave);
-  the status line reports `drawio_saved`. They can no longer open the app's
-  own save dialog.
-- **Multi-page is out** (single page only): the page tab bar is hidden — a
-  `.drawio` here converts to exactly one PDF/PNG/SVG, and pages would
-  silently drop content.
-- **Embed / Publish / Libraries** don't work with Overleaf's file storage in
-  this deployment (they target the draw.io cloud / device / browser files),
-  so they are blocked from the File menu as well.
+Round 2: "remove the File menu item completely", "remove the Code/Visual
+toggle and set it fixed to visual mode", "the drawio file changes are NOT
+saved in the overleaf project" (sync bug — see below), "check if anything
+else violates the file storage model".
+
+- **The File menu is gone entirely.** `util/drawio-app.ts` removes the
+  *File* item from the app menubar in the iframe (nothing else in it has a
+  legitimate target here); the menubar now shows only Edit/View/Arrange/
+  Extras/Help — all of which operate on the in-memory diagram only.
+- **`.drawio` is fixed to visual mode.** The Code|Visual toggle is not
+  rendered in the viewer toolbar anymore (owner round 2 c); the provider
+  defaults to visual. The document underneath stays plain text (code view
+  remains possible through the editor state for power users, but is no
+  longer offered in the UI for this file type).
+- **Autosave is the save — and it now actually syncs.** Round-1 hash
+  polling was one-way: the app does NOT rewrite `#R…` on canvas edits (only
+  through its own save flow, which we disable), so edits were lost. The
+  viewer now reads the app's LIVE graph model
+  (`Graph.app.editor.graph`) on every poll, encodes it with the app's own
+  `mxCodec` + `mxUtils.getXml` (hash decode is the fallback) and writes it
+  into the Overleaf document; the normal document autosave persists it into
+  the file tree. A blank app model never replaces a document that has real
+  content (guards the push-not-yet-reflected window). Ctrl/Cmd+S flushes
+  the same pull immediately and reports `drawio_saved` — no app save
+  dialog, no external save target.
+- **Everything else stays local to the diagram session:**
+  - the Share button, "Change User" avatar and the multi-page tab bar are
+    removed (a `.drawio` here converts to exactly one PDF/PNG/SVG — pages
+    would silently drop content); the "Unsaved changes. Click here to
+    save." alert is replaced by the autosave status text;
+  - context-menu rows like *New/Open/Save as/Share/Rename/Make a Copy/
+    Import/Export/Embed/Publish/Libraries* are stripped from rendered
+    menus and their clicks/shortcuts are intercepted in the capture phase;
+  - **Edit → Configuration** (grid, guides, …) is browser-local user
+    preference storage: the app persists it in the BROWSER of the person
+    using the editor (site cookies / `localStorage` on this domain) — not
+    per Overleaf account and not in the project. That is fine by design,
+    but the owner should know it is per-browser.
+  - **Embed / Publish / Libraries** would target the draw.io cloud or
+    device/browser files — they don't fit the Overleaf file storage model
+    and are blocked.
+  - Help menu links point at external docs (read-only reference);
+    Insert > Image/Link put the user's own content into the diagram.
 
 ## Offline / no runtime downloads (important)
 

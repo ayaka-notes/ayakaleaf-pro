@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useEditorOpenDocContext } from '@/features/ide-react/context/editor-open-doc-context'
 import { useCodeMirrorViewContext } from '@/features/source-editor/components/codemirror-context'
-import EditorSwitch from '@/features/source-editor/components/editor-switch'
 
 import {
   parseDrawioFile,
@@ -28,14 +27,21 @@ import './drawio-viewer.css'
  * through the draw.io hash protocol:
  *
  *   host -> iframe : location.hash = '#R' + app.Graph.compress(<model xml>)
- *   iframe -> host : on edit the app rewrites the hash itself; the host
- *                    polls (same-origin read), decodes with
- *                    app.Graph.decompress and writes the result into the
- *                    CodeMirror-backed document.
+ *   host -> iframe : location.hash = '#R' + app.Graph.compress(<model xml>)
+ *   iframe -> host : the host reads the app's LIVE graph model
+ *                    (Graph.app.editor.graph, encoded with the app's own
+ *                    mxCodec + mxUtils.getXml) — the hash decode is the
+ *                    fallback. The app does NOT rewrite the hash on canvas
+ *                    edits (only through its own save flow, which we
+ *                    disable), so hash-polling alone lost every edit
+ *                    (owner 2026-10-13 round 2: "The drawio file changes
+ *                    are NOT saved in the overleaf project").
  *
- * The hash protocol carries the MXGRAPHMODEL (draw.io's canonical share
- * form); the DOCUMENT keeps the .drawio `.mxfile` wrapper (buildDrawioFile)
- * or a bare model — parseDrawioFile accepts both shapes in both directions.
+ * Mode (owner 2026-10-13 round 2, c): `.drawio` is FIXED TO VISUAL — no
+ * Code|Visual toggle is rendered for this editor (the provider defaults to
+ * visual); the document stays plain text underneath (Code view remains
+ * possible for power users through the editor state, but is no longer
+ * offered in the UI).
  *
  * SAVE POLICY (owner 2026-10-13): "Save is only allowed to save into the
  * overleaf file tree with the pre-created file."
@@ -61,6 +67,19 @@ type AppWindow = Window & {
   Graph?: {
     compress: (xml: string) => string
     decompress: (b64: string) => string
+    app?: {
+      editor?: {
+        graph?: {
+          model?: { root?: unknown }
+        }
+      }
+    }
+  }
+  mxCodec?: new (doc: Document) => {
+    encode: (cell: unknown, cellMap?: unknown) => { nodeName: string }
+  }
+  mxUtils?: {
+    getXml: (node: { nodeName: string }) => string
   }
 }
 
@@ -117,38 +136,65 @@ export default function DrawioViewer () {
     [appWin],
   )
 
+  // app → host: read the app's LIVE graph model (Graph.app.editor.graph,
+  // encoded with the app's own mxCodec + mxUtils.getXml). Falls back to
+  // decoding the hash when the live API is unavailable.
+  const readAppModel = useCallback((): string | null => {
+    const win = appWin()
+    if (!win || !win.Graph) return null
+    try {
+      const root = win.Graph.app?.editor?.graph?.model?.root
+      const Codec = win.mxCodec
+      const getXml = win.mxUtils?.getXml
+      if (root && typeof Codec === 'function' && typeof getXml === 'function') {
+        const node = new Codec(win.document).encode(root, null)
+        const xml = getXml(node)
+        if (xml && xml.trim()) return xml
+      }
+    } catch (e) {
+      /* fall through to the hash */
+    }
+    const hash = win.location?.hash || ''
+    if (!hash.startsWith('#R') || typeof win.Graph.decompress !== 'function') {
+      return null
+    }
+    try {
+      return win.Graph.decompress(hash.slice(2))
+    } catch (e) {
+      return null
+    }
+  }, [appWin])
+
+  // a model with only the canonical 0/1 root cells = the blank default
+  const cellCount = (xml: string): number => (xml.match(/mxCell/g) || []).length
+
   // app → host: pull the app's current state into the Overleaf document.
-  // `allowClobber`: File>Save (explicit user intent) may replace
-  // non-diagram document content with the canvas state; the automatic
-  // autosave tick never clobbers a document that is not diagram content.
-  // Returns false when there is nothing (yet) to pull.
+  // A blank app model never replaces a document that has real content
+  // (guards the push-not-yet-reflected window); `allowClobber` (Ctrl+S
+  // flush) additionally allows replacing non-diagram document content.
+  // Returns false when there is nothing (yet) to pull or the write was
+  // refused.
   const pullToDoc = useCallback(
     (allowClobber: boolean): boolean => {
-      const win = appWin()
-      if (!win || !win.Graph || typeof win.Graph.decompress !== 'function') {
-        return false
-      }
-      const hash = win.location.hash || ''
-      if (!hash.startsWith('#R')) return false
-      let model = ''
-      try {
-        model = win.Graph.decompress(hash.slice(2))
-      } catch (e) {
-        return false
-      }
+      const model = readAppModel()
       if (!model || !model.trim()) return false
       const next = buildDrawioFile(model)
       if (next === docRef.current) return true // already in sync
       const cur = cmView
         ? cmView.state.doc.toString()
         : docRef.current
-      if (
-        !allowClobber &&
-        cur &&
-        cur.trim() &&
-        !parseDrawioFile(cur)
-      ) {
+      if (!allowClobber && cur && cur.trim() && !parseDrawioFile(cur)) {
         return false // document holds non-diagram content: do not replace it
+      }
+      // blank app model vs. real diagram in the document: do not clobber
+      if (cellCount(model) <= 2) {
+        const parsed = cur && cur.trim() ? parseDrawioFile(cur) : null
+        if (
+          parsed &&
+          cellCount(parsed.form === 'inline' ? parsed.xml : cur) > 2
+        ) {
+          return false
+        }
       }
       if (writeDoc(next)) {
         docRef.current = next
@@ -156,7 +202,7 @@ export default function DrawioViewer () {
       }
       return false
     },
-    [appWin, writeDoc, cmView],
+    [readAppModel, writeDoc, cmView],
   )
 
   // File>Save / Ctrl+S (intercepted in the app window): flush the pull
@@ -339,15 +385,9 @@ export default function DrawioViewer () {
           {statusText ||
             (status === 'booting' ? t('drawio_status_loading') : '')}
         </span>
-        {/* AB (owner 2026-10-09): the Code|Visual switch lives in the
-            CodeMirror toolbar, which CodeMirrorView[hidden] hides together
-            with the code pane — so in VISUAL mode the switch is invisible
-            and the user is stuck in the canvas. Mounting it in THIS toolbar
-            row: visible exactly when the code pane is hidden, driven by the
-            same editor-properties state. */}
-        <div className="drawio-viewer-switch">
-          <EditorSwitch />
-        </div>
+        {/* (owner 2026-10-13 round 2, c): no Code|Visual toggle for .drawio —
+            this editor is FIXED TO VISUAL; the document underneath stays
+            plain text for tooling, but the toggle is not offered here. */}
       </div>
       <iframe
         ref={iframeRef}

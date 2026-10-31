@@ -117,6 +117,14 @@ export function applyOverleafHostConstraints (
   ;(doc as Record<string, unknown>).__overleafDrawioConstraints = true
 
   const strip = (): void => {
+    // (owner 2026-10-13 round 2: "remove the File menu item completely")
+    // The standalone app's File menu has no legitimate target here — the
+    // Overleaf file in the tree IS the diagram and autosave handles it.
+    doc.querySelectorAll('.geMenubar > *').forEach(el => {
+      if (String(el.textContent ?? '').trim().toLowerCase() === 'file') {
+        el.remove()
+      }
+    })
     // (owner: "the share should not be there") — menubar + any dialog copy
     doc
       .querySelectorAll('button[title="Share"], a[title="Share"]')
