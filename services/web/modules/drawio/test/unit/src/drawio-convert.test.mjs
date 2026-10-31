@@ -7,7 +7,10 @@ import {
   computeRasterPixelSize,
   diagramToSvg,
   convertAndUpload,
+  resolveCssValue,
+  sanitizeSvgForExport,
 } from '../../../frontend/js/util/drawio-convert'
+import { modelSignature, parseDrawioFile } from '../../../frontend/js/util/drawio-protocol'
 
 describe('isDrawioFile', () => {
   it('matches .drawio names', () => {
@@ -57,6 +60,123 @@ describe('resolveConversionName', () => {
     expect(resolveConversionName('diagram.drawio', 'png', exists)).toBe(
       'diagram.png'
     )
+  })
+})
+
+describe('resolveCssValue', () => {
+  it('keeps plain values', () => {
+    expect(resolveCssValue('#ffffff')).toBe('#ffffff')
+    expect(resolveCssValue('rgb(0, 0, 0)')).toBe('rgb(0, 0, 0)')
+    expect(resolveCssValue('transparent')).toBe('transparent')
+  })
+
+  it('resolves light-dark() to the light value', () => {
+    expect(
+      resolveCssValue('light-dark(rgb(0, 0, 0), rgb(255, 255, 255))')
+    ).toBe('rgb(0, 0, 0)')
+    expect(resolveCssValue('light-dark(#fff, #000)')).toBe('#fff')
+    // nested functions in the light value survive
+    expect(
+      resolveCssValue('light-dark(rgb(10, 20, 30), rgb(1, 2, 3))')
+    ).toBe('rgb(10, 20, 30)')
+  })
+
+  it('resolves var() to the fallback (recursively)', () => {
+    expect(resolveCssValue('var(--ge-adaptive-bg, #ffffff)')).toBe('#ffffff')
+    expect(
+      resolveCssValue('var(--x, light-dark(#fff, #000))')
+    ).toBe('#fff')
+    expect(
+      resolveCssValue('var(--a, var(--b, rgb(1, 2, 3)))')
+    ).toBe('rgb(1, 2, 3)')
+  })
+
+  it('rejects unresolvable values', () => {
+    expect(resolveCssValue('var(--no-fallback)')).toBeNull()
+    expect(resolveCssValue('')).toBeNull()
+    expect(resolveCssValue('  ')).toBeNull()
+    expect(resolveCssValue('var(--a,)')).toBeNull()
+  })
+})
+
+describe('sanitizeSvgForExport', () => {
+  it('resolves draw.io adaptive-color inline styles to light values', () => {
+    const svg =
+      '<svg width="133" height="67">' +
+      '<style type="text/css">@supports (color: light-dark(#000, #fff)) {' +
+      ' #x { --ge-adaptive-bg: light-dark(#ffffff, #121212); } }</style>' +
+      '<rect fill="#ffffff" stroke="#000000" style="fill: var(--ge-adaptive-bg, #ffffff); stroke: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));"/>' +
+      '<g fill="#000000" style="fill: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));"><text>x</text></g>' +
+      '</svg>'
+    const out = sanitizeSvgForExport(svg)
+    expect(out).toContain('fill="#ffffff"')
+    expect(out).toContain('stroke="#000000"')
+    expect(out).toContain('fill: #ffffff')
+    expect(out).toContain('stroke: rgb(0, 0, 0)')
+    expect(out).not.toContain('light-dark(')
+    expect(out).not.toContain('var(')
+    expect(out).not.toContain('<style')
+    // geometry and plain attributes are untouched
+    expect(out).toMatch(/width="133" height="67"/)
+  })
+
+  it('drops unresolvable declarations but keeps the rest', () => {
+    const svg =
+      '<svg><rect style="fill: var(--unknown); stroke: #00f; opacity: 0.5"/></svg>'
+    const out = sanitizeSvgForExport(svg)
+    expect(out).not.toContain('var(')
+    expect(out).toContain('stroke: #00f')
+    expect(out).toContain('opacity: 0.5')
+  })
+
+  it('removes the style attribute entirely when nothing resolves', () => {
+    const svg = '<svg><rect style="fill: var(--unknown)"/></svg>'
+    const out = sanitizeSvgForExport(svg)
+    expect(out).not.toContain('style=')
+    expect(out).toContain('<rect/>')
+  })
+
+  it('leaves svgs without adaptive css unchanged', () => {
+    const svg = '<svg width="10"><rect fill="#fff"/></svg>'
+    expect(sanitizeSvgForExport(svg)).toBe(svg)
+  })
+})
+
+describe('modelSignature', () => {
+  it('fingerprint matches for the same diagram, differs between diagrams', () => {
+    const a =
+      '<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/>' +
+      '<mxCell id="abc-1" value="Shape A" parent="1"/></root></mxGraphModel>'
+    const b =
+      '<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/>' +
+      '<mxCell id="xyz-9" value="Shape B" parent="1"/></root></mxGraphModel>'
+    expect(modelSignature(a)).not.toBe('')
+    expect(modelSignature(a)).not.toBe(modelSignature(b))
+  })
+
+  it('is order-insensitive for cell elements', () => {
+    const one =
+      '<mxGraphModel><mxCell id="a" value="1"/><mxCell id="b" value="2"/></mxGraphModel>'
+    const two =
+      '<mxGraphModel><mxCell id="b" value="2"/><mxCell id="a" value="1"/></mxGraphModel>'
+    expect(modelSignature(one)).toBe(modelSignature(two))
+  })
+
+  it('handles mxfile documents through parseDrawioFile', () => {
+    const doc =
+      '<mxfile host="x"><diagram id="p" name="Page-1">' +
+      '&lt;mxGraphModel&gt;&lt;root&gt;&lt;mxCell id="0"/&gt;&lt;mxCell id="7" value="hi" parent="0"/&gt;&lt;/root&gt;&lt;/mxGraphModel&gt;' +
+      '</diagram></mxfile>'
+    const parsed = parseDrawioFile(doc)
+    expect(parsed).not.toBeNull()
+    if (parsed && parsed.form === 'inline') {
+      expect(modelSignature(parsed.xml)).toContain('7|hi')
+    }
+  })
+
+  it('is empty for non-diagram content', () => {
+    expect(modelSignature('no cells here')).toBe('')
+    expect(modelSignature('')).toBe('')
   })
 })
 

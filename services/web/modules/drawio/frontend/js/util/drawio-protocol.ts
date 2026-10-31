@@ -94,6 +94,27 @@ export function parseDrawioFile(text: string):
 }
 
 /** Build a .drawio file (classic inline shape) from an mxGraphModel XML. */
+/**
+ * Coarse content fingerprint of a diagram model: the multiset of
+ * `id` and `value` pairs of its mxCell elements (order-insensitive).
+ * Used to recognize "the app is showing the same diagram" without
+ * demanding byte-identical serialisations (the app re-serialises with
+ * its own formatting; cell ids are unique per diagram, so different
+ * diagrams produce different signatures).
+ */
+export function modelSignature(xml: string): string {
+  const xmlText = String(xml == null ? '' : xml)
+  const cells = xmlText.match(/<mxCell\b[^>]*>/g) || []
+  return cells
+    .map(tag => {
+      const id = /\bid="([^"]*)"/.exec(tag)?.[1] ?? ''
+      const value = /\bvalue="([^"]*)"/.exec(tag)?.[1] ?? ''
+      return `${id}|${value}`
+    })
+    .sort()
+    .join(';')
+}
+
 export function buildDrawioFile(xml: string, name = 'Page-1', id = 'p1'): string {
   return (
     '<mxfile host="ollitex" agent="OlliTeX" version="1">\n' +

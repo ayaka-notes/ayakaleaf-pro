@@ -122,6 +122,131 @@ export function computeRasterPixelSize(svgText: string): {
 }
 
 /**
+ * draw.io v32 (adaptive-color theme) ships each shape with CSS that
+ * svg2pdf.js 2.9 cannot resolve — inline
+ * `style="fill: var(--ge-adaptive-bg, #fff); stroke: light-dark(…)"`
+ * plus a `<style>` block with the `@supports (color: light-dark(…))`
+ * variable. Unresolvable declarations leave the shapes without fill or
+ * stroke and the exported PDF page comes out BLANK (owner 2026-10-27:
+ * "Convert to PDF produces an empty canvas"). The canvas raster path
+ * tolerates it in current browsers, but not in older ones — sanitize
+ * both targets.
+ *
+ * We reduce to the LIGHT-MODE equivalents (the same values the app
+ * renders in light mode; the fallback presentation attributes on the
+ * elements already carry them):
+ *   light-dark(light, dark)  → light
+ *   var(--name, fallback)    → fallback (resolved recursively)
+ *   var(--name)              → declaration dropped (unresolvable)
+ *   <style>…</style> blocks  → removed (in draw.io output they only
+ *                               carry the adaptive-color @supports rules)
+ *
+ * Pure string processing — unit-testable in Node, no DOM required.
+ */
+
+/** Index of the `)` closing the `(` at openIdx (balanced scan), or -1. */
+function matchParen (s: string, openIdx: number): number {
+  let depth = 0
+  for (let i = openIdx; i < s.length; i++) {
+    const ch = s[i]
+    if (ch === '(') depth++
+    else if (ch === ')') {
+      depth--
+      if (depth === 0) return i
+    }
+  }
+  return -1
+}
+
+/** Split a CSS argument list at top level (commas inside parens kept). */
+function splitTopLevel (s: string): string[] {
+  const parts: string[] = []
+  let depth = 0
+  let start = 0
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i]
+    if (ch === '(') depth++
+    else if (ch === ')') depth--
+    else if (ch === ',' && depth === 0) {
+      parts.push(s.slice(start, i))
+      start = i + 1
+    }
+  }
+  parts.push(s.slice(start))
+  return parts
+}
+
+/**
+ * Resolve `light-dark(…)` and `var(…)` references to concrete
+ * light-mode values; returns null when the value cannot be resolved
+ * (e.g. a `var()` without a fallback).
+ */
+export function resolveCssValue (value: string): string | null {
+  let out = String(value == null ? '' : value).trim()
+  if (!out) return null
+  for (let pass = 0; pass < 32; pass++) {
+    // light-dark(light, dark[, fallback]) → the light value
+    const ldIdx = out.indexOf('light-dark(')
+    if (ldIdx >= 0) {
+      const open = ldIdx + 'light-dark(' .length // index after the '('
+      const close = matchParen(out, open - 1)
+      if (close < open) return null // malformed
+      const args = splitTopLevel(out.slice(open, close))
+      const light = (args[0] || '').trim()
+      if (!light) return null
+      out = `${out.slice(0, ldIdx)}${light}${out.slice(close + 1)}`.trim()
+      continue
+    }
+    // var(--name, fallback) → the fallback (may itself carry refs)
+    const vIdx = out.indexOf('var(')
+    if (vIdx >= 0) {
+      const open = vIdx + 4 // index after the '('
+      const close = matchParen(out, open - 1)
+      if (close < open) return null // malformed
+      const args = splitTopLevel(out.slice(open, close))
+      if (args.length < 2) return null // no fallback: unresolvable
+      const fallback = (args[1] || '').trim()
+      if (!fallback) return null
+      out = `${out.slice(0, vIdx)}${fallback}${out.slice(close + 1)}`.trim()
+      continue
+    }
+    break
+  }
+  out = out.trim()
+  return out || null
+}
+
+/**
+ * Make a draw.io-exported SVG consumable by svg2pdf.js (and by older
+ * browser canvas rasterisers): see the note above this block.
+ */
+export function sanitizeSvgForExport (svgText: string): string {
+  let out = String(svgText == null ? '' : svgText)
+  // 1) drop <style> blocks: in draw.io output they only carry the
+  //    adaptive-color @supports rule we resolve away below.
+  out = out.replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, '')
+  // 2) inline style attributes: keep only the resolvable declarations.
+  out = out.replace(
+    /(\s*\bstyle\s*=\s*)(["'])((?:\\.|(?!\2).)*)\2/gi,
+    (match: string, before: string, q: string, style: string): string => {
+      const kept: string[] = []
+      for (const raw of style.split(';')) {
+        const decl = raw.trim()
+        if (!decl) continue
+        const idx = decl.indexOf(':')
+        if (idx < 0) continue
+        const prop = decl.slice(0, idx).trim()
+        const value = decl.slice(idx + 1).trim()
+        const resolved = resolveCssValue(value)
+        if (prop && resolved) kept.push(`${prop}: ${resolved}`)
+      }
+      return kept.length ? before + q + kept.join('; ') + q : ''
+    },
+  )
+  return out
+}
+
+/**
  * Convert the content of a `.drawio` file to an SVG document.
  * `renderDiagram` is injectable for unit tests; the default runs the
  * vendored draw.io app in a hidden same-origin iframe.
@@ -141,7 +266,7 @@ export async function diagramToSvg(
   if (!/<svg[\s>]/i.test(text)) {
     throw new Error('draw.io did not return an <svg> document')
   }
-  return text
+  return sanitizeSvgForExport(text)
 }
 
 export interface ConvertAndUploadInput {

@@ -6,6 +6,7 @@ import { useCodeMirrorViewContext } from '@/features/source-editor/components/co
 import {
   parseDrawioFile,
   buildDrawioFile,
+  modelSignature,
   DEFAULT_DRAWIO_XML,
   drawioHashPollMs,
 } from '../util/drawio-protocol'
@@ -52,7 +53,43 @@ import './drawio-viewer.css'
  * SCALING (owner 2026-10-13): the app sizes itself to its window on
  * resize; the host forwards iframe resizes to the app window so the canvas
  * follows the Overleaf editor pane.
+ *
+ * CROSS-FILE INTEGRITY (owner 2026-10-27: "opening the e2e.drawio file
+ * destroys the content of test1.drawio") — the viewer is ONE component
+ * for the whole editor pane (Overleaf renders a single `<VisualEditor />`
+ * without a per-file key), i.e. ONE app instance with a single GLOBAL
+ * diagram model serving EVERY `.drawio` file in turn. After the user
+ * switches files the app keeps displaying the PREVIOUS file's model
+ * until the new hand-off lands. The old tick pulled the app's live model
+ * into whichever document was active, so during the switch window it
+ * silently COPIED one file's diagram into the other — destroying it.
+ * The fix: attribute the app's state before any pull is allowed —
+ * `appDocRef` records which document the app is believed to be showing,
+ * and after every push the pull waits until the app's model actually
+ * leaves its previous value (or matches the pushed diagram's signature).
+ * Until then the app's content is never written into the active file.
  */
+
+/**
+ * Settle check: is the app's current `model` the result of pushing
+ * `seed` (given it used to show `before`)? True when the model changed,
+ * or when it is (signature-)the same diagram as the pushed seed
+ * (covers re-pushing identical content, e.g. a blank default onto a
+ * blank app page).
+ */
+function isSettledAgainstSeed (
+  model: string | null,
+  before: string | null,
+  seed: string,
+): boolean {
+  if (model != null && before != null && model !== before) return true
+  if (model == null || !seed || !seed.trim()) return false
+  const parsed = parseDrawioFile(seed)
+  if (parsed && parsed.form === 'inline' && parsed.xml) {
+    return modelSignature(model) === modelSignature(parsed.xml)
+  }
+  return false
+}
 
 const POLL_MS = drawioHashPollMs
 const BOOT_POLL_MS = 150
@@ -172,6 +209,14 @@ export default function DrawioViewer () {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const docRef = useRef<string>('')
   const loadedRef = useRef(false)
+  // Cross-file integrity (see module header): attribute the app's state
+  // to a document before any pull is allowed.
+  const appDocRef = useRef<string | null>(null)
+  const pendingRef = useRef<{
+    before: string | null
+    attempts: number
+    seed: string
+  } | null>(null)
 
   const [status, setStatus] = useState<'booting' | 'ready' | 'saved' | 'error'>('booting')
   const [statusText, setStatusText] = useState('')
@@ -293,6 +338,25 @@ export default function DrawioViewer () {
     }
   }, [appWin])
 
+  // app → host: track a push — remember what the app was showing so the
+  // settle check can prove the app actually switched before allowing a
+  // pull (the cross-file clobber guard).
+  const pushAndTrack = useCallback(
+    (xml: string, name: string | null): boolean => {
+      if (!xml || !xml.trim()) return false
+      if (!pushDoc(xml, name)) return false
+      docRef.current = xml
+      appDocRef.current = name
+      pendingRef.current = {
+        before: readAppModel(),
+        attempts: 1,
+        seed: xml,
+      }
+      return true
+    },
+    [pushDoc, readAppModel],
+  )
+
   // a model with only the canonical 0/1 root cells = the blank default
   const cellCount = (xml: string): number => (xml.match(/mxCell/g) || []).length
 
@@ -304,6 +368,50 @@ export default function DrawioViewer () {
   // refused.
   const pullToDoc = useCallback(
     (allowClobber: boolean): boolean => {
+      const active = openDocName ?? null
+
+      // Clobber guard (owner 2026-10-27): the app's model is GLOBAL and
+      // lags the active document after a file switch — pulling during
+      // that window copies the OTHER file's diagram into the newly
+      // opened one and destroys it. Settle first.
+      if (appDocRef.current !== active) {
+        const src = cmView ? cmView.state.doc.toString() : ''
+        const seed =
+          src && src.trim()
+            ? src
+            : buildDrawioFile(DEFAULT_DRAWIO_XML)
+        if (seed !== docRef.current) {
+          pushAndTrack(seed, active) // retried on the next tick until ok
+        } else {
+          appDocRef.current = active // same content both sides: settled
+          pendingRef.current = null
+        }
+        return false
+      }
+      const pending = pendingRef.current
+      if (pending) {
+        const model = readAppModel()
+        if (isSettledAgainstSeed(model, pending.before, pending.seed)) {
+          pendingRef.current = null // the app shows this document now
+        } else if (pending.attempts < 3) {
+          pending.attempts += 1
+          const src = cmView ? cmView.state.doc.toString() : ''
+          const seed =
+            src && src.trim()
+              ? src
+              : buildDrawioFile(DEFAULT_DRAWIO_XML)
+          // silent re-push (the hash path is asynchronous); keep the
+          // original baseline + seed for the settle check
+          if (pushDoc(seed, active)) docRef.current = seed
+          return false
+        } else {
+          // still showing content that is not this document's: never
+          // write it into the active file (safe: sync resumes as soon
+          // as the app switches)
+          return false
+        }
+      }
+
       const model = readAppModel()
       if (!model || !model.trim()) return false
       const next = buildDrawioFile(model)
@@ -330,19 +438,35 @@ export default function DrawioViewer () {
       }
       return false
     },
-    [readAppModel, writeDoc, cmView],
+    [readAppModel, writeDoc, cmView, openDocName, pushDoc, pushAndTrack],
   )
 
   // File>Save / Ctrl+S (intercepted in the app window): flush the pull
   // immediately and surface "saved" — the Overleaf document autosave does
   // the persistence into the file tree.
   const flushSave = useCallback(() => {
-    const ok = pullToDoc(true)
-    if (ok) {
-      setStatus('saved')
-      setStatusText(t('drawio_saved'))
+    const attempt = (left: number): void => {
+      const settled =
+        appDocRef.current === (openDocName ?? null) &&
+        pendingRef.current === null
+      if (!settled) {
+        if (left > 0) {
+          window.setTimeout(() => attempt(left - 1), 150)
+        } else {
+          // the app is still switching documents — do NOT flush a
+          // foreign model into the active file; the next tick lands it
+          setStatus('ready')
+          setStatusText(t('drawio_status_ready'))
+        }
+        return
+      }
+      if (pullToDoc(true)) {
+        setStatus('saved')
+        setStatusText(t('drawio_saved'))
+      }
     }
-  }, [pullToDoc, t])
+    attempt(20)
+  }, [pullToDoc, t, openDocName])
 
   // BOOT — poll for the app, hand it the document (or seed a blank diagram
   // for empty files), then apply the host constraints. Retries until the
@@ -372,6 +496,12 @@ export default function DrawioViewer () {
       }
       if (pushDoc(source, openDocName ?? null)) {
         docRef.current = source
+        appDocRef.current = openDocName ?? null
+        pendingRef.current = {
+          before: readAppModel(),
+          attempts: 1,
+          seed: source,
+        }
         try {
           applyOverleafHostConstraints(win, {
             savedText: t('drawio_saved'),
@@ -455,16 +585,20 @@ export default function DrawioViewer () {
 
   // AK-10-class correctness (same race as tikz): if the open doc CHANGED
   // while the canvas is up (e.g. one.drawio -> two.drawio in the tree),
-  // the app must receive the NEW document.
+  // the app must receive the NEW document. (owner 2026-10-27: this is
+  // also the clobber entry point — the push is tracked so the pull
+  // refuses until the app actually shows the new document, including
+  // the case where the new document is EMPTY and must be seeded with a
+  // blank diagram instead of inheriting the previous file's content.)
   useEffect(() => {
     if (!cmView || !loadedRef.current) return
     const src = cmView.state.doc.toString()
-    if (src && src !== docRef.current) {
-      if (pushDoc(src, openDocName ?? null)) {
-        docRef.current = src
-      }
+    const seed =
+      src && src.trim() ? src : buildDrawioFile(DEFAULT_DRAWIO_XML)
+    if (seed !== docRef.current) {
+      pushAndTrack(seed, openDocName ?? null)
     }
-  }, [openDocName, cmView, pushDoc])
+  }, [openDocName, cmView, pushAndTrack])
 
   // Read the INITIAL document into docRef (CodeMirror is the single
   // source of truth — the document stays editor-owned).
