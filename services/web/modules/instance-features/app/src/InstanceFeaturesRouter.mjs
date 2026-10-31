@@ -29,6 +29,7 @@ export default {
           gitlabSync: Boolean(Settings.gitlabSync),
           giteaSync: Boolean(Settings.giteaSync),
           dropbox: Boolean(Settings.dropbox),
+          webdav: Boolean(Settings.webdav),
           zotero: Boolean(Settings.enabledLinkedFileTypes?.includes('zotero')),
           mendeley: Boolean(
             Settings.enabledLinkedFileTypes?.includes('mendeley')

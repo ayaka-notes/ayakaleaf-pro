@@ -1,0 +1,33 @@
+# WebDAV test fixture server — packaged Apache 2 (2.4.66) on Ubuntu 26.04.
+#
+# Server selection record (measured on this host; full table in README.md):
+#   * nginx-dav: noslash MKCOL → 301/409 (trac #1966) → Go client's
+#     createDirectory (405 tolerance) structurally blocked → push 500.
+#   * mogeko/rshs: PROPFIND ignores Depth:1 → list() degenerate.
+#   * httpd:2.4-alpine / Debian apache2 (bookworm/trixie): DAV lock store
+#     unusable (apr_dbm_* undefined / DBD wiring dead end).
+#   * apachewebdav (2.4.43): protocol gates pass, but non-deterministic
+#     Basic-auth windows under repeated probes → not a deterministic oracle.
+#   * CHOOSEN Ubuntu 26.04 apache2: dav_lock = DAVGenericLockDB (DBM store),
+#     packaged apr-util 1.6.3 carries the apr_dbm API, all product gates +
+#     15/15 Go-client contract + 20/20 stability loops verified 2026-10-03.
+#
+# Identity (oltest) is baked at build time; data dir is the named volume.
+
+services:
+  webdav-test:
+    image: webdav-ubuntu2604:fixture
+    build: .
+    container_name: webdav-test
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8095:80"
+    volumes:
+      - webdav-test-data:/var/www/dav
+    # The overleaf dev stack (separate bridge) must be able to reach this
+    # container BY NAME for the in-container bridge URL (Part B):
+    #   docker network connect <overleaf-network> webdav-test
+    # (the harness auto-detects name resolution via overleafserver)
+
+volumes:
+  webdav-test-data:
