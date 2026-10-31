@@ -3481,6 +3481,7 @@
   "drawio_title": "draw.io diagram",
   "drawio_status_loading": "Loading draw.io…",
   "drawio_status_ready": "Ready — edit on the canvas; changes save to the file",
+  "drawio_saved": "Saved to Overleaf — changes are in the file",
   "drawio_error_boot": "draw.io failed to load",
   "drawio_new_file": "Diagram (draw.io)",
   "drawio_convert_done": "Created __name__",

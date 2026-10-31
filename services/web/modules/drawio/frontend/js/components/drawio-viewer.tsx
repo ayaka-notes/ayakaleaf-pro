@@ -6,8 +6,11 @@ import EditorSwitch from '@/features/source-editor/components/editor-switch'
 
 import {
   parseDrawioFile,
+  buildDrawioFile,
+  DEFAULT_DRAWIO_XML,
   drawioHashPollMs,
 } from '../util/drawio-protocol'
+import { applyOverleafHostConstraints } from '../util/drawio-app'
 
 import './drawio-viewer.css'
 
@@ -17,24 +20,42 @@ import './drawio-viewer.css'
  *
  * Registered through Overleaf's `visualEditorProviders` hook (exactly like
  * the tikz and diagram modules) — it replaces the code editor in the
- * editor pane; "Code | Visual" switches to the raw XML source.
+ * editor pane; "Code | Visual" switches to the raw source.
  *
- * Implementation (house pattern — see modules/tikz, module diagram and the
- * svgedit plane): the vendored draw.io app (public/static/drawio/,
- * PROVENANCE.txt) runs in a SAME-ORIGIN IFRAME and syncs with the
- * OlliTeX-owned document through the draw.io hash protocol:
+ * Implementation (house pattern — see modules/tikz and the svgedit
+ * plane): the vendored draw.io app (public/static/drawio, PROVENANCE.txt)
+ * runs in a SAME-ORIGIN IFRAME and syncs with the OlliTeX-owned document
+ * through the draw.io hash protocol:
  *
- *   host -> iframe : location.hash = '#R' + app.Graph.compress(xml)
+ *   host -> iframe : location.hash = '#R' + app.Graph.compress(<model xml>)
  *   iframe -> host : on edit the app rewrites the hash itself; the host
- *                    polls (same-origin read) and decodes it with
- *                    app.Graph.decompress, then writes the result into
- *                    the CodeMirror-backed document.
+ *                    polls (same-origin read), decodes with
+ *                    app.Graph.decompress and writes the result into the
+ *                    CodeMirror-backed document.
  *
- * The document stays OlliTeX-owned (normal sync / versioning apply) — the
- * iframe only isolates the third-party app.
+ * The hash protocol carries the MXGRAPHMODEL (draw.io's canonical share
+ * form); the DOCUMENT keeps the .drawio `.mxfile` wrapper (buildDrawioFile)
+ * or a bare model — parseDrawioFile accepts both shapes in both directions.
+ *
+ * SAVE POLICY (owner 2026-10-13): "Save is only allowed to save into the
+ * overleaf file tree with the pre-created file."
+ *   - every canvas edit is pulled into the document within POLL_MS — the
+ *     Overleaf document autosave persists it (no separate save step);
+ *   - File>Save / Ctrl+S flush that pull immediately (intercepted in the
+ *     capture phase by drawio-app.ts); the app's own save dialog, share
+ *     button, new/open libraries and other file management are removed.
+ *
+ * SCALING (owner 2026-10-13): the app sizes itself to its window on
+ * resize; the host forwards iframe resizes to the app window so the canvas
+ * follows the Overleaf editor pane.
  */
 
 const POLL_MS = drawioHashPollMs
+const BOOT_POLL_MS = 150
+const BOOT_TIMEOUT_MS = 30_000
+const IFRAME_SRC =
+  '/static/drawio/index.html?spin=1&noHelpS=1' +
+  '&noSaveBtn=1&noExitBtn=1&saveAndExit=0&od=0'
 
 type AppWindow = Window & {
   Graph?: {
@@ -52,32 +73,15 @@ export default function DrawioViewer () {
   const docRef = useRef<string>('')
   const loadedRef = useRef(false)
 
-  const [status, setStatus] = useState<'booting' | 'ready' | 'error'>('booting')
+  const [status, setStatus] = useState<'booting' | 'ready' | 'saved' | 'error'>('booting')
   const [statusText, setStatusText] = useState('')
 
   const appWin = useCallback((): AppWindow | null => {
     return (iframeRef.current?.contentWindow as AppWindow) || null
   }, [])
 
-  const pushHash = useCallback(
-    (xml: string, fileName: string | null) => {
-      const win = appWin()
-      if (!win || !win.Graph || typeof win.Graph.compress !== 'function') return false
-      const hash = '#R' + win.Graph.compress(xml)
-      win.name = fileName == null ? '' : fileName
-      try {
-        win.location.hash = hash
-        docRef.current = xml
-        return true
-      } catch (e) {
-        return false
-      }
-    },
-    [appWin]
-  )
-
   const writeDoc = useCallback(
-    (xml: string) => {
+    (xml: string): boolean => {
       if (!cmView) return false
       if (cmView.state.doc.toString() === xml) return true // no-op
       cmView.dispatch({
@@ -88,84 +92,205 @@ export default function DrawioViewer () {
     [cmView],
   )
 
-  // BOOT — once the iframe's app has loaded, hand it the current document.
+  // host → app: hand the document's MODEL over through the hash.
+  const pushDoc = useCallback(
+    (text: string, fileName: string | null): boolean => {
+      const win = appWin()
+      if (!win || !win.Graph || typeof win.Graph.compress !== 'function') {
+        return false
+      }
+      const parsed = text && text.trim() ? parseDrawioFile(text) : null
+      if (!parsed) return false
+      let hash: string
+      try {
+        hash =
+          parsed.form === 'inline'
+            ? '#R' + win.Graph.compress(parsed.xml)
+            : '#R' + parsed.payload
+        win.name = fileName == null ? '' : fileName
+        win.location.hash = hash
+      } catch (e) {
+        return false
+      }
+      return true
+    },
+    [appWin],
+  )
+
+  // app → host: pull the app's current state into the Overleaf document.
+  // `allowClobber`: File>Save (explicit user intent) may replace
+  // non-diagram document content with the canvas state; the automatic
+  // autosave tick never clobbers a document that is not diagram content.
+  // Returns false when there is nothing (yet) to pull.
+  const pullToDoc = useCallback(
+    (allowClobber: boolean): boolean => {
+      const win = appWin()
+      if (!win || !win.Graph || typeof win.Graph.decompress !== 'function') {
+        return false
+      }
+      const hash = win.location.hash || ''
+      if (!hash.startsWith('#R')) return false
+      let model = ''
+      try {
+        model = win.Graph.decompress(hash.slice(2))
+      } catch (e) {
+        return false
+      }
+      if (!model || !model.trim()) return false
+      const next = buildDrawioFile(model)
+      if (next === docRef.current) return true // already in sync
+      const cur = cmView
+        ? cmView.state.doc.toString()
+        : docRef.current
+      if (
+        !allowClobber &&
+        cur &&
+        cur.trim() &&
+        !parseDrawioFile(cur)
+      ) {
+        return false // document holds non-diagram content: do not replace it
+      }
+      if (writeDoc(next)) {
+        docRef.current = next
+        return true
+      }
+      return false
+    },
+    [appWin, writeDoc, cmView],
+  )
+
+  // File>Save / Ctrl+S (intercepted in the app window): flush the pull
+  // immediately and surface "saved" — the Overleaf document autosave does
+  // the persistence into the file tree.
+  const flushSave = useCallback(() => {
+    const ok = pullToDoc(true)
+    if (ok) {
+      setStatus('saved')
+      setStatusText(t('drawio_saved'))
+    }
+  }, [pullToDoc, t])
+
+  // BOOT — poll for the app, hand it the document (or seed a blank diagram
+  // for empty files), then apply the host constraints. Retries until the
+  // hand-off succeeds; only marks loaded AFTER a successful push (the old
+  // early flag left the status stuck on "Loading draw.io…" for empty
+  // files — see owner report 2026-10-13).
   useEffect(() => {
     let cancelled = false
-    let timer = 0
 
-    const tryBoot = () => {
+    const tryBoot = (): boolean => {
       if (cancelled || loadedRef.current) return true
       const win = appWin()
-      if (win && win.Graph && typeof win.Graph.compress === 'function') {
-        loadedRef.current = true
-        const source = cmView ? cmView.state.doc.toString() : docRef.current
-        if (source && pushHash(source, openDocName ?? null)) {
-          setStatus('ready')
-          setStatusText(t('drawio_status_ready'))
-          return true
+      if (!(win && win.Graph && typeof win.Graph.compress === 'function')) {
+        return false
+      }
+      let source = cmView ? cmView.state.doc.toString() : docRef.current
+      if (!source || !source.trim()) {
+        // empty (pre-)created file: seed the canonical blank diagram into
+        // the document (Overleaf autosave persists it) and push it
+        source = buildDrawioFile(DEFAULT_DRAWIO_XML)
+        writeDoc(source)
+      }
+      if (!parseDrawioFile(source)) {
+        // not diagram content at all: hand the app a blank diagram instead
+        // of failing forever (the document stays as-is for the code view)
+        source = buildDrawioFile(DEFAULT_DRAWIO_XML)
+      }
+      if (pushDoc(source, openDocName ?? null)) {
+        docRef.current = source
+        try {
+          applyOverleafHostConstraints(win, {
+            savedText: t('drawio_saved'),
+            onFlushSave: flushSave,
+          })
+        } catch (e) {
+          /* constraints are an enhancement; never block the editor */
         }
+        loadedRef.current = true
+        setStatus('ready')
+        setStatusText(t('drawio_status_ready'))
+        return true
       }
       return false
     }
 
     const bootTimer = window.setInterval(() => {
       if (tryBoot()) window.clearInterval(bootTimer)
-    }, 150)
+    }, BOOT_POLL_MS)
+    if (tryBoot()) window.clearInterval(bootTimer)
+
+    // The share button + status surfaces are (re)created per app load —
+    // re-apply the constraints briefly after boot in case they land late.
+    const settle1 = window.setTimeout(() => {
+      if (!loadedRef.current) return
+      try {
+        const win = appWin()
+        if (win) {
+          applyOverleafHostConstraints(win, {
+            savedText: t('drawio_saved'),
+            onFlushSave: flushSave,
+          })
+        }
+      } catch (e) {
+        /* ignore */
+      }
+    }, 1000)
+    const settle2 = window.setTimeout(() => {
+      if (!loadedRef.current) return
+      try {
+        const win = appWin()
+        if (win) {
+          applyOverleafHostConstraints(win, {
+            savedText: t('drawio_saved'),
+            onFlushSave: flushSave,
+          })
+        }
+      } catch (e) {
+        /* ignore */
+      }
+    }, 3000)
 
     const timeout = window.setTimeout(() => {
       if (!loadedRef.current) {
         setStatus('error')
         setStatusText(t('drawio_error_boot'))
       }
-    }, 30_000)
+    }, BOOT_TIMEOUT_MS)
 
     return () => {
       cancelled = true
+      window.clearTimeout(settle1)
+      window.clearTimeout(settle2)
       window.clearTimeout(timeout)
       window.clearInterval(bootTimer)
     }
-  }, [appWin, cmView, openDocName, pushHash, t])
+  }, [appWin, cmView, openDocName, pushDoc, flushSave, t, writeDoc])
 
-  // SYNC — poll the (same-origin) app's hash: when it points at a diagram
+  // SYNC — poll the (same-origin) app's hash; when it points at a diagram
   // that differs from what we last pushed, decode it through the app's own
   // Graph.decompress and write it back into the OlliTeX document.
   useEffect(() => {
     if (!cmView) return
-
     const tick = () => {
-      const win = appWin()
-      if (!win || !win.Graph || typeof win.Graph.decompress !== 'function') return
-      const hash = win.location.hash || ''
-      if (!hash.startsWith('#R')) return
-      let xml: string
-      try {
-        xml = win.Graph.decompress(hash.slice(2))
-      } catch (e) {
-        return
-      }
-      if (!xml || xml === docRef.current) return
-      if (writeDoc(xml)) {
-        docRef.current = xml
-      }
+      if (!loadedRef.current) return
+      pullToDoc(false)
     }
-
     const timer = window.setInterval(tick, POLL_MS)
     return () => window.clearInterval(timer)
-  }, [appWin, cmView, writeDoc])
+  }, [appWin, cmView, pullToDoc])
 
-  // AK-10-class correctness (same race as tikz): if the OPEN DOCHANGED
-  // while the canvas is up (e.g. one.tikz -> two.tikz in the tree), the
-  // app must receive the NEW document — re-push it so the canvas always
-  // shows the double-clicked file.
+  // AK-10-class correctness (same race as tikz): if the open doc CHANGED
+  // while the canvas is up (e.g. one.drawio -> two.drawio in the tree),
+  // the app must receive the NEW document.
   useEffect(() => {
     if (!cmView || !loadedRef.current) return
     const src = cmView.state.doc.toString()
     if (src && src !== docRef.current) {
-      if (pushHash(src, openDocName ?? null)) {
+      if (pushDoc(src, openDocName ?? null)) {
         docRef.current = src
       }
     }
-  }, [openDocName, cmView, pushHash])
+  }, [openDocName, cmView, pushDoc])
 
   // Read the INITIAL document into docRef (CodeMirror is the single
   // source of truth — the document stays editor-owned).
@@ -174,6 +299,33 @@ export default function DrawioViewer () {
       docRef.current = cmView.state.doc.toString()
     }
   }, [cmView])
+
+  // SCALING (owner 2026-10-13: "drawio windows does not scale with the
+  // overleaf editor windows") — the app sizes itself on its own resize
+  // event; forward every iframe resize to the app window so the canvas
+  // follows the editor pane (split divider, window resizes, responsive
+  // relayouts).
+  useEffect(() => {
+    const el = iframeRef.current
+    if (!el) return
+    const RO =
+      (window as unknown as { ResizeObserver?: new (cb: () => void) => {
+        observe: (t: Element) => void
+        disconnect: () => void
+      } })?.ResizeObserver
+    if (!RO) return
+    const ro = new RO(() => {
+      const win = el.contentWindow
+      if (!win) return
+      try {
+        win.dispatchEvent(new win.Event('resize'))
+      } catch (e) {
+        /* the app is still booting; the next resize will hit */
+      }
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   return (
     <div className="drawio-viewer">
@@ -187,12 +339,12 @@ export default function DrawioViewer () {
           {statusText ||
             (status === 'booting' ? t('drawio_status_loading') : '')}
         </span>
-        {/* AB (owner 2026-10-09): the Code|Visual switch lives in the CodeMirror
-            toolbar, which CodeMirrorView[hidden] hides together with the code
-            pane — so in VISUAL mode the switch is invisible (measured 0x0) and
-            the user is stuck in the canvas with no way back to the source.
-            Mounting it in THIS toolbar row: visible exactly when the code pane
-            is hidden, driven by the same editor-properties state. */}
+        {/* AB (owner 2026-10-09): the Code|Visual switch lives in the
+            CodeMirror toolbar, which CodeMirrorView[hidden] hides together
+            with the code pane — so in VISUAL mode the switch is invisible
+            and the user is stuck in the canvas. Mounting it in THIS toolbar
+            row: visible exactly when the code pane is hidden, driven by the
+            same editor-properties state. */}
         <div className="drawio-viewer-switch">
           <EditorSwitch />
         </div>
@@ -200,7 +352,7 @@ export default function DrawioViewer () {
       <iframe
         ref={iframeRef}
         className="drawio-viewer-frame"
-        src="/static/drawio/index.html?spin=1&amp;noHelpS=1&amp;od=0"
+        src={IFRAME_SRC}
         title="draw.io canvas editor"
       />
     </div>

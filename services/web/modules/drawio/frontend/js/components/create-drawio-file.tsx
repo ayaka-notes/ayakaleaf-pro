@@ -18,7 +18,7 @@ function CreateDrawIoPane () {
   }
 
   return (
-    // The name keeps the `.tikz` extension so it opens in the canvas
+    // The name keeps the `.drawio` extension so it opens in the canvas
     // editor (the provider claim is extension-based).
     <FileTreeCreateNameProvider initialName="diagram">
       <CreateDrawIoForm
@@ -70,7 +70,7 @@ function CreateDrawIoForm ({
   )
 }
 
-function TikzCreateFileMode () {
+function DrawIoCreateFileMode () {
   const { t } = useTranslation()
   return (
     <FileTreeModalCreateFileMode
@@ -82,5 +82,5 @@ function TikzCreateFileMode () {
 }
 
 export const CreateFilePane = CreateDrawIoPane
-export const CreateFileMode = TikzCreateFileMode
+export const CreateFileMode = DrawIoCreateFileMode
 export default CreateDrawIoPane

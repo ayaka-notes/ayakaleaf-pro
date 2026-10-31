@@ -19,6 +19,7 @@ const KEYS = [
   'drawio_title',
   'drawio_status_loading',
   'drawio_status_ready',
+  'drawio_saved',
   'drawio_error_boot',
   'drawio_new_file',
   // context menu + toasts
