@@ -302,3 +302,34 @@ describe('convertAndUpload', () => {
     expect(result).toEqual({ ok: false, error: 'boom' })
   })
 })
+
+describe('sanitizeSvgForExport — external references (tainted-canvas protection)', () => {
+  it('drops <image> elements with external href (self-closing)', () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><image x="0" y="0" width="10" height="10" href="https://example.com/cat.png"/><rect width="50" height="50"/></svg>'
+    const out = sanitizeSvgForExport(svg)
+    expect(out).not.toMatch(/<image/)
+    expect(out).toMatch(/<rect/)
+  })
+
+  it('drops <image> elements with protocol-relative external xlink:href (paired)', () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><image xlink:href="//cdn.example.com/x.svg" width="8" height="8"></image><circle r="4"/></svg>'
+    const out = sanitizeSvgForExport(svg)
+    expect(out).not.toMatch(/<image/)
+    expect(out).toMatch(/<circle/)
+  })
+
+  it('keeps data: and # image references', () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><image href="data:image/png;base64,QUJD" width="8" height="8"/><use href="#arrow"/></svg>'
+    const out = sanitizeSvgForExport(svg)
+    expect(out).toMatch(/data:image\/png;base64,QUJD/)
+    expect(out).toMatch(/#arrow/)
+  })
+
+  it('neuters stray external href attributes', () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><use href="https://fonts.example.com/icon.svg#i" width="8" height="8"/></svg>'
+    const out = sanitizeSvgForExport(svg)
+    // (the xmlns namespace identifier is a name, not a fetch — it stays)
+    expect(out).not.toMatch(/fonts\.example\.com/)
+    expect(out).toMatch(/<use/)
+  })
+})

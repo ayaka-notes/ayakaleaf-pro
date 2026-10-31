@@ -243,6 +243,27 @@ export function sanitizeSvgForExport (svgText: string): string {
       return kept.length ? before + q + kept.join('; ') + q : ''
     },
   )
+  // 3) external references (http/https/protocol-relative): rasterising an
+  //    SVG that fetches cross-origin resources taints the canvas in
+  //    browser engines ("Tainted canvases may not be exported" — the
+  //    failure is engine-specific: plain Chrome tolerated the same bytes
+  //    while the user's engine threw). Drop <image> elements that use
+  //    external refs and neuter any other external href. data: and #
+  //    references are embedded and safe — leave them alone.
+  const EXTERNAL = '(?:https?:)?//'
+  out = out
+    .replace(
+      new RegExp(`<image\\b[^>]*\\b(?:href|xlink:href|src)\\s*=\\s*(["'])${EXTERNAL}[^"']*\\1[^>]*?/>`, 'gi'),
+      ''
+    )
+    .replace(
+      new RegExp(`<image\\b[^>]*\\b(?:href|xlink:href|src)\\s*=\\s*(["'])${EXTERNAL}[^"']*\\1[^>]*>[\\s\\S]*?<\\/image\\s*>`, 'gi'),
+      ''
+    )
+    .replace(
+      new RegExp(`\\b(?:xlink:)?href\\s*=\\s*(["'])${EXTERNAL}[^"']*\\1`, 'gi'),
+      ''
+    )
   return out
 }
 
@@ -370,6 +391,24 @@ export async function convertAndUpload(
 async function svgToPngBlob(svgText: string): Promise<Blob> {
   const { width, height } = computeRasterPixelSize(svgText)
   const DPR = 2 // render at 2× for crisp raster output
+  const width2 = Math.max(1, Math.round(width * DPR))
+  const height2 = Math.max(1, Math.round(height * DPR))
+  try {
+    return await pngViaCanvas(svgText, width2, height2)
+  } catch (primaryError) {
+    // Tainted canvas (an external reference inside the SVG — see the
+    // sanitizer note) or an engine quirk on the direct path: re-render
+    // through the PDF + pdf.js route, which paints purely in JS and
+    // cannot be tainted. Engine-specific failures stop mattering here.
+    if (typeof console !== 'undefined') {
+      console.warn('[drawio] direct-canvas rasterisation failed; using PDF→pdf.js fallback', primaryError)
+    }
+    return await pngViaPdf(svgText, width2)
+  }
+}
+
+/** Direct canvas path (fast): blob URL → Image → drawImage → toBlob. */
+async function pngViaCanvas(svgText: string, width: number, height: number): Promise<Blob> {
   const url = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml' }))
   const img = new Image()
   img.src = url
@@ -383,8 +422,8 @@ async function svgToPngBlob(svgText: string): Promise<Blob> {
       })
     }
     const canvas = document.createElement('canvas')
-    canvas.width = Math.max(1, Math.round(width * DPR))
-    canvas.height = Math.max(1, Math.round(height * DPR))
+    canvas.width = width
+    canvas.height = height
     const ctx = canvas.getContext('2d')
     if (!ctx) {
       throw new Error('canvas 2d context unavailable')
@@ -394,13 +433,113 @@ async function svgToPngBlob(svgText: string): Promise<Blob> {
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
     return await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
-        b => (b ? resolve(b) : reject(new Error('canvas toBlob failed'))),
+        b => (b ? resolve(b) : reject(new Error('canvas toBlob failed (possible tainted canvas)'))),
         'image/png'
       )
     })
   } finally {
     URL.revokeObjectURL(url)
   }
+}
+
+/**
+ * Cross-browser PNG fallback: SVG → PDF (svg2pdf.js, DOM/JS) → rasterise
+ * page 1 with pdf.js (pure-JS painting) → canvas.toBlob. pdf.js renders
+ * the content stream itself, so foreign resources inside the SVG cannot
+ * poison the canvas — this route works identically in Chrome, Firefox
+ * and Safari.
+ */
+async function pngViaPdf(svgText: string, targetWidth: number): Promise<Blob> {
+  const pdfBlob = await svgToPdfBlob(svgText)
+  const bytes = new Uint8Array(await pdfBlob.arrayBuffer())
+
+  // Lazy: keep pdfjs-dist out of the main IDE bundle (as with jspdf).
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const PDFJS: any = await import('pdfjs-dist')
+  ensurePdfWorker(PDFJS)
+
+  const doc = await PDFJS.getDocument({
+    data: bytes,
+    cMapUrl: '/js/pdfjs-dist/cmaps/',
+    standardFontDataUrl: '/fonts/pdfjs-dist/',
+    useSystemFonts: true,
+    isEvalSupported: false,
+  }).promise
+  try {
+    const page = await doc.getPage(1)
+    const base = page.getViewport({ scale: 1 })
+    const scale = Math.max(0.5, targetWidth / Math.max(1, Math.round(base.width)))
+    const viewport = page.getViewport({ scale })
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(viewport.width))
+    canvas.height = Math.max(1, Math.round(viewport.height))
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      throw new Error('canvas 2d context unavailable')
+    }
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    // pdfjs-dist@5 render() wants `canvasContext`; a future major may
+    // rename it to `canvas` — try the current signature first so no
+    // spurious error is logged, then the other one as future-proofing.
+    const paramSets: ReadonlyArray<Readonly<Record<string, unknown>>> = [
+      { canvasContext: ctx, viewport },
+      { canvas, viewport },
+    ]
+    let rendered = false
+    let lastError: unknown = null
+    for (const params of paramSets) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const task: any = page.render(params)
+        await task.promise
+        rendered = true
+        break
+      } catch (error) {
+        lastError = error
+      }
+    }
+    if (!rendered) {
+      throw lastError instanceof Error ? lastError : new Error('pdf.js rendering failed')
+    }
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        b => (b ? resolve(b) : reject(new Error('canvas toBlob failed (possible tainted canvas)'))),
+        'image/png'
+      )
+    })
+  } finally {
+    try {
+      await doc.destroy()
+    } catch (error) {
+      // ignore — the raster is already produced
+    }
+  }
+}
+
+let pdfWorkerInstalled = false
+function ensurePdfWorker(PDFJS: { GlobalWorkerOptions?: { workerPort?: unknown } }): void {
+  if (pdfWorkerInstalled) return
+  if (!PDFJS?.GlobalWorkerOptions) return
+  if (PDFJS.GlobalWorkerOptions.workerPort) {
+    pdfWorkerInstalled = true
+    return
+  }
+  try {
+    // Same pattern as the app's frontend/js/features/pdf-preview/util/pdf-js.ts
+    // (webpack emits the worker as its own chunk; pdfjs-dist@5 requires
+    // the .mjs extension).
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, no-new
+    PDFJS.GlobalWorkerOptions.workerPort = new Worker(
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      new URL('pdfjs-dist/build/pdf.worker.mjs', import.meta.url)
+    )
+  } catch (error) {
+    if (typeof console !== 'undefined') {
+      console.warn('[drawio] could not start the pdf.js worker; using the main-thread fake worker', error)
+    }
+  }
+  pdfWorkerInstalled = true
 }
 
 async function svgToPdfBlob(svgText: string): Promise<Blob> {
