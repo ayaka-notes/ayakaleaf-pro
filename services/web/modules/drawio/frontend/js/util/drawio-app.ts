@@ -55,6 +55,12 @@ export const BLOCKED_FILE_MENU_LABELS: ReadonlySet<string> = new Set([
   'print',
   'close',
   'exit',
+  // View → "Page Tabs" would re-open the removed multi-page bar (single
+  // page only: one .drawio file exports as one svg/pdf/png).
+  'page tabs',
+  // Extras → "Plugins..." loads remote code into the session (blocked at
+  // boot via plugins=0 as well; the row is stripped for good measure).
+  'plugins',
 ])
 
 /** "Make a Copy..." / "Save as…" / "Save As" → "make a copy" / "save as". */

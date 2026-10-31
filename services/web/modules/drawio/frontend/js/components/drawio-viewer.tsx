@@ -26,16 +26,14 @@ import './drawio-viewer.css'
  * runs in a SAME-ORIGIN IFRAME and syncs with the OlliTeX-owned document
  * through the draw.io hash protocol:
  *
- *   host -> iframe : location.hash = '#R' + app.Graph.compress(<model xml>)
- *   host -> iframe : location.hash = '#R' + app.Graph.compress(<model xml>)
- *   iframe -> host : the host reads the app's LIVE graph model
- *                    (Graph.app.editor.graph, encoded with the app's own
- *                    mxCodec + mxUtils.getXml) — the hash decode is the
- *                    fallback. The app does NOT rewrite the hash on canvas
- *                    edits (only through its own save flow, which we
- *                    disable), so hash-polling alone lost every edit
- *                    (owner 2026-10-13 round 2: "The drawio file changes
- *                    are NOT saved in the overleaf project").
+ *   host -> iframe : EditorUi.replaceDiagramData(xml) — the app's own
+ *                    load API (paste/import path); hash '#R'+compress()
+ *                    is the pre-instance fallback
+ *   iframe -> host : Editor.getGraphXml() — the app's own model
+ *                    serializer (encode(graph.getModel()); hand-encoding
+ *                    model.root drops the child cells — that was the
+ *                    root cause of canvas edits not landing in the
+ *                    document, owner 2026-10-13 round 2)
  *
  * Mode (owner 2026-10-13 round 2, c): `.drawio` is FIXED TO VISUAL — no
  * Code|Visual toggle is rendered for this editor (the provider defaults to
@@ -61,26 +59,109 @@ const BOOT_POLL_MS = 150
 const BOOT_TIMEOUT_MS = 30_000
 const IFRAME_SRC =
   '/static/drawio/index.html?spin=1&noHelpS=1' +
-  '&noSaveBtn=1&noExitBtn=1&saveAndExit=0&od=0'
+  '&noSaveBtn=1&noExitBtn=1&saveAndExit=0&od=0' +
+  // block custom-plugin loading (remote code) — the session stays offline
+  '&plugins=0'
 
-type AppWindow = Window & {
+/**
+ * The vendored app is minified and does not expose a stable `app` global in
+ * every version (v32.3.0 ships the app instance reachable through the
+ * sidebar global's `editorUi` property; older builds use `window.app` or
+ * `Graph.app`). We therefore DISCOVER the instance by fingerprint instead
+ * of by name: an object with `.editor.getGraphXml()` (the app's own model
+ * serializer) and `.editor.graph`.
+ */
+interface DrawioUi {
+  editor?: {
+    graph?: { model?: unknown; container?: unknown }
+    getGraphXml?: (a?: unknown) => unknown
+    setGraphXml?: (node: unknown) => void
+  }
+  replaceDiagramData?: (xml: string) => void
+}
+
+type AppWindow = Window & Record<string, any> & {
+  __overleafDrawioUi?: DrawioUi | null
   Graph?: {
     compress: (xml: string) => string
     decompress: (b64: string) => string
-    app?: {
-      editor?: {
-        graph?: {
-          model?: { root?: unknown }
-        }
-      }
-    }
+    app?: { editor?: { graph?: { model?: { root?: unknown } } } }
   }
   mxCodec?: new (doc: Document) => {
     encode: (cell: unknown, cellMap?: unknown) => { nodeName: string }
+    decode?: (node: unknown, target: unknown) => void
   }
   mxUtils?: {
     getXml: (node: { nodeName: string }) => string
+    parseXml?: (xml: string) => { documentElement: unknown }
   }
+}
+
+/**
+ * Find the app instance (EditorUi/App) inside the app window.
+ * Fingerprint: `.editor.getGraphXml()` + `.editor.graph.model` (the
+ * app's own model serializer — `Editor.prototype.getGraphXml`). Checks
+ * the top level plus the properties a host object carries it on
+ * (`editorUi`, `app`, `ui`, `main`). Prefers the instance bound to a
+ * VISIBLE canvas container (the main editor, not a sidebar thumbnail).
+ * Result is cached on the window.
+ */
+function findDrawioUi (win: AppWindow): DrawioUi | null {
+  const cached = win.__overleafDrawioUi
+  if (cached) return cached
+  let names: string[]
+  try {
+    names = Object.getOwnPropertyNames(win)
+  } catch (e) {
+    return null
+  }
+  let first: DrawioUi | null = null
+  let best: DrawioUi | null = null
+  for (const k of names) {
+    let v: unknown
+    try {
+      v = win[k]
+    } catch (e) {
+      continue
+    }
+    if (!v || typeof v !== 'object') continue
+    const vv = v as Record<string, unknown>
+    const cands: unknown[] = [vv.editorUi, vv.app, vv.ui, vv.main, v]
+    for (const c of cands) {
+      if (!c || typeof c !== 'object') continue
+      const ui = c as DrawioUi
+      const ed = ui.editor
+      if (
+        ed &&
+        ed.graph &&
+        ed.graph.model &&
+        typeof ed.getGraphXml === 'function'
+      ) {
+        if (!first) first = ui
+        try {
+          const g = ed.graph as { container?: { offsetParent?: unknown } }
+          const ctr = g.container
+          const visible =
+            !!ctr && 'offsetParent' in ctr
+              ? ctr.offsetParent !== null
+              : false
+          if (visible) best = ui
+        } catch (e) {
+          /* keep looking */
+        }
+      }
+    }
+    if (best) break
+  }
+  const pick = best || first
+  if (pick) {
+    try {
+      win.__overleafDrawioUi = pick
+    } catch (e) {
+      /* uncacheable window (shouldn't happen): re-scan next poll */
+    }
+  }
+  return pick
 }
 
 export default function DrawioViewer () {
@@ -111,18 +192,58 @@ export default function DrawioViewer () {
     [cmView],
   )
 
-  // host → app: hand the document's MODEL over through the hash.
+  // host → app: hand the document over. Preferred path is the app's OWN
+  // load API (EditorUi.replaceDiagramData → Editor.setGraphXml — the same
+  // code the app uses for paste/import, update-safe). Fallback: the draw.io
+  // hash protocol (location.hash '#R' + compressed model), which the app
+  // watches via hashchange.
   const pushDoc = useCallback(
     (text: string, fileName: string | null): boolean => {
       const win = appWin()
-      if (!win || !win.Graph || typeof win.Graph.compress !== 'function') {
+      if (!win || !text || !text.trim()) return false
+      const parsed = parseDrawioFile(text)
+      // 1) in-place API (immediate, no hash round-trip)
+      const ui = findDrawioUi(win)
+      const ed = ui && ui.editor
+      if (
+        win &&
+        win.mxUtils &&
+        typeof win.mxUtils.parseXml === 'function'
+      ) {
+        try {
+          if (typeof ui?.replaceDiagramData === 'function') {
+            ui.replaceDiagramData(text)
+            return true
+          }
+          if (ed && typeof ed.setGraphXml === 'function') {
+            const node = win.mxUtils.parseXml(text).documentElement
+            const g = ed.graph as {
+              model?: { beginUpdate?: () => void; endUpdate?: () => void }
+            }
+            if (g && g.model && typeof g.model.beginUpdate === 'function') {
+              g.model.beginUpdate()
+              try {
+                ed.setGraphXml(node)
+              } finally {
+                g.model.endUpdate()
+              }
+            } else {
+              ed.setGraphXml(node)
+            }
+            return true
+          }
+        } catch (e) {
+          /* fall back to the hash path below */
+        }
+      }
+      // 2) hash path (also the only option before the app instance exists)
+      if (!win.Graph || typeof win.Graph.compress !== 'function') return false
+      if (!parsed) {
+        // not diagram content at all: nothing the hash path can carry
         return false
       }
-      const parsed = text && text.trim() ? parseDrawioFile(text) : null
-      if (!parsed) return false
-      let hash: string
       try {
-        hash =
+        const hash =
           parsed.form === 'inline'
             ? '#R' + win.Graph.compress(parsed.xml)
             : '#R' + parsed.payload
@@ -136,24 +257,31 @@ export default function DrawioViewer () {
     [appWin],
   )
 
-  // app → host: read the app's LIVE graph model (Graph.app.editor.graph,
-  // encoded with the app's own mxCodec + mxUtils.getXml). Falls back to
-  // decoding the hash when the live API is unavailable.
+  // app → host: read the app's LIVE graph model through the app's OWN
+  // serializer (Editor.getGraphXml → encode(graph.getModel()) +
+  // mxUtils.getXml — verified against the vendored v32.3.0 bundle).
+  // The earlier revision hand-encoded graph.model.root, which drops the
+  // child cells; that is why canvas edits never reached the document
+  // (owner 2026-10-13 round 2). Falls back to the hash decode when the
+  // instance is not reachable yet.
   const readAppModel = useCallback((): string | null => {
     const win = appWin()
-    if (!win || !win.Graph) return null
+    if (!win) return null
     try {
-      const root = win.Graph.app?.editor?.graph?.model?.root
-      const Codec = win.mxCodec
-      const getXml = win.mxUtils?.getXml
-      if (root && typeof Codec === 'function' && typeof getXml === 'function') {
-        const node = new Codec(win.document).encode(root, null)
-        const xml = getXml(node)
-        if (xml && xml.trim()) return xml
+      const ui = findDrawioUi(win)
+      const ed = ui && ui.editor
+      if (ed && typeof ed.getGraphXml === 'function') {
+        const node = ed.getGraphXml(true) as { nodeName: string } | null
+        const getXml = win.mxUtils && win.mxUtils.getXml
+        if (node && typeof getXml === 'function') {
+          const xml = getXml(node)
+          if (xml && xml.trim()) return xml
+        }
       }
     } catch (e) {
       /* fall through to the hash */
     }
+    if (!win.Graph) return null
     const hash = win.location?.hash || ''
     if (!hash.startsWith('#R') || typeof win.Graph.decompress !== 'function') {
       return null

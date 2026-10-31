@@ -74,14 +74,29 @@ else violates the file storage model".
 - **Autosave is the save — and it now actually syncs.** Round-1 hash
   polling was one-way: the app does NOT rewrite `#R…` on canvas edits (only
   through its own save flow, which we disable), so edits were lost. The
-  viewer now reads the app's LIVE graph model
-  (`Graph.app.editor.graph`) on every poll, encodes it with the app's own
-  `mxCodec` + `mxUtils.getXml` (hash decode is the fallback) and writes it
-  into the Overleaf document; the normal document autosave persists it into
-  the file tree. A blank app model never replaces a document that has real
-  content (guards the push-not-yet-reflected window). Ctrl/Cmd+S flushes
-  the same pull immediately and reports `drawio_saved` — no app save
-  dialog, no external save target.
+  viewer now talks to the app instance through the app's OWN APIs (found
+  by fingerprint: an object with `.editor.getGraphXml()` + a visible canvas
+  container — the vendored v32.3.0 build exposes it through the sidebar
+  global's `editorUi` property, not a stable `window.app`):
+  - **app → host (pull):** `Editor.getGraphXml()` — the app's own model
+    serializer (`encode(graph.getModel())` + `mxUtils.getXml`). The
+    round-2 attempt hand-encoded `graph.model.root` instead, which silently
+    drops the child cells — that is why canvas edits never reached the
+    document. Hash decode remains the fallback before the instance exists.
+  - **host → app (push):** `EditorUi.replaceDiagramData(xml)` →
+    `Editor.setGraphXml` (the same code path the app uses for paste/import,
+    undo-macro included); the hash `#R…` protocol is the pre-instance
+    fallback.
+  The result is written into the Overleaf document every poll; the normal
+  document autosave persists it into the file tree. A blank app model never
+  replaces a document that has real content (guards the
+  push-not-yet-reflected window). Ctrl/Cmd+S flushes the same pull
+  immediately and reports `drawio_saved` — no app save dialog, no external
+  save target.
+- **No remote code, single page:** the app boots with `plugins=0`
+  (custom-plugin loading would fetch remote code into the session) and the
+  *Page Tabs* menu row / tab bar are blocked — one `.drawio` file exports as
+  exactly one PDF/PNG/SVG, so multi-page has no place here.
 - **Everything else stays local to the diagram session:**
   - the Share button, "Change User" avatar and the multi-page tab bar are
     removed (a `.drawio` here converts to exactly one PDF/PNG/SVG — pages
