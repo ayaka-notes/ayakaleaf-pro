@@ -131,7 +131,7 @@ export async function diagramToSvg(
   renderDiagram: DiagramRenderer = browserRenderDiagram
 ): Promise<string> {
   if (!diagramText || !diagramText.trim()) {
-    throw new Error('the diagram file is empty')
+    throw new Error('the diagram file is empty (nothing to convert yet)')
   }
   const out = await Promise.resolve(renderDiagram(diagramText))
   const text = typeof out === 'string' ? out : ''
@@ -186,7 +186,7 @@ export async function convertAndUpload(
     }
     const text = await res.text()
     if (!text.trim()) {
-      throw new Error('the diagram file is empty')
+      throw new Error('the diagram file is empty (nothing to convert yet)')
     }
 
     const renderDiagram = input.renderDiagram || browserRenderDiagram
@@ -421,12 +421,12 @@ function appWindow(): Promise<Window> {
  * Accepts plain mxGraphModel XML or a compressed `#R…` payload.
  */
 const DRAWIO_RENDER_CODE = [
-  'return Promise.resolve().then(function (xmlText) {',
+  'return (function (xmlText) {',
   '  var G = window.Graph;',
   '  if (!G) { throw new Error("draw.io Graph API missing"); }',
   '  var xml = String(xmlText == null ? "" : xmlText).trim();',
   '  if (!xml) { throw new Error("the diagram file is empty"); }',
-  '  if (!/<(?:mxGraphModel|model)[\\s>]/i.test(xml)) {',
+  '  if (!/<(?:mxGraphModel|model)[\\s>]/i.test(xml) && !/<mxfile[\\s>]/i.test(xml)) {',
   '    if (typeof G.decompress !== "function") {',
   '      throw new Error("draw.io cannot decode this diagram");',
   '    }',
@@ -469,10 +469,11 @@ const DRAWIO_RENDER_CODE = [
   '  }',
   '  var out = null;',
   '  try {',
-  '    if (typeof window.mxGraph !== "function") {',
-  '      throw new Error("draw.io mxGraph API missing");',
+  '    var GK = window.Graph;',
+  '    if (typeof GK !== "function") {',
+  '      throw new Error("draw.io Graph API missing");',
   '    }',
-  '    var graph = new window.mxGraph(host);',
+  '    var graph = new GK(host);',
   '    var codec = null;',
   '    try { codec = new window.mxCodec(document); } catch (e) { codec = new window.mxCodec(); }',
   '    if (!codec || typeof codec.decode !== "function") {',
@@ -521,7 +522,7 @@ const DRAWIO_RENDER_CODE = [
   '    });',
   '  }',
   '  return done(out);',
-  '}).call(null, xmlText)'
+  '})(xmlText)'
 ].join('\n')
 
 export async function browserRenderDiagram(
