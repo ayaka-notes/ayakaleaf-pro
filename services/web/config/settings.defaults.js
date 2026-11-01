@@ -1362,6 +1362,8 @@ module.exports = {
   },
 
   enablePandocConversions: process.env.ENABLE_PANDOC_CONVERSIONS === 'true',
+  // local login form is shown by default; set ENABLE_LOCAL_LOGIN_MASK=false to hide it (e.g. SSO-only login)
+  enableLocalLoginMask: process.env.ENABLE_LOCAL_LOGIN_MASK !== 'false',
 }
 
 module.exports.mergeWith = function (overrides) {
