@@ -2,6 +2,7 @@ extends ../../../../../app/views/layout-marketing
 
 block vars
 	- isWebsiteRedesign = true
+	- suppressNavbarRight = true
 
 block content
 	main#main-content.content.content-alt
@@ -72,3 +73,10 @@ block content
 									)
 										span(data-ol-inflight="idle") #{settings.oidc.identityServiceName}
 										span(hidden data-ol-inflight="pending") #{translate("logging_in")}…
+							if hasFeature('registration-page')
+								.login-register-hr-text-container
+								.ciam-register-login-link
+									.login-register-other-links
+										.p
+											| #{translate("dont_have_account")} 
+											a(href='/register') #{translate("sign_up")}
