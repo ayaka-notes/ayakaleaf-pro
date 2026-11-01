@@ -1210,7 +1210,12 @@ module.exports = {
     usGovBanner: [],
     rollingBuildsUpdatedAlert: [],
     offlineModeToolbarButtons: [],
-    settingsEntries: [],
+    settingsEntries: [
+      Path.resolve(
+        __dirname,
+        '../modules/symbol-palette/frontend/js/components/symbol-palette-settings-entry'
+      ),
+    ],
     autoCompleteExtensions: [
       Path.resolve(
         __dirname,
@@ -1298,6 +1303,10 @@ module.exports = {
       Path.resolve(
         __dirname,
         '../modules/workbench/frontend/js/assistant-rail-entry'
+      ),
+      Path.resolve(
+        __dirname,
+        '../modules/symbol-palette/frontend/js/components/symbol-palette-rail-entry'
       ),
     ],
     railPopovers: [],
