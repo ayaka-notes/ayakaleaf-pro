@@ -25,6 +25,12 @@ import { getTooltip } from '@codemirror/view'
 import ReactDOM from 'react-dom'
 import DropdownMenuItem from '@/shared/components/dropdown/dropdown-menu-item'
 import { useFeatureFlag } from '@/shared/context/split-test-context'
+import getMeta from '@/utils/meta'
+import {
+  mathAncestorNode,
+  parseMathContainer,
+} from '../utils/tree-operations/math'
+import { descendantsOfNodeWithType } from '../utils/tree-operations/ancestors'
 
 const MathPreviewTooltipContainer: FC = () => {
   const state = useCodeMirrorStateContext()
@@ -59,6 +65,8 @@ const MathPreviewTooltipContainer: FC = () => {
 
 const MathPreviewTooltipMenu: FC = () => {
   const { t } = useTranslation()
+  const state = useCodeMirrorStateContext()
+  const latexEditorAvailable = getMeta('ol-latexEditorAvailable')
 
   const themed = useFeatureFlag('themed-modals')
 
@@ -70,6 +78,57 @@ const MathPreviewTooltipMenu: FC = () => {
   const onHide = useCallback(() => {
     window.dispatchEvent(new Event('editor:hideMathTooltip'))
   }, [])
+
+  const onOpenEquationEditor = useCallback(() => {
+    const range = state.selection.main
+    if (range.empty) {
+      const ancestorNode = mathAncestorNode(state, range.from)
+      if (ancestorNode) {
+        const [node] = descendantsOfNodeWithType(ancestorNode, 'Math', 'Math')
+        if (node) {
+          const mathContainer = parseMathContainer(
+            state,
+            node,
+            ancestorNode
+          )
+          if (mathContainer) {
+            // Dispatch the equation in its canonical form so the modal can
+            // split it into body + environment:
+            // - equation/eqnarray environments arrive whole (content already
+            //   includes the environment)
+            // - display math ($$...$$ / \[...\]) is canonicalised to \[...\]
+            // - inline math arrives as bare body
+            let latex = mathContainer.content
+            if (mathContainer.displayMode && !/\\begin\{/.test(latex)) {
+              latex = `\\[${latex}\\]`
+            }
+            // bubbles: the toolbar button listens on window via
+            // useEventListener — a document-dispatched custom event must
+            // bubble to reach it. from/to mark the equation's range in the
+            // document so the button can select it (Export then replaces it)
+            document.dispatchEvent(
+              new CustomEvent('latex-editor:open', {
+                bubbles: true,
+                detail: {
+                  latex,
+                  from: ancestorNode.from,
+                  to: ancestorNode.to,
+                },
+              })
+            )
+            return
+          }
+        }
+      }
+    }
+    // Fallback: open the editor with empty content
+    document.dispatchEvent(
+      new CustomEvent('latex-editor:open', {
+        bubbles: true,
+        detail: { latex: '' },
+      })
+    )
+  }, [state])
 
   const keyDownListener = useCallback(
     (event: KeyboardEvent) => {
@@ -97,6 +156,16 @@ const MathPreviewTooltipMenu: FC = () => {
           />
         </OLDropdownToggle>
         <OLDropdownMenu flip={false}>
+          {latexEditorAvailable && (
+            <DropdownMenuItem
+              onClick={onOpenEquationEditor}
+              description={t(
+                'math_tooltip_open_in_equation_editor_description'
+              )}
+            >
+              {t('math_tooltip_open_in_equation_editor')}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem
             onClick={onHide}
             description={t('temporarily_hides_the_preview')}
