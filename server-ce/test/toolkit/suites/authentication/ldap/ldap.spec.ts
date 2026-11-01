@@ -95,6 +95,15 @@ describe('LDAP login', function () {
     isSiteAdmin().should('equal', true)
   })
 
+  it('offers no sign up without public registration', function () {
+    for (const path of ['/login', '/ldap/login']) {
+      cy.visit(path)
+      cy.findByRole('heading', { level: 1 })
+      cy.findByRole('link', { name: 'Sign up' }).should('not.exist')
+      cy.get('.navbar-right').should('not.exist')
+    }
+  })
+
   it('rejects a wrong password', function () {
     ldapLogin('bob', 'not-the-password')
     // The form has several alerts, only the matching one is shown

@@ -37,6 +37,15 @@ describe('login', function () {
     cy.findByRole('button', { name: 'Login' })
   })
 
+  it('links the sign up page instead of the header links', function () {
+    cy.findByRole('link', { name: 'Sign up' }).should(
+      'have.attr',
+      'href',
+      '/register'
+    )
+    cy.get('.navbar-right').should('not.exist')
+  })
+
   it('logs in with the right password', function () {
     cy.findByLabelText('Email').type(user)
     cy.findByLabelText('Password').type(DEFAULT_PASSWORD)
@@ -111,6 +120,16 @@ describe('register', function () {
     cy.findByLabelText('email')
     cy.findByLabelText('password')
     cy.findByRole('button', { name: 'Create account' })
+  })
+
+  it('links the login page instead of the header links', function () {
+    cy.visit('/register')
+    cy.findByRole('link', { name: 'Login' }).should(
+      'have.attr',
+      'href',
+      '/login'
+    )
+    cy.get('.navbar-right').should('not.exist')
   })
 
   it('creates an account that can log in', function () {
