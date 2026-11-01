@@ -23,7 +23,7 @@ import OLCol from '@/shared/components/ol/ol-col'
 import OLPageContentCard from '@/shared/components/ol/ol-page-content-card'
 import { isSplitTestEnabled } from '@/utils/splitTestUtils'
 import NotificationsSection from './notifications-section'
-import importOverleafModules from '../../../../../macros/import-overleaf-module.macro'
+import importOverleafModules from '../../../../macros/import-overleaf-module.macro'
 
 type SettingsEntrySection = {
   key: string
