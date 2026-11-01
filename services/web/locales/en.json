@@ -2771,6 +2771,7 @@
   "symbol_palette_info_new": "Insert math symbols into your document with the click of a button.",
   "symbol_palette_categories": "Categories",
   "symbol_palette_symbols_in_category": "Symbols in \"__category__\"",
+  "symbol_palette_settings": "Settings",
   "symbol_palette_latex_command": "LaTeX Command",
   "symbol_palette_tooltip": "Tooltip",
   "symbol_palette_actions": "Actions",
