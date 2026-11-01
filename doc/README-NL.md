@@ -62,6 +62,7 @@ Ayakaleaf Pro is een uitgebreide versie van Overleaf met vrijwel alle functies e
 - SSO met LDAP en SAML of OAuth 2.0
 - Onbeperkte compilatietijd (instelbaar in het beheerpaneel)
 - Zelfregistratie (optioneel, te beperken op e-maildomein)
+- reCAPTCHA (optioneel, bij inloggen, registratie en wachtwoordherstel)
 - Compileren in een sandbox (met ondersteuning voor de [texlive-full](https://github.com/ayaka-notes/texlive-full)-image)
 - Sjabloonsysteem (met sjabloongalerij)
 - Wijzigingen bijhouden (met paneel voor review en opmerkingen)

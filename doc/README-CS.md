@@ -62,6 +62,7 @@ Ayakaleaf Pro je rozšířená verze Overleaf s téměř všemi funkcemi a možn
 - SSO přes LDAP a SAML nebo OAuth 2.0
 - Neomezená doba kompilace (nastavitelná v administračním panelu)
 - Samoregistrace (volitelná, lze omezit podle e-mailové domény)
+- reCAPTCHA (volitelná, při přihlášení, registraci a obnově hesla)
 - Kompilace v sandboxu (s podporou image [texlive-full](https://github.com/ayaka-notes/texlive-full))
 - Systém šablon (s galerií šablon)
 - Sledování změn (s panelem pro revize a komentáře)

@@ -62,6 +62,7 @@ Ayakaleaf Pro on Overleafin laajennettu versio, joka sisältää lähes kaikki o
 - SSO LDAP:n ja SAML:n tai OAuth 2.0:n kautta
 - Rajoittamaton käännösaika (säädettävissä hallintapaneelissa)
 - Omatoiminen rekisteröityminen (valinnainen, voidaan rajata sähköpostiverkkotunnuksen mukaan)
+- reCAPTCHA (valinnainen, kirjautumisessa, rekisteröitymisessä ja salasanan palautuksessa)
 - Hiekkalaatikossa kääntäminen ([texlive-full](https://github.com/ayaka-notes/texlive-full)-kuvan tuella)
 - Mallijärjestelmä (mallivalikoimalla)
 - Muutosten seuranta (tarkistus- ja kommenttipaneelilla)
