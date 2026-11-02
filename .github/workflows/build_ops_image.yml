@@ -197,8 +197,9 @@ jobs:
         with:
           context: ./
           file: ./server-ce/Dockerfile
-          # Push straight from the build, new layers compressed with zstd
-          outputs: type=image,push=true,compression=zstd,oci-mediatypes=true
+          # Push straight from the build, new layers compressed with zstd.
+          # Pull requests from forks only build: their GITHUB_TOKEN is read-only
+          outputs: type=image,push=${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }},compression=zstd,oci-mediatypes=true
           pull: false
           build-args: |
             OVERLEAF_BASE_TAG=overleaf-pro-base:ci
@@ -222,6 +223,8 @@ jobs:
   # Join both platforms under ops:<tag> (and ops:latest)
   merge:
     needs: [prepare, build-image]
+    # Nothing to join for pull requests from forks, which only build
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     steps:
       # GHCR image names must be lowercase
