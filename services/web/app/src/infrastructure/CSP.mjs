@@ -85,7 +85,7 @@ const buildViewPolicy = (
   viewDirectives
 ) => {
   const directives = [
-    `script-src 'nonce-${scriptNonce}' 'unsafe-inline' 'strict-dynamic' https: 'report-sample'`, // only allow scripts from certain sources
+    `script-src 'nonce-${scriptNonce}' 'unsafe-inline' 'strict-dynamic' 'wasm-unsafe-eval' https: 'report-sample'`, // only allow scripts from certain sources; 'wasm-unsafe-eval' is needed for WebAssembly (e.g. the LaTeX autoformatter's tex-fmt)
     `object-src 'none'`, // forbid loading an "object" element
     `base-uri 'none'`, // forbid setting a "base" element
     ...(viewDirectives ?? []),
