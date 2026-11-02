@@ -283,17 +283,17 @@ export default function ZoteroPickerModal({
           <>
             <p>{t('Zotero is not linked to your account yet.')}</p>
             <p>
-              {t('Link your Zotero account to import references. Create a key at ') +
-                (
-                  <a
-                    href="https://www.zotero.org/settings/keys"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    zotero.org/settings/keys
-                  </a>
-                ) +
-                t(' (library access + read access to all groups).')}
+              {t('Link your Zotero account to import references')}{' '}
+              {t('Create a key at')}{' '}
+              <a
+                href="https://www.zotero.org/settings/keys"
+                target="_blank"
+                rel="noreferrer"
+              >
+                zotero.org/settings/keys
+              </a>
+              {' '}
+              {t('(library access + read access to all groups)')}
             </p>
             <div style={{ display: 'flex', gap: '8px' }}>
               <OLButton

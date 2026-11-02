@@ -2960,5 +2960,14 @@
   "zotero_sync_success_plural": "",
   "zotero_sync_up_to_date": "",
   "zotero_upgrade_prompt_content": "",
-  "zotero_upgrade_prompt_title": ""
+  "zotero_upgrade_prompt_title": "",
+  "Link your Zotero account to import references": {
+    "Link your Zotero account to import references": "Link your Zotero account to import references"
+  },
+  "Create a key at": {
+    "Create a key at": "Create a key at"
+  },
+  "(library access + read access to all groups)": {
+    "(library access + read access to all groups)": "(library access + read access to all groups)"
+  }
 }

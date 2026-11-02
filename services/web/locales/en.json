@@ -3625,5 +3625,8 @@
   "Zotero": "Zotero",
   "collection": "collection",
   "Link your Zotero account to import references. Create a key at ": "Link your Zotero account to import references. Create a key at ",
-  " (library access + read access to all groups).": " (library access + read access to all groups)."
+  " (library access + read access to all groups).": " (library access + read access to all groups).",
+  "Link your Zotero account to import references": "Link your Zotero account to import references",
+  "Create a key at": "Create a key at",
+  "(library access + read access to all groups)": "(library access + read access to all groups)"
 }
