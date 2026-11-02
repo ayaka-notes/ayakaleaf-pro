@@ -50,6 +50,8 @@ import BibImportModal from './bib-import-modal'
 import BibImportFromLibrary from './bib-import-from-library'
 import OrcidPickerModal from '../../../deps/orcid-picker/frontend/js/components/orcid-picker-modal'
 import ZoteroPickerModal from '../../../deps/zotero/frontend/js/components/zotero-picker-modal'
+import MendeleyPickerModal from '../../../deps/mendeley/frontend/js/components/mendeley-picker-modal'
+import { useBibServices } from '../utils/provider-status'
 import type { BibEntry } from '../utils/bib-types'
 import type { ParsedBibEntry } from '../utils/bib-parser'
 import { generateCitationKey } from '../utils/bib-parser'
@@ -101,6 +103,10 @@ function BibEditorPanel() {
   const [orcidOpen, setOrcidOpen] = useState(false)
   // P4: "Import from Zotero" (Add dropdown) — the zotero-picker modal.
   const [zoteroOpen, setZoteroOpen] = useState(false)
+  const [mendeleyOpen, setMendeleyOpen] = useState(false)
+  // Reference managers configured on this instance (client id + secret):
+  // menu entries are HIDDEN when a provider is not configured.
+  const bibServices = useBibServices()
   // Owner #11 (2026-09-13 editor wave): "Upload .bib file" in the Add
   // menu (parity with the /hub library Add menu). Same pipeline as the
   // library page: hidden file input → read text → BibImportModal
@@ -656,7 +662,14 @@ function BibEditorPanel() {
               onAddManual={() => setManualShow(true)}
               onAddFromLibrary={() => setLibraryImportOpen(true)}
               onAddFromOrcid={() => setOrcidOpen(true)}
-              onAddFromZotero={() => setZoteroOpen(true)}
+              onAddFromZotero={
+                bibServices.zotero !== false ? () => setZoteroOpen(true) : undefined
+              }
+              onAddFromMendeley={
+                bibServices.mendeley !== false
+                  ? () => setMendeleyOpen(true)
+                  : undefined
+              }
               onAddUpload={openUpload}
             />
             {selection?.kind === 'existing' && previewEntry ? (
@@ -756,6 +769,12 @@ function BibEditorPanel() {
       <ZoteroPickerModal
         show={zoteroOpen}
         handleHide={() => setZoteroOpen(false)}
+        onInsert={handleOrcidInserted}
+      />
+      {/* Mendeley picker (Add dropdown "Import from Mendeley") */}
+      <MendeleyPickerModal
+        show={mendeleyOpen}
+        handleHide={() => setMendeleyOpen(false)}
         onInsert={handleOrcidInserted}
       />
     </div>

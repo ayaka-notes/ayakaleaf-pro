@@ -3628,5 +3628,17 @@
   " (library access + read access to all groups).": " (library access + read access to all groups).",
   "Link your Zotero account to import references": "Link your Zotero account to import references",
   "Create a key at": "Create a key at",
-  "(library access + read access to all groups)": "(library access + read access to all groups)"
+  "(library access + read access to all groups)": "(library access + read access to all groups)",
+  "Import from Mendeley": "Import from Mendeley",
+  "Browse your Mendeley library and import items": "Browse your Mendeley library and import items",
+  "Loading your Mendeley library…": "Loading your Mendeley library…",
+  "Failed to load your Mendeley library": "Failed to load your Mendeley library",
+  "Mendeley is not linked to your account yet.": "Mendeley is not linked to your account yet.",
+  "Mendeley is no longer linked to your account": "Mendeley is no longer linked to your account",
+  "Could not import from Mendeley": "Could not import from Mendeley",
+  "Link your Mendeley account to import references": "Link your Mendeley account to import references",
+  "Link Mendeley": "Link Mendeley",
+  "No items found": "No items found",
+  "Showing __count__ item(s)": "Showing __count__ item(s)",
+  "Loading…": "Loading…"
 }

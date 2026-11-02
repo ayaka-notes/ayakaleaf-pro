@@ -88,6 +88,8 @@ type Props = {
   onAddFromOrcid?: () => void
   /** Zotero import (P4) — shown in the Add menu when the host wires it. */
   onAddFromZotero?: () => void
+  /** Mendeley import — shown in the Add menu when the host wires it. */
+  onAddFromMendeley?: () => void
   /** Upload .bib file (owner #11, 2026-09-13 editor wave) — parity with
    *  the /hub library Add menu; shown when the host wires it. */
   onAddUpload?: () => void
@@ -116,6 +118,7 @@ export default function BibEntryList({
   onAddFromLibrary,
   onAddFromOrcid,
   onAddFromZotero,
+  onAddFromMendeley,
   onAddUpload,
 }: Props) {
   const { t } = useTranslation()
@@ -221,6 +224,16 @@ export default function BibEntryList({
                   onClick={onAddFromZotero}
                 >
                   {t('Import from Zotero')}
+                </OLDropdownItem>
+              ) : null}
+              {/* Mendeley import: same UX as the ORCID/Zotero pickers,
+                  source = the user's linked Mendeley. */}
+              {onAddFromMendeley ? (
+                <OLDropdownItem
+                  description={t('Browse your Mendeley library and import items')}
+                  onClick={onAddFromMendeley}
+                >
+                  {t('Import from Mendeley')}
                 </OLDropdownItem>
               ) : null}
               {/* C9 — "Import from Library" (LIBRARY_PLAN.md): enabled when

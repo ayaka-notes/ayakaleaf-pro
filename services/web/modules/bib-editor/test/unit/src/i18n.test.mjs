@@ -42,7 +42,17 @@ function moduleSources(dir, out) {
 }
 
 describe('i18n (module literals vs shared JSON)', () => {
-  const sources = moduleSources(frontendJs, [])
+  const sources = []
+  // module's own frontend + the frontend JS of every vendored dep
+  // (modules/bib-editor/deps/<dep>/frontend/js) — the pickers live there.
+  moduleSources(frontendJs, sources)
+  const depsDir = path.join(moduleDir, 'deps')
+  if (fs.existsSync(depsDir)) {
+    for (const dep of fs.readdirSync(depsDir)) {
+      const depJs = path.join(depsDir, dep, 'frontend', 'js')
+      if (fs.existsSync(depJs)) moduleSources(depJs, sources)
+    }
+  }
   const literals = new Set()
   for (const src of sources) {
     const text = fs.readFileSync(src, 'utf8')

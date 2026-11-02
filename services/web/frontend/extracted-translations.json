@@ -2969,5 +2969,17 @@
   },
   "(library access + read access to all groups)": {
     "(library access + read access to all groups)": "(library access + read access to all groups)"
-  }
+  },
+  "Import from Mendeley": true,
+  "Browse your Mendeley library and import items": true,
+  "Loading your Mendeley library…": true,
+  "Failed to load your Mendeley library": true,
+  "Mendeley is not linked to your account yet.": true,
+  "Mendeley is no longer linked to your account": true,
+  "Could not import from Mendeley": true,
+  "Link your Mendeley account to import references": true,
+  "Link Mendeley": true,
+  "No items found": true,
+  "Showing __count__ item(s)": true,
+  "Loading…": true
 }

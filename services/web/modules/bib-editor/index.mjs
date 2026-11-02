@@ -1,4 +1,5 @@
 import Settings from '@overleaf/settings'
+import AuthenticationController from '../../app/src/Features/Authentication/AuthenticationController.mjs'
 
 /**
  * bib-editor module (self-contained: the orcid-picker + zotero-picker
@@ -66,13 +67,36 @@ if (Settings.bibLibrary.enabled === undefined) {
   }
 }
 
+// -- mendeley picker env seeds (MENDELEY_* env is the source of truth, same
+// pattern as zotero above: merged over any site_settings value)
+{
+  const base = Settings.mendeley || {}
+  const siteUrl = Settings.siteUrl.replace(/\/+$/, '') || 'http://localhost'
+  Settings.mendeley = {
+    ...base,
+    clientID:
+      base.clientID ||
+      base.clientId ||
+      process.env.MENDELEY_CLIENT_ID ||
+      process.env.MENDELEY_CLIENT_KEY ||
+      undefined,
+    clientSecret: base.clientSecret || process.env.MENDELEY_CLIENT_SECRET || undefined,
+    callbackURL:
+      base.callbackURL ||
+      process.env.MENDELEY_CALLBACK_URL ||
+      `${siteUrl}/user/mendeley/oauth/callback`,
+    enabled: base.enabled !== undefined ? base.enabled : true,
+  }
+}
+
 const LibraryRoutes =
   (await import('./app/src/LibraryRoutes.mjs')).default
 const OrcidPickerRouter =
-  (await import('./deps/orcid-picker/app/src/OrcidPickerRouter.mjs'))
-    .default
+  (await import('./deps/orcid-picker/app/src/OrcidPickerRouter.mjs')).default
 const ZoteroRouter =
   (await import('./deps/zotero/app/src/ZoteroRouter.mjs')).default
+const MendeleyRouter =
+  (await import('./deps/mendeley/app/src/MendeleyRouter.mjs')).default
 
 /** @import { WebModule } from "../../types/web-module" */
 
@@ -85,9 +109,31 @@ const bibEditorModule = {
         await LibraryRoutes.apply(webRouter)
       }
       // ON by default: adds only login-required GET/DELETE routes guarded by
-      // env secrets (zotero) or SSRF/size/time guards (orcid).
+      // env secrets (zotero/mendeley) or SSRF/size/time guards (orcid).
       await OrcidPickerRouter.apply(webRouter)
       await ZoteroRouter.apply(webRouter)
+      await MendeleyRouter.apply(webRouter)
+
+      // Gating surface for the bib-editor/library UI: which reference
+      // managers are CONFIGURED on this instance (client id + secret both
+      // set). The frontend hides the corresponding "Import from …" entries
+      // when false, so an unconfigured connector is never offered.
+      webRouter.get(
+        '/bib/services',
+        AuthenticationController.requireLogin(),
+        (req, res) => {
+          const z = Settings.zotero
+          const m = Settings.mendeley
+          res.json({
+            zotero: !!(
+              z && (z.clientKey || z.clientID) && z.clientSecret
+            ),
+            mendeley: !!(
+              m && m.enabled !== false && (m.clientID || m.clientId) && m.clientSecret
+            ),
+          })
+        }
+      )
     },
   },
 }

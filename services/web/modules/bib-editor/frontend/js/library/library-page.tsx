@@ -47,6 +47,8 @@ import BibEntryPreview from '../components/bib-entry-preview'
 import BibImportModal from '../components/bib-import-modal'
 import OrcidPickerModal from '../../../deps/orcid-picker/frontend/js/components/orcid-picker-modal'
 import ZoteroPickerModal from '../../../deps/zotero/frontend/js/components/zotero-picker-modal'
+import MendeleyPickerModal from '../../../deps/mendeley/frontend/js/components/mendeley-picker-modal'
+import { useBibServices } from '../utils/provider-status'
 import LibraryManualModal from './library-manual-modal'
 import * as api from './library-api'
 import { useLibrary } from './library-context'
@@ -70,6 +72,10 @@ export default function LibraryPage() {
   const [orcidOpen, setOrcidOpen] = useState(false)
   // P4: "Import from Zotero" (top-bar Add dropdown — zotero-picker modal).
   const [zoteroOpen, setZoteroOpen] = useState(false)
+  // Mendeley picker (top-bar Add dropdown — mendeley-picker modal).
+  const [mendeleyOpen, setMendeleyOpen] = useState(false)
+  // Providers configured on the instance: hide unconfigured entries.
+  const bibServices = useBibServices()
   const [confirmPermanent, setConfirmPermanent] = useState<string[] | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   // Last form report from the open preview (flush-on-leave, OQ-7).
@@ -320,13 +326,25 @@ export default function LibraryPage() {
                   >
                     {t('Import from ORCID.org')}
                   </OLDropdownItem>
-                  {/* P4 — "Import from Zotero" (user's linked Zotero) */}
-                  <OLDropdownItem
-                    description={t('Browse your Zotero libraries and import items')}
-                    onClick={() => setZoteroOpen(true)}
-                  >
-                    {t('Import from Zotero')}
-                  </OLDropdownItem>
+                  {/* P4 — "Import from Zotero" (user's linked Zotero) — hidden
+                      when the connector is not configured on this site. */}
+                  {bibServices.zotero !== false ? (
+                    <OLDropdownItem
+                      description={t('Browse your Zotero libraries and import items')}
+                      onClick={() => setZoteroOpen(true)}
+                    >
+                      {t('Import from Zotero')}
+                    </OLDropdownItem>
+                  ) : null}
+                  {/* Mendeley — hidden when the connector is not configured. */}
+                  {bibServices.mendeley !== false ? (
+                    <OLDropdownItem
+                      description={t('Browse your Mendeley library and import items')}
+                      onClick={() => setMendeleyOpen(true)}
+                    >
+                      {t('Import from Mendeley')}
+                    </OLDropdownItem>
+                  ) : null}
                 </OLDropdownMenu>
               </OLDropdown>
             </div>
@@ -542,6 +560,13 @@ export default function LibraryPage() {
       <ZoteroPickerModal
         show={zoteroOpen}
         handleHide={() => setZoteroOpen(false)}
+        onInsert={handleOrcidInserted}
+      />
+
+      {/* Mendeley picker (top-bar Add dropdown) */}
+      <MendeleyPickerModal
+        show={mendeleyOpen}
+        handleHide={() => setMendeleyOpen(false)}
         onInsert={handleOrcidInserted}
       />
 
