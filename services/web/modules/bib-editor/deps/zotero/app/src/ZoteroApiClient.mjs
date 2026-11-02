@@ -265,7 +265,17 @@ async function _fetchBibtexKeys(apiKey, itemUrlPath, format) {
         try {
           out += await req(`${ZOTERO_API_URL}/${base}/${k}?format=${format}`)
         } catch (perErr) {
-          normalizeApiError(perErr, '_fetchBibtexKeys(perKey)', `${base}/${k}`)
+          // Log and CONTINUE — normalizeApiError rethrows, which would
+          // abort the remaining keys.
+          logger.error(
+            {
+              operation: '_fetchBibtexKeys(perKey)',
+              url: `${base}/${k}?format=${format}`,
+              status: perErr?.response?.status,
+              message: perErr?.message,
+            },
+            'Zotero API request failed',
+          )
         }
       }
       if (out.trim()) return out
