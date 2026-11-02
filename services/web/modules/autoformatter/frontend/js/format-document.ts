@@ -88,15 +88,28 @@ function loadFormatter(kind: FormatterKind) {
  * first use; the document is then read and changed in one go, so edits made
  * meanwhile are formatted too rather than overwritten.
  */
-export function formatDocument(view: EditorView): boolean {
+export function formatDocument(
+  view: EditorView,
+  load: (kind: FormatterKind) => Promise<Formatter> = loadFormatter
+): boolean {
   const kind = formatterKind(view.state)
   if (!kind || view.state.readOnly) {
     return false
   }
-  loadFormatter(kind)
+  // The source editor reuses one EditorView for all documents and replaces
+  // its state on a document switch (see use-codemirror-scope), so by the
+  // time the formatter has loaded, view.state may describe a different
+  // document of the same kind. Stay bound to the document formatting was
+  // requested for.
+  const requestedDocName = view.state.field(formatDocNameField, false)
+  load(kind)
     .then(format => {
       // Another document may have been opened while the formatter loaded
-      if (formatterKind(view.state) !== kind || view.state.readOnly) {
+      if (
+        formatterKind(view.state) !== kind ||
+        view.state.readOnly ||
+        view.state.field(formatDocNameField, false) !== requestedDocName
+      ) {
         return
       }
       const before = view.state.doc.toString()
