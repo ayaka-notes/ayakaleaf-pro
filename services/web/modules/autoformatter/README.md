@@ -1,54 +1,53 @@
-# autoformatter (LaTeX/BibTeX auto-formatting)
+# autoformatter
 
-Idea for this feature was taken from https://github.com/TeXlyre/texlyre 
+Formats the open LaTeX or BibTeX document in the browser. The idea and the
+first version come from [davrot](https://github.com/davrot) (PR #141), after
+[TeXlyre](https://github.com/TeXlyre/texlyre).
 
-Overleaf module that adds a toolbar button to auto-format LaTeX and BibTeX files
-using [tex-fmt](https://github.com/WGUNDERWOOD/tex-fmt) for `.tex`/`.cls`/`.sty`
-files and [bibtex-tidy](https://github.com/FlamingTempura/bibtex-tidy) for `.bib`
-files.
+- `.tex`, `.sty` and `.cls` files are formatted with
+  [tex-fmt](https://github.com/WGUNDERWOOD/tex-fmt), compiled to WebAssembly.
+- `.bib` files are formatted with
+  [bibtex-tidy](https://github.com/FlamingTempura/bibtex-tidy).
 
-## Prerequisites
+Nothing runs on the server, so no binary has to be installed in the image.
 
-The `tex-fmt` binary must be available on `$PATH` in the server environment.
-`bibtex-tidy` is installed as an npm dependency — no separate binary needed.
+## Using it
 
-The standard image builds this in: `server-ce/Dockerfile` downloads and installs
-`tex-fmt` (version pinned via the `TEX_FMT_VERSION` build arg).
+Editors of the project (not viewers) can format a document from:
 
-### Install tex-fmt via Cargo
+- the **Format document** button on the right of the editor toolbar,
+- **Format → Format document** in the menu bar, or the command palette,
+- the keyboard: **Shift+Alt+F** (**Shift+Option+F** on macOS), as in VS Code.
 
-```sh
-cargo install tex-fmt
-```
-
-### Install tex-fmt via package manager (Debian trixie+)
-
-```sh
-apt install tex-fmt
-```
-
-### Install tex-fmt via binary download
-
-Download from [GitHub releases](https://github.com/WGUNDERWOOD/tex-fmt/releases)
-and place on `$PATH`.
+Formatting can be undone with Ctrl+Z / ⌘Z. With track changes on, it shows up
+as tracked changes.
 
 ## How it works
 
-- **Backend**: Registers `POST /api/format-tex` which detects the file type from
-  the filename extension. For `.bib` files it uses bibtex-tidy (Node.js API);
-  for all other files it pipes content through `tex-fmt --stdin`.
-  - Note: `removeDuplicateFields` is disabled because bibtex-tidy 1.15.1 crashes
-    on it in this dependency tree (`seenFieldsByEntry.getOrInsert is not a
-    function`).
-- **Frontend**: Adds an auto-format button (magic wand icon) to the CodeMirror
-  toolbar via the `sourceEditorToolbarEndButtons` slot (rendered by
-  `ToolbarLayout.Right` — do NOT add a second render site). Clicking it sends
-  the current document and its filename to the backend and replaces the editor
-  content with the formatted output.
+- The formatter is loaded on first use (`tex_fmt_bg.wasm` is about 1.4 MB).
+- Only the text that changes is replaced: the document and the formatted text
+  are lined up on their non-whitespace characters, and only the gaps between
+  them that differ are changed. Comments, tracked changes and the cursor stay
+  where they are, and other users' edits are kept.
+- tex-fmt runs with its default options (2-space indent) but without wrapping
+  long lines, as LaTeX Workshop runs it in VS Code (`--nowrap`).
+- bibtex-tidy runs with its defaults, except those that change entries rather
+  than their layout: `escape`, `removeDuplicateFields` and `lowercase` are off.
+  It is pinned to 1.14.0, as 1.15.x calls `Map.prototype.getOrInsert`, which
+  browsers only have since early 2026 (Chrome 145, Firefox 144, Safari 26.2).
+
+## Rebuilding tex-fmt
+
+`frontend/js/tex-fmt/wasm/` holds tex-fmt built from its release tag with the
+steps of its `wasm` justfile recipe. To rebuild it (for example for a new
+release, set in `compile.sh`):
+
+```sh
+cd frontend/js/tex-fmt
+./build.sh
+```
 
 ## License
 
-This module is part of the Overleaf project.
-
-tex-fmt is licensed under the MIT License — see [LICENSE-tex-fmt](LICENSE-tex-fmt).
-bibtex-tidy is licensed under the MIT License — see [LICENSE-bibtex-tidy](LICENSE-bibtex-tidy).
+tex-fmt and bibtex-tidy are MIT licensed, see [LICENSE-tex-fmt](LICENSE-tex-fmt)
+and [LICENSE-bibtex-tidy](LICENSE-bibtex-tidy).

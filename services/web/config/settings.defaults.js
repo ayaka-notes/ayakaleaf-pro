@@ -1050,9 +1050,15 @@ module.exports = {
         __dirname,
         '../modules/error-assistant/frontend/js/last-fix-store'
       ),
+      Path.resolve(__dirname, '../modules/autoformatter/frontend/js/extension'),
     ],
     sourceEditorVisualExtensions: [],
-    sourceEditorComponents: [],
+    sourceEditorComponents: [
+      Path.resolve(
+        __dirname,
+        '../modules/autoformatter/frontend/js/components/format-document-command'
+      ),
+    ],
     pdfLogEntryHeaderActionComponents: [
       Path.resolve(
         __dirname,
@@ -1086,7 +1092,7 @@ module.exports = {
     sourceEditorToolbarEndButtons: [
       Path.resolve(
         __dirname,
-        '../modules/autoformatter/frontend/components/autoformat-button'
+        '../modules/autoformatter/frontend/js/components/format-document-button'
       ),
     ],
     rootContextProviders: [
@@ -1236,6 +1242,10 @@ module.exports = {
         __dirname,
         '../modules/python-runner/frontend/js/components/editor/python/python-output-toasts'
       ),
+      Path.resolve(
+        __dirname,
+        '../modules/autoformatter/frontend/js/components/format-error-toast'
+      ),
     ],
     editorSidebarComponents: [
       Path.resolve(
@@ -1337,8 +1347,7 @@ module.exports = {
     'workbench',
     'error-assistant',
     'instance-features',
-    'open-in-overleaf',
-    'autoformatter'
+    'open-in-overleaf'
   ],
   viewIncludes: {},
 

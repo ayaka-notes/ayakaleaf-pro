@@ -6,6 +6,7 @@
   "checking_project_x_status": "Bezig met controleren van de projectstatus in __provider__",
   "create_project_in_x": "Een __provider__ repository maken",
   "export_project_to_x": "Project exporteren naar __provider__",
+  "format_document": "Document opmaken",
   "import_from_x": "Uit __provider__ importeren",
   "importing_and_merging_changes_in_x": "Veranderingen aan het importeren en toevoegen in __provider__",
   "link_to_x": "Verbinden met je __provider__account",

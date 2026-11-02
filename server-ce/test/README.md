@@ -50,6 +50,10 @@ One folder per module in `toolkit/suites/`, named and nested like
   cursor, the tooltip. Draw mode: switching to the canvas and back,
   recognising drawn symbols with the bundled model, inserting a result and
   clearing the canvas.
+- `autoformatter/` – formatting `.tex` files with tex-fmt from the toolbar
+  button, Shift+Alt+F and the Format menu, undoing it in one step, keeping
+  comments on their text, `.bib` files with bibtex-tidy, and no formatting
+  for other files or for viewers.
 - `track-changes/` – editing, reviewing and viewing modes, tracked insertions
   and deletions, accepting and rejecting them, comments (reply, edit, delete,
   resolve, re-open), the Overview tab listing the comments of docs that are
