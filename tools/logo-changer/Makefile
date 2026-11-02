@@ -101,8 +101,20 @@ test: build
 # Install the generated assets into the project (repo-root public/ + shared
 # svgs). Review the output first (make test) — the committed public/ assets
 # are the current final art.
+WEB := ../../services/web
 install: assets
-	sh -c 'set -eu; REPO_ROOT=../../..; mkdir -p "$$REPO_ROOT/public/img/ol-brand" "$$REPO_ROOT/frontend/js/shared/svgs"; cp -f *.png "$$REPO_ROOT/public/"; cp -f *.svg "$$REPO_ROOT/public/"; cp -f *.ico "$$REPO_ROOT/public/"; cp -f img/ol-brand/*.png "$$REPO_ROOT/public/img/ol-brand/"; cp -f img/ol-brand/*.svg "$$REPO_ROOT/public/img/ol-brand/"; cp -f img/ol-brand/overleaf.svg "$$REPO_ROOT/frontend/js/shared/svgs/"; cp -f img/ol-brand/overleaf-*.svg "$$REPO_ROOT/frontend/js/shared/svgs/"'
+	mkdir -p $(WEB)/public/img/ol-brand $(WEB)/frontend/js/shared/svgs
+	cp -f *.png $(WEB)/public/
+	cp -f *.svg $(WEB)/public/
+	cp -f *.ico $(WEB)/public/
+	cp -f img/ol-brand/*.png $(WEB)/public/img/ol-brand/
+	cp -f img/ol-brand/*.svg $(WEB)/public/img/ol-brand/
+	# Explicitly include the dark Mallard variant
+	cp -f img/ol-brand/overleaf-a-ds-solution-mallard-dark.svg $(WEB)/public/img/ol-brand/
+	cp -f img/ol-brand/overleaf.svg $(WEB)/frontend/js/shared/svgs/
+	cp -f img/ol-brand/overleaf-*.svg $(WEB)/frontend/js/shared/svgs/
+	# Explicitly copy the dark Mallard variant into shared svgs as well
+	cp -f img/ol-brand/overleaf-a-ds-solution-mallard-dark.svg $(WEB)/frontend/js/shared/svgs/
 
 clean:
 	rm -f logo-generator
