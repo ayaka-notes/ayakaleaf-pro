@@ -274,7 +274,7 @@ async function _fetchBibtexKeys(apiKey, itemUrlPath, format) {
   let lastErr = null
   for (let i = 0; i < keys.length; i++) {
     if (i) await sleep(120)
-    const u = `${ZOTERO_API_URL}/${base}/${keys[i]}?format=${format}`
+    const u = `${ZOTERO_API_URL}${base}/${keys[i]}?format=${format}`
     for (let attempt = 1; attempt <= 2; attempt++) {
       if (attempt > 1) await sleep(800)
       try {
