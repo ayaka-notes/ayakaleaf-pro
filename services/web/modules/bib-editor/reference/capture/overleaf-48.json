@@ -1,0 +1,824 @@
+[
+ {
+  "k": "article",
+  "label": "Article",
+  "fields": [
+   "author",
+   "title",
+   "journal",
+   "journaltitle",
+   "year",
+   "date"
+  ],
+  "req": [
+   "author",
+   "title",
+   "[journal,journaltitle]",
+   "[year,date]"
+  ],
+  "opt": [
+   "translator",
+   "annotator",
+   "commentator",
+   "subtitle",
+   "titleaddon",
+   "editor",
+   "editora",
+   "editorb",
+   "editorc",
+   "journalsubtitle",
+   "journaltitleaddon",
+   "issuetitle",
+   "issuesubtitle",
+   "issuetitleaddon",
+   "language",
+   "origlanguage",
+   "series",
+   "volume",
+   "number",
+   "eid",
+   "issue",
+   "month",
+   "pages",
+   "version",
+   "note",
+   "issn",
+   "addendum",
+   "pubstate",
+   "doi",
+   "eprint",
+   "eprintclass",
+   "eprinttype",
+   "url",
+   "urldate"
+  ]
+ },
+ {
+  "k": "artwork",
+  "label": "Artwork",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [],
+  "opt": []
+ },
+ {
+  "k": "audio",
+  "label": "Audio",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [],
+  "opt": []
+ },
+ {
+  "k": "book",
+  "label": "Book",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "publisher",
+   "year",
+   "date"
+  ],
+  "req": [
+   "[author,editor]",
+   "title",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "bookinbook",
+  "label": "Book in book",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "booktitle",
+   "chapter",
+   "pages",
+   "publisher",
+   "year",
+   "date"
+  ],
+  "req": [
+   "author",
+   "title",
+   "booktitle",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "booklet",
+  "label": "Booklet",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [
+   "title"
+  ],
+  "opt": []
+ },
+ {
+  "k": "commentary",
+  "label": "Commentary",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [],
+  "opt": []
+ },
+ {
+  "k": "conference",
+  "label": "Conference",
+  "fields": [
+   "author",
+   "title",
+   "booktitle",
+   "year",
+   "date"
+  ],
+  "req": [
+   "author",
+   "title",
+   "booktitle",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "collection",
+  "label": "Collection",
+  "fields": [
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [
+   "editor",
+   "title",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "dataset",
+  "label": "Dataset",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [
+   "[author,editor]",
+   "title",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "electronic",
+  "label": "Electronic resource",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "year",
+   "date",
+   "doi",
+   "eprint",
+   "url"
+  ],
+  "req": [
+   "[author,editor]",
+   "title",
+   "[year,date]",
+   "[doi,eprint,url]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "image",
+  "label": "Image",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [],
+  "opt": []
+ },
+ {
+  "k": "inproceedings",
+  "label": "In proceedings",
+  "fields": [
+   "author",
+   "title",
+   "booktitle",
+   "year",
+   "date"
+  ],
+  "req": [
+   "author",
+   "title",
+   "booktitle",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "inbook",
+  "label": "In book",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "booktitle",
+   "chapter",
+   "pages",
+   "publisher",
+   "year",
+   "date"
+  ],
+  "req": [
+   "[author,editor]",
+   "title",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "incollection",
+  "label": "In collection",
+  "fields": [
+   "author",
+   "title",
+   "booktitle",
+   "publisher",
+   "year",
+   "date"
+  ],
+  "req": [
+   "author",
+   "title",
+   "booktitle",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "inreference",
+  "label": "In reference",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "booktitle",
+   "year",
+   "date"
+  ],
+  "req": [
+   "author",
+   "title",
+   "editor",
+   "booktitle",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "jurisdiction",
+  "label": "Jurisdiction",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [],
+  "opt": []
+ },
+ {
+  "k": "manual",
+  "label": "Manual",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [
+   "title"
+  ],
+  "opt": []
+ },
+ {
+  "k": "mastersthesis",
+  "label": "Master's thesis",
+  "fields": [
+   "author",
+   "title",
+   "institution",
+   "school",
+   "year",
+   "date"
+  ],
+  "req": [
+   "author",
+   "title",
+   "[school,institution]",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "misc",
+  "label": "Miscellaneous",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [],
+  "opt": []
+ },
+ {
+  "k": "movie",
+  "label": "Movie",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [],
+  "opt": []
+ },
+ {
+  "k": "music",
+  "label": "Music",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [],
+  "opt": []
+ },
+ {
+  "k": "mvbook",
+  "label": "Multi-volume book",
+  "fields": [
+   "author",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [
+   "author",
+   "title",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "mvcollection",
+  "label": "Multi-volume collection",
+  "fields": [
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [
+   "editor",
+   "title",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "mvproceedings",
+  "label": "Multi-volume proceedings",
+  "fields": [
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [
+   "title",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "mvreference",
+  "label": "Multi-volume reference",
+  "fields": [
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [
+   "editor",
+   "title",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "legal",
+  "label": "Legal",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [],
+  "opt": []
+ },
+ {
+  "k": "legislation",
+  "label": "Legislation",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [],
+  "opt": []
+ },
+ {
+  "k": "letter",
+  "label": "Letter",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [],
+  "opt": []
+ },
+ {
+  "k": "online",
+  "label": "Online resource",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "year",
+   "date",
+   "doi",
+   "eprint",
+   "url"
+  ],
+  "req": [
+   "[author,editor]",
+   "title",
+   "[year,date]",
+   "[doi,eprint,url]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "patent",
+  "label": "Patent",
+  "fields": [
+   "author",
+   "title",
+   "number",
+   "year",
+   "date"
+  ],
+  "req": [
+   "author",
+   "title",
+   "number",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "performance",
+  "label": "Performance",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [],
+  "opt": []
+ },
+ {
+  "k": "periodical",
+  "label": "Periodical",
+  "fields": [
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [
+   "editor",
+   "title",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "phdthesis",
+  "label": "PhD thesis",
+  "fields": [
+   "author",
+   "title",
+   "institution",
+   "school",
+   "year",
+   "date"
+  ],
+  "req": [
+   "author",
+   "title",
+   "[school,institution]",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "proceedings",
+  "label": "Proceedings",
+  "fields": [
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [
+   "title",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "reference",
+  "label": "Reference",
+  "fields": [
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [
+   "editor",
+   "title",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "report",
+  "label": "Report",
+  "fields": [
+   "author",
+   "title",
+   "type",
+   "institution",
+   "year",
+   "date"
+  ],
+  "req": [
+   "author",
+   "title",
+   "type",
+   "institution",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "review",
+  "label": "Review",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [],
+  "opt": []
+ },
+ {
+  "k": "software",
+  "label": "Software",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [],
+  "opt": []
+ },
+ {
+  "k": "standard",
+  "label": "Standard",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [],
+  "opt": []
+ },
+ {
+  "k": "suppbook",
+  "label": "Supplemental material in book",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "booktitle",
+   "chapter",
+   "pages",
+   "publisher",
+   "year",
+   "date"
+  ],
+  "req": [
+   "author",
+   "title",
+   "booktitle",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "suppcollection",
+  "label": "Supplemental material in collection",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "booktitle",
+   "year",
+   "date"
+  ],
+  "req": [
+   "author",
+   "title",
+   "editor",
+   "booktitle",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "suppperiodical",
+  "label": "Supplemental material in periodical",
+  "fields": [
+   "author",
+   "title",
+   "journaltitle",
+   "year",
+   "date"
+  ],
+  "req": [
+   "author",
+   "title",
+   "journaltitle",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "techreport",
+  "label": "Tech report",
+  "fields": [
+   "author",
+   "title",
+   "institution",
+   "year",
+   "date"
+  ],
+  "req": [
+   "author",
+   "title",
+   "institution",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "thesis",
+  "label": "Thesis",
+  "fields": [
+   "author",
+   "title",
+   "type",
+   "institution",
+   "year",
+   "date"
+  ],
+  "req": [
+   "author",
+   "title",
+   "type",
+   "institution",
+   "[year,date]"
+  ],
+  "opt": []
+ },
+ {
+  "k": "unpublished",
+  "label": "Unpublished",
+  "fields": [
+   "author",
+   "title",
+   "year",
+   "date",
+   "note"
+  ],
+  "req": [
+   "author",
+   "title"
+  ],
+  "opt": []
+ },
+ {
+  "k": "video",
+  "label": "Video",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "year",
+   "date"
+  ],
+  "req": [],
+  "opt": []
+ },
+ {
+  "k": "www",
+  "label": "WWW",
+  "fields": [
+   "author",
+   "editor",
+   "title",
+   "year",
+   "date",
+   "doi",
+   "eprint",
+   "url"
+  ],
+  "req": [
+   "[author,editor]",
+   "title",
+   "[year,date]",
+   "[doi,eprint,url]"
+  ],
+  "opt": []
+ }
+]

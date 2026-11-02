@@ -1,0 +1,298 @@
+{
+  "abstract": {
+    "label": "Abstract",
+    "helperText": ""
+  },
+  "address": {
+    "label": "Address",
+    "helperText": "Place of publication or event location"
+  },
+  "annote": {
+    "label": "Annote",
+    "helperText": "Annotation for the entry"
+  },
+  "author": {
+    "label": "Author",
+    "helperText": "Separate multiple names with \"and\""
+  },
+  "booktitle": {
+    "label": "Book title",
+    "helperText": ""
+  },
+  "chapter": {
+    "label": "Chapter",
+    "helperText": ""
+  },
+  "crossref": {
+    "label": "Cross reference",
+    "helperText": "Citation key of a related entry"
+  },
+  "date": {
+    "label": "Date",
+    "helperText": ""
+  },
+  "doi": {
+    "label": "Digital object identifier (DOI)",
+    "helperText": "The identifier only, not the full URL, e.g. 10.1000/xyz123"
+  },
+  "edition": {
+    "label": "Edition",
+    "helperText": ""
+  },
+  "editor": {
+    "label": "Editor",
+    "helperText": "Separate multiple names with \"and\""
+  },
+  "eprint": {
+    "label": "Eprint",
+    "helperText": "The preprint archive identifier, e.g. math/0307200v3"
+  },
+  "howpublished": {
+    "label": "How published",
+    "helperText": "How the work was made available, e.g. Poster presentation or Self-published"
+  },
+  "institution": {
+    "label": "Institution",
+    "helperText": ""
+  },
+  "journal": {
+    "label": "Journal",
+    "helperText": ""
+  },
+  "journaltitle": {
+    "label": "Journal title",
+    "helperText": ""
+  },
+  "key": {
+    "label": "Key",
+    "helperText": "Alphabetizing key"
+  },
+  "month": {
+    "label": "Month",
+    "helperText": ""
+  },
+  "note": {
+    "label": "Note",
+    "helperText": ""
+  },
+  "number": {
+    "label": "Number",
+    "helperText": ""
+  },
+  "organization": {
+    "label": "Organization",
+    "helperText": ""
+  },
+  "pages": {
+    "label": "Pages",
+    "helperText": "Page range"
+  },
+  "publisher": {
+    "label": "Publisher",
+    "helperText": ""
+  },
+  "school": {
+    "label": "School",
+    "helperText": ""
+  },
+  "series": {
+    "label": "Series",
+    "helperText": ""
+  },
+  "title": {
+    "label": "Title",
+    "helperText": ""
+  },
+  "type": {
+    "label": "Type",
+    "helperText": ""
+  },
+  "url": {
+    "label": "URL",
+    "helperText": ""
+  },
+  "volume": {
+    "label": "Volume",
+    "helperText": ""
+  },
+  "year": {
+    "label": "Year",
+    "helperText": ""
+  },
+  "subtitle": {
+    "label": "Subtitle",
+    "helperText": ""
+  },
+  "titleaddon": {
+    "label": "Title addon",
+    "helperText": "Any addition to the title not part of the original"
+  },
+  "language": {
+    "label": "Language",
+    "helperText": ""
+  },
+  "addendum": {
+    "label": "Addendum",
+    "helperText": "Any closing note added after the main reference details"
+  },
+  "pubstate": {
+    "label": "Publication state",
+    "helperText": "The publication status, e.g. In press or Submitted"
+  },
+  "editora": {
+    "label": "Editor A",
+    "helperText": "Separate multiple names with \"and\""
+  },
+  "editorb": {
+    "label": "Editor B",
+    "helperText": "Separate multiple names with \"and\""
+  },
+  "editorc": {
+    "label": "Editor C",
+    "helperText": "Separate multiple names with \"and\""
+  },
+  "translator": {
+    "label": "Translator",
+    "helperText": "Separate multiple names with \"and\""
+  },
+  "annotator": {
+    "label": "Annotator",
+    "helperText": "Separate multiple names with \"and\""
+  },
+  "commentator": {
+    "label": "Commentator",
+    "helperText": "Separate multiple names with \"and\""
+  },
+  "introduction": {
+    "label": "Introduction",
+    "helperText": "Author of the introduction. Separate multiple names with \"and\""
+  },
+  "foreword": {
+    "label": "Foreword",
+    "helperText": "Author of the foreword. Separate multiple names with \"and\""
+  },
+  "afterword": {
+    "label": "Afterword",
+    "helperText": "Author of the afterword. Separate multiple names with \"and\""
+  },
+  "bookauthor": {
+    "label": "Book author",
+    "helperText": "Separate multiple names with \"and\""
+  },
+  "holder": {
+    "label": "Holder",
+    "helperText": "The copyright holder, typically used for patents"
+  },
+  "maintitle": {
+    "label": "Main title",
+    "helperText": "Main title of a multi-volume work"
+  },
+  "mainsubtitle": {
+    "label": "Main subtitle",
+    "helperText": ""
+  },
+  "maintitleaddon": {
+    "label": "Main title addon",
+    "helperText": "Any addition to the title not part of the original"
+  },
+  "booksubtitle": {
+    "label": "Book subtitle",
+    "helperText": ""
+  },
+  "booktitleaddon": {
+    "label": "Book title addon",
+    "helperText": "Any addition to the title not part of the original"
+  },
+  "volumes": {
+    "label": "Volumes",
+    "helperText": ""
+  },
+  "part": {
+    "label": "Part",
+    "helperText": ""
+  },
+  "pagetotal": {
+    "label": "Page total",
+    "helperText": ""
+  },
+  "eid": {
+    "label": "EID",
+    "helperText": "Electronic identifier (article ID)"
+  },
+  "journalsubtitle": {
+    "label": "Journal subtitle",
+    "helperText": ""
+  },
+  "journaltitleaddon": {
+    "label": "Journal title addon",
+    "helperText": "Any addition to the title not part of the original"
+  },
+  "issuetitle": {
+    "label": "Issue title",
+    "helperText": ""
+  },
+  "issuesubtitle": {
+    "label": "Issue subtitle",
+    "helperText": ""
+  },
+  "issuetitleaddon": {
+    "label": "Issue title addon",
+    "helperText": "Any addition to the title not part of the original"
+  },
+  "issue": {
+    "label": "Issue",
+    "helperText": ""
+  },
+  "eventtitle": {
+    "label": "Event title",
+    "helperText": ""
+  },
+  "eventtitleaddon": {
+    "label": "Event title addon",
+    "helperText": "Any addition to the title not part of the original"
+  },
+  "eventdate": {
+    "label": "Event date",
+    "helperText": ""
+  },
+  "venue": {
+    "label": "Venue",
+    "helperText": ""
+  },
+  "location": {
+    "label": "Location",
+    "helperText": ""
+  },
+  "version": {
+    "label": "Version",
+    "helperText": ""
+  },
+  "isbn": {
+    "label": "ISBN",
+    "helperText": "International Standard Book Number"
+  },
+  "issn": {
+    "label": "ISSN",
+    "helperText": "International Standard Serial Number"
+  },
+  "isrn": {
+    "label": "ISRN",
+    "helperText": "The report identifier, equivalent to ISBN for technical reports"
+  },
+  "eprintclass": {
+    "label": "Eprint class",
+    "helperText": "The subject class for the preprint, e.g. cs.AI"
+  },
+  "eprinttype": {
+    "label": "Eprint type",
+    "helperText": "The archive name, e.g. arXiv"
+  },
+  "urldate": {
+    "label": "URL date",
+    "helperText": "The date you accessed the page"
+  },
+  "origlanguage": {
+    "label": "Original language",
+    "helperText": "The original language if this is a translation"
+  }
+}

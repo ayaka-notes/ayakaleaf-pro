@@ -1,0 +1,1545 @@
+/* BibEditor visual editor styles */
+
+/* --- Theme variables (dark by default, overridden for light theme) ---
+    Phase C C7: the reference capture's component-level theme vars
+    (--bibtex-*) are defined here (dark :root, light [data-theme]). */
+:root {
+  --bib-panel-bg: var(--bg-dark-primary);
+  --bib-panel-color: var(--content-primary-dark);
+  --bib-panel-secondary-color: var(--content-secondary-dark);
+  --bib-panel-border: var(--border-divider-dark);
+  --bib-panel-divider: var(--neutral-60);
+  --bib-panel-card-hover-border: #ffffff;
+  --bib-panel-card-hover-bg: var(--bg-dark-secondary);
+  /* C7: reference capture spec (dark) */
+  --bibtex-entry-preview-border: var(--border-divider);
+  --bibtex-import-preview-border: var(--border-divider);
+  --bibtex-error-icon-color: var(--red-50);
+  --bibtex-entry-preview-accent: var(--green-50);
+  --bibtex-already-in-library-color: var(--yellow-50);
+  --bibtex-already-in-library-bg-color: var(--yellow-10);
+  --bibtex-preview-input-border: var(--neutral-70);
+}
+
+[data-theme='light'] {
+  --bib-panel-bg: var(--white);
+  --bib-panel-color: var(--content-primary);
+  --bib-panel-secondary-color: var(--content-secondary);
+  --bib-panel-border: var(--border-divider);
+  --bib-panel-divider: var(--neutral-40);
+  --bib-panel-card-hover-border: var(--neutral-80);
+  --bib-panel-card-hover-bg: var(--bg-light-secondary);
+  /* C7: reference capture spec (light) */
+  --bibtex-already-in-library-color: var(--yellow-20);
+  --bibtex-already-in-library-bg-color: var(--yellow-70);
+  --bibtex-preview-input-border: var(--neutral-30);
+}
+
+
+/* SaaS bibtex toolbar (reference 2a) — Undo/Redo left, Code/Visual toggle +
+   reserved search slot right. Values ported from the SaaS capture CSS
+   (ol-toolbar-layout-* / ol-editor-toolbar-button-group / ol-cm-toolbar-button). */
+.bibtex-toolbar {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--bib-panel-border);
+  color: var(--bib-panel-color);
+}
+
+.ol-toolbar-layout-left {
+  display: flex;
+  align-items: center;
+}
+
+.ol-toolbar-layout-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-03);
+  margin-left: auto;
+}
+
+.ol-editor-toolbar-button-group {
+  display: inline-flex;
+  align-items: center;
+}
+
+.ol-editor-toolbar-button-group .ol-cm-toolbar-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin: 0 1px;
+  padding: 0;
+  background-color: transparent;
+  border: none;
+  border-radius: var(--border-radius-base, 4px);
+  color: inherit;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.ol-editor-toolbar-button-group .ol-cm-toolbar-button:hover,
+.ol-editor-toolbar-button-group .ol-cm-toolbar-button:focus,
+.ol-editor-toolbar-button-group .ol-cm-toolbar-button:active {
+  background-color: hsla(0, 0%, 49%, 0.1);
+  color: inherit;
+}
+
+.ol-toolbar-layout-right .ol-cm-toolbar-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin: 0 1px;
+  padding: 0;
+}
+
+/* "Enter manually" back action (CE extra on the SaaS toolbar). */
+.bibtex-toolbar-back {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.25rem;
+  margin-right: 0.5rem;
+  font-size: var(--font-size-02);
+  font-weight: bold;
+  color: var(--bib-panel-secondary-color);
+  text-decoration: none;
+}
+
+.bibtex-toolbar-back:hover {
+  color: var(--bib-panel-color);
+  text-decoration: none;
+}
+
+.bib-editor-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.bib-editor-panel-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 12px;
+}
+
+/* Placeholder (when no .bib file is open) */
+.bib-editor-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  padding: 24px;
+  color: var(--bib-panel-secondary-color);
+}
+
+.bib-editor-placeholder-icon {
+  font-size: 48px;
+  opacity: 0.4;
+  margin-bottom: 12px;
+}
+
+.bib-editor-placeholder-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.bib-editor-placeholder-body {
+  font-size: 13px;
+  line-height: 1.5;
+  max-width: 240px;
+}
+
+/* Entry List */
+.bib-entry-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.bib-list-search {
+  flex: 1 1 auto;
+  max-width: 30rem;
+  min-width: 0;
+
+  .form-group {
+    margin-bottom: 0;
+  }
+
+  .form-control {
+    max-width: 100%;
+    font-size: var(--font-size-02);
+    padding-top: 0.15rem;
+    padding-bottom: 0.15rem;
+    line-height: 1;
+  }
+}
+
+.bib-list-count {
+  font-size: var(--font-size-01);
+  color: var(--bib-panel-secondary-color);
+  padding: 0;
+}
+
+.bib-list-entries {
+  display: flex;
+  flex-direction: column;
+}
+
+.bib-list-empty {
+  text-align: center;
+  padding: 2rem;
+  color: var(--bib-panel-secondary-color);
+  font-size: var(--font-size-02);
+}
+
+/* Entry Card */
+.bib-entry-card {
+  border: 1px solid var(--bib-panel-border);
+  border-radius: var(--bs-border-radius);
+  padding: 0.5rem 0.7rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.bib-entry-card-invalid {
+  border-color: var(--content-danger);
+  background-color: rgba(var(--content-danger-rgb), 0.08);
+}
+
+.bib-entry-card:hover {
+  border-color: var(--bib-panel-card-hover-border);
+  background-color: var(--bib-panel-card-hover-bg);
+}
+
+.bib-entry-card:focus:not(:focus-visible) {
+  outline: none;
+  outline-offset: 0;
+}
+.bib-entry-card:focus-visible {
+  outline: 2px solid var(--blue-50);
+  outline-offset: -2px;
+}
+
+.bib-entry-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.1rem;
+}
+
+.bib-entry-card-type {
+  font-size: var(--font-size-01);
+  font-weight: bold;
+  color: var(--bib-panel-secondary-color);
+  text-transform: lowercase;
+  font-family: var(--font-mono);
+}
+
+.bib-entry-card-key {
+  font-size: var(--font-size-01);
+  color: var(--bib-panel-secondary-color);
+  font-family: var(--font-mono);
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bib-entry-card-title {
+  font-size: var(--font-size-02);
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--bib-panel-color);
+  /* Clamp to 2 lines */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.bib-entry-card-meta {
+  font-size: var(--font-size-01);
+  color: var(--bib-panel-secondary-color);
+  margin-top: 0.1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Entry Form */
+.bib-entry-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.bib-form-row {
+  display: flex;
+  flex-direction: column;
+
+  .bib-doi-row {
+    display: flex;
+    gap: 2rem;
+    align-items: center;
+  }
+
+  .bib-doi-success {
+    color: var(--content-positive);
+    font-size: var(--font-size-01);
+    font-weight: bold;
+  }
+
+  .dropdown {
+    width: 18rem;
+  }
+
+  .dropdown-toggle {
+    width: 100%;
+    font-size: var(--font-size-02);
+    font-weight: 100;
+    border: 1px solid var(--border-primary);
+    border-radius: var(--bs-border-radius);
+    padding: 0.1rem 0.4rem;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+
+    &::after {
+      margin-left: auto;
+    }
+  }
+
+  .dropdown-menu {
+    width: 100%;
+
+    .dropdown-item {
+      font-size: var(--font-size-02);
+    }
+  }
+
+  .bib-form-key-row {
+    display: flex;
+    gap: 2rem;
+  }
+
+  .bib-author-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .bib-author-actions {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 0.6rem;
+  }
+
+  .bib-author-actions .btn {
+    padding: 1px 4px;
+
+    .icon-small {
+      font-size: 18px;
+    }
+  }
+
+  .bib-author-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .bib-author-add {
+    align-self: flex-end;
+    margin-top: 0.5rem;
+  }
+}
+
+.bib-form-label {
+  font-size: var(--font-size-01);
+  font-weight: bold;
+  color: var(--bib-panel-color);
+}
+
+.bib-form-required {
+  color: var(--content-danger);
+}
+
+.bib-form-error {
+  color: var(--content-danger);
+  font-weight: bold;
+  font-size: var(--font-size-01);
+}
+
+.bib-form-input,
+.bib-form-textarea {
+  font-size: var(--font-size-02);
+  padding: 0.2rem 0.4rem;
+  border-color: var(--border-primary) !important;
+}
+
+.bib-form-input-error {
+  border-color: var(--content-danger) !important;
+}
+
+.bib-form-divider {
+  margin: 0.3rem 0;
+  border: 0;
+  border-top: 1px solid var(--border-primary);
+}
+
+/* R2 write failure — surfaces when a guarded write is rejected */
+.bib-write-failure-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: var(--content-danger);
+  color: white;
+  padding: 0.4rem 0.8rem;
+  margin-bottom: 0.5rem;
+  border-radius: var(--bs-border-radius);
+  font-size: var(--font-size-02);
+}
+
+.bib-write-failure-banner-text {
+  flex: 1 1 auto;
+}
+
+.bib-write-failure-dismiss {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  color: white;
+  font-size: var(--font-size-02);
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--bs-border-radius);
+  cursor: pointer;
+}
+
+.bib-write-failure-dismiss:hover,
+.bib-write-failure-dismiss:focus {
+  background: rgba(255, 255, 255, 0.15);
+  outline: none;
+}
+
+/* Inline hint (e.g. "Leave empty to generate on Check") */
+.bib-form-hint {
+  color: var(--bib-panel-secondary-color);
+  font-size: var(--font-size-01);
+  margin-top: 0.2rem;
+}
+
+.bib-form-footer-left {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.bib-form-toggle-opt-fields {
+  padding: 0;
+  width: fit-content;
+  align-self: center;
+  font-size: var(--font-size-03);
+  text-decoration: none;
+  color: var(--btn-primary-background);
+}
+
+.btn-link.bib-form-toggle-opt-fields {
+  color: var(--btn-primary-background);
+}
+
+.btn-link.bib-form-toggle-opt-fields:hover,
+.btn-link.bib-form-toggle-opt-fields:active {
+  color: var(--btn-primary-hover-background);
+}
+
+.bib-form-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-primary);
+}
+
+.bib-form-footer-right {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* W3c (§12 P3): explicit keyboard-focus outlines. :focus-visible is the
+   keyboard-only marker (pointer focus does not paint an outline on these
+   module controls). OLButton wraps a native <button>, so `button` covers
+   Check / Add / Delete / fetch-type etc. by element. */
+.bib-list-search-input:focus-visible,
+.bib-entry-form button:focus-visible {
+  outline: 2px solid var(--blue-50);
+  outline-offset: 2px;
+}
+/* ============================================================
+   Phase C (C3/C4/C7) — capture-named BEM namespace (bibtex-*).
+   All selectors live UNDER a capture module class so nothing
+   leaks past .bib-editor-panel (plan §5: no global selectors).
+   ============================================================ */
+
+/* --- Preview slide-out (C4/C7, D4/D14) — capture bibtex-entry-preview-panel ---
+   The reference previews as a 30rem slide-out anchored to the right edge of
+   `.bibtex-list-and-preview` (position:relative); the persistent list shifts
+   out of the way via the `:has(...)` margin-right rule below (animated both
+   ways — the list stays mounted). The old flex left/right split is gone.
+   The panel itself mounts when open and slides IN (D4). */
+
+.bib-editor-panel .bibtex-list-and-preview {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  position: relative; /* containing block for the absolute slide-out preview */
+}
+
+.bib-editor-panel .bibtex-entry-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  transition: margin-right 0.3s ease; /* D4: animated by the :has shift */
+}
+
+.bib-editor-panel .bibtex-entry-preview-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  /* R11 item 5 (2026-08-30): parity with /library (hidden scroll) — the
+     hidden-only value clipped long previews without scrolling while the
+     library pane scrolls (user: "make it the same as library — the
+     library separator is correct"). */
+  overflow: hidden scroll;
+  background: var(--bib-panel-bg);
+  color: var(--bib-panel-color);
+  /* R7 (2026-08-29): visible divider between list and preview panels */
+  border-left: 1px solid var(--bib-panel-divider, var(--bib-panel-border));
+  box-sizing: border-box;
+  position: absolute; /* out of the flex flow; anchored to the panel */
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: var(--bibtex-split-preview-width, 30rem);
+  max-width: 100%;
+  z-index: 20;
+}
+
+/* Desktop default: a contained slide-out that slides in from the right. */
+.bib-editor-panel .bibtex-entry-preview-panel-contained.bibtex-entry-preview-panel-open {
+  animation: bibtex-entry-preview-in 0.3s ease;
+  transform: none;
+}
+
+@keyframes bibtex-entry-preview-in {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bib-editor-panel .bibtex-entry-preview-panel-contained.bibtex-entry-preview-panel-open {
+    animation: none;
+  }
+  .bib-editor-panel .bibtex-entry-list { transition: none; }
+}
+
+/* The list shifts to make room for the open, contained slide-out (D4).
+   The list is always mounted, so this animates in AND out. */
+.bib-editor-panel:has(.bibtex-entry-preview-panel-contained.bibtex-entry-preview-panel-open) .bibtex-entry-list {
+  margin-right: var(--bibtex-split-preview-width, 30rem);
+}
+
+/* Narrow layouts: full-width overlay (no list shift). */
+@media (max-width: 640px) {
+  .bib-editor-panel .bibtex-entry-preview-panel {
+    left: 0;
+    top: 0;
+    width: 100%;
+    z-index: 5;
+  }
+  .bib-editor-panel:has(.bibtex-entry-preview-panel-contained.bibtex-entry-preview-panel-open) .bibtex-entry-list {
+    margin-right: 0;
+  }
+}
+
+/* Toolbar row: search + Add (C5 dropdown) */
+.bib-editor-panel .bibtex-entry-list-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.5rem 0.7rem;
+  border-bottom: 1px solid var(--bib-panel-border);
+  flex-shrink: 0;
+}
+
+/* --- SaaS list panel (reference 2b): form-control search + Add ---------- */
+
+.bib-editor-panel .bibtex-entry-list-panel {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-04);
+  padding: var(--spacing-04);
+  flex-shrink: 0;
+}
+
+/* Search column: the core form-control wrapper does the input styling.
+   SaaS: .bibtex-search { width: 320px } on the 320px list column; here the
+   panel is the column, so the search flexes to fill the row. */
+.bib-editor-panel .bibtex-search {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.bib-editor-panel .bibtex-search .form-control {
+  color: var(--bib-panel-color);
+}
+
+.bib-editor-panel .bibtex-search .form-control::placeholder {
+  color: var(--bib-panel-secondary-color);
+}
+
+.bib-editor-panel .form-control-wrapper .form-control-start-icon .material-symbols {
+  font-size: 1rem;
+  color: var(--bib-panel-secondary-color);
+}
+
+/* Add dropdown (SaaS 2b: btn-secondary custom-toggle, right-pinned). */
+.bib-editor-panel .bibtex-add-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* SaaS capture: .dropdown .custom-toggle */
+.bib-editor-panel .button-content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-04);
+}
+
+.bib-editor-panel .custom-toggle {
+  display: flex;
+  align-items: center;
+  padding-left: var(--spacing-04);
+  padding-right: var(--spacing-05);
+}
+
+/* --- Bulk bar (C3/C4: select-all + count + Delete) ----------------------- */
+
+.bib-editor-panel .bibtex-bulk-actions-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.7rem;
+  border-bottom: 1px solid var(--bib-panel-border);
+  font-size: var(--font-size-01);
+  color: var(--bib-panel-secondary-color);
+  flex-shrink: 0;
+}
+
+.bib-editor-panel .bibtex-bulk-actions-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  color: var(--bib-panel-color);
+}
+
+.bib-editor-panel .bibtex-bulk-actions-select-all input {
+  accent-color: var(--blue-50);
+}
+
+.bib-editor-panel .bibtex-bulk-actions-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.bib-editor-panel .bibtex-bulk-actions-delete {
+  padding: 0.1rem 0.5rem;
+  font-size: var(--font-size-01);
+}
+
+/* --- Windowed list body (C3: absolute rows + data-index) ----------------- */
+
+.bib-editor-panel .bibtex-entry-list-body {
+  position: relative;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* --- Flow entry card rows (capture card-row classes) --------------------
+   The SaaS capture appearance (bib-saas.css) drives the card look: badge
+   key, stacked details, compact padding, hover/previewing states. Only
+   non-conflicting module behaviors stay here (focus, checkbox, min height). */
+
+.bib-editor-panel .bibtex-entry-card-row {
+  box-sizing: border-box;
+}
+
+.bib-editor-panel .bibtex-entry-card {
+  min-height: 80px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  /* R7 (2026-08-29): stacked key / title / author / year layout */
+  align-items: flex-start;
+  padding: 0.45rem 0.7rem;
+}
+
+.bib-editor-panel .bibtex-entry-card:focus-visible {
+  outline: 2px solid var(--blue-50);
+  outline-offset: -2px;
+}
+
+.bib-editor-panel .bibtex-entry-card-checkbox {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+}
+
+.bib-editor-panel .bibtex-entry-card-checkbox input {
+  accent-color: var(--blue-50);
+}
+
+/* R7 (2026-08-29): key row on top of the card */
+.bib-editor-panel .bibtex-entry-card-key-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.bib-editor-panel .bibtex-entry-card-title {
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bib-editor-panel .bibtex-entry-card-author,
+.bib-editor-panel .bibtex-entry-card-year {
+  min-width: 0;
+  font-size: 0.8125rem;
+  color: var(--bib-panel-secondary-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* D15 (search scope): per-row match highlight (capture
+   `.bibtex-entry-card-key mark{padding:0}` / `.bibtex-entry-card-details
+   mark{padding:0}`). */
+.bib-editor-panel .bibtex-entry-card-key mark,
+.bib-editor-panel .bibtex-entry-card-details mark {
+  padding: 0;
+  background: var(--bibtex-search-highlight-bg, rgba(255, 204, 157, 0.35));
+  color: inherit;
+  border-radius: 0.125rem;
+}
+
+/* The persistent error-icon rule lives in the C7 capture block below
+   (single source of truth). */
+
+/* --- Preview panel (C4 capture naming) ----------------------------------- */
+
+.bib-editor-panel .bibtex-entry-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0.7rem;
+  border-bottom: 1px solid var(--bib-panel-border);
+  flex-shrink: 0;
+}
+
+.bib-editor-panel .bibtex-entry-preview-header-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.bib-editor-panel .bibtex-entry-preview-header .icon-button,
+.bib-editor-panel .bibtex-entry-preview-header button {
+  color: var(--bib-panel-secondary-color);
+  background: transparent;
+  border: none;
+}
+
+/* Summary (key bold / title / author-year meta + Actions) */
+.bib-editor-panel .bibtex-entry-preview-summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.7rem;
+  border-bottom: 1px solid var(--bib-panel-border);
+  flex-shrink: 0;
+}
+
+.bib-editor-panel .bibtex-entry-preview-summary-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  overflow: hidden;
+}
+
+.bib-editor-panel .bibtex-entry-preview-summary-key {
+  font-weight: bold;
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bib-editor-panel .bibtex-entry-preview-summary-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-02);
+}
+
+.bib-editor-panel .bibtex-entry-preview-summary-meta {
+  display: flex;
+  gap: 0.5rem;
+  font-size: var(--font-size-01);
+  color: var(--bib-panel-secondary-color);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.bib-editor-panel .bibtex-entry-preview-summary-actions {
+  flex: 0 0 auto;
+}
+
+.bib-editor-panel .bibtex-entry-preview-summary-actions .btn {
+  color: var(--bib-panel-secondary-color);
+}
+
+/* Required-fields warning (capture: role=alert + bold headline + names) */
+.bib-editor-panel .bibtex-entry-preview-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  padding: 0.35rem 0.7rem;
+  background: rgba(var(--content-warning, 212, 164, 16), 0.12);
+  color: var(--bib-panel-color);
+  font-size: var(--font-size-01);
+  border-top: 1px solid var(--border-divider);
+  border-bottom: 1px solid var(--border-divider);
+}
+
+.bib-editor-panel .bibtex-entry-preview-warning .material-symbols {
+  color: var(--content-warning, #d4a410);
+  font-size: 1rem;
+  flex: 0 0 auto;
+  margin-top: 0.05rem;
+}
+
+.bib-editor-panel .bib-preview-warning-content {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.bib-editor-panel .bib-preview-warning-title {
+  margin: 0;
+  font-size: var(--font-size-01);
+}
+
+.bib-editor-panel .bib-preview-warning-fields {
+  margin: 0.1rem 0 0;
+  font-size: var(--font-size-01);
+  color: var(--bib-panel-secondary-color);
+  overflow-wrap: anywhere;
+}
+
+/* Tabs (Details / Abstract) */
+.bib-editor-panel .bibtex-entry-preview-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.bib-editor-panel .bibtex-entry-preview-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--bib-panel-border);
+  flex-shrink: 0;
+  padding: 0 0.7rem;
+}
+
+.bib-editor-panel .bibtex-entry-preview-tab {
+  appearance: none;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--bib-panel-secondary-color);
+  font-size: var(--font-size-02);
+  padding: 0.5rem 0.9rem;
+  cursor: pointer;
+}
+
+.bib-editor-panel .bibtex-entry-preview-tab:focus-visible {
+  outline: 2px solid var(--blue-50);
+  outline-offset: -2px;
+}
+
+.bib-editor-panel .bibtex-entry-preview-tab-active {
+  color: var(--bib-panel-color);
+  border-bottom-color: var(--blue-50);
+  font-weight: 600;
+}
+
+.bib-editor-panel .bibtex-entry-preview-panel-details,
+.bib-editor-panel .bibtex-entry-preview-panel-abstract {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 0.6rem 0.7rem;
+  min-height: 0;
+}
+
+.bib-editor-panel .bibtex-entry-preview-panel-hidden {
+  display: none;
+}
+
+/* Abstract tab (textarea writes the `abstract` field — C4) */
+.bib-editor-panel .bibtex-abstract-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.bib-editor-panel .bibtex-abstract-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  font-family: inherit;
+  font-size: var(--font-size-02);
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--bib-panel-border);
+  border-radius: var(--bs-border-radius);
+  background: transparent;
+  color: var(--bib-panel-color);
+}
+
+.bib-editor-panel .bibtex-abstract-textarea:focus {
+  outline: 2px solid var(--blue-50);
+  outline-offset: 1px;
+}
+
+/* Optional collapse + Add-field combobox (C2 capture anatomy, still
+   rendered by the shared form in both hosts) */
+.bib-editor-panel .bib-optional-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.bib-editor-panel .bibtex-collapsible-heading {
+  appearance: none;
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  color: var(--bib-panel-color);
+  font-size: var(--font-size-01);
+  font-weight: bold;
+  padding: 0.3rem 0;
+  cursor: pointer;
+}
+
+.bib-editor-panel .bibtex-collapsible-heading:focus-visible {
+  outline: 2px solid var(--blue-50);
+  outline-offset: 2px;
+}
+
+.bib-editor-panel .bibtex-collapsible-heading .form-label,
+.bib-editor-panel .bibtex-collapsible-heading > span.form-label {
+  font-size: var(--font-size-01);
+  font-weight: bold;
+}
+
+.bib-editor-panel .bib-optional-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.bib-editor-panel .bib-add-field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.bib-editor-panel .bib-add-field-combobox {
+  position: relative;
+}
+
+.bib-editor-panel .bib-add-field-listbox {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  list-style: none;
+  margin: 0.2rem 0 0;
+  padding: 0.3rem;
+  background: var(--bib-panel-bg);
+  border: 1px solid var(--bib-panel-border);
+  border-radius: var(--bs-border-radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.bib-editor-panel .bib-combo-group {
+  display: flex;
+  flex-direction: column;
+  padding: 0.1rem 0;
+}
+
+.bib-editor-panel .bib-combo-group-label {
+  font-size: var(--font-size-01);
+  font-weight: bold;
+  color: var(--bib-panel-secondary-color);
+  padding: 0.25rem 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.bib-editor-panel .bib-combo-option {
+  appearance: none;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  color: var(--bib-panel-color);
+  font-size: var(--font-size-02);
+  padding: 0.25rem 0.4rem;
+  border-radius: var(--bs-border-radius);
+  cursor: pointer;
+}
+
+.bib-editor-panel .bib-combo-option:hover,
+.bib-editor-panel .bib-combo-option:focus {
+  background: var(--bib-panel-card-hover-bg);
+  outline: none;
+}
+
+.bib-editor-panel .bib-combo-divider {
+  height: 1px;
+  margin: 0.2rem 0;
+  background: var(--bib-panel-border);
+}
+
+/* Empty-list note (C3) */
+.bib-editor-panel .bib-list-empty {
+  padding: 1.5rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.bib-editor-panel .bib-list-count {
+  display: none; /* count lives in the bulk bar (C3 capture) */
+}
+
+/* --- Import preview (C5 capture) ----------------------------------------- */
+/* Modal body — list, header, cards, empty state (D10), footer-warning (D10). */
+
+.bibtex-import-preview-empty {
+  color: var(--bib-panel-secondary-color);
+  padding: 2rem 1rem;
+  text-align: center;
+}
+
+.bibtex-import-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding-bottom: 0.4rem;
+}
+
+.bibtex-import-preview-count {
+  font-size: var(--font-size-01);
+  color: var(--bib-panel-secondary-color);
+  flex: 0 0 auto;
+}
+
+.bibtex-import-preview-check-all input,
+.bibtex-import-preview-card-check input {
+  accent-color: var(--blue-50);
+}
+
+.bibtex-import-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+/* Import preview card (D10 capture) */
+.bibtex-import-preview-card {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--bibtex-import-preview-border);
+  border-radius: var(--bs-border-radius);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  position: relative;
+}
+
+.bibtex-import-preview-card:hover {
+  background-color: var(--bib-panel-card-hover-bg);
+}
+
+.bibtex-import-preview-card-key {
+  flex: 0 0 90px;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-02);
+  font-weight: 600;
+  color: var(--bib-panel-color);
+  overflow-wrap: normal;
+  line-height: 1.3;
+  border-radius: var(--bs-border-radius);
+  padding: 0.15rem 0.25rem;
+  background: var(--bib-panel-bg);
+  min-width: 0;
+  word-break: break-word;
+}
+
+.bibtex-import-preview-card-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.bibtex-import-preview-card-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.bibtex-import-preview-card-heading {
+  font-size: var(--font-size-02);
+  font-weight: 500;
+}
+
+.bibtex-import-preview-card-field {
+  font-size: var(--font-size-01);
+  color: var(--bib-panel-secondary-color);
+  overflow-wrap: anywhere;
+}
+
+.bibtex-import-preview-card-conflict,
+.bibtex-import-preview-card-error {
+  font-size: var(--font-size-01);
+  color: var(--content-danger);
+  font-style: italic;
+}
+
+.bibtex-import-preview-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  margin-top: 0.3rem;
+}
+
+/* D10: "Already in your library" tag (reference capture) */
+.bibtex-already-in-library {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--font-size-01);
+  line-height: 1;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--bs-border-radius);
+  background-color: var(--bibtex-already-in-library-bg-color);
+  color: var(--bibtex-already-in-library-color);
+  font-weight: 500;
+}
+
+/* Footer (D10: footer-warning row + actions/count) */
+.bibtex-import-preview-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.bibtex-import-preview-footer-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: var(--font-size-01);
+  color: var(--content-danger);
+  font-weight: 500;
+  padding: 0.2rem 0;
+}
+
+.bibtex-import-preview-footer-warning
+  .material-symbols {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.bibtex-import-preview-footer-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+}
+
+.bibtex-import-preview-footer-count {
+  font-size: var(--font-size-01);
+  color: var(--bib-panel-secondary-color);
+}
+
+.bibtex-import-preview-footer-buttons {
+  display: flex;
+  gap: 0.4rem;
+  align-self: flex-end;
+}
+
+/* --- Error tooltip (C4/C11 capture — bibtex-tooltip-errors) --------------- */
+/* Rows carry a required-error icon; the tooltip lists the entry's missing
+   required fields (capture `bibtex-tooltip-errors ul/blockquote`). */
+
+.bib-editor-panel .bibtex-entry-error-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  cursor: default;
+  color: var(--bibtex-error-icon-color, var(--red-50));
+  background: transparent;
+  border: none;
+  padding: 0 0.25rem;
+  user-select: none;
+  font-size: 1rem;
+  line-height: 1.3;
+}
+
+.bib-editor-panel .bibtex-entry-error-icon .material-symbols {
+  font-size: 1rem;
+}
+
+/* Duplicate-key warning (matches the library page rule; R9 2026-08-29). */
+.bib-editor-panel .bibtex-entry-duplicate-icon {
+  color: var(--bibtex-already-in-library-color, #d4a10c);
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+.bib-editor-panel .bibtex-entry-duplicate-icon .material-symbols {
+  font-size: 1.125rem;
+}
+
+.bib-editor-panel .bibtex-tooltip-errors {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.bib-editor-panel .bibtex-tooltip-errors ul {
+  list-style: none;
+  font-size: var(--font-size-01);
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  overflow-wrap: anywhere;
+}
+
+.bib-editor-panel .bibtex-tooltip-errors blockquote {
+  border-left: 2px solid var(--bibtex-error-icon-color, var(--red-50));
+  margin: 0 0 0 0.5rem;
+  padding-left: 0.5rem;
+  font-size: var(--font-size-01);
+  color: var(--bib-panel-secondary-color);
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
+/* ============================================================
+   Modal scope: CE modals are always light (core modal.scss uses
+   light tokens unconditionally) regardless of the overall theme.
+   The SaaS bibtex rules inside them use themed tokens, so pin
+   them to the light scale inside our modals (font colors).
+   ============================================================ */
+[data-testid="bib-manual-modal"],
+[data-testid="bib-import-modal"],
+[data-testid="bib-import-from-library"],
+[data-testid="bib-library-manual-modal"] {
+  --bg-primary-themed: var(--bg-light-primary);
+  --bg-secondary-themed: var(--bg-light-secondary);
+  --bg-tertiary-themed: var(--bg-light-tertiary);
+  --content-primary-themed: var(--content-primary);
+  --content-secondary-themed: var(--content-secondary);
+  --content-placeholder-themed: var(--content-placeholder);
+  --border-divider-themed: var(--border-divider);
+  --bibtex-card-secondary-text: var(--content-secondary);
+}
+
+/* SaaS entry type selector: neutral form-control skin (SaaS
+   entry-type-selector-btn), not the primary button skin. Inside the
+   modals above the same rule resolves the light-pinned tokens. */
+.bib-editor-panel .entry-type-selector-btn,
+[data-testid="bib-manual-modal"] .entry-type-selector-btn,
+[data-testid="bib-import-modal"] .entry-type-selector-btn {
+  --bs-btn-color: var(--content-primary-themed);
+  --bs-btn-bg: var(--bg-primary-themed);
+  --bs-btn-border-color: var(--border-divider-themed);
+  --bs-btn-hover-color: var(--content-primary-themed);
+  --bs-btn-hover-bg: var(--bg-secondary-themed);
+  --bs-btn-hover-border-color: var(--border-divider-themed);
+  --bs-btn-active-color: var(--content-primary-themed);
+  --bs-btn-active-bg: var(--bg-secondary-themed);
+  --bs-btn-active-border-color: var(--border-divider-themed);
+  --bs-btn-disabled-color: var(--content-primary-themed);
+  --bs-btn-disabled-bg: var(--bg-secondary-themed);
+  --bs-btn-disabled-border-color: var(--border-divider-themed);
+}
+
+/* ============================================================
+   Round-3: modal text parity (SaaS: modals are ALWAYS light).
+   Explicit light-scale colors on the text-bearing form elements —
+   no reliance on inherited/themed tokens (the overall page theme
+   must never bleed into these always-light modals).
+   ============================================================ */
+[data-testid="bib-manual-modal"] .modal-content,
+[data-testid="bib-import-modal"] .modal-content,
+[data-testid="bib-import-from-library"] .modal-content,
+[data-testid="bib-library-manual-modal"] .modal-content {
+  color: var(--content-primary);
+}
+[data-testid="bib-manual-modal"] .bib-form-label,
+[data-testid="bib-import-modal"] .bib-form-label,
+[data-testid="bib-import-from-library"] .bib-form-label,
+[data-testid="bib-library-manual-modal"] .bib-form-label,
+[data-testid="bib-manual-modal"] .form-label,
+[data-testid="bib-import-modal"] .form-label,
+[data-testid="bib-import-from-library"] .form-label,
+[data-testid="bib-library-manual-modal"] .form-label {
+  color: var(--content-primary);
+}
+[data-testid="bib-manual-modal"] .bib-form-hint,
+[data-testid="bib-import-modal"] .bib-form-hint,
+[data-testid="bib-import-from-library"] .bib-form-hint,
+[data-testid="bib-library-manual-modal"] .bib-form-hint,
+[data-testid="bib-manual-modal"] .form-text,
+[data-testid="bib-import-modal"] .form-text,
+[data-testid="bib-import-from-library"] .form-text,
+[data-testid="bib-library-manual-modal"] .form-text,
+[data-testid="bib-manual-modal"] .form-text span,
+[data-testid="bib-import-modal"] .form-text span,
+[data-testid="bib-import-from-library"] .form-text span,
+[data-testid="bib-library-manual-modal"] .form-text span {
+  color: var(--content-secondary);
+}
+[data-testid="bib-manual-modal"] .bibtex-collapsible-heading,
+[data-testid="bib-import-modal"] .bibtex-collapsible-heading,
+[data-testid="bib-import-from-library"] .bibtex-collapsible-heading,
+[data-testid="bib-library-manual-modal"] .bibtex-collapsible-heading,
+[data-testid="bib-manual-modal"] .bibtex-collapsible-heading .form-label,
+[data-testid="bib-import-modal"] .bibtex-collapsible-heading .form-label,
+[data-testid="bib-import-from-library"] .bibtex-collapsible-heading .form-label,
+[data-testid="bib-library-manual-modal"] .bibtex-collapsible-heading .form-label {
+  color: var(--content-primary);
+}
+/* Import-preview cards (paste + import-from-library): readable on the
+   always-light modal (round-2 complaint: light grey on white). */
+[data-testid="bib-import-modal"] .bibtex-import-preview-card-heading,
+[data-testid="bib-import-from-library"] .bibtex-import-preview-card-heading {
+  color: var(--content-primary);
+  font-size: var(--font-size-02);
+}
+[data-testid="bib-import-modal"] .bibtex-import-preview-card-field,
+[data-testid="bib-import-from-library"] .bibtex-import-preview-card-field {
+  color: var(--content-secondary);
+}
+/* The citation-key chip was too tall (20px font + spacing token):
+   compact badge per the feedback. */
+[data-testid="bib-import-modal"] .bibtex-import-preview-card-key,
+[data-testid="bib-import-from-library"] .bibtex-import-preview-card-key {
+  color: var(--content-primary);
+  background-color: var(--bg-light-tertiary);
+  font-family: DM Mono, monospace;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  margin-top: 0;
+  padding: 1px 8px;
+}
+[data-testid="bib-import-modal"] .bibtex-import-preview-count,
+[data-testid="bib-import-from-library"] .bibtex-import-preview-count,
+[data-testid="bib-import-modal"] .bibtex-import-preview-footer-count,
+[data-testid="bib-import-from-library"] .bibtex-import-preview-footer-count {
+  color: var(--content-primary);
+}
+
+[data-testid="bib-manual-modal"] .bibtex-entry-form .form-label,
+[data-testid="bib-import-modal"] .bibtex-entry-form .form-label,
+[data-testid="bib-import-from-library"] .bibtex-entry-form .form-label,
+[data-testid="bib-library-manual-modal"] .bibtex-entry-form .form-label,
+[data-testid="bib-manual-modal"] .bibtex-entry-form .bib-form-label,
+[data-testid="bib-import-modal"] .bibtex-entry-form .bib-form-label,
+[data-testid="bib-import-from-library"] .bibtex-entry-form .bib-form-label,
+[data-testid="bib-library-manual-modal"] .bibtex-entry-form .bib-form-label {
+  color: var(--content-primary);
+}
+[data-testid="bib-manual-modal"] .bibtex-entry-form .bib-form-hint,
+[data-testid="bib-import-modal"] .bibtex-entry-form .bib-form-hint,
+[data-testid="bib-library-manual-modal"] .bibtex-entry-form .bib-form-hint,
+[data-testid="bib-import-modal"] .bibtex-import-form .bib-form-hint {
+  color: var(--content-secondary);
+}
+[data-testid="bib-manual-modal"] .bib-form-input,
+[data-testid="bib-import-modal"] .bib-form-input,
+[data-testid="bib-library-manual-modal"] .bib-form-input,
+[data-testid="bib-manual-modal"] .bib-form-textarea,
+[data-testid="bib-import-modal"] .bib-form-textarea,
+[data-testid="bib-library-manual-modal"] .bib-form-textarea,
+[data-testid="bib-manual-modal"] .form-control,
+[data-testid="bib-import-modal"] .form-control,
+[data-testid="bib-library-manual-modal"] .form-control {
+  border-color: var(--content-primary) !important;
+  color: var(--content-primary);
+}
+[data-testid="bib-import-modal"] .bibtex-import-preview-card-key,
+[data-testid="bib-import-from-library"] .bibtex-import-preview-card-key {
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  align-self: flex-start;
+  flex: 0 0 auto;
+  height: auto;
+}
+
+/* ============================================================
+   Round-3: responsive preview placement.
+   Wide: right of the list (30rem slide-out, as now).
+   Narrow: BELOW the list (full width, in flow).
+   ============================================================ */
+@media (max-width: 1100px) {  .bib-editor-panel .bibtex-entry-preview-panel.bibtex-entry-preview-panel-contained {
+    position: static;
+    width: auto;
+    border-left: none;
+    border-top: 1px solid var(--border-divider-themed);
+    transform: none;
+    animation: none;
+  }
+  .bib-editor-panel .bibtex-entry-list {
+    margin-right: 0 !important;
+    min-height: 240px;
+  }
+  .bib-editor-panel .bibtex-list-and-preview {
+    flex-direction: column;
+  }
+  .bib-editor-panel .bibtex-entry-list,
+  .library-page-main .bibtex-entry-list {
+    width: 100%;
+    margin-right: 0 !important;
+  }
+  .bib-editor-panel .bibtex-entry-preview-panel.bibtex-entry-preview-panel-contained,
+  .library-page-main .bibtex-entry-preview-panel.bibtex-entry-preview-panel-contained {
+    width: 100% !important;
+    max-width: 100%;
+    left: auto;
+    right: auto;
+  }
+  .bib-editor-panel .bibtex-list-and-preview {
+    overflow-y: auto;
+  }
+  .bib-editor-panel .bib-editor-panel-content {
+    overflow-y: auto;
+  }
+}
+
+/* Shared column resizer (R9 item 2, 2026-08-29): 6px draggable gutter
+   at the preview's left edge + visible on hover/focus. */
+.bib-editor-panel .bibtex-preview-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 25;
+  touch-action: none;
+}
+.bib-editor-panel .bibtex-preview-resizer:hover,
+.bib-editor-panel .bibtex-preview-resizer:focus-visible {
+  background: var(--blue-50);
+  box-shadow: 0 0 0 1px var(--blue-50);
+}
+
+/* ============================================================
+   Split unification (2026-08-30, user report):
+   1) The preview width MUST follow --bibtex-split-preview-width on BOTH
+      surfaces. bib-saas.css (loaded later) declares `width: 30rem` at the
+      same specificity and was winning, pinning the preview while only the
+      list shifted — the resizer appeared broken. Bumped specificity
+      (+.contained) and !important (saas declares none) so the var wins.
+   2) Collapse/expand the reference list (user request) replaces the
+      unreliable viewport-based auto-stacking for in-IDE narrow panes:
+      the layout root gets .bibtex-list-collapsed, the list hides, the
+      preview takes the full width, the resizer hides. State is set from
+      BibEntryPreview (persisted per surface).
+   ============================================================ */
+.bib-editor-panel .bibtex-entry-preview-panel.bibtex-entry-preview-panel-contained,
+.library-page-main .bibtex-entry-preview-panel.bibtex-entry-preview-panel-contained {
+  width: var(--bibtex-split-preview-width, 30rem) !important;
+}
+
+.bib-editor-panel.bibtex-list-collapsed .bibtex-entry-list,
+.library-page-main.bibtex-list-collapsed .bibtex-entry-list,
+.library-page-main.bibtex-list-collapsed .library-list-pane {
+  display: none;
+}
+
+.bib-editor-panel.bibtex-list-collapsed .bibtex-entry-preview-panel,
+.library-page-main.bibtex-list-collapsed .bibtex-entry-preview-panel {
+  width: 100% !important;
+  max-width: 100%;
+  flex: 1 1 auto;
+  left: auto;
+  right: auto;
+  border-left: none;
+}
+
+.bib-editor-panel.bibtex-list-collapsed .bibtex-entry-list {
+  margin-right: 0 !important;
+}
+
+.bib-editor-panel.bibtex-list-collapsed .bibtex-preview-resizer,
+.library-page-main.bibtex-list-collapsed .bibtex-preview-resizer {
+  display: none;
+}

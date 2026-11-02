@@ -816,7 +816,14 @@ module.exports = {
 
     showSubscriptionLink: false,
 
-    header_extras: [],
+    // Library link (bib-editor module; OVERLEAF_BIB_LIBRARY, default on)
+    header_extras: [
+      process.env.OVERLEAF_BIB_LIBRARY !== 'false' && {
+        text: 'Library',
+        url: '/library',
+        class: 'subdued',
+      },
+    ].filter(Boolean),
   },
   // Example:
   //   header_extras: [{text: "Some Page", url: "http://example.com/some/page", class: "subdued"}]
@@ -1014,7 +1021,17 @@ module.exports = {
       ),
     ],
     devToolbar: [],
-    dsNavLibraryLink: [],
+    // bib-editor module: dashboard ds-nav Library item (hosted in
+    // sidebar-ds-nav.tsx; renders the /library link with SaaS active state)
+    dsNavLibraryLink:
+      process.env.OVERLEAF_BIB_LIBRARY !== 'false'
+        ? [
+            Path.resolve(
+              __dirname,
+              '../modules/bib-editor/frontend/js/library/ds-nav-library-link'
+            ),
+          ]
+        : [],
     trashPageTabs: [],
     adminUserLibrary: [],
     gitBridge: [],
@@ -1049,6 +1066,10 @@ module.exports = {
       Path.resolve(
         __dirname,
         '../modules/error-assistant/frontend/js/last-fix-store'
+      ),
+      Path.resolve(
+        __dirname,
+        '../modules/bib-editor/frontend/js/extensions/bib-editor-extension.ts'
       ),
     ],
     sourceEditorVisualExtensions: [],
@@ -1088,6 +1109,10 @@ module.exports = {
       Path.resolve(
         __dirname,
         '../modules/workbench/frontend/js/assistant-dock-context'
+      ),
+      Path.resolve(
+        __dirname,
+        '../modules/bib-editor/frontend/js/context/bib-editor-provider.tsx'
       ),
     ],
     mainEditorLayoutModals: [
@@ -1206,7 +1231,12 @@ module.exports = {
     domainVerificationToken: [],
     v1ImportDataScreen: [],
     snapshotUtils: [],
-    visualEditorProviders: [],
+    visualEditorProviders: [
+      Path.resolve(
+        __dirname,
+        '../modules/bib-editor/frontend/js/bib-editor-visual-provider.ts'
+      ),
+    ],
     usGovBanner: [],
     rollingBuildsUpdatedAlert: [],
     offlineModeToolbarButtons: [],
@@ -1332,7 +1362,8 @@ module.exports = {
     'workbench',
     'error-assistant',
     'instance-features',
-    'open-in-overleaf'
+    'open-in-overleaf',
+    'bib-editor', // visual .bib editor + user Library (pages/routes/API + vendored ORCID/Zotero pickers)
   ],
   viewIncludes: {},
 

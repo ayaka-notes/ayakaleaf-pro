@@ -1,0 +1,283 @@
+/* SaaS (ref_bib chunk 9324) captured styles for the in-project visual editor:
+   list cards, preview panel, tabs, bulk bar, checkboxes, toolbar tokens.
+   Items 6/7/9/10: DOM/CSS parity with psint-cep-bib-saas-dev. */
+
+/* Tokens absent from the CE core — mapped to closest core equivalents. */
+:root {
+  --neutral-05: #fafafa;
+  --neutral-85: var(--neutral-70);
+  --neutral-15: var(--neutral-20);
+  --green-15: var(--green-20);
+  --green-65: var(--green-70);
+  --wide-target-checkbox-ring: var(--accent-3, var(--green-50));
+}
+
+/* SaaS-captured .bibtex-* and .wide-target-checkbox rules (ref_bib chunk 9324).
+   Extracted verbatim for DOM/CSS parity (items 6/7/9/10). */
+:root { --bibtex-card-hover-bg:var(--neutral-85);--bibtex-card-selected-bg:var(--green-70);--bibtex-card-selected-border:var(--green-60);--bibtex-card-selected-hover-bg:var(--green-65);--bibtex-card-secondary-text:var(--neutral-40);--bibtex-card-previewing-bg:var(--green-70);--bibtex-card-previewing-border:var(--green-60);--bibtex-card-previewing-accent:var(--green-30) }
+[data-theme=light] { --bibtex-card-hover-bg:var(--neutral-05);--bibtex-card-selected-bg:var(--bg-accent-03);--bibtex-card-selected-border:var(--green-20);--bibtex-card-selected-hover-bg:var(--green-15);--bibtex-card-secondary-text:var(--content-secondary-themed);--bibtex-card-previewing-bg:var(--bg-accent-03);--bibtex-card-previewing-border:var(--green-20);--bibtex-card-previewing-accent:var(--green-50) }
+.bibtex-entry-list-body { position:relative }
+.bibtex-entry-card-row:has(.bibtex-entry-card-previewing),.bibtex-entry-card-row:has(.bibtex-entry-card-selected),.bibtex-entry-card-row:hover { z-index:1 }
+.bibtex-entry-card-row:has(.dropdown-menu.show) { z-index:2 }
+.bibtex-entry-card { background-color:var(--bg-primary-themed);border:1px solid var(--border-divider-themed);border-radius:var(--border-radius-medium);color:var(--content-secondary-themed);display:flex;gap:var(--spacing-05);padding:var(--spacing-05);position:relative }
+.bibtex-entry-card:focus-visible { box-shadow:0 0 0 2px var(--border-active-dark);outline:none }
+.bibtex-entry-card:hover { background-color:var(--bibtex-card-hover-bg) }
+.bibtex-entry-card.bibtex-entry-card-selected { background-color:var(--bibtex-card-selected-bg);border-color:var(--bibtex-card-selected-border) }
+.bibtex-entry-card.bibtex-entry-card-selected:hover { background-color:var(--bibtex-card-selected-hover-bg) }
+.bibtex-entry-card.bibtex-entry-card-previewing { background-color:var(--bibtex-card-previewing-bg);border-color:var(--bibtex-card-previewing-border) }
+.bibtex-entry-card.bibtex-entry-card-previewing:before { background-color:var(--bibtex-card-previewing-accent);border-radius:var(--border-radius-medium) 0 0 var(--border-radius-medium);bottom:0;content:"";left:0;position:absolute;top:0;width:6px }
+.bibtex-entry-card.bibtex-entry-card-clickable { cursor:pointer }
+.bibtex-entry-card-compact { border:0;border-bottom:1px solid var(--border-divider-themed);border-radius:0;gap:var(--spacing-04);padding:var(--spacing-04) }
+.bibtex-entry-card-compact.bibtex-entry-card-previewing:before { border-radius:0 }
+.bibtex-entry-card-compact .bibtex-entry-card-content { gap:var(--spacing-01);justify-content:center }
+.bibtex-entry-card-compact .bibtex-entry-card-checkbox { padding-left:var(--spacing-03);padding-right:var(--spacing-03) }
+.bibtex-entry-card-compact .bibtex-entry-card-title { display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden }
+.bibtex-entry-card-checkbox { padding:var(--spacing-02) }
+.bibtex-entry-card-content { display:flex;flex:1;flex-direction:column;gap:var(--spacing-02);min-width:0 }
+.bibtex-entry-card-header { align-items:center;display:flex;gap:var(--spacing-04);padding-bottom:var(--spacing-02) }
+.bibtex-entry-card-key { background-color:var(--bg-tertiary-themed);border-radius:var(--border-radius-base);color:var(--content-primary-themed);font-family:DM Mono,monospace;font-feature-settings:"ss05";font-size:var(--font-size-02);line-height:var(--line-height-02);min-width:0;overflow-wrap:break-word;padding:var(--spacing-01) var(--spacing-02) }
+.bibtex-entry-card-key mark { padding:0 }
+.bibtex-entry-card-actions { line-height:1;margin-left:auto }
+.bibtex-entry-card-details { display:flex;flex-direction:column;font-size:var(--font-size-02);gap:var(--spacing-02);line-height:var(--line-height-02);min-width:0;overflow-wrap:break-word }
+.bibtex-entry-card-details mark { padding:0 }
+.bibtex-entry-card-meta { display:flex;gap:var(--spacing-02) var(--spacing-06);min-width:0 }
+.bibtex-entry-card-title { color:var(--content-primary-themed);font-weight:600 }
+.bibtex-entry-card-author,.bibtex-entry-card-year { color:var(--bibtex-card-secondary-text) }
+.bibtex-entry-card-author { min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
+.bibtex-entry-card-year { flex-shrink:0 }
+.bibtex-entry-card-updated-at { color:var(--bibtex-card-secondary-text);font-size:var(--font-size-01);line-height:var(--line-height-01) }
+.bibtex-entry-error-icon { align-items:center;-webkit-appearance:none;-moz-appearance:none;appearance:none;background:transparent;border:0;color:var(--red-50);cursor:pointer;display:inline-flex;height:var(--line-height-03);padding:0 }
+.bibtex-entry-error-icon-static { color:var(--content-warning-themed);cursor:default }
+.bibtex-tooltip-errors { display:flex;flex-direction:column;gap:var(--spacing-04);text-align:left }
+.bibtex-tooltip-errors ul { margin-bottom:0 }
+.bibtex-tooltip-errors blockquote { margin-left:var(--spacing-06);white-space:pre-wrap }
+:root { --wide-target-checkbox-ring:255 255 255 }
+[data-theme=light] { --wide-target-checkbox-ring:27 34 44 }
+.wide-target-checkbox-box:hover .wide-target-checkbox-target { background-color:rgb(var(--wide-target-checkbox-ring)/8%) }
+.bibtex-collapsible-heading { align-items:center;background:transparent;border:none;cursor:pointer;display:flex;gap:var(--spacing-02);margin-bottom:var(--spacing-04);padding:var(--spacing-02) 0;text-decoration:none;width:auto }
+.bibtex-collapsible-heading:hover { opacity:.8 }
+.bibtex-collapsible-heading:focus { outline:2px solid var(--border-active-themed);outline-offset:2px }
+.bibtex-collapsible-heading-icon { align-items:center;color:var(--content-secondary-themed);display:inline-flex;flex-shrink:0;margin-left:var(--spacing-01) }
+.btn.btn-ghost.bibtex-add-field-button { --btn-ghost-color:var(--content-secondary-themed) }
+.bibtex-entry-form .form-label,.bibtex-entry-form .form-text { color:var(--content-secondary-themed) }
+:root { --bibtex-preview-input-border:var(--neutral-70) }
+[data-theme=light] { --bibtex-preview-input-border:var(--neutral-30) }
+.bibtex-entry-preview-drawer.offcanvas-bottom { --bs-offcanvas-bg:var(--bg-primary-themed);--bs-offcanvas-color:var(--content-primary-themed);border-top-left-radius:24px;border-top-right-radius:24px;height:90% }
+.bibtex-entry-preview-drawer>.focus-trap-container { display:contents }
+.bibtex-entry-preview-panel { background-color:var(--bg-primary-themed);border-left:1px solid var(--border-divider-themed);bottom:0;color:var(--content-primary-themed);display:flex;flex-direction:column;max-width:100%;position:fixed;right:0;top:0;transform:translateX(100%);transition:transform .3s ease;width:30rem;z-index:20 }
+.bibtex-entry-preview-panel.bibtex-entry-preview-panel-open { transform:none }
+.bibtex-entry-preview-panel.bibtex-entry-preview-panel-contained { position:absolute;width:30rem }
+.bibtex-entry-preview-panel.bibtex-entry-preview-panel-overlay { border-left:none;border-radius:var(--border-radius-large,16px) var(--border-radius-large,16px) 0 0;border-top:1px solid var(--border-divider-themed);box-shadow:0 0 5px 3px rgba(30,37,48,.06);inset:20% 0 0;transform:translateY(100%);width:auto }
+.bibtex-entry-preview-panel.bibtex-entry-preview-panel-overlay.bibtex-entry-preview-panel-open { transform:none }
+.bibtex-entry-preview-header { display:flex;justify-content:space-between;padding:var(--spacing-05) }
+.bibtex-entry-preview-header-nav { display:flex }
+.bibtex-entry-preview-summary { align-items:flex-start;display:flex;gap:var(--spacing-05);padding:0 var(--spacing-08) var(--spacing-04) }
+:root .bibtex-entry-preview-header .btn.btn-ghost,:root .bibtex-entry-preview-summary .btn.btn-ghost { --btn-ghost-background:var(--bg-primary-themed);--btn-ghost-hover-background:var(--bg-secondary-themed);--bs-btn-disabled-color:var(--content-disabled-themed);--bs-btn-disabled-bg:var(--bg-disabled-themed) }
+.bibtex-entry-preview-summary-actions { margin-right:calc(var(--spacing-05) - var(--spacing-08)) }
+.bibtex-entry-preview-summary-actions .dropdown-toggle:after { content:none!important }
+.bibtex-entry-preview-summary-content { display:flex;flex:1;flex-direction:column;gap:var(--spacing-02);min-width:0 }
+.bibtex-entry-preview-summary-key { align-self:flex-start;background-color:var(--bg-tertiary-themed);border-radius:var(--border-radius-base);color:var(--content-primary-themed);font-family:DM Mono,monospace;font-feature-settings:"ss05";font-size:var(--font-size-02);line-height:var(--line-height-02);padding:var(--spacing-01) var(--spacing-02) }
+.bibtex-entry-preview-summary-title { color:var(--content-primary-themed);font-weight:600 }
+.bibtex-entry-preview-summary-meta { color:var(--content-secondary-themed);display:flex;font-size:var(--font-size-02);gap:var(--spacing-06);line-height:var(--line-height-02) }
+.bibtex-entry-preview-tabs { background-color:var(--bg-primary-themed);border-bottom:1px solid var(--border-divider-themed);display:flex;gap:var(--spacing-04);margin-bottom:var(--spacing-06);position:sticky;top:0;z-index:1 }
+.bibtex-entry-preview-tab { -webkit-appearance:none;-moz-appearance:none;appearance:none;background:transparent;border:0;border-bottom:3px solid transparent;color:var(--content-secondary-themed);cursor:pointer;font-size:var(--font-size-02);line-height:var(--line-height-02);padding:0;padding:var(--spacing-04) }
+.bibtex-entry-preview-tab.bibtex-entry-preview-tab-active { border-bottom-color:var(--green-50);color:var(--content-primary-themed) }
+.bibtex-entry-preview-tab:focus-visible { box-shadow:0 0 0 2px var(--border-active-dark);outline:none }
+.bibtex-entry-preview-tab:disabled { cursor:default;opacity:.5 }
+.bibtex-entry-preview-body { flex:1;min-height:0;overflow-y:auto;padding:0 var(--spacing-08) var(--spacing-08) }
+.bibtex-entry-preview-body .form-group { scroll-margin-top:4rem }
+.bibtex-entry-preview-body .form-control,.bibtex-entry-preview-body input.form-control[type=text] { border-color:var(--bibtex-preview-input-border) }
+.bibtex-entry-preview-body .form-label,.bibtex-entry-preview-body .form-text { color:var(--content-secondary-themed) }
+.bibtex-entry-preview-body-abstract { display:flex;flex-direction:column }
+.bibtex-abstract-form-group,.bibtex-entry-preview-body-abstract #bibtex-entry-form,.bibtex-entry-preview-body-abstract #bibtex-entry-preview-panel-abstract { display:flex;flex:1;flex-direction:column;min-height:0 }
+.bibtex-abstract-textarea { flex:1;min-height:0;resize:none }
+.bibtex-import-textarea { font-family:DM Mono,monospace;font-feature-settings:"ss05" }
+.bibtex-import-form .form-label,.bibtex-import-form .form-text { color:var(--content-secondary-themed) }
+:root { --bibtex-already-in-library-color:var(--yellow-50);--bibtex-already-in-library-bg-color:var(--yellow-10) }
+[data-theme=default] .modal-themed { --bibtex-already-in-library-color:var(--yellow-20);--bibtex-already-in-library-bg-color:var(--yellow-70) }
+.bibtex-import-preview-card-check {
+  /* 6.3.0 port (2026-09-04, owner #2 final pass): the checkbox and the
+     citation-key badge now share ONE flex row (.bibtex-import-preview-card-top)
+     — aligned BY CONSTRUCTION (same flex center line), independent of how many
+     detail lines follow below. Mirroring box geometry across a nested DOM could
+     never be exact; a shared row is. */
+  display:flex;
+  align-items:center;
+  flex:0 0 auto
+}
+.bibtex-import-preview-card-top { align-items:center;display:flex;gap:var(--spacing-04) }
+.bibtex-import-preview-card { border:1px solid var(--border-divider-themed);border-radius:var(--border-radius-large);display:flex;flex-direction:column;gap:var(--spacing-03);padding:var(--spacing-04) var(--spacing-06) }
+.bibtex-import-preview-card-content { display:flex;flex:1;flex-direction:column }
+.bibtex-import-preview-card-details { display:flex;flex-direction:column;gap:var(--spacing-03) }
+.bibtex-import-preview-card-heading { font-weight:600 }
+.bibtex-import-preview-card-field { color:var(--bibtex-card-secondary-text) }
+.bibtex-import-preview-card-tags { align-items:center;display:flex;gap:var(--spacing-06) }
+.bibtex-import-preview-card-key { background-color:var(--bg-tertiary-themed);border-radius:var(--border-radius-base);color:var(--content-primary-themed);flex:0 1 auto;font-family:DM Mono,monospace;font-feature-settings:"ss05";font-size:var(--spacing-05);font-weight:500;min-width:0;max-width:100%;overflow:hidden;padding:var(--spacing-01) var(--spacing-02);text-overflow:ellipsis;white-space:nowrap }
+.bibtex-already-in-library .badge-tag-content { background-color:var(--bibtex-already-in-library-bg-color);color:var(--bibtex-already-in-library-color);max-width:none }
+.bibtex-import-preview-count { font-weight:600;margin-bottom:var(--spacing-04);padding:var(--spacing-04) 0 }
+.bibtex-import-preview-list { display:flex;flex-direction:column;gap:var(--spacing-04) }
+.bibtex-import-preview-check-all { padding:var(--spacing-05) var(--spacing-06) var(--spacing-04) }
+.bibtex-import-preview-footer { display:flex;flex-direction:column;justify-content:space-between;width:100% }
+.bibtex-import-preview-footer-buttons { display:flex;gap:var(--spacing-04) }
+.bibtex-import-preview-footer-count { font-weight:600 }
+.bibtex-import-preview-footer-warning { align-items:center;color:var(--content-danger-themed);display:flex;justify-content:flex-start;padding-bottom:var(--spacing-04) }
+.bibtex-import-preview-footer-warning span { margin-bottom:var(--spacing-02);margin-left:var(--spacing-02) }
+.bibtex-import-preview-footer-actions { display:flex;justify-content:space-between;width:100% }
+.bibtex-import-preview-empty { color:var(--content-secondary-themed);padding:var(--spacing-10) var(--spacing-09);text-align:center }
+.bibtex-import-preview-header { display:flex }
+.bibtex-add-button { margin-left:auto }
+.bibtex-bulk-actions-bar { align-items:center;background-color:var(--bg-secondary-themed);border:2px solid transparent;border-bottom-color:var(--border-divider-themed);border-radius:0;box-sizing:border-box;display:flex;margin-bottom:var(--spacing-05);margin-top:var(--spacing-05);padding:var(--spacing-04) var(--spacing-05);position:sticky;top:0;z-index:3 }
+.bibtex-bulk-actions-bar.bibtex-bulk-actions-bar-selected { background-color:var(--bibtex-card-selected-bg);border-color:var(--bibtex-card-selected-border);border-radius:var(--border-radius-medium) }
+.bibtex-bulk-actions-bar.bibtex-bulk-actions-bar-compact .bibtex-bulk-actions-btn-label { display:none }
+.bibtex-bulk-actions-bar.bibtex-bulk-actions-bar-compact.bibtex-bulk-actions-bar-selected { border-radius:0 }
+.bibtex-bulk-actions-bar .btn-ghost { --bs-btn-bg:transparent }
+.bibtex-bulk-actions-select-all { margin-right:var(--spacing-05);padding:var(--spacing-02) }
+.bibtex-bulk-actions-count { color:var(--content-primary-themed);font-family:var(--font-sans);font-size:var(--font-size-02);font-style:normal;font-weight:600;line-height:var(--line-height-05);margin-right:var(--spacing-04);overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
+.bibtex-bulk-actions-close { margin-left:auto }
+.bibtex-toolbar,.ol-toolbar-layout-left { align-items:center;display:flex }
+.bibtex-toolbar { box-shadow:inset 0 -1px 0 var(--border-divider-themed);height:32px;padding:0 5px }
+.bibtex-visual-editor { background-color:var(--bg-primary-themed);display:flex;flex-direction:column;font-size:14px;inset:0;position:absolute }
+.bibtex-visual-editor .bibtex-list-and-preview { display:flex;flex:1;flex-direction:column;min-height:0;position:relative }
+.bibtex-visual-editor .bibtex-entry-list { flex-grow:1;overflow:hidden scroll }
+.bibtex-visual-editor .bibtex-search { width:320px }
+.bibtex-visual-editor:has(.bibtex-entry-preview-panel-contained.bibtex-entry-preview-panel-open) .bibtex-entry-list { margin-right:30rem;transition:margin-right .3s ease }
+.bibtex-visual-editor:has(.bibtex-entry-preview-panel-overlay.bibtex-entry-preview-panel-open) .bibtex-entry-list { margin-right:0 }
+.bibtex-visual-editor .bibtex-bulk-actions-bar.bibtex-bulk-actions-bar-selected { border-left-color:transparent;border-radius:0;border-right-color:transparent }
+.bibtex-visual-editor .bibtex-bulk-actions-bar { border-width:1px;border-left:none;border-right:none;margin-bottom:0;margin-top:0;padding-left:var(--spacing-04);padding-right:var(--spacing-04) }
+.bibtex-visual-editor .bibtex-bulk-actions-bar .bibtex-bulk-actions-select-all { padding-left:var(--spacing-03);padding-right:var(--spacing-03) }
+.bibtex-visual-editor .bibtex-bulk-actions-bar:not(.bibtex-bulk-actions-bar-selected) { background-color:var(--bg-primary-themed);border-bottom-color:var(--border-divider-themed);border-top-color:var(--border-divider-themed) }
+.bibtex-loading { align-items:center;display:flex;flex:1;justify-content:center }
+.bibtex-entry-list-panel { align-items:center;display:flex;gap:var(--spacing-04);padding:var(--spacing-04) var(--spacing-04) var(--spacing-05) }
+
+/* Optional-section "Add field" combobox (shared by the project Add modal
+   and the library Add modal + preview; both hosts load this file. Host
+   files may still carry identical scoped copies — same values). */
+.bib-optional-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.bib-add-field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.bib-add-field-combobox {
+  position: relative;
+}
+.bib-add-field-listbox {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  list-style: none;
+  margin: 0.2rem 0 0;
+  padding: 0.3rem;
+  background: var(--bib-panel-bg);
+  border: 1px solid var(--bib-panel-border);
+  border-radius: var(--bs-border-radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  max-height: 260px;
+  overflow-y: auto;
+}
+.bib-combo-group {
+  display: flex;
+  flex-direction: column;
+  padding: 0.1rem 0;
+}
+.bib-combo-group-label {
+  font-size: var(--font-size-01);
+  font-weight: bold;
+  color: var(--bib-panel-secondary-color);
+  padding: 0.25rem 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.bib-combo-option {
+  appearance: none;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  color: var(--bib-panel-color);
+  font-size: var(--font-size-02);
+  padding: 0.25rem 0.4rem;
+  border-radius: var(--bs-border-radius);
+  cursor: pointer;
+}
+.bib-combo-option:hover,
+.bib-combo-option:focus {
+  background: var(--bib-panel-card-hover-bg);
+  outline: none;
+}
+.bib-combo-divider {
+  height: 1px;
+  margin: 0.2rem 0;
+  background: var(--bib-panel-border);
+}
+/* Import-preview card meta: publication venue (primary) + type chip */
+.bibtex-import-preview-card-title {
+  font-weight: 600;
+  color: var(--content-primary-themed, var(--content-primary));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.bibtex-import-preview-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+  min-height: 1.2rem;
+}
+.bibtex-import-preview-card-tags .bib-publication-name {
+  font-size: 12.5px;
+  color: var(--content-secondary-themed, var(--content-secondary));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.bibtex-import-preview-card-tags .bib-type-tag {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border-divider-themed, var(--border-divider));
+  color: var(--content-secondary-themed, var(--content-secondary));
+  background: var(--bg-secondary-themed, transparent);
+  white-space: nowrap;
+}
+
+/* "Add field" combobox suggestion list inside CE modals: modals are
+   always light, so the list pins to light (white) surface regardless of
+   page theme. The themed page hosts (library list, preview panel) keep
+   their themed colors. */
+[data-testid='bib-manual-modal'] .bib-add-field-listbox,
+[data-testid='bib-library-manual-modal'] .bib-add-field-listbox {
+  background: var(--bg-light-primary, #ffffff);
+  border-color: var(--border-divider, #ced0da);
+}
+[data-testid='bib-manual-modal'] .bib-combo-group-label,
+[data-testid='bib-library-manual-modal'] .bib-combo-group-label {
+  color: var(--content-secondary, #545a62);
+}
+[data-testid='bib-manual-modal'] .bib-combo-option,
+[data-testid='bib-library-manual-modal'] .bib-combo-option {
+  color: var(--content-primary, #1b222c);
+}
+[data-testid='bib-manual-modal'] .bib-combo-option:hover,
+[data-testid='bib-manual-modal'] .bib-combo-option:focus,
+[data-testid='bib-library-manual-modal'] .bib-combo-option:hover,
+[data-testid='bib-library-manual-modal'] .bib-combo-option:focus {
+  background: var(--bg-light-tertiary, #eff0f2);
+}
+[data-testid='bib-manual-modal'] .bib-combo-divider,
+[data-testid='bib-library-manual-modal'] .bib-combo-divider {
+  background: var(--border-divider, #ced0da);
+}
