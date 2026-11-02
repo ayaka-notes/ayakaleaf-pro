@@ -43,7 +43,6 @@ const parseTextExtensions = function (extensions) {
 const httpPermissionsPolicy = {
   blocked: [
     'accelerometer',
-    'attribution-reporting',
     'browsing-topics',
     'camera',
     'display-capture',

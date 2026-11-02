@@ -20,7 +20,9 @@ function hashFunctionSha1(baseString, key) {
  * single source of truth.
  */
 async function getCredentials() {
-  const clientKey = String(Settings.zotero?.clientKey || process.env.ZOTERO_CLIENT_KEY || '').trim()
+  const clientKey = String(
+    Settings.zotero?.clientKey || Settings.zotero?.clientID || process.env.ZOTERO_CLIENT_KEY || process.env.ZOTERO_CLIENT_ID || ''
+  ).trim()
   const clientSecret = String(
     Settings.zotero?.clientSecret || process.env.ZOTERO_CLIENT_SECRET || ''
   ).trim()

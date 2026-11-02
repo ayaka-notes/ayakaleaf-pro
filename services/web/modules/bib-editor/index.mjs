@@ -49,12 +49,20 @@ if (Settings.bibLibrary.enabled === undefined) {
 // -- zotero picker env seeds (no site-settings on this base — ZOTERO_* env
 // values are the source of truth; the router gate reads them per request)
 // See deps/zotero/app/src (vendored from the zotero module).
-if (Settings.zotero === undefined) {
+{
+  // The base tpr-webmodule (zotero connector) may have loaded first and seeded
+  // Settings.zotero from ZOTERO_CLIENT_ID. Merge instead of clobber: keep its
+  // fields (clientID, callbackURL) and add clientKey so both naming
+  // conventions work with whichever credential name the deployment set.
+  const base = Settings.zotero || {}
   const siteUrl = Settings.siteUrl.replace(/\/+$/, '') || 'http://localhost'
   Settings.zotero = {
-    clientKey: process.env.ZOTERO_CLIENT_KEY,
-    clientSecret: process.env.ZOTERO_CLIENT_SECRET,
-    callbackURL: `${siteUrl}/user/zotero/oauth/callback`,
+    ...base,
+    clientKey: process.env.ZOTERO_CLIENT_KEY || base.clientID,
+    clientSecret:
+      process.env.ZOTERO_CLIENT_SECRET || base.clientSecret || undefined,
+    callbackURL:
+      base.callbackURL || `${siteUrl}/user/zotero/oauth/callback`,
   }
 }
 

@@ -103,6 +103,78 @@ function normaliseDoi(raw: string): string {
     .replace(/^doi:\s*/i, '')
 }
 
+async function fetchCrossref(doi: string): Promise<FetchedBibEntry | null> {
+  // Crossref looks are registered with publisher-native casing; DOIs are
+  // case-insensitive identifiers, so a 404 on the given spelling is not
+  // conclusive — retry lowercase before giving up (covers e.g. `ARXIV` vs
+  // `arXiv`-style typos).
+  for (const candidate of [doi, doi.toLowerCase()].filter(
+    (v, i, arr) => arr.indexOf(v) === i,
+  )) {
+    try {
+      const res = await fetch(
+        `https://api.crossref.org/works/${encodeURIComponent(candidate)}`,
+        { headers: { Accept: 'application/json' } },
+      )
+      if (res.ok) {
+        const json: { message?: CrossRefMessage } = await res.json()
+        if (json?.message) return crossRefMessageToEntry(json.message)
+      }
+      // 404/405 → try next candidate/source; 429 → this source is rate
+      // limited, the other sources can still answer.
+    } catch {
+      // network/CORS — continue
+    }
+  }
+  return null
+}
+
+interface DataCiteResponse {
+  data?: {
+    attributes?: {
+      titles?: { title: string }[]
+      'container-title'?: string
+      publicationYear?: number
+      publisher?: string
+      volume?: string
+      issue?: string
+      creators?: { name?: string }[]
+    }
+  }
+}
+
+function dataCiteToEntry(doi: string, d: DataCiteResponse['data']): FetchedBibEntry | null {
+  const a = d?.attributes
+  if (!a?.titles?.[0]?.title) return null
+  const fields: Record<string, string> = { title: a.titles[0].title }
+  if (a['container-title']) fields.journal = a['container-title']
+  if (a.publicationYear) fields.year = String(a.publicationYear)
+  if (a.publisher) fields.publisher = a.publisher
+  if (a.volume) fields.volume = a.volume
+  if (a.issue) fields.number = a.issue
+  if (a.creators?.length) {
+    fields.author = a.creators.map(c => c.name).filter(Boolean).join(' and ')
+  }
+  fields.doi = doi
+  return { type: a['container-title'] ? 'article' : 'misc', fields }
+}
+
+// arXiv preprints have no journal — make the citation honest by adding the
+// archive/eprint fields (recognized by natbib/biblatex).
+function withArXivFields(entry: FetchedBibEntry): FetchedBibEntry {
+  if (entry.fields.journal || entry.fields.booktitle) return entry
+  const doi = entry.fields.doi || ''
+  let m = doi.match(/10\.48550\/arxiv\.(\d{4}\.\d+(v\d+)?)\/?(v\d+)?/i)
+  let arxivId = m?.[1] || ''
+  if (!arxivId) m = entry.fields.url?.match(/arxiv\.org\/abs\/(\d{4}\.\d+(v\d+)?)?/i)
+  arxivId = arxivId || m?.[1] || ''
+  if (!arxivId) return entry
+  return {
+    ...entry,
+    fields: { ...entry.fields, eprint: arxivId, archivePrefix: 'arXiv' },
+  }
+}
+
 /**
  * Fetch bibliographic metadata for a DOI and return it as BibTeX fields.
  * Throws an Error if the DOI is invalid or all sources fail.
@@ -114,40 +186,50 @@ export async function fetchEntryFromDoi(raw: string): Promise<FetchedBibEntry> {
     throw new Error('Invalid DOI format (expected 10.xxxx/…)')
   }
 
-  // --- 1. CrossRef ---
-  try {
-    const url = `https://api.crossref.org/works/${encodeURIComponent(doi)}`
-    const res = await fetch(url, { headers: { Accept: 'application/json' } })
-    if (res.ok) {
-      const json: { message?: CrossRefMessage } = await res.json()
-      if (json?.message) {
-        return crossRefMessageToEntry(json.message)
-      }
-    }
-  } catch {
-    // fall through to next strategy
-  }
+  // --- 1. CrossRef (with a lower-case retry) ---
+  const fromCrossref = await fetchCrossref(doi)
+  if (fromCrossref) return withArXivFields(fromCrossref)
 
   // --- 2. doi.org BibTeX content-negotiation ---
-  try {
-    const url = `https://doi.org/${encodeURIComponent(doi)}`
-    const res = await fetch(url, {
-      headers: { Accept: 'application/x-bibtex, text/x-bibtex;q=0.9' },
-    })
-    if (res.ok) {
-      const text = await res.text()
-      if (text.trim().startsWith('@')) {
-        const parsed = parseBibEntry(text)
-        if (parsed) {
-          return { type: parsed.type, fields: parsed.fields, id: parsed.id }
+  {
+    try {
+      const res = await fetch(`https://doi.org/${encodeURIComponent(doi)}`, {
+        headers: { Accept: 'application/x-bibtex, text/x-bibtex;q=0.9' },
+      })
+      if (res.ok) {
+        const text = await res.text()
+        if (text.trim().startsWith('@')) {
+          const parsed = parseBibEntry(text)
+          if (parsed) {
+            return withArXivFields({
+              type: parsed.type,
+              fields: parsed.fields,
+              id: parsed.id,
+            })
+          }
         }
       }
+    } catch {
+      // fall through to next strategy
     }
-  } catch {
-    // fall through to error
+  }
+
+  // --- 3. DataCite (preprints / publishers not in Crossref) ---
+  {
+    try {
+      const res = await fetch(`https://api.datacite.org/dois/${encodeURIComponent(doi)}`)
+      if (res.ok) {
+        const json = await res.json()
+        const entry = dataCiteToEntry(doi, json?.data)
+        if (entry) return withArXivFields(entry)
+      }
+    } catch {
+      // all sources failed
+    }
   }
 
   throw new Error(
-    'Could not retrieve metadata for this DOI. Check the DOI and try again.'
+    'Could not retrieve metadata for this DOI. Check the DOI and try again.\n'
+    + '(Preprints, e.g. arXiv, have no journal title — that field is expected to be empty.)',
   )
 }

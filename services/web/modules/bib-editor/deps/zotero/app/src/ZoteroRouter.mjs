@@ -9,7 +9,7 @@ import ZoteroController from './ZoteroController.mjs'
 // the upstream ensureZoteroEnabled (Settings.zotero is seeded at module
 // boot in modules/bib-editor/index.mjs).
 function ensureZoteroEnabled(req, res, next) {
-  if (Settings.zotero && Settings.zotero.clientKey) {
+  if (Settings.zotero && (Settings.zotero.clientKey || Settings.zotero.clientID)) {
     return next()
   }
   logger.info({}, 'zotero: rejected — connector not configured')

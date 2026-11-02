@@ -40,7 +40,12 @@ for (const provider of PROVIDERS) {
   }
 
   Settings[provider.id] = {
-    clientID: process.env[provider.clientIDEnv],
+    // zotero: accept the bib-editor module's credential name (ZOTERO_CLIENT_KEY)
+    // as an alias, so one env pair works for both the base connector and the
+    // bib-editor picker.
+    clientID:
+      process.env[provider.clientIDEnv] ||
+      (provider.id === 'zotero' ? process.env.ZOTERO_CLIENT_KEY : undefined),
     clientSecret: process.env[provider.clientSecretEnv],
     callbackURL: `${siteUrl}/user/${provider.id}/oauth/callback`,
   }
