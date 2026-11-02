@@ -24,6 +24,11 @@ const webDir = path.resolve(moduleDir, '../..')
 // Match single- and double-quoted literals (an unescaped opposite-kind quote
 // is legal inside the other kind — the string we ship contains exactly that).
 const T_CALL = /(?:\bt|bibtex\.t|phrase)\(\s*(?:'((?:[^'\\]|\\.)*)'\s*|"((?:[^"\\]|\\.)*)"\s*)/g
+// plural(t, count, 'singular_key', 'plural_key'): the keys ride as extra
+// string args that the t() pattern above never sees (2026-11-02 regression —
+// one_reference / many_references shipped untranslated).
+const PLURAL_CALL = /\bplural\(([^;{]{0,220}?)\)/g
+const STR_LIT = /'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"/g
 
 function moduleSources(dir, out) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -45,6 +50,23 @@ describe('i18n (module literals vs shared JSON)', () => {
     T_CALL.lastIndex = 0
     while ((m = T_CALL.exec(text)) !== null) {
       literals.add(m[1] ?? m[2])
+    }
+    PLURAL_CALL.lastIndex = 0
+    while ((m = PLURAL_CALL.exec(text)) !== null) {
+      const args = m[1]
+      STR_LIT.lastIndex = 0
+      let lit
+      while ((lit = STR_LIT.exec(args)) !== null) {
+        literals.add(lit[0].slice(1, -1).replace(/\\(.)/g, '$1'))
+      }
+    }
+    // helper-key mappings (e.g. bib-form-helper.ts) feed t(key); their
+    // return literals must exist in the locales too.
+    if (src.includes('bib-form-helper')) {
+      for (const m2 of text.matchAll(/return\s*'(?:[^'\\]|\\.)*'|return\s*"(?:[^"\\]|\\.)*"/g)) {
+        const key = m2[0].replace(/^return\s*/, '').slice(1, -1).replace(/\\(.)/g, '$1')
+        literals.add(key)
+      }
     }
   }
 
