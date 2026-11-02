@@ -242,16 +242,34 @@ async function getItemsBibtexForPicker(userId, scope, itemKeys) {
 }
 
 async function _fetchBibtexKeys(apiKey, itemUrlPath, format) {
+  const url = `${ZOTERO_API_URL}${itemUrlPath}?format=${format}`
+  const NOISE_RE = /^@misc\{noauthor_notitle_nodate(?:-\d+)?,\r?\n\}\r?\n*/gm
+  const req = (u) =>
+    fetchStringWithResponse(u, {
+      headers: buildHeaders(apiKey),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    }).then(({ body }) => body.replace(NOISE_RE, ''))
   try {
-    const { body } = await fetchStringWithResponse(
-      `${ZOTERO_API_URL}${itemUrlPath}?format=${format}`,
-      {
-        headers: buildHeaders(apiKey),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      }
-    )
-    return body.replace(/^@misc\{noauthor_notitle_nodate(?:-\d+)?,\r?\n\}\r?\n*/gm, '')
+    return await req(url)
   } catch (err) {
+    // Multi-key requests (…/items/KEY1,KEY2) are the failing shape in the
+    // field: fetch the keys one by one and concatenate whatever resolves.
+    const last = itemUrlPath.split('/').pop() || ''
+    const keys = last.split(',').filter(Boolean)
+    const authErr =
+      err?.response?.status === 401 || err?.response?.status === 403
+    if (keys.length > 1 && !authErr) {
+      const base = itemUrlPath.slice(0, -last.length).replace(/\/$/, '')
+      let out = ''
+      for (const k of keys) {
+        try {
+          out += await req(`${ZOTERO_API_URL}/${base}/${k}?format=${format}`)
+        } catch (perErr) {
+          normalizeApiError(perErr, '_fetchBibtexKeys(perKey)', `${base}/${k}`)
+        }
+      }
+      if (out.trim()) return out
+    }
     normalizeApiError(err, '_fetchBibtexKeys', url)
   }
   return ''
