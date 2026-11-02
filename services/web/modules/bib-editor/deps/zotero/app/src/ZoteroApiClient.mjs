@@ -122,7 +122,7 @@ async function _fetchBibtex(apiKey, basePath, format) {
       }
     }
   } catch (err) {
-    normalizeApiError(err, '_fetchBibtex')
+    normalizeApiError(err, '_fetchBibtex', url)
   }
   return allBibtex
 }
@@ -219,9 +219,11 @@ async function getItemsForPicker(userId, scope, collectionKey, limit, start) {
 async function getItemsBibtexForPicker(userId, scope, itemKeys) {
   const credentials = await TokenManager.getCredentials(userId)
   if (!credentials) {
+    // Distinct from a Zotero-side 404 (items not found): 409 = credentials
+    // missing/undecryptable, 404 = the item keys are not in that library.
     throw new ServiceNotConfiguredError({
       message: 'Zotero account is not linked',
-      info: { userId, status: 404 },
+      info: { userId, status: 409 },
     })
   }
   const keys = (itemKeys || []).slice(0, 200)
@@ -250,7 +252,7 @@ async function _fetchBibtexKeys(apiKey, itemUrlPath, format) {
     )
     return body.replace(/^@misc\{noauthor_notitle_nodate(?:-\d+)?,\r?\n\}\r?\n*/gm, '')
   } catch (err) {
-    normalizeApiError(err, '_fetchBibtexKeys')
+    normalizeApiError(err, '_fetchBibtexKeys', url)
   }
   return ''
 }
@@ -280,8 +282,11 @@ async function unlinkAccount(userId) {
 
 }
 
-function normalizeApiError(err, operation) {
-  logger.error({ operation }, 'Zotero API request failed')
+function normalizeApiError(err, operation, url) {
+  logger.error(
+    { operation, url: url || undefined, status: err?.response?.status, message: err?.message },
+    'Zotero API request failed',
+  )
 
   if (err.name === 'AbortError') {
     throw new OError('RefProvider request timed out', { operation, status: 504 }).withCause(err)

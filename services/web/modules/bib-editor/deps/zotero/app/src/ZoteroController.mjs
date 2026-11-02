@@ -248,8 +248,16 @@ async function getPickerBibtex(req, res) {
     res.json({ bibtex })
   } catch (err) {
     const info = OError.getFullInfo(err)
-    if (info?.status === 404) {
+    if (info?.status === 409) {
       return res.status(409).json({ message: 'zotero_not_linked' })
+    }
+    if (info?.status === 404) {
+      // Items not found in Zotero (deleted/moved/wrong library) — NOT a
+      // link problem; say so, the modal renders the message verbatim.
+      return res.status(400).json({
+        message:
+          'Selected items were not found in that Zotero library (they may have been deleted or moved). Try again, or pick different items.',
+      })
     }
     _pickerError(req, res, err)
   }
