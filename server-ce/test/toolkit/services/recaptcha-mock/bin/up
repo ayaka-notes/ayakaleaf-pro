@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Usage: services/recaptcha-mock/bin/up
+#
+# Runs after the toolkit's bin/up, once its network exists. Starts the mock as
+# www.google.com, and as recaptcha-mock for the control API.
+#
+# Expects TOOLKIT_DIR and TOOLKIT_NETWORK in the environment.
+
+exec "$(dirname "$0")/../../lib/start-mock" recaptcha-mock www.google.com

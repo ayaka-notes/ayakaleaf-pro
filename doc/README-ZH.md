@@ -62,6 +62,7 @@ Ayakaleaf Pro 是 Overleaf 的增强版本，具备几乎全部功能与能力�
 - 通过 LDAP、SAML 或 OAuth 2.0 实现 SSO
 - 不限编译时长（可在管理面板中调整）
 - 自助注册（可选，可按邮箱域名限制）
+- reCAPTCHA 人机验证（可选，用于登录、注册和找回密码）
 - 沙箱编译（支持 [texlive-full](https://github.com/ayaka-notes/texlive-full) 镜像）
 - 模板系统（附带模板库）
 - 修订追踪（附带审阅与评论面板）
@@ -117,6 +118,7 @@ Ayakaleaf Pro 是 Overleaf 的增强版本，具备几乎全部功能与能力�
 - Copyright (c) [Pro Authors](https://ayakaleaf-pro.ayaka.space/on-premises/readme/features-and-copyright), 2026-now.
 
 ## 赞助
+- [Vultr](https://www.vultr.com/)
 - [Linux Do Community](https://linux.do)
 - [OpenAI Codex OSS](https://openai.com/en/form/codex-for-oss/)
 - [GitBook](https://www.gitbook.com/)

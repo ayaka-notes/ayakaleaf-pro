@@ -20,6 +20,10 @@ module.exports = merge(base, {
         pathRewrite: { '^/git': '' }
       },
       {
+        context: '/simplesaml/**',
+        target: 'http://saml:4000',
+      },
+      {
         context: ['!**/*.js', '!**/*.css', '!**/*.json'],
         target: 'http://web:3000',
       },
