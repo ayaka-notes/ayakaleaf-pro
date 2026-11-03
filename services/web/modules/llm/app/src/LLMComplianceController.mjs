@@ -822,7 +822,8 @@ async function performReview(job) {
     // The former admin "Review model" and the not_configured URL check are gone:
     // a deployment without a global LLM works through the same lane chain.
     const admin = await getAdminLLMSettings()
-    const resolved = await resolveModelLane(userId, job.modelOverride || undefined).catch(err => {
+    // overleaf-lab (2026-11): the Review task slot (per-task model selection).
+    const resolved = await resolveModelLane(userId, job.modelOverride || undefined, 'review').catch(err => {
         throw Object.assign(
             new Error(err?.message || 'No usable LLM backend is configured'),
             { code: 'model-unavailable' },
@@ -1693,7 +1694,7 @@ async function startReview(req, res) {
     // overleaf-lab (2026-08-27): deployments WITHOUT a global LLM are first-class
     // — resolving the lane also honors the user's profile selection and BYO rows.
     try {
-        await resolveModelLane(userId, (typeof requestedModel === 'string' && requestedModel.trim()) || undefined)
+        await resolveModelLane(userId, (typeof requestedModel === 'string' && requestedModel.trim()) || undefined, 'review')
     } catch (err) {
         logger.debug({ userId, err: err?.message }, '[LLM] compliance: no usable lane')
         return res.json({

@@ -130,6 +130,21 @@ export default {
         )
         logger.debug({}, '[LLM] Route registered: POST /user/llm/selected-model')
 
+        // overleaf-lab (2026-11): per-user editor prefs (inline completion off/on).
+        webRouter.get(
+            '/user/llm/prefs',
+            AuthenticationController.requireLogin(),
+            LLMSettingsController.getUserPrefs
+        )
+        logger.debug({}, '[LLM] Route registered: GET /user/llm/prefs')
+
+        webRouter.post(
+            '/user/llm/prefs',
+            AuthenticationController.requireLogin(),
+            LLMSettingsController.saveUserPrefs
+        )
+        logger.debug({}, '[LLM] Route registered: POST /user/llm/prefs')
+
         // overleaf-lab (2026-08-27, owner request): user-scoped compliance
         // review rubrics — every user configures their own under
         // /user/llm-settings; the reviewer reads them per user.

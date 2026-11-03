@@ -19,16 +19,30 @@ export interface LLMModelOption {
     value: string // model id / `u:<rowId>:<model>` (no '' pseudo-option anymore)
     label: string
     rowName?: string
+    /** overleaf-lab (2026-11): provider badge — "Site · <host>" for site models,
+     * the BYO row name for user rows (several providers can serve the same
+     * model name, so the picker always shows which one this is). */
+    provider?: string
 }
 
-async function fetchServerSelection(): Promise<string> {
+export const LLM_TASK_KEYS = ['chat', 'completion', 'review', 'error'] as const
+export type LLMTask = (typeof LLM_TASK_KEYS)[number]
+
+async function fetchServerSelection(): Promise<{
+    selected: string
+    tasks: Record<string, string>
+}> {
     try {
         const data: any = await getJSON('/user/llm/selected-model')
         const value = typeof data?.selected === 'string' ? data.selected : ''
-        return value
+        const tasks: Record<string, string> = {}
+        for (const k of LLM_TASK_KEYS) {
+            tasks[k] = data?.tasks && typeof data.tasks[k] === 'string' ? data.tasks[k] : ''
+        }
+        return { selected: value, tasks }
     }
     catch {
-        return ''
+        return { selected: '', tasks: { chat: '', completion: '', review: '', error: '' } }
     }
 }
 
@@ -37,6 +51,10 @@ export function useLLMModelSelection() {
     const [options, setOptions] = useState<LLMModelOption[]>([])
     const [loaded, setLoaded] = useState(false)
     const [selected, setSelected] = useState<string>(() => readSelectedModel(projectId))
+    // overleaf-lab (2026-11): per-task model overrides ('' = use the shared default).
+    const [tasks, setTasks] = useState<Record<string, string>>({
+        chat: '', completion: '', review: '', error: '',
+    })
 
     useEffect(() => {
         if (!projectId) {
@@ -54,8 +72,9 @@ export function useLLMModelSelection() {
                 }>(`/project/${projectId}/llm/models`)
                 if (cancelled) return
                 const opts: LLMModelOption[] = []
+                const siteProvider = typeof data.siteProvider === 'string' ? data.siteProvider : undefined
                 for (const m of data.models || []) {
-                    opts.push({ value: m.id, label: m.name || m.id })
+                    opts.push({ value: m.id, label: m.name || m.id, provider: siteProvider })
                 }
                 for (const row of data.userRows || []) {
                     for (const m of row.models || []) {
@@ -65,16 +84,16 @@ export function useLLMModelSelection() {
                             value: m.id,
                             label: m.name || m.id,
                             rowName: row.name,
+                            provider: row.name,
                         })
                     }
                 }
                 setOptions(opts)
 
-                // overleaf-lab (owner request): user-scoped selection — the
-                // profile value is authoritative. A stored value that no
-                // longer exists (row deleted, model renamed) is dropped.
-                const serverValue = await fetchServerSelection()
+                const serverSel = await fetchServerSelection()
                 if (cancelled) return
+                setTasks(serverSel.tasks)
+                const serverValue = serverSel.selected
                 const storedValue = readSelectedModel(projectId)
                 const next =
                     (serverValue && opts.some(o => o.value === serverValue) && serverValue) ||
@@ -118,7 +137,18 @@ export function useLLMModelSelection() {
     }, [])
 
     const apply = useCallback(
-        (value: string) => {
+        (value: string, task?: string) => {
+            if (task) {
+                // overleaf-lab (2026-11): per-task override — stored on the
+                // profile; the shared default and the local bridge are left
+                // untouched so "All tasks" keeps its own value.
+                void postJSON('/user/llm/selected-model', { body: { selected: value, task } })
+                    .then(() => {
+                        setTasks(prev => ({ ...prev, [task]: value }))
+                    })
+                    .catch(() => { /* profile write failed */ })
+                return
+            }
             writeSelectedModel(value, projectId)
             setSelected(value)
             window.dispatchEvent(
@@ -132,6 +162,15 @@ export function useLLMModelSelection() {
                 })
         },
         [projectId],
+    )
+
+    // overleaf-lab (2026-11): effective value for a task = its override, or the
+    // shared default when no override (or the default itself) is set.
+    const valueFor = useCallback(
+        (task?: string) => (
+            task && tasks[task] ? tasks[task] : selected
+        ),
+        [tasks, selected],
     )
 
     const selectedOption = options.find(o => o.value === selected)
@@ -148,7 +187,9 @@ export function useLLMModelSelection() {
         options,
         loaded,
         selected,
+        tasks,
         selectedLabel,
         apply,
+        valueFor,
     }
 }

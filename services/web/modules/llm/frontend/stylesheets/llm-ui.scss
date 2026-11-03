@@ -108,6 +108,37 @@
     }
 }
 
+// overleaf-lab (2026-11): per-task picker row in the Select LLM Model dialog.
+.llm-model-task-picker {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+
+    label {
+        font-weight: 600;
+        font-size: 0.9em;
+        white-space: nowrap;
+        color: var(--wf-panel-text, #1e293b);
+    }
+
+    select {
+        flex: 1;
+        max-width: 340px;
+        padding: 7px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--wf-border-in, #dfe5ec);
+        background: var(--wf-row-hi, #fff);
+        color: var(--wf-panel-text, #1e293b);
+        font-size: 0.95em;
+    }
+}
+
+.llm-model-hint-override {
+    font-size: 0.85em;
+    opacity: 0.85;
+}
+
 .llm-model-option-list {
     display: flex;
     flex-direction: column;

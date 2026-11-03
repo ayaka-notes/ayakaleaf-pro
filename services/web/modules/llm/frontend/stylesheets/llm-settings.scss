@@ -782,3 +782,29 @@
     margin-top: 1.5rem;
   }
 }
+
+// overleaf-lab (2026-11): the Editor section of the user LLM settings
+// (inline-completion toggle row + hint).
+.llm-editor-settings {
+    padding: 6px 0 2px;
+
+    .llm-editor-settings-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 500;
+
+        input[type='checkbox'] {
+            width: 18px;
+            height: 18px;
+            margin: 0;
+            cursor: pointer;
+        }
+    }
+
+    .llm-editor-settings-hint {
+        color: var(--wf-muted, #475569);
+        font-size: 0.85rem;
+        margin: 6px 0 0 28px;
+    }
+}

@@ -23,7 +23,7 @@ import ProjectEntityHandler from '../../../../app/src/Features/Project/ProjectEn
 import { getSystemPrompt, getAdminLLMSettings, getLLMFeatureFlags, getLLMPrompts, readAdminSettings } from './LLMAdminController.mjs'
 import { decryptSecret } from './LLMCrypto.mjs'
 import { chatText, chatObject, normalizeProviderSpec, detectProviderType, assertNonEmpty } from './LLMClient.mjs'
-import { isUserSettingsAllowed, loadProviders } from './LLMSettingsController.mjs'
+import { isUserSettingsAllowed, loadProviders, resolveProfileModelForTask } from './LLMSettingsController.mjs'
 import { User } from '../../../../app/src/models/User.mjs'
 import { parseModelRef } from './LLMModelRef.mjs'
 import { guardLLMCall } from './LLMBudget.mjs' // overleaf-lab: per-user rate + daily token budget (F4)
@@ -85,8 +85,17 @@ async function getModels(req, res) {
         }
     }
 
+    // overleaf-lab (2026-11): the model picker shows each model's PROVIDER —
+    // several providers can serve the same model name, so the site connection
+    // advertises its host name (BYO rows already carry their row name).
+    let siteProvider = 'Site'
+    try {
+        const admin = await getAdminLLMSettings()
+        const host = (admin.llmApiUrl || process.env.LLM_API_URL || '').replace(/^https?:\/\//, '').split('/')[0]
+        if (host) siteProvider = 'Site \u00b7 ' + host
+    } catch { /* label only */ }
     logger.debug({ count: siteModels.length, userRows: userRows.length }, '[LLM] getModels: returning models')
-    res.json({ models: siteModels, userRows })
+    res.json({ models: siteModels, userRows, siteProvider })
 }
 
 /*
@@ -169,7 +178,7 @@ async function resolveUserLane(userId, ref) {
  * without the client repeating it in each request. An explicit request ref
  * always still wins.
  */
-async function resolveLane(userId, modelRef) {
+async function resolveLane(userId, modelRef, task = 'chat') {
     // overleaf-lab (grammar port): admin force-off is enforced at the shared
     // lane-resolution choke point, so chat / completion / generators /
     // compile-fix / review / grammar ALL fall over with one switch.
@@ -180,8 +189,9 @@ async function resolveLane(userId, modelRef) {
         )
     }
     if (!modelRef.model) {
-        const profile = await User.findOne({ _id: userId }).lean().catch(() => null)
-        const profileRef = typeof profile?.llmSelectedModel === 'string' ? profile.llmSelectedModel.trim() : ''
+        // overleaf-lab (2026-11): per-task profile value first, then the shared
+        // selection (resolveProfileModelForTask does both).
+        const profileRef = await resolveProfileModelForTask(userId, task)
         if (profileRef) {
             modelRef = parseModelRef(profileRef)
         }
@@ -206,8 +216,8 @@ async function resolveLane(userId, modelRef) {
 // overleaf-lab: expose lane resolution so other features (e.g. the Review tab's
 // model selector) can honor an explicit model ref — either a site model id or
 // a namespaced 'u:<rowId>:<model>' BYO ref — with that row's own baseUrl + key.
-export async function resolveModelLane(userId, modelRefString) {
-    return resolveLane(userId, parseModelRef(String(modelRefString || '').trim()))
+export async function resolveModelLane(userId, modelRefString, task = 'chat') {
+    return resolveLane(userId, parseModelRef(String(modelRefString || '').trim()), task)
 }
 
 function sendError(res, err, fallbackStatus) {
@@ -327,6 +337,47 @@ async function chat(req, res) {
     }
 }
 
+// overleaf-lab (2026-11): weak BYO models sometimes repeat the word at the
+// cursor seam: the prefix ends in a (possibly partial) word P, and the
+// suggestion re-states P (or P completed by the earlier suggestion words) as
+// one of its first words — "… be th" + "e the first step…" gives "the the
+// first step", "… a" + "a software engineer" gives "aa software engineer".
+// Detect that one duplicated word and drop it from the suggestion:
+//   P + w1 + … + w(i-1)  ==  w(i)      (case/punctuation-insensitive,
+//   spaces removed), for one of the first three suggestion words w(i).
+// Anything that does not match this exact shape is left untouched — the
+// editor applies the result as a plain ghost-text insertion, so it is safe.
+function stripSeamDuplication(leftContext, suggestion) {
+    if (!suggestion) return suggestion
+    const left = String(leftContext || '')
+    const trimmed = left.trim()
+    if (!trimmed) return suggestion
+    const squeeze = (x) => String(x).toLowerCase().replace(/[^a-z0-9]/g, '')
+    const lastWords = trimmed.split(/\s+/)
+    const P = squeeze(lastWords[lastWords.length - 1])
+    if (!P) return suggestion
+    if (P.length < 2 && !/^[a-z]$/.test(P)) return suggestion // e.g. "\" or "$"
+    const words = []
+    const re = /\S+/g
+    let m
+    while ((m = re.exec(suggestion)) !== null && words.length < 3) {
+        words.push({ start: m.index, end: m.index + m[0].length })
+        if (!/[a-z0-9]/i.test(m[0])) break // LaTeX token seam — leave as is
+    }
+    if (!words.length) return suggestion
+    let T = P
+    for (let i = 0; i < words.length; i++) {
+        const w = squeeze(suggestion.slice(words[i].start, words[i].end))
+        if (w && T === w) {
+            const head = suggestion.slice(0, words[i].start).replace(/\s+$/, '')
+            const tail = suggestion.slice(words[i].end).replace(/^\s+/, ' ')
+            return (head + tail).replace(/^\s+/, '')
+        }
+        T += w
+    }
+    return suggestion
+}
+
 async function completion(req, res) {
     const projectId = req.params.Project_id
     const userId = SessionManager.getLoggedInUserId(req.session)
@@ -342,6 +393,15 @@ async function completion(req, res) {
     if (!flags.completionEnabled) {
         return res.json({ success: true, data: '' })
     }
+
+    // overleaf-lab (2026-11, owner request): per-user toggle — the editor
+    // settings "Inline completion" switch; OFF means no ghost text.
+    try {
+        const prefsProfile = await User.findOne({ _id: userId }).lean()
+        if (prefsProfile?.completionEnabled === false) {
+            return res.json({ success: true, data: '' })
+        }
+    } catch { /* profile read failed — continue (admin flag still gated above) */ }
 
     // overleaf-lab: F4 — the rate gate here is what makes inline completion safe
     // to run while typing (per-user, per-minute).
@@ -365,8 +425,8 @@ async function completion(req, res) {
     let ref = parseModelRef(modelRefString)
     let refFromProfile = false
     if (!ref.model) {
-        const profile = await User.findOne({ _id: userId }).lean().catch(() => null)
-        const profileValue = typeof profile?.llmSelectedModel === 'string' ? profile.llmSelectedModel.trim() : ''
+        // overleaf-lab (2026-11): task 'completion' override first, then shared.
+        const profileValue = await resolveProfileModelForTask(userId, 'completion')
         if (profileValue) {
             try {
                 ref = parseModelRef(profileValue)
@@ -406,8 +466,13 @@ async function completion(req, res) {
                       ...resolveSiteSpec(adminSettings, ref.model || siteCompletionModel),
                       lane: 'site'
                   }
-            const systemPrompt = '/no_think\nYou are a text completion engine. Output ONLY the missing text, in the same language as the surrounding text. No thinking, no explanation, no markdown, no code fences, no tags. Just the raw continuation characters.'
-            const userPrompt = `Complete the text at [CURSOR]. Output only the few words that replace [CURSOR]:\n\n${leftContext}[CURSOR]${rightContext}`
+            // overleaf-lab (2026-11): weak models used to RE-EMIT the word at the
+            // cursor seam (prefix "…be th" → suggestion "e the first …", prefix
+            // "…a" → "a software …"). The prompt now starts at the very next
+            // character and forbids retyping existing text; a deterministic
+            // post-filter (stripSeamDuplication) enforces it regardless.
+            const systemPrompt = '/no_think\nYou are an invisible continuation engine. You will receive text that stops at a <CUT> mark. Output ONLY the exact characters that come immediately after <CUT>, as if finishing the sentence the author started. If <CUT> falls in the middle of a word, START WITH THE REMAINING CHARACTERS OF THAT SAME WORD. NEVER repeat, retype, or rewrite anything that already appears before <CUT>. No explanations, no markdown, no code fences, no tags. Continue in the same language as the surrounding text.'
+            const userPrompt = `The text below stops at <CUT>. Continue it exactly from that point (output only the missing continuation, nothing else):\n\n${leftContext}<CUT>${rightContext}`
             const maxTokens = Math.max(16, Math.min(1024, parseInt(maxLength, 10) || 320))
             const { text, usage } = await chatText(
                 resolved.spec,
@@ -422,7 +487,9 @@ async function completion(req, res) {
                     usageMeta: { userId, action: 'completion', lane: resolved.lane, projectId }, // overleaf-lab (usage meter)
                 }
             )
-            const data = text || ''
+            // overleaf-lab (2026-11): strip the duplicated seam word the model
+            // re-emitted ("th" + "e the …" -> "e …"; "a" + "a …" -> "").
+            const data = stripSeamDuplication(leftContext, text || '')
             budget.record(usage?.outputTokens)
             logger.debug(
                 { projectId, lane: resolved.lane, model: resolved.model, len: data.length, duration: `${Date.now() - started}ms` },
@@ -580,7 +647,8 @@ async function compileFix(req, res) {
     let spec
     let model
     try {
-        const resolved = await resolveLane(userId, parseModelRef(body.model))
+        // overleaf-lab (2026-11): Error Analysis gets its own task slot.
+        const resolved = await resolveLane(userId, parseModelRef(body.model), 'error')
         lane = resolved.lane
         spec = resolved.spec
         model = resolved.model

@@ -2,6 +2,7 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import getMeta from '@/utils/meta'
 import LLMSettingsSection from './llm-settings-section'
+import LLMEditorSettings from './llm-editor-settings' // overleaf-lab (2026-11): per-user editor prefs
 import LLMComplianceSettings from './llm-compliance-settings' // overleaf-lab (2026-08-27): user-scoped review rubrics
 import LLMUsageMeter from './llm-usage-meter' // overleaf-lab (usage meter)
 import OLRow from '@/shared/components/ol/ol-row'
@@ -31,6 +32,13 @@ export default function LLMSettingsPage() {
                             <OLPageContentCard>
                                 <div className="page-header">
                                     <h1>{t('llm_settings', 'LLM Settings')}</h1>
+                                </div>
+                                {/* overleaf-lab (2026-11, owner request): editor-scoped
+                                    preferences come first — the inline-completion
+                                    toggle is per user and always available. */}
+                                <div>
+                                    <h2>{t('editor', 'Editor')}</h2>
+                                    <LLMEditorSettings />
                                 </div>
                                 <div>
                                     <LLMSettingsSection initialSettings={user.llmSettings} />

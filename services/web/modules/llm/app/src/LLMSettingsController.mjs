@@ -476,14 +476,72 @@ async function llmSettingsPage(req, res) {
  */
 const SELECTED_MODEL_MAX = 500
 
+// overleaf-lab (2026-11): per-task model overrides (owner request). The single
+// shared selection (llmSelectedModel) remains the default; a user may pick a
+// different model for a specific task. Empty string = "no override" (use the
+// shared default or the deployment chain).
+const TASK_KEYS = ['chat', 'completion', 'review', 'error']
+
+async function readProfile(userId) {
+    return User.findOne({ _id: userId }).lean().catch(() => null)
+}
+
+// overleaf-lab (2026-11): effective model ref for a task — the per-task
+// override first, then the shared selection, then '' (deployment chain).
+export async function resolveProfileModelForTask(userId, task) {
+    const profile = await readProfile(userId)
+    const taskVal =
+        task && TASK_KEYS.includes(task) ? profile?.llmTaskModels?.[task] : undefined
+    if (typeof taskVal === 'string' && taskVal.trim()) return taskVal.trim()
+    return typeof profile?.llmSelectedModel === 'string' ? profile.llmSelectedModel.trim() : ''
+}
+
+function taskMapOf(userDoc) {
+    const out = {}
+    const tm = userDoc?.llmTaskModels
+    for (const k of TASK_KEYS) {
+        out[k] = (tm && typeof tm[k] === 'string') ? tm[k] : ''
+    }
+    return out
+}
+
+// overleaf-lab (2026-11, owner request): per-user EDITOR prefs. Inline
+// completion is ON by default (admin feature toggle still gates it globally);
+// a user can switch the ghost-text suggestions off for their own profile.
+async function getUserPrefs(req, res) {
+    const userId = SessionManager.getLoggedInUserId(req.session)
+    if (!userId) {
+        return res.status(401).json({ ok: false, error: 'unauthorized', message: 'Login required' })
+    }
+    const profile = await readProfile(userId)
+    res.json({ ok: true, completionEnabled: profile?.completionEnabled !== false })
+}
+
+async function saveUserPrefs(req, res) {
+    const userId = SessionManager.getLoggedInUserId(req.session)
+    if (!userId) {
+        return res.status(401).json({ ok: false, error: 'unauthorized', message: 'Login required' })
+    }
+    const set = {}
+    if (typeof req.body?.completionEnabled === 'boolean') {
+        set.completionEnabled = req.body.completionEnabled
+    }
+    if (Object.keys(set).length === 0) {
+        return res.status(400).json({ ok: false, error: 'bad-request', message: 'No known preference' })
+    }
+    await User.updateOne({ _id: userId }, { $set: set })
+    res.json({ ok: true, completionEnabled: set.completionEnabled ?? undefined })
+}
+
 async function getSelectedModel(req, res) {
     const userId = SessionManager.getLoggedInUserId(req.session)
     if (!userId) {
         return res.status(401).json({ ok: false, error: 'unauthorized', message: 'Login required' })
     }
-    const userDoc = await User.findOne({ _id: userId }).lean()
+    const userDoc = await readProfile(userId)
     const selected = typeof userDoc?.llmSelectedModel === 'string' ? userDoc.llmSelectedModel : ''
-    res.json({ ok: true, selected })
+    // overleaf-lab (2026-11): per-task overrides ride along (additive).
+    res.json({ ok: true, selected, tasks: taskMapOf(userDoc) })
 }
 
 async function saveSelectedModel(req, res) {
@@ -501,6 +559,16 @@ async function saveSelectedModel(req, res) {
     // string (explicit reset). Anything else is a client bug, not a model.
     if (value && !/^[A-Za-z0-9._\-/]+(:[A-Za-z0-9._\-/]+){0,2}$/.test(value)) {
         return res.status(400).json({ ok: false, error: 'bad-request', message: 'Invalid model reference' })
+    }
+    // overleaf-lab (2026-11): save per-task when a task is given; otherwise
+    // the shared default (existing semantics).
+    const task = typeof req.body?.task === 'string' ? req.body.task.trim() : ''
+    if (task) {
+        if (!TASK_KEYS.includes(task)) {
+            return res.status(400).json({ ok: false, error: 'bad-request', message: 'Unknown task: ' + task })
+        }
+        await User.updateOne({ _id: userId }, { $set: { ['llmTaskModels.' + task]: value } })
+        return res.json({ ok: true, selected: value, task })
     }
     await User.updateOne({ _id: userId }, { $set: { llmSelectedModel: value } })
     res.json({ ok: true, selected: value })

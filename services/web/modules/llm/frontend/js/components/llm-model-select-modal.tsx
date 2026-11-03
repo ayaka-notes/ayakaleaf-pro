@@ -21,19 +21,33 @@ const LLMModelSelectModal = React.memo(function LLMModelSelectModal({
     const { t } = useTranslation()
     // overleaf-lab (owner request 2026-08-26): the "Deployment default" pseudo
     // option is gone — only concrete models (site + BYO rows) are selectable.
-    const { options, loaded, selected, apply } = useLLMModelSelection()
+    const { options, loaded, selected, tasks, apply } = useLLMModelSelection()
     const [local, setLocal] = useState('')
+    // overleaf-lab (2026-11): per-task model selection. '' = shared default
+    // (applies to every task); the other keys override ONE surface.
+    const TASKS: Array<{ key: string; label: string }> = [
+        { key: '', label: t('llm_task_default', 'All tasks (default)') },
+        { key: 'chat', label: t('llm_task_chat', 'Chat (AI Assistant)') },
+        { key: 'completion', label: t('llm_task_completion', 'Inline completion') },
+        { key: 'review', label: t('llm_task_review', 'Compliance review') },
+        { key: 'error', label: t('llm_task_error', 'Error analysis (suggest fix)') },
+    ] as const
+    const [task, setTask] = useState('')
 
-    // Re-seed each time the modal opens (and live if another surface changed
-    // the selection while it is open). When nothing is selected yet, preselect
-    // the first concrete model (site default) so "Use this model" always picks
-    // a real model.
+    const currentForTask = task
+        ? (tasks[task] || selected || (loaded ? options[0]?.value || '' : ''))
+        : (selected || (loaded ? options[0]?.value || '' : ''))
+
+    // Re-seed each time the modal opens or the task changes (and live if
+    // another surface changed the selection while it is open). When nothing is
+    // selected yet, preselect the first concrete model (site default) so
+    // "Use this model" always picks a real model.
     useEffect(() => {
-        if (show) setLocal(selected || (loaded ? options[0]?.value || '' : ''))
-    }, [show, selected, loaded, options])
+        if (show) setLocal(currentForTask)
+    }, [show, task, currentForTask])
 
     const save = () => {
-        apply(local)
+        apply(local, task || undefined)
         onHide()
     }
 
@@ -56,12 +70,41 @@ const LLMModelSelectModal = React.memo(function LLMModelSelectModal({
                 />
             </div>
             <div className="modal-body">
+                <div className="llm-model-task-picker">
+                    <label htmlFor="llm-task-select">
+                        {t('llm_task_label', 'Apply to')}
+                    </label>
+                    <select
+                        id="llm-task-select"
+                        value={task}
+                        onChange={e => setTask(e.target.value)}
+                    >
+                        {TASKS.map(o => (
+                            <option key={o.key || 'default'} value={o.key}>
+                                {o.label}
+                            </option>
+                        ))}
+                    </select>
+                </div>
                 <p className="llm-model-hint">
-                    {t(
-                        'llm_select_model_hint',
-                        'This model is used everywhere — AI Assistant chat, Review, the AI Generate menu items and ask-AI on selected text. The choice is saved to your profile and follows you across projects.',
-                    )}
+                    {task
+                        ? t(
+                            'llm_select_model_hint_task',
+                            'This model is used ONLY for the selected task. All other tasks keep the default model. The choice is saved to your profile and follows you across projects.',
+                        )
+                        : t(
+                            'llm_select_model_hint',
+                            'This model is used everywhere — AI Assistant chat, Review, the AI Generate menu items and ask-AI on selected text. The choice is saved to your profile and follows you across projects.',
+                        )}
                 </p>
+                {task && (tasks[task] || '') !== '' && (
+                    <p className="llm-model-hint llm-model-hint-override">
+                        {t(
+                            'llm_select_model_task_override_active',
+                            'A task-specific model is currently configured. Use "All tasks (default)" to change or reset the default.',
+                        )}
+                    </p>
+                )}
                 <div className="llm-model-option-list" role="radiogroup">
                     {options.map(o => (
                         <label
@@ -79,9 +122,12 @@ const LLMModelSelectModal = React.memo(function LLMModelSelectModal({
                                 <span className="llm-model-option-label">
                                     {o.label}
                                 </span>
-                                {o.rowName && (
+                                {/* overleaf-lab (2026-11): always show the
+                                    provider — several providers can serve the
+                                    same model name (Site vs BYO rows). */}
+                                {(o.provider || o.rowName) && (
                                     <span className="llm-model-option-row">
-                                        {o.rowName}
+                                        {o.provider || o.rowName}
                                     </span>
                                 )}
                             </span>

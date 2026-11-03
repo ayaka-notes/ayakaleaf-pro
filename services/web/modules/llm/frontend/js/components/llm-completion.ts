@@ -104,6 +104,37 @@ class LlmCompletionService {
 
 const llmCompletion = new LlmCompletionService()
 
+// overleaf-lab (2026-11, owner request): per-user inline-completion toggle.
+// Fetched once per page load ('' = not loaded yet; null = load failed ->
+// stay active and let the server decide).
+let userCompletionOn: boolean | null = null
+let userPrefsPromise: Promise<boolean> | null = null
+
+export function setInlineCompletionEnabled(value: boolean | null): void {
+    userCompletionOn = value
+    // Invalidate the in-flight fetch so the next trigger re-asks the server.
+    if (value === null) userPrefsPromise = null
+}
+
+function inlineCompletionAllowed(projectId?: string): Promise<boolean> {
+    if (userCompletionOn !== null) return Promise.resolve(userCompletionOn)
+    if (!projectId) return Promise.resolve(true)
+    if (!userPrefsPromise) {
+        userPrefsPromise = fetch(`/user/llm/prefs`, { credentials: 'same-origin' })
+            .then(r => (r.ok ? r.json() : null))
+            .then(data => {
+                const on = !!(data && data.completionEnabled !== false && data.ok !== false)
+                userCompletionOn = on
+                return on
+            })
+            .catch(() => {
+                userPrefsPromise = null // retry next time
+                return true // server unreachable: fall back to prior behaviour
+            })
+    }
+    return userPrefsPromise
+}
+
 // =================================================================================
 // State Management
 // =================================================================================
@@ -344,6 +375,11 @@ class InlineCompletionPlugin {
         this.cancel('new request')
 
         if (this.isComposing) return
+
+        // overleaf-lab (2026-11): the user switched inline completion off in
+        // their editor settings — no requests at all.
+        const projectId = getMeta('ol-project_id')
+        if (!(await inlineCompletionAllowed(projectId))) return
 
         const pos = this.view.state.selection.main.head
         const { leftContext, rightContext } = computeContexts(
