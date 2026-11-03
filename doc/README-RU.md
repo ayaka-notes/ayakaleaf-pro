@@ -62,6 +62,7 @@ Ayakaleaf Pro — это расширенная версия Overleaf, вклю�
 - SSO через LDAP и SAML или OAuth 2.0
 - Неограниченное время компиляции (настраивается в панели администратора)
 - Самостоятельная регистрация (необязательна, может быть ограничена почтовым доменом)
+- reCAPTCHA (необязательна, при входе, регистрации и сбросе пароля)
 - Компиляция в песочнице (с поддержкой образа [texlive-full](https://github.com/ayaka-notes/texlive-full))
 - Система шаблонов (с галереей шаблонов)
 - Отслеживание изменений (с панелью рецензирования и комментариев)
@@ -117,6 +118,7 @@ Ayakaleaf Pro — это расширенная версия Overleaf, вклю�
 - Copyright (c) [Pro Authors](https://ayakaleaf-pro.ayaka.space/on-premises/readme/features-and-copyright), 2026-now.
 
 ## Спонсоры
+- [Vultr](https://www.vultr.com/)
 - [Linux Do Community](https://linux.do)
 - [OpenAI Codex OSS](https://openai.com/en/form/codex-for-oss/)
 - [GitBook](https://www.gitbook.com/)

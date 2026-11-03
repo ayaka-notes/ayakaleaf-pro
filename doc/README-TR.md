@@ -62,6 +62,7 @@ Ayakaleaf Pro, neredeyse tüm özellik ve yeteneklere sahip, Overleaf'in gelişt
 - LDAP ve SAML veya OAuth 2.0 ile SSO
 - Sınırsız derleme süresi (yönetim panelinden ayarlanabilir)
 - Kendi kendine kayıt (isteğe bağlı, e-posta alan adına göre sınırlandırılabilir)
+- reCAPTCHA (isteğe bağlı, giriş, kayıt ve parola sıfırlamada)
 - Korumalı alanda (sandbox) derleme ([texlive-full](https://github.com/ayaka-notes/texlive-full) imajı desteğiyle)
 - Şablon sistemi (şablon galerisiyle)
 - Değişiklikleri izleme (inceleme ve yorum paneliyle)
@@ -117,6 +118,7 @@ Bu depodaki kod GNU AFFERO GENERAL PUBLIC LICENSE, version 3 kapsamında yayıml
 - Copyright (c) [Pro Authors](https://ayakaleaf-pro.ayaka.space/on-premises/readme/features-and-copyright), 2026-now.
 
 ## Sponsorlar
+- [Vultr](https://www.vultr.com/)
 - [Linux Do Community](https://linux.do)
 - [OpenAI Codex OSS](https://openai.com/en/form/codex-for-oss/)
 - [GitBook](https://www.gitbook.com/)

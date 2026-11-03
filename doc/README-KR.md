@@ -62,6 +62,7 @@ Ayakaleaf Pro는 거의 모든 기능을 갖춘 Overleaf의 확장판입니다. 
 - LDAP, SAML 또는 OAuth 2.0을 통한 SSO
 - 무제한 컴파일 시간 (관리자 패널에서 조정 가능)
 - 자체 가입 (선택 사항, 메일 도메인으로 제한 가능)
+- reCAPTCHA (선택 사항, 로그인, 가입, 비밀번호 재설정에 적용)
 - 샌드박스 컴파일 ([texlive-full](https://github.com/ayaka-notes/texlive-full) 이미지 지원)
 - 템플릿 시스템 (템플릿 갤러리 포함)
 - 변경 내용 추적 (검토 및 댓글 패널 포함)
@@ -117,6 +118,7 @@ Overleaf 내부 구조, 컴파일 성능, 자체 호스팅 LaTeX 인프라에 �
 - Copyright (c) [Pro Authors](https://ayakaleaf-pro.ayaka.space/on-premises/readme/features-and-copyright), 2026-now.
 
 ## 후원
+- [Vultr](https://www.vultr.com/)
 - [Linux Do Community](https://linux.do)
 - [OpenAI Codex OSS](https://openai.com/en/form/codex-for-oss/)
 - [GitBook](https://www.gitbook.com/)

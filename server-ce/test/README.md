@@ -209,4 +209,4 @@ Things that need email (activation mails, password reset) are not tested.
 3. The tests must not rely on other suites, each one runs on its own fresh
    instance. Create users with `ensureUserExists` from `helpers/users.ts`.
 4. `make setup SUITE=<name>`, then `make test_<name>`.
-5. Add `<name>` to the `e2e-test` matrix in `test_ops_image.yml`.
+5. Add `<name>` to the `e2e-amd64` matrix in `test_ops_image.yml` (`e2e-arm64` reuses it).
