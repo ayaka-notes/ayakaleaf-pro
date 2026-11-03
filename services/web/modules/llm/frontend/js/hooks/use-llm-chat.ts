@@ -185,6 +185,67 @@ export const useLLMChat = () => {
         fetchModels()
     }, [projectId])
 
+    // overleaf-lab (issue #119): derived list metadata for the UI (no bodies).
+    const refreshMeta = useCallback((): void => {
+        setConversations(
+            storedRef.current.conversations
+                .slice()
+                .sort((a, b) => b.updatedAt - a.updatedAt)
+                .map(c => ({
+                    id: c.id,
+                    title: c.title,
+                    updatedAt: c.updatedAt,
+                    count: c.messages.length,
+                })),
+        )
+    }, [])
+
+    // overleaf-lab (issue #119): write the finished conversation back to
+    // IndexedDB. Creates the conversation lazily on its first persisted pair
+    // (so "New chat" never creates empty rows).
+    const persistActiveConversation = useCallback(
+        async (all: Message[]): Promise<void> => {
+            if (!projectId) return
+            const msgs: StoredMessage[] = all
+                .filter(m => m.role === 'user' || m.role === 'assistant')
+                .map(m => ({ role: m.role, content: m.content }))
+            if (!msgs.length) return
+            let convId = activeConversationIdRef.current
+            let list = storedRef.current.conversations.slice()
+            let idx = convId ? list.findIndex(c => c.id === convId) : -1
+            if (idx === -1) {
+                convId = makeConversationId()
+                list = [
+                    {
+                        id: convId,
+                        title: deriveConversationTitle(msgs),
+                        updatedAt: Date.now(),
+                        messages: msgs,
+                    },
+                    ...list,
+                ]
+                setActiveConversationId(convId)
+            }
+            else {
+                list = list.map((c, i) =>
+                    i === idx
+                        ? { ...c, updatedAt: Date.now(), messages: msgs }
+                        : c,
+                )
+            }
+            activeConversationIdRef.current = convId
+            storedRef.current = { conversations: list, activeId: convId }
+            refreshMeta()
+            await saveProject({
+                projectId,
+                activeId: convId,
+                conversations: list,
+            })
+        },
+        [projectId, refreshMeta],
+    )
+
+
     // overleaf-lab: persist the selected model so the selection toolbar ("Ask AI")
     // can reuse it. Runs for the initial default and every user change.
     useEffect(() => {
@@ -316,66 +377,6 @@ export const useLLMChat = () => {
             sendMessage(lastUserMessage, messagesBeforeRerun)
         }, 50)
     }, [lastUserMessage, sendMessage])
-
-    // overleaf-lab (issue #119): derived list metadata for the UI (no bodies).
-    const refreshMeta = useCallback((): void => {
-        setConversations(
-            storedRef.current.conversations
-                .slice()
-                .sort((a, b) => b.updatedAt - a.updatedAt)
-                .map(c => ({
-                    id: c.id,
-                    title: c.title,
-                    updatedAt: c.updatedAt,
-                    count: c.messages.length,
-                })),
-        )
-    }, [])
-
-    // overleaf-lab (issue #119): write the finished conversation back to
-    // IndexedDB. Creates the conversation lazily on its first persisted pair
-    // (so "New chat" never creates empty rows).
-    const persistActiveConversation = useCallback(
-        async (all: Message[]): Promise<void> => {
-            if (!projectId) return
-            const msgs: StoredMessage[] = all
-                .filter(m => m.role === 'user' || m.role === 'assistant')
-                .map(m => ({ role: m.role, content: m.content }))
-            if (!msgs.length) return
-            let convId = activeConversationIdRef.current
-            let list = storedRef.current.conversations.slice()
-            let idx = convId ? list.findIndex(c => c.id === convId) : -1
-            if (idx === -1) {
-                convId = makeConversationId()
-                list = [
-                    {
-                        id: convId,
-                        title: deriveConversationTitle(msgs),
-                        updatedAt: Date.now(),
-                        messages: msgs,
-                    },
-                    ...list,
-                ]
-                setActiveConversationId(convId)
-            }
-            else {
-                list = list.map((c, i) =>
-                    i === idx
-                        ? { ...c, updatedAt: Date.now(), messages: msgs }
-                        : c,
-                )
-            }
-            activeConversationIdRef.current = convId
-            storedRef.current = { conversations: list, activeId: convId }
-            refreshMeta()
-            await saveProject({
-                projectId,
-                activeId: convId,
-                conversations: list,
-            })
-        },
-        [projectId, refreshMeta],
-    )
 
     // overleaf-lab (issue #119): "New chat" now ARCHIVES the current
     // conversation (it stays findable in the history list) instead of wiping.
