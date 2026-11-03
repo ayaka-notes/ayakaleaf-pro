@@ -8,7 +8,7 @@
  * document — Mendeley has no multi-item export endpoint).
  * "Mendeley not linked" (409) renders a Link action to the OAuth flow.
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   OLModal,
@@ -67,6 +67,13 @@ export default function MendeleyPickerModal({
 }: MendeleyPickerModalProps) {
   const { t } = useTranslation()
 
+  // Monotonic seq guard: only the newest item request may touch state — a
+  // fast library switch/search must not race the initial load (stale
+  // responses are dropped instead of clobbering the freshly opened view).
+  const reqSeq = useRef(0)
+  // Whether the default library's items have been requested for this open.
+  const itemsInitialized = useRef(false)
+
   const [notLinked, setNotLinked] = useState(false)
 
   // -- libraries --
@@ -91,6 +98,7 @@ export default function MendeleyPickerModal({
   const currentLibrary = libraries[libraryIdx]
 
   const resetItemsState = useCallback(() => {
+    reqSeq.current += 1
     setItems([])
     setItemsError(null)
     setNextCursor(null)
@@ -109,6 +117,7 @@ export default function MendeleyPickerModal({
     setSearch('')
     setImporting(false)
     setImportError(null)
+    itemsInitialized.current = false
     resetItemsState()
     handleHide()
   }, [handleHide, resetItemsState])
@@ -118,6 +127,7 @@ export default function MendeleyPickerModal({
   // -----------------------------------------------------------------------
   const fetchDocuments = useCallback(
     (lib: Library, searchQ: string, cursor: string | undefined, replace: boolean) => {
+      const my = ++reqSeq.current
       setItemsLoading(true)
       const qs = new URLSearchParams({
         libraryKind: lib.kind,
@@ -130,11 +140,13 @@ export default function MendeleyPickerModal({
         `/user/mendeley/picker/documents?${qs.toString()}`,
       )
         .then(data => {
+          if (my !== reqSeq.current) return
           const page = (data.items || []).filter(i => i && i.key)
           setItems(prev => (replace ? page : prev.concat(page)))
           setNextCursor(data.next || null)
         })
         .catch(err => {
+          if (my !== reqSeq.current) return
           const msg = errorMessage(err, t('Failed to load items'))
           if (msg === 'mendeley_not_linked') {
             setNotLinked(true)
@@ -144,7 +156,9 @@ export default function MendeleyPickerModal({
             setLoadMoreError(msg)
           }
         })
-        .finally(() => setItemsLoading(false))
+        .finally(() => {
+          if (my === reqSeq.current) setItemsLoading(false)
+        })
     },
     [t],
   )
@@ -161,6 +175,7 @@ export default function MendeleyPickerModal({
     setLibraries([])
     setLibraryIdx(0)
     setSearch('')
+    itemsInitialized.current = false
     resetItemsState()
     void getJSON<Library[]>('/user/mendeley/picker/libraries')
       .then(data => {
@@ -184,6 +199,19 @@ export default function MendeleyPickerModal({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show])
+
+  // -----------------------------------------------------------------------
+  // Initial load — once the library list has arrived, show the default
+  // library's ("My Library", first entry) items immediately. Without this
+  // the first view is empty until the user switches away and back.
+  // -----------------------------------------------------------------------
+  useEffect(() => {
+    if (!show || libraries.length === 0) return
+    if (itemsInitialized.current) return
+    itemsInitialized.current = true
+    void fetchDocuments(libraries[0], '', undefined, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [show, libraries.length])
 
   // -----------------------------------------------------------------------
   // Item browsing (explicit actions: library switch / search / load more)
