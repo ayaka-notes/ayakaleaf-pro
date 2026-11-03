@@ -1,7 +1,10 @@
 /**
  * Gate tests for the reference-manager UI exposure (settings "Reference
- * managers" section + editor Integrations cards): a provider must be hidden
- * whenever its OAuth client id and/or secret is not configured on the site.
+ * Managers" section, editor Integrations cards, picker menu entries):
+ * a provider must be hidden whenever its OAuth client id and/or secret is
+ * not configured on the site, and the gate must be consistent with the
+ * bib-editor module's /bib/services flag (both = "credentials are the
+ * switch").
  */
 import { describe, it, expect, vi } from 'vitest'
 
@@ -23,46 +26,33 @@ const {
 )
 
 describe('referenceManagerFeatureFlags (settings/integrations gate)', () => {
-  it('hides zotero when credentials are missing, even if listed in ENABLED_LINKED_FILE_TYPES', () => {
+  it('hides zotero when either credential is missing', () => {
     const flags = referenceManagerFeatureFlags({
-      enabled: ['zotero'],
       zoteroCredentials: false,
       mendeleyCredentials: false,
     })
     expect(flags.zotero).toBe(false)
   })
 
-  it('shows zotero when listed AND configured', () => {
+  it('shows zotero when its credentials are set', () => {
     const flags = referenceManagerFeatureFlags({
-      enabled: ['zotero'],
       zoteroCredentials: true,
       mendeleyCredentials: false,
     })
     expect(flags.zotero).toBe(true)
   })
 
-  it('hides zotero when not listed, even with credentials', () => {
+  it('hides mendeley without credentials', () => {
     const flags = referenceManagerFeatureFlags({
-      enabled: [],
       zoteroCredentials: true,
-      mendeleyCredentials: false,
-    })
-    expect(flags.zotero).toBe(false)
-  })
-
-  it('hides mendeley without credentials, even if listed', () => {
-    const flags = referenceManagerFeatureFlags({
-      enabled: ['mendeley'],
-      zoteroCredentials: false,
       mendeleyCredentials: false,
     })
     expect(flags.mendeley).toBe(false)
   })
 
-  it('shows mendeley when its credentials are set (credentials are the switch for it on this deployment)', () => {
+  it('shows mendeley when its credentials are set', () => {
     const flags = referenceManagerFeatureFlags({
-      enabled: [],
-      zoteroCredentials: false,
+      zoteroCredentials: true,
       mendeleyCredentials: true,
     })
     expect(flags.mendeley).toBe(true)

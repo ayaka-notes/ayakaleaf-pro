@@ -14,23 +14,21 @@ import { isConfigured } from '../../../workbench/app/src/WorkbenchAiClient.mjs'
 //    dropbox: whether Dropbox sync is enabled (env var DROPBOX_ENABLED;
 //    the dropbox module sets Settings.dropbox only when enabled)
 // 2. zotero / mendeley: whether each reference-manager integration is usable
-//    on this instance. A provider is only offered in the UI (settings
-//    "Reference managers" section, editor Integrations card) when its OAuth
-//    client credentials are configured — with the client id and/or secret
-//    missing the Link button can never work, so the option must be hidden
-//    (site requirement). zotero additionally honors the explicit provider
-//    switch ENABLED_LINKED_FILE_TYPES, which already lists it on this
-//    deployment; mendeley is not in that list here, so its credentials are
-//    the switch.
+//    on this instance. Site requirement: a provider's UI (settings
+//    "Reference managers" section, editor Integrations card, picker menu
+//    entries) is hidden whenever its OAuth client id and/or secret is not
+//    configured — with credentials missing the Link button can never work.
+//    The credentials are therefore THE switch for both providers, keeping
+//    this flag consistent with the bib-editor module's /bib/services gate.
 
-export function referenceManagerFeatureFlags({ enabled = [], zoteroCredentials, mendeleyCredentials }) {
+export function referenceManagerFeatureFlags({ zoteroCredentials, mendeleyCredentials }) {
   return {
-    zotero: Boolean(enabled.includes('zotero') && zoteroCredentials),
+    zotero: Boolean(zoteroCredentials),
     mendeley: Boolean(mendeleyCredentials),
   }
 }
 
-function credentialsFor(id) {
+function referenceManagerCredentials(id) {
   const clientId =
     process.env[`${id.toUpperCase()}_CLIENT_ID`] ||
     process.env[`${id.toUpperCase()}_CLIENT_KEY`]
@@ -50,9 +48,8 @@ export default {
           giteaSync: Boolean(Settings.giteaSync),
           dropbox: Boolean(Settings.dropbox),
           ...referenceManagerFeatureFlags({
-            enabled: Settings.enabledLinkedFileTypes || [],
-            zoteroCredentials: credentialsFor('zotero'),
-            mendeleyCredentials: credentialsFor('mendeley'),
+            zoteroCredentials: referenceManagerCredentials('zotero'),
+            mendeleyCredentials: referenceManagerCredentials('mendeley'),
           }),
         })
       }
