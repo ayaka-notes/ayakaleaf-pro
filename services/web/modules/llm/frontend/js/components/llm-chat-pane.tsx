@@ -27,6 +27,13 @@ const LLMChatPane = React.memo(function LLMChatPane({
         canRerun,
         modelsLoaded,
         hasModels,
+        // overleaf-lab (issue #119): browser-side conversation history.
+        conversations,
+        activeConversationId,
+        switchConversation,
+        deleteConversation,
+        clearAllHistory,
+        exportConversation,
     } = useLLMChat()
 
     const [inputValue, setInputValue] = useState('')
@@ -54,26 +61,84 @@ const LLMChatPane = React.memo(function LLMChatPane({
         rerunLastMessage()
     }
 
-    const [armedClear, setArmedClear] = useState(false)
+    // overleaf-lab (issue #119): "clear" now MEANS "start a new chat" — the old
+    // thread is archived into the history list instead of being destroyed.
+    // Kept the two-click arm pattern (it protects against fat-fingers).
+    const [armedNew, setArmedNew] = useState(false)
     const armedTimer = useRef<number | null>(null)
-    // clear the disarm timer on unmount (no setState-after-unmount)
+    const [armedClearAll, setArmedClearAll] = useState(false)
+    const clearAllTimer = useRef<number | null>(null)
+    const [historyOpen, setHistoryOpen] = useState(false)
+    const historyMenuRef = useRef<HTMLDivElement | null>(null)
+
+    // clear the disarm timers on unmount (no setState-after-unmount)
     useEffect(() => () => {
         if (armedTimer.current) window.clearTimeout(armedTimer.current)
+        if (clearAllTimer.current) window.clearTimeout(clearAllTimer.current)
     }, [])
-    const armClear = () => {
-        setArmedClear(true)
+    const armNew = () => {
+        setArmedNew(true)
         if (armedTimer.current) window.clearTimeout(armedTimer.current)
-        armedTimer.current = window.setTimeout(() => setArmedClear(false), 3000)
+        armedTimer.current = window.setTimeout(() => setArmedNew(false), 3000)
     }
-    const handleClear = () => {
-        if (!armedClear) {
-            armClear()
+    const handleNewChat = () => {
+        if (displayMessages.length > 0 && !armedNew) {
+            armNew()
             return
         }
         if (armedTimer.current) window.clearTimeout(armedTimer.current)
-        setArmedClear(false)
+        setArmedNew(false)
+        setHistoryOpen(false)
         clearMessages()
     }
+    const handleClearAllHistory = () => {
+        if (!armedClearAll) {
+            setArmedClearAll(true)
+            if (clearAllTimer.current) window.clearTimeout(clearAllTimer.current)
+            clearAllTimer.current = window.setTimeout(() => setArmedClearAll(false), 3000)
+            return
+        }
+        if (clearAllTimer.current) window.clearTimeout(clearAllTimer.current)
+        setArmedClearAll(false)
+        setHistoryOpen(false)
+        void clearAllHistory()
+    }
+
+    // overleaf-lab (issue #119): close the history menu on outside click / Esc.
+    useEffect(() => {
+        if (!historyOpen) return
+        const onDown = (e: MouseEvent) => {
+            if (historyMenuRef.current && !historyMenuRef.current.contains(e.target as Node)) {
+                setHistoryOpen(false)
+            }
+        }
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setHistoryOpen(false)
+        }
+        document.addEventListener('mousedown', onDown)
+        document.addEventListener('keydown', onKey)
+        return () => {
+            document.removeEventListener('mousedown', onDown)
+            document.removeEventListener('keydown', onKey)
+        }
+    }, [historyOpen])
+
+    // overleaf-lab (issue #119): compact relative time for the history list.
+    const relTime = (ts: number): string => {
+        const diff = Date.now() - ts
+        const m = Math.floor(diff / 60000)
+        if (m < 1) return t('llm_hist_now', 'just now')
+        if (m < 60) return t('llm_hist_minutes', '{{m}} min ago', { m })
+        const h = Math.floor(m / 60)
+        if (h < 24) return t('llm_hist_hours', '{{h}} h ago', { h })
+        const d = Math.floor(h / 24)
+        if (d < 7) return t('llm_hist_days', '{{d}} d ago', { d })
+        return new Date(ts).toLocaleDateString()
+    }
+
+    const activeTitle = conversations
+        ? (conversations.find(c => c.id === activeConversationId) || null)
+        : null
 
     if (modelsLoaded && !hasModels) {
         return null
@@ -93,6 +158,11 @@ const LLMChatPane = React.memo(function LLMChatPane({
                     The chat keeps using the shared (user-scoped) selection, synced
                     inside use-llm-chat via the LLM_MODEL_CHANGED_EVENT bridge. */}
                 <div className="llm-chat-header">
+                    <div className="llm-chat-header-title" title={activeTitle?.title || undefined}>
+                        <span className="llm-chat-header-label">
+                            {activeTitle?.title || t('new_chat', 'New chat')}
+                        </span>
+                    </div>
                     <div className="llm-action-buttons">
                         {canRerun && !isLoading && (
                             <button
@@ -109,24 +179,111 @@ const LLMChatPane = React.memo(function LLMChatPane({
                         {displayMessages.length > 0 && !isLoading && (
                             <button
                                 type="button"
-                                onClick={handleClear}
-                                className={`llm-action-button${armedClear ? ' llm-action-button-armed' : ''}`}
-                                title={armedClear
-                                    ? t('llm_chat_confirm_clear', 'Click again to clear the conversation')
-                                    : t('clear_conversation', 'Clear conversation')}
-                                aria-label={armedClear
-                                    ? t('llm_chat_confirm_clear', 'Click again to clear the conversation')
-                                    : t('clear_conversation', 'Clear conversation')}
+                                onClick={handleNewChat}
+                                className={`llm-action-button${armedNew ? ' llm-action-button-armed' : ''}`}
+                                title={armedNew
+                                    ? t('llm_chat_confirm_new', 'Click again to start a new chat (this one is kept in history)')
+                                    : t('new_chat_archive', 'New chat (this one is kept in history)')}
+                                aria-label={t('new_chat_archive', 'New chat (this one is kept in history)')}
                             >
-                                {armedClear ? (
+                                {armedNew ? (
                                     <span className="llm-action-button-text">
-                                        {t('clear_confirm', 'Clear all?')}
+                                        {t('llm_chat_confirm_new_text', 'New chat?')}
                                     </span>
                                 ) : (
-                                    <MaterialIcon type="delete" />
+                                    <MaterialIcon type="add_comment" />
                                 )}
                             </button>
                         )}
+
+                        {/* overleaf-lab (issue #119): history list — previous
+                            conversations survive refreshes / "new chat" and can
+                            be reopened, exported, or deleted individually. */}
+                        <div className="llm-history-wrap" ref={historyMenuRef}>
+                            <button
+                                type="button"
+                                onClick={() => setHistoryOpen(o => !o)}
+                                className={`llm-action-button${historyOpen ? ' llm-action-button-active' : ''}`}
+                                title={t('chat_history', 'Chat history')}
+                                aria-label={t('chat_history', 'Chat history')}
+                                aria-expanded={historyOpen}
+                            >
+                                <MaterialIcon type="history" />
+                                {conversations.length > 0 && (
+                                    <span className="llm-history-badge">{conversations.length}</span>
+                                )}
+                            </button>
+
+                            {historyOpen && (
+                                <div className="llm-history-menu" role="menu" aria-label={t('chat_history', 'Chat history')}>
+                                    {conversations.length === 0 ? (
+                                        <div className="llm-history-empty">
+                                            {t('llm_hist_empty', 'No saved conversations yet. Chat history is stored in this browser only.')}
+                                        </div>
+                                    ) : (
+                                        <ul className="llm-history-list">
+                                            {conversations.map(c => (
+                                                <li key={c.id} className={`llm-history-row${c.id === activeConversationId ? ' llm-history-row-active' : ''}`}>
+                                                    <button
+                                                        type="button"
+                                                        className="llm-history-row-main"
+                                                        onClick={() => {
+                                                            setHistoryOpen(false)
+                                                            if (c.id !== activeConversationId) switchConversation(c.id)
+                                                        }}
+                                                    >
+                                                        <span className="llm-history-row-title">{c.title}</span>
+                                                        <span className="llm-history-row-meta">
+                                                            {relTime(c.updatedAt)}
+                                                            {' · '}
+                                                            {c.count} {t('llm_hist_msgs', 'msg')}
+                                                        </span>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className="llm-history-row-delete"
+                                                        title={t('delete_conversation', 'Delete this conversation')}
+                                                        aria-label={t('delete_conversation', 'Delete this conversation')}
+                                                        onClick={() => deleteConversation(c.id)}
+                                                    >
+                                                        <MaterialIcon type="close" />
+                                                    </button>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                    <div className="llm-history-footer">
+                                        {displayMessages.length > 0 && (
+                                            <button
+                                                type="button"
+                                                className="llm-history-footer-btn"
+                                                onClick={() => {
+                                                    setHistoryOpen(false)
+                                                    exportConversation()
+                                                }}
+                                            >
+                                                <MaterialIcon type="download" />
+                                                {t('export_chat', 'Export as Markdown')}
+                                            </button>
+                                        )}
+                                        {conversations.length > 0 && (
+                                            <button
+                                                type="button"
+                                                className={`llm-history-footer-btn${armedClearAll ? ' llm-history-footer-btn-armed' : ''}`}
+                                                onClick={handleClearAllHistory}
+                                            >
+                                                {armedClearAll
+                                                    ? t('llm_hist_clear_all_confirm', 'Delete ALL?')
+                                                    : t('llm_hist_clear_all', 'Clear all history')}
+                                            </button>
+                                        )}
+                                    </div>
+                                    <p className="llm-history-note">
+                                        {t('llm_hist_note', 'Stored in this browser only (IndexedDB) — not on the server.')}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 

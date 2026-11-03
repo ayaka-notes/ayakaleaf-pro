@@ -6,6 +6,25 @@ import {
     writeSelectedModel,
 } from '../utils/llm-selected-model'
 import { LLM_MODEL_CHANGED_EVENT } from './use-llm-model-selection'
+// overleaf-lab (issue #119, owner-approved): browser-side chat history — the
+// conversation survives refreshes and "New chat" becomes an archive instead of
+// a wipe. IndexedDB-backed, per-project, capped, fail-safe.
+import {
+    clearProject,
+    deriveConversationTitle,
+    isAvailable,
+    loadProject,
+    makeConversationId,
+    saveProject,
+} from '../utils/llm-chat-storage'
+import type { StoredConversation, StoredMessage } from '../utils/llm-chat-storage'
+
+interface ConversationMeta {
+    id: string
+    title: string
+    updatedAt: number
+    count: number
+}
 
 interface Message {
     role: 'system' | 'user' | 'assistant'
@@ -89,6 +108,18 @@ export const useLLMChat = () => {
     const [lastUserMessage, setLastUserMessage] = useState<string>('')
     const [modelsLoaded, setModelsLoaded] = useState(false)
     const [modelsError, setModelsError] = useState(false)
+
+    // overleaf-lab (issue #119): conversation history state. The full records
+    // (with message bodies) live in storedRef — React state only holds small
+    // metadata (the list UI never needs to diff megabytes of chat bodies).
+    const storedRef = useRef<{
+        conversations: StoredConversation[]
+        activeId: string | null
+    }>({ conversations: [], activeId: null })
+    const activeConversationIdRef = useRef<string | null>(null)
+    const [conversations, setConversations] = useState<ConversationMeta[]>([])
+    const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
+    const [historyReady, setHistoryReady] = useState(false)
 
     const abortControllerRef = useRef<AbortController | null>(null)
 
@@ -217,6 +248,9 @@ export const useLLMChat = () => {
                 }
 
                 setMessages([...newMessages, assistantMessage])
+                // overleaf-lab (issue #119): persist the finished exchange —
+                // user message AND reply — into the active conversation.
+                void persistActiveConversation([...newMessages, assistantMessage])
             } catch (err: any) {
                 if (err.name === 'AbortError') {
                     const abortMsg: Message = {
@@ -224,6 +258,7 @@ export const useLLMChat = () => {
                         content: 'Request stopped by user.',
                     }
                     setMessages([...newMessages, abortMsg])
+                    void persistActiveConversation([...newMessages, abortMsg])
                 } else {
                     const errorMessage =
                         err?.data?.message ||
@@ -235,13 +270,14 @@ export const useLLMChat = () => {
                         content: `Error: ${errorMessage}\n\nPlease check the console for details.`,
                     }
                     setMessages([...newMessages, errorMsg])
+                    void persistActiveConversation([...newMessages, errorMsg])
                 }
             } finally {
                 setIsLoading(false)
                 abortControllerRef.current = null
             }
         },
-        [projectId]
+        [projectId, persistActiveConversation]
     )
 
     const stopGeneration = useCallback(() => {
@@ -281,7 +317,72 @@ export const useLLMChat = () => {
         }, 50)
     }, [lastUserMessage, sendMessage])
 
-    const clearMessages = useCallback(() => {
+    // overleaf-lab (issue #119): derived list metadata for the UI (no bodies).
+    const refreshMeta = useCallback((): void => {
+        setConversations(
+            storedRef.current.conversations
+                .slice()
+                .sort((a, b) => b.updatedAt - a.updatedAt)
+                .map(c => ({
+                    id: c.id,
+                    title: c.title,
+                    updatedAt: c.updatedAt,
+                    count: c.messages.length,
+                })),
+        )
+    }, [])
+
+    // overleaf-lab (issue #119): write the finished conversation back to
+    // IndexedDB. Creates the conversation lazily on its first persisted pair
+    // (so "New chat" never creates empty rows).
+    const persistActiveConversation = useCallback(
+        async (all: Message[]): Promise<void> => {
+            if (!projectId) return
+            const msgs: StoredMessage[] = all
+                .filter(m => m.role === 'user' || m.role === 'assistant')
+                .map(m => ({ role: m.role, content: m.content }))
+            if (!msgs.length) return
+            let convId = activeConversationIdRef.current
+            let list = storedRef.current.conversations.slice()
+            let idx = convId ? list.findIndex(c => c.id === convId) : -1
+            if (idx === -1) {
+                convId = makeConversationId()
+                list = [
+                    {
+                        id: convId,
+                        title: deriveConversationTitle(msgs),
+                        updatedAt: Date.now(),
+                        messages: msgs,
+                    },
+                    ...list,
+                ]
+                setActiveConversationId(convId)
+            }
+            else {
+                list = list.map((c, i) =>
+                    i === idx
+                        ? { ...c, updatedAt: Date.now(), messages: msgs }
+                        : c,
+                )
+            }
+            activeConversationIdRef.current = convId
+            storedRef.current = { conversations: list, activeId: convId }
+            refreshMeta()
+            await saveProject({
+                projectId,
+                activeId: convId,
+                conversations: list,
+            })
+        },
+        [projectId, refreshMeta],
+    )
+
+    // overleaf-lab (issue #119): "New chat" now ARCHIVES the current
+    // conversation (it stays findable in the history list) instead of wiping.
+    const newConversation = useCallback((): void => {
+        activeConversationIdRef.current = null
+        storedRef.current.activeId = null
+        setActiveConversationId(null)
         setMessages([
             {
                 role: 'system',
@@ -291,6 +392,166 @@ export const useLLMChat = () => {
         setError(null)
         setLastUserMessage('')
     }, [])
+
+    // Back-compat alias: older callers / the pane's clear button expect this.
+    const clearMessages = useCallback((): void => {
+        newConversation()
+    }, [newConversation])
+
+    // overleaf-lab (issue #119): switch the pane to a stored conversation.
+    const switchConversation = useCallback(
+        (id: string): void => {
+            const conv = storedRef.current.conversations.find(c => c.id === id)
+            if (!conv) return
+            storedRef.current.activeId = id
+            activeConversationIdRef.current = id
+            setActiveConversationId(id)
+            setMessages([
+                { role: 'system', content: SYSTEM_PROMPT },
+                ...conv.messages
+                    .filter(m => m.role === 'user' || m.role === 'assistant')
+                    .map(m => ({ role: m.role, content: m.content })),
+            ])
+            setError(null)
+            const lastUser = [...conv.messages]
+                .reverse()
+                .find(m => m.role === 'user')
+            setLastUserMessage(lastUser ? lastUser.content : '')
+            if (projectId) {
+                void saveProject({
+                    projectId,
+                    activeId: id,
+                    conversations: storedRef.current.conversations,
+                })
+            }
+        },
+        [projectId],
+    )
+
+    // overleaf-lab (issue #119): delete one conversation (+ reset the pane if
+    // it is the active one).
+    const deleteConversation = useCallback(
+        (id: string): void => {
+            storedRef.current.conversations = storedRef.current.conversations.filter(
+                c => c.id !== id,
+            )
+            if (activeConversationIdRef.current === id) {
+                activeConversationIdRef.current = null
+                storedRef.current.activeId = null
+                setActiveConversationId(null)
+                setMessages([{ role: 'system', content: SYSTEM_PROMPT }])
+                setError(null)
+                setLastUserMessage('')
+            }
+            refreshMeta()
+            if (projectId) {
+                void saveProject({
+                    projectId,
+                    activeId: activeConversationIdRef.current,
+                    conversations: storedRef.current.conversations,
+                })
+            }
+        },
+        [projectId, refreshMeta],
+    )
+
+    // overleaf-lab (issue #119): wipe every stored conversation for the project
+    // (the browser only — nothing ever went to the server).
+    const clearAllHistory = useCallback(
+        async (): Promise<void> => {
+            storedRef.current = { conversations: [], activeId: null }
+            activeConversationIdRef.current = null
+            setConversations([])
+            setActiveConversationId(null)
+            setMessages([{ role: 'system', content: SYSTEM_PROMPT }])
+            setError(null)
+            setLastUserMessage('')
+            if (projectId) await clearProject(projectId)
+        },
+        [projectId],
+    )
+
+    // overleaf-lab (issue #119): export the current conversation as Markdown
+    // (bridges the "browser storage is device-bound" gap).
+    const exportConversation = useCallback((): void => {
+        const msgs = messagesRef.current
+            .filter(m => m.role === 'user' || m.role === 'assistant')
+        if (!msgs.length) return
+        const title = deriveConversationTitle(
+            msgs.map(m => ({ role: m.role, content: m.content })),
+        )
+        const lines: string[] = [
+            `# ${title}`,
+            '',
+            `> Exported from the Overleaf AI Assistant — ${new Date().toISOString()}`,
+            '',
+        ]
+        for (const m of msgs) {
+            lines.push(`**${m.role === 'user' ? 'You' : 'Assistant'}:**`, '', m.content, '', '---', '')
+        }
+        const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `ai-chat-${(projectId || 'export').slice(-8)}-${new Date().toISOString().slice(0, 10)}.md`
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        setTimeout(() => URL.revokeObjectURL(url), 5000)
+    }, [projectId])
+
+    // overleaf-lab (issue #119): hydrate the project's stored conversations on
+    // mount. The ACTIVE conversation is restored into the pane so a page
+    // refresh no longer loses the thread; otherwise an empty (new) state.
+    useEffect(() => {
+        if (!projectId) {
+            setHistoryReady(true)
+            return
+        }
+        if (!isAvailable()) {
+            // IndexedDB blocked (private mode etc.) — behave as before.
+            setHistoryReady(true)
+            return
+        }
+        let cancelled = false
+        void loadProject(projectId).then(stored => {
+            if (cancelled) return
+            let activeId: string | null = null
+            let active: StoredConversation | null = null
+            if (stored) {
+                storedRef.current = {
+                    conversations: stored.conversations,
+                    activeId: null,
+                }
+                const candidate = stored.activeId
+                    ? stored.conversations.find(c => c.id === stored.activeId)
+                    : stored.conversations[0] || null
+                active = candidate || null
+                if (active) {
+                    activeId = active.id
+                    storedRef.current.activeId = activeId
+                    activeConversationIdRef.current = activeId
+                    setActiveConversationId(activeId)
+                    const body = active.messages.filter(
+                        m => m.role === 'user' || m.role === 'assistant',
+                    )
+                    if (body.length) {
+                        setMessages([
+                            { role: 'system', content: SYSTEM_PROMPT },
+                            ...body.map(m => ({ role: m.role, content: m.content })),
+                        ])
+                        const lastUser = [...body].reverse().find(m => m.role === 'user')
+                        if (lastUser) setLastUserMessage(lastUser.content)
+                    }
+                }
+            }
+            refreshMeta()
+            setHistoryReady(true)
+        })
+        return () => {
+            cancelled = true
+        }
+    }, [projectId, refreshMeta])
 
     // Listen for messages from error log "Ask AI" buttons
     useEffect(() => {
@@ -326,5 +587,14 @@ export const useLLMChat = () => {
         modelsLoaded,
         modelsError,
         hasModels: models.length > 0,
+        // overleaf-lab (issue #119): conversation history API.
+        conversations,
+        activeConversationId,
+        historyReady,
+        newConversation,
+        switchConversation,
+        deleteConversation,
+        clearAllHistory,
+        exportConversation,
     }
 }

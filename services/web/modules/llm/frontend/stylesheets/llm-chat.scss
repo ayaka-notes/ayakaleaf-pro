@@ -168,6 +168,183 @@
     width: 100%;
 }
 
+// overleaf-lab (issue #119): header title + chat-history dropdown.
+.llm-chat-header-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+
+    .llm-chat-header-label {
+        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--wf-panel-text, #1e293b);
+    }
+}
+
+.llm-history-wrap {
+    position: relative;
+    display: inline-flex;
+}
+
+.llm-history-badge {
+    margin-left: 5px;
+    padding: 0 5px;
+    border-radius: 8px;
+    background: var(--wf-row-hi, #e2e8f0);
+    color: var(--wf-muted, #475569);
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 15px;
+}
+
+.llm-action-button-active {
+    background: var(--wf-row-hi, #e2e8f0);
+}
+
+.llm-history-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 40;
+    width: 290px;
+    max-height: 340px;
+    overflow-y: auto;
+    background: var(--wf-panel-bg, #fff);
+    border: 1px solid var(--wf-border-in, #dfe5ec);
+    border-radius: 10px;
+    box-shadow: 0 8px 28px rgba(15, 23, 42, 0.18);
+    padding: 6px;
+    color: var(--wf-panel-text, #1e293b);
+
+    .llm-history-empty {
+        padding: 12px 10px;
+        font-size: 0.85rem;
+        color: var(--wf-muted, #475569);
+    }
+
+    .llm-history-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    .llm-history-row {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        border-radius: 8px;
+
+        .llm-history-row-main {
+            flex: 1 1 auto;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 2px;
+            padding: 7px 8px;
+            border: 0;
+            background: transparent;
+            cursor: pointer;
+            text-align: left;
+            color: inherit;
+
+            &:hover,
+            &:focus-visible {
+                background: var(--wf-row-hi, #f1f5f9);
+                outline: none;
+            }
+        }
+
+        .llm-history-row-title {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 0.86rem;
+            font-weight: 500;
+        }
+
+        .llm-history-row-meta {
+            font-size: 0.72rem;
+            color: var(--wf-muted, #64748b);
+        }
+
+        .llm-history-row-delete {
+            flex: 0 0 auto;
+            padding: 6px;
+            border: 0;
+            background: transparent;
+            color: var(--wf-muted, #64748b);
+            cursor: pointer;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+
+            &:hover,
+            &:focus-visible {
+                background: var(--wf-row-hi, #f1f5f9);
+                color: #b3261e;
+                outline: none;
+            }
+        }
+
+        &.llm-history-row-active .llm-history-row-title::before {
+            content: '● ';
+            color: var(--wf-btn-primary, #4f8df9);
+            font-size: 0.6em;
+            vertical-align: 2px;
+        }
+
+        &.llm-history-row-active .llm-history-row-delete {
+            display: none; // active conversation: delete via "New chat"
+        }
+    }
+
+    .llm-history-footer {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 8px 4px 2px;
+        border-top: 1px solid var(--wf-border-in, #e6ebf1);
+
+        .llm-history-footer-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 9px;
+            border: 1px solid var(--wf-border-in, #dfe5ec);
+            border-radius: 7px;
+            background: transparent;
+            color: var(--wf-panel-text, #1e293b);
+            font-size: 0.8rem;
+            cursor: pointer;
+
+            &:hover,
+            &:focus-visible {
+                background: var(--wf-row-hi, #f1f5f9);
+                outline: none;
+            }
+        }
+
+        .llm-history-footer-btn-armed {
+            border-color: #b3261e;
+            color: #b3261e;
+        }
+    }
+
+    .llm-history-note {
+        margin: 8px 4px 2px;
+        font-size: 0.72rem;
+        color: var(--wf-muted, #64748b);
+        line-height: 1.35;
+    }
+}
+
 .llm-model-selector {
     display: flex;
     align-items: center;
