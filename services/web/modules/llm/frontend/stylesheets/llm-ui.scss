@@ -266,6 +266,15 @@
     background-color: transparent;
 }
 
+/* overleaf-lab (2026-11): the resizable-panel separator handle can overlap the
+   panel's edge and intercept pointer events aimed at the header action
+   buttons (measured: 'subtree intercepts pointer events' on the Chat-history
+   button in a narrow panel). Keep the action cluster above the handle. */
+.llm-wf-editor-scoped .llm-action-buttons {
+    position: relative;
+    z-index: 5;
+}
+
 /* overleaf-lab (2026-11): double-class specificity. The app theme rules are
    scoped with [data-bs-theme='dark'] (same specificity as a single
    .llm-wf-editor-scoped + class) and load LATER in the bundle, so plain
