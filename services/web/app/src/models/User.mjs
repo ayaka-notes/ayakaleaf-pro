@@ -258,6 +258,13 @@ export const UserSchema = new Schema(
     llmProviders: Schema.Types.Mixed,
     llmComplianceRubrics: Schema.Types.Mixed,
     llmSelectedModel: { type: String },
+    // overleaf-lab (2026-11): per-task model overrides {chat,completion,review,error}
+    // and the per-user inline-completion toggle. Mongoose strict mode silently
+    // drops $set fields that are not in the schema — both writes previously
+    // returned success while persisting nothing (caught by the 2026-11-03
+    // E2E: POST /user/llm/prefs ok:true then GET still true).
+    llmTaskModels: Schema.Types.Mixed,
+    completionEnabled: { type: Boolean },
     suspended: { type: Boolean },
     dsMobileApp: {
       subscribed: { type: Boolean },
