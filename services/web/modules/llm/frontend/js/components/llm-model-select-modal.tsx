@@ -70,6 +70,56 @@ const LLMModelSelectModal = React.memo(function LLMModelSelectModal({
                 />
             </div>
             <div className="modal-body">
+                {/* overleaf-lab (2026-11, owner request): "a table above apply to
+                    with which model is applied to the different topics".
+                    Per-task assignment overview: override > default > site.
+                    Read-only — the picker below does the changing. */}
+                {loaded && (
+                    <div
+                        className="llm-model-tasks-table"
+                        role="region"
+                        aria-label={t('llm_model_by_task', 'Model per task')}
+                    >
+                        <table
+                            className="table table-sm llm-model-tasks"
+                            style={{ margin: '0', fontSize: '0.85rem' }}
+                        >
+                            <thead>
+                                <tr>
+                                    <th scope="col">{t('llm_task_col', 'Task')}</th>
+                                    <th scope="col">{t('llm_model_col', 'Model applied')}</th>
+                                    <th scope="col">{t('llm_provider_col', 'Provider')}</th>
+                                    <th scope="col">{t('llm_source_col', 'Source')}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {TASKS.filter(o => o.key).map(o => {
+                                    const fallback = selected || options[0]?.value || ''
+                                    const model = tasks[o.key] || fallback
+                                    const overridden = !!tasks[o.key]
+                                    const rowModel = options.find(m => m.value === model)
+                                    const provider = rowModel?.provider || rowModel?.rowName || ''
+                                    return (
+                                        <tr key={o.key} data-task={o.key}>
+                                            <td>{o.label}</td>
+                                            <td>
+                                                <code>{model || t('llm_not_set', 'not set')}</code>
+                                            </td>
+                                            <td>{provider}</td>
+                                            <td>
+                                                {overridden
+                                                    ? t('llm_src_override', 'your override')
+                                                    : selected
+                                                      ? t('llm_src_default', 'your default')
+                                                      : t('llm_src_site', 'site default')}
+                                            </td>
+                                        </tr>
+                                    )
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
                 <div className="llm-model-task-picker">
                     <label htmlFor="llm-task-select">
                         {t('llm_task_label', 'Apply to')}

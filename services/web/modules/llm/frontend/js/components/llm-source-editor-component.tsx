@@ -75,6 +75,25 @@ function LLMSourceEditorComponent() {
                 const doc = view.state.doc
                 const oldText = String(detail.suggestedOld || '')
                 const newText = String(detail.suggestedNew || '')
+                // overleaf-lab (2026-11): explicit line replacement. Only reached
+                // when the user CONFIRMED it from the card ("Replace line N
+                // with the suggestion") after the exact-text match failed —
+                // e.g. the model re-quoted the code with different spacing or
+                // newlines. Replaces exactly the hinted line's content.
+                if (detail.force === 'line') {
+                    const lineNo = parseInt(detail.line, 10)
+                    if (!Number.isFinite(lineNo) || lineNo < 1 || lineNo > doc.lines || !newText.trim()) {
+                        return reply(false, 'not-found')
+                    }
+                    const l = doc.line(lineNo)
+                    view.dispatch({
+                        changes: { from: l.from, to: l.to, insert: newText.trim() },
+                        selection: { anchor: l.from },
+                        scrollIntoView: true
+                    })
+                    view.focus()
+                    return reply(true, 'line-replaced')
+                }
                 const span = Array.isArray(detail.span)
                     ? [parseInt(detail.span[0], 10), parseInt(detail.span[1], 10)]
                     : null

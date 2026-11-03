@@ -135,9 +135,13 @@ function PdfLlmCompileFixCard({ logEntry }: Props) {
 
     // overleaf-lab (2026): "Apply fix" — dispatch to the editor-scoped bridge
     // (llm-source-editor-component) which performs the exact-match edit. Only
-    // valid for the current result; refused (not fuzzy-applied) if the text
+    // valid for the current result; refused (never fuzzy-applied) if the text
     // is gone, the doc is wrong, or the user is read-only.
-    const apply = useCallback(async () => {
+    // overleaf-lab (2026-11): force='line' — after a not-found refusal the card
+    // offers an EXPLICIT, user-confirmed line replacement (the model
+    // re-quoted the code with different spacing/newlines); the bridge then
+    // replaces exactly that line's content. Still no silent fuzzy matching.
+    const apply = useCallback(async (force?: string) => {
         if (status.status !== 'result') return
         const reqId = `cfx-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
         setApplyState({ kind: 'pending' })
@@ -171,7 +175,8 @@ function PdfLlmCompileFixCard({ logEntry }: Props) {
                         line: result.line,
                         span: result.span,
                         suggestedOld: result.suggestedOld,
-                        suggestedNew: result.suggestedNew
+                        suggestedNew: result.suggestedNew,
+                        ...(force ? { force } : {})
                     }
                 })
             )
@@ -205,6 +210,24 @@ function PdfLlmCompileFixCard({ logEntry }: Props) {
                         {t('llm_cfx_apply_then', 'to apply the fix.')}
                     </span>
                 )
+            }
+            if (applyState.reason === 'not-found' && status.result?.line) {
+                return (
+                    <span
+                        className="llm-cfx-apply-status"
+                        style={{ display: 'inline-flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}
+                    >
+                        {t('llm_cfx_apply_notfound', 'That text is no longer there — the line may have changed.')}
+                        <button
+                            type="button"
+                            className="llm-cfx-btn"
+                            style={{ padding: '0.125rem 0.5rem', fontSize: '0.8rem' }}
+                            onClick={() => void apply('line')}
+                        >
+                            {t('llm_cfx_replace_line', 'Replace line {n} with the suggestion', { n: status.result.line })}
+                        </button>
+                    </span>
+                )
             } else if (applyState.reason === 'not-found') {
                 msg = t('llm_cfx_apply_notfound', 'That text is no longer there — the line may have changed. Suggest a new fix.')
             } else if (applyState.reason === 'read-only') {
@@ -215,7 +238,7 @@ function PdfLlmCompileFixCard({ logEntry }: Props) {
             return <span className="llm-cfx-apply-status">{msg}</span>
         }
         return null
-    }, [applyState, t])
+    }, [applyState, t, status, apply])
 
     if (!logEntry || status.status === 'idle') return null
 

@@ -219,6 +219,51 @@
     --wf-accent: #28518f;
     --wf-accent-hi: #214475;
     --wf-accent-soft: rgba(40, 81, 143, 0.10);
+
+    /* overleaf-lab (2026-11): SELF-CONTAINED SURFACE + text. The panel must be
+       readable in EVERY (app theme × editor theme) combination. Root cause of
+       the dark-mode report (dark app + light editor theme): this scope pins
+       --wf-panel-text to the editor's BLACK, while several inner elements are
+       transparent (the app's DARK rail shows through) or re-declare the app's
+       non-flipping vars (--content-primary stays #1b222c-dark) → black-on-black,
+       measured 1.0–1.31 contrast on chat header / welcome / h3 / suggestion
+       items. Guarantee: the scope paints its own background AND color, and the
+       chat content below inherits from the same single pair. */
+    background-color: var(--wf-panel-bg, #fafafa);
+    color: var(--wf-panel-text, #1e293b);
+}
+
+/* overleaf-lab (2026-11): app chrome inside the panel (rail header, tabs,
+   close button) is styled for the APP theme — pull it onto the scope surface
+   so dark app + light editor (white panel) and dark editor (dark panel) are
+   both internally consistent. Active tabs keep their semantic green. */
+.llm-wf-editor-scoped .rail-panel-header,
+.llm-wf-editor-scoped .ide-rail-tabs-nav,
+.llm-wf-editor-scoped .ide-rail-tab-link {
+    background-color: transparent;
+}
+.llm-wf-editor-scoped .rail-panel-title,
+.llm-wf-editor-scoped .rail-panel-header-button,
+.llm-wf-editor-scoped .ide-rail-tab-link:not([aria-selected='true']) {
+    color: var(--wf-panel-text, #1e293b);
+}
+
+/* overleaf-lab (2026-11): the chat body's own text. Upstream rules pin the
+   welcome h3 to --content-primary (does not flip on dark) and p/li inherit
+   the app color (dark in dark mode) → broken on the scope surface. Pin the
+   chat content to the scope pair (token-based, theme-driven either way). */
+.llm-wf-editor-scoped .llm-chat-header,
+.llm-wf-editor-scoped .llm-chat-header-label,
+.llm-wf-editor-scoped .llm-chat-welcome,
+.llm-wf-editor-scoped .llm-chat-welcome h3,
+.llm-wf-editor-scoped .llm-chat-welcome p,
+.llm-wf-editor-scoped .llm-suggestions,
+.llm-wf-editor-scoped .llm-suggestions p,
+.llm-wf-editor-scoped .llm-suggestions li {
+    color: var(--wf-panel-text, #1e293b);
+}
+.llm-wf-editor-scoped .llm-chat-welcome h3 {
+    background-color: transparent;
 }
 
 [data-bs-theme='dark'] .llm-wf-editor-scoped {
