@@ -4,7 +4,7 @@
  * The live OAuth + /documents flows are verified against api.mendeley.com
  * in the deployed instance (same pattern as the zotero connector).
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import Settings from '@overleaf/settings'
 import { serializeMendeleyDocument } from '../../../app/src/MendeleyBibtexSerializer.mjs'
 
@@ -155,5 +155,201 @@ describe('mendeley settings gate (client id AND secret required)', () => {
     expect(url.searchParams.get('redirect_uri')).toBe(
       'https://example.org/user/mendeley/oauth/callback',
     )
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Router wiring + OAuth callback behavior (all deps mocked, no network)
+// ---------------------------------------------------------------------------
+const apiMock = vi.hoisted(() => ({
+  assertMendeleyConfigured: vi.fn(),
+  getMendeleyAuthorizeUrl: (state) =>
+    `https://api.mendeley.com/oauth/authorize?client_id=c1&state=${state}`,
+  exchangeMendeleyCode: vi.fn(async () => ({ accessToken: 'a', refreshToken: 'r', expiresAt: 1 })),
+  storeMendeleyCredentials: vi.fn(async () => {}),
+}))
+vi.mock('@overleaf/logger', () => ({
+  default: { info() {}, warn() {}, error() {}, debug() {} },
+}))
+vi.mock('@overleaf/o-error', () => ({
+  default: {
+    getFullStack: (e) => String(e),
+    getFullInfo: (e) => ({ status: e && e.status }),
+  },
+}))
+vi.mock('../../../../../../../app/src/Features/Authentication/AuthenticationController.mjs', () => ({
+  default: { requireLogin: () => (req, res, next) => next() },
+}))
+vi.mock('../../../../../../../app/src/Features/Authentication/SessionManager.mjs', () => ({
+  default: { getLoggedInUserId: () => 'user-123' },
+}))
+vi.mock('../../../../../../../app/src/Features/Errors/HttpErrorHandler.mjs', () => ({
+  default: { badRequest() {}, forbidden() {} },
+}))
+vi.mock('../../../app/src/MendeleyApiClient.mjs', () => apiMock)
+
+describe('mendeley router + oauth callback', () => {
+  const savedMendeley = Settings.mendeley
+  beforeEach(() => {
+    vi.clearAllMocks()
+    Settings.mendeley = { clientID: 'c1', clientSecret: 's1' }
+  })
+  afterEach(() => {
+    if (savedMendeley === undefined) delete Settings.mendeley
+    else Settings.mendeley = savedMendeley
+  })
+
+  function mockWebRouter() {
+    const routes = []
+    return {
+      routes,
+      get: (p, ...h) => routes.push(['GET', p, h]),
+      post: (p, ...h) => routes.push(['POST', p, h]),
+      put: (p, ...h) => routes.push(['PUT', p, h]),
+      delete: (p, ...h) => routes.push(['DELETE', p, h]),
+    }
+  }
+
+  async function callHandler(path, req, res) {
+    const { default: Router } = await import('../../../app/src/MendeleyRouter.mjs')
+    const r = mockWebRouter()
+    Router.apply(r)
+    const entry = r.routes.find(([, p]) => p === path)
+    if (!entry) throw new Error(`route not found: ${path}`)
+    for (let i = 0; i < entry[2].length; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await entry[2][i](req, res, () => {})
+    }
+  }
+
+  it('registers status, both unlink aliases, oauth + callback and picker routes', async () => {
+    const { default: Router } = await import('../../../app/src/MendeleyRouter.mjs')
+    const r = mockWebRouter()
+    Router.apply(r)
+    const keys = r.routes.map(([m, p]) => `${m} ${p}`)
+    expect(keys).toContain('GET /user/mendeley/status')
+    expect(keys).toContain('DELETE /user/mendeley')
+    // base settings widget (tpr-webmodule mendeley-widget.tsx) POSTs here
+    expect(keys).toContain('POST /mendeley/unlink')
+    expect(keys).toContain('GET /user/mendeley/oauth')
+    expect(keys).toContain('GET /user/mendeley/oauth/callback')
+    expect(keys).toContain('GET /user/mendeley/picker/libraries')
+    expect(keys).toContain('GET /user/mendeley/picker/documents')
+    expect(keys).toContain('GET /user/mendeley/picker/bibtex')
+  })
+
+  it('oauth (full-page) stores state + returnTo taken from the page referer', async () => {
+    const req = {
+      session: {},
+      query: {},
+      headers: { referer: 'https://ps.example/library' },
+    }
+    const res = { redirectTo: null, redirect(u) { this.redirectTo = u } }
+    await callHandler('/user/mendeley/oauth', req, res)
+    expect(res.redirectTo).toContain('api.mendeley.com/oauth/authorize')
+    expect(req.session.mendeleyOAuth.isPopup).toBe(false)
+    expect(req.session.mendeleyOAuth.returnTo).toBe('https://ps.example/library')
+  })
+
+  it('oauth (popup) does not adopt a returnTo', async () => {
+    const req = {
+      session: {},
+      query: { popup: '1' },
+      headers: { referer: 'https://ps.example/library' },
+    }
+    const res = { redirectTo: null, redirect(u) { this.redirectTo = u } }
+    await callHandler('/user/mendeley/oauth', req, res)
+    expect(req.session.mendeleyOAuth.isPopup).toBe(true)
+    expect(req.session.mendeleyOAuth.returnTo).toBe('')
+  })
+
+  it('callback success from a non-settings page lands back on that page', async () => {
+    const req = {
+      session: {
+        mendeleyOAuth: {
+          state: 's1',
+          isPopup: false,
+          returnTo: 'https://ps.example/library',
+        },
+      },
+      query: { code: 'c1', state: 's1' },
+      headers: {},
+    }
+    const res = {
+      getHeader: () => 'base',
+      setHeader() {},
+      html: null,
+      send(h) { this.html = h },
+    }
+    await callHandler('/user/mendeley/oauth/callback', req, res)
+    expect(apiMock.storeMendeleyCredentials).toHaveBeenCalledWith(
+      'user-123',
+      expect.anything(),
+    )
+    expect(res.html).toContain("location.href = 'https://ps.example/library'")
+    expect(res.html).toContain("BroadcastChannel('mendeley')")
+  })
+
+  it('callback success from settings lands on settings with the oauth-complete flag', async () => {
+    const req = {
+      session: {
+        mendeleyOAuth: {
+          state: 's1',
+          isPopup: false,
+          returnTo: 'https://ps.example/user/settings',
+        },
+      },
+      query: { code: 'c1', state: 's1' },
+      headers: {},
+    }
+    const res = {
+      getHeader: () => 'base',
+      setHeader() {},
+      html: null,
+      send(h) { this.html = h },
+    }
+    await callHandler('/user/mendeley/oauth/callback', req, res)
+    expect(res.html).toContain(
+      "location.href = '/user/settings?oauth-complete=mendeley#references'",
+    )
+  })
+
+  it('callback popup success closes the window (picker refreshes via channel)', async () => {
+    const req = {
+      session: {
+        mendeleyOAuth: { state: 's1', isPopup: true, returnTo: '' },
+      },
+      query: { code: 'c1', state: 's1' },
+      headers: {},
+    }
+    const res = {
+      getHeader: () => 'base',
+      setHeader() {},
+      html: null,
+      send(h) { this.html = h },
+    }
+    await callHandler('/user/mendeley/oauth/callback', req, res)
+    expect(res.html).toContain('window.close()')
+  })
+
+  it('callback with invalid state redirects to the settings error notice', async () => {
+    const req = { session: {}, query: { code: 'c1', state: 'x' }, headers: {} }
+    const res = { redirectTo: null, redirect(u) { this.redirectTo = u } }
+    await callHandler('/user/mendeley/oauth/callback', req, res)
+    expect(res.redirectTo).toBe('/user/settings?oauth-error=mendeley#references')
+    expect(apiMock.storeMendeleyCredentials).not.toHaveBeenCalled()
+  })
+
+  it('callback with a failed token exchange redirects to the settings error notice', async () => {
+    apiMock.exchangeMendeleyCode.mockRejectedValueOnce(new Error('boom'))
+    const req = {
+      session: { mendeleyOAuth: { state: 's1', isPopup: false, returnTo: '' } },
+      query: { code: 'c1', state: 's1' },
+      headers: {},
+    }
+    const res = { redirectTo: null, redirect(u) { this.redirectTo = u } }
+    await callHandler('/user/mendeley/oauth/callback', req, res)
+    expect(res.redirectTo).toBe('/user/settings?oauth-error=mendeley#references')
+    expect(apiMock.storeMendeleyCredentials).not.toHaveBeenCalled()
   })
 })

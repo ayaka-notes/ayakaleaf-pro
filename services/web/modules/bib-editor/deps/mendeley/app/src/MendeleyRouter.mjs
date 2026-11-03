@@ -30,6 +30,14 @@ export default {
       AuthenticationController.requireLogin(),
       MendeleyController.unlink
     )
+    // Alias used by the base settings widget (tpr-webmodule mendeley-widget.
+    // tsx posts to /mendeley/unlink): same unlink, registered so the settings
+    // page works regardless of module registration order.
+    webRouter.post(
+      '/mendeley/unlink',
+      AuthenticationController.requireLogin(),
+      MendeleyController.unlink
+    )
 
     // OAuth flow (callback does not pass the configured-gate: a started
     // flow must be completable even if config is revoked mid-flow)

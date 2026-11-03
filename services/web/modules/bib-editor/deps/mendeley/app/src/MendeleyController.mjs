@@ -14,7 +14,17 @@ async function oauth(req, res) {
     Api.assertMendeleyConfigured()
     const state = crypto.randomBytes(16).toString('hex')
     const isPopup = req.query.popup === '1'
-    req.session.mendeleyOAuth = { state, isPopup }
+    // Where to land after a full-page (non-popup) flow: the page the user
+    // started from (settings widgets, picker pages, ...). Absent or failed
+    // flows fall back to the settings page, which the base widgets expect.
+    const referer = String(req.headers.referer || '')
+    const returnTo =
+      !isPopup &&
+      referer.startsWith('http') &&
+      !referer.includes('/user/mendeley/')
+        ? referer
+        : ''
+    req.session.mendeleyOAuth = { state, isPopup, returnTo }
     res.redirect(Api.getMendeleyAuthorizeUrl(state))
   } catch (err) {
     const info = OError.getFullInfo(err)
@@ -34,7 +44,10 @@ async function oauthCallback(req, res) {
   delete req.session.mendeleyOAuth
 
   if (!saved || !code || !state || saved.state !== state) {
-    HttpErrorHandler.forbidden(req, res, 'Invalid Mendeley OAuth state')
+    // Mirror the base connector's behavior so the settings widgets show
+    // their error notice instead of a raw error page.
+    logger.error({}, 'Mendeley OAuth callback: invalid or missing state')
+    res.redirect('/user/settings?oauth-error=mendeley#references')
     return
   }
 
@@ -44,13 +57,21 @@ async function oauthCallback(req, res) {
   } catch (err) {
     logger.error(OError.getFullStack(err))
     logger.error({ info: OError.getFullInfo(err) }, 'Failed to exchange Mendeley code')
-    HttpErrorHandler.badRequest(req, res, 'Failed to link Mendeley account')
+    res.redirect('/user/settings?oauth-error=mendeley#references')
     return
   }
 
   const nonce = crypto.randomBytes(16).toString('base64')
   const csp = res.getHeader('Content-Security-Policy')
   res.setHeader('Content-Security-Policy', `${csp}; script-src 'nonce-${nonce}'`)
+  // Full-page flows land back where they started (settings widgets expect
+  // the oauth-complete flag there); the picker's popup flow closes itself.
+  const landing =
+    saved.returnTo &&
+    !/\/user\/settings/.test(saved.returnTo)
+      ? saved.returnTo
+      : '/user/settings?oauth-complete=mendeley#references'
+  const landingJs = landing.replace(/'/g, "\\'")
   res.send(`
     <!doctype html>
     <html>
@@ -60,7 +81,7 @@ async function oauthCallback(req, res) {
           channel.postMessage({ type: 'mendeley-linked' })
           ${saved.isPopup
             ? 'window.close()'
-            : "location.href = '/user/settings#references'"}
+            : `location.href = '${landingJs}'`}
         </script>
       </body>
     </html>
