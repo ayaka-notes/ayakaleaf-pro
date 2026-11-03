@@ -453,7 +453,8 @@ const _CompileController = {
       enablePng2Pdf,
       enableCheckpointCompiles,
     } = await _getSplitTestOptions(req, res)
-    if (Features.hasFeature('saas')) {
+    // CE: saas feature gate removed so png2pdf / compile-from-history options are sent
+    if (true) {
       options.compileFromClsiCache = true
       options.populateClsiCache = true
       options.compileFromHistory = compileFromHistory

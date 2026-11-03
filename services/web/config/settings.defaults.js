@@ -1379,6 +1379,14 @@ module.exports.splitTestOverrides = {
   'export-docx': 'enabled',
   'export-markdown': 'enabled',
   'export-html': 'enabled',
+  ...(process.env.ENABLE_PNG2PDF_CONVERSIONS === 'true'
+    ? {
+        'png2pdf': 'enabled',
+        // compile-from-history is required for CLSI to record the "slow png" list
+        // (clsi CompileManager.js saveSlowPngList is gated on isCompileFromHistory)
+        'compile-from-history': 'enabled',
+      }
+    : {}),
   'intermittent-connection-improvements': 'enabled'
 }
 
