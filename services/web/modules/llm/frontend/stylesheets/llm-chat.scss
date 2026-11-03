@@ -316,6 +316,12 @@
     /* Use flex so the welcome panel shares space and doesn't push the input offscreen */
     flex: 1;
     min-height: 0;
+    /* overleaf-lab (2026-11): when the host caps the panel height (IDE rail /
+       workspace part inline heights), the welcome content must stay INSIDE the
+       granted box — otherwise it underflows and shows through behind the
+       (transparent) input bar below it. */
+    overflow-y: auto;
+    overflow-x: hidden;
 
     .llm-welcome-icon {
         display: flex;
@@ -668,6 +674,11 @@
     display: flex;
     gap: var(--spacing-03);
     align-items: center;
+    /* overleaf-lab (2026-11): opaque base + paint order above the welcome block,
+       so text can never show *through* the input area when both are cramped. */
+    position: relative;
+    z-index: 1;
+    background-color: var(--llm-chat-bg, var(--wf-panel-bg, #fff));
 
     .llm-chat-textarea {
         flex: 1;

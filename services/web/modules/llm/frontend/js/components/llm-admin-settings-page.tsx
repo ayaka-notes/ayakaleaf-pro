@@ -928,6 +928,22 @@ export default function LLMAdminSettingsPage() {
                   </div>
               )}
 
+              {/* ── Section 7: Usage (usage meter) — read-only, placed above the save button ── */}
+              <div className="llm-settings-section" data-sec="usage">
+                  <div className="llm-settings-section-header">
+                      <span className="llm-settings-section-badge">7</span>
+                      <MaterialIcon type="insights" />
+                      {t('llm_usage', 'Usage')}
+                  </div>
+                  <p className="llm-settings-section-desc">
+                      {t(
+                          'llm_usage_desc',
+                          'Token usage across the whole site (all users, site and personal connections). Data comes from real model responses and is updated after each request.'
+                      )}
+                  </p>
+                  <LLMUsageMeter scope="admin" />
+              </div>
+
               {/* ── Save Button ── */}
               {saveErrors.length > 0 && (
                   <OLNotification type="error" content={saveErrors.join(' · ')} />
@@ -944,22 +960,6 @@ export default function LLMAdminSettingsPage() {
                   {t('save_settings', 'Save Settings')}
               </OLButton>
           </form>
-
-          {/* ── Section 7: Usage (usage meter) — read-only, outside the form ── */}
-          <div className="llm-settings-section" data-sec="usage">
-              <div className="llm-settings-section-header">
-                  <span className="llm-settings-section-badge">7</span>
-                  <MaterialIcon type="insights" />
-                  {t('llm_usage', 'Usage')}
-              </div>
-              <p className="llm-settings-section-desc">
-                  {t(
-                      'llm_usage_desc',
-                      'Token usage across the whole site (all users, site and personal connections). Data comes from real model responses and is updated after each request.'
-                  )}
-              </p>
-              <LLMUsageMeter scope="admin" />
-          </div>
         </div>
     )
 }

@@ -186,6 +186,13 @@ function PdfLlmCompileFixCard({ logEntry }: Props) {
                 </span>
             )
         }
+        if (applyState.kind === 'failed' && applyState.reason === 'already-applied') {
+            return (
+                <span className="llm-cfx-apply-status llm-cfx-apply-status-ok">
+                    {t('llm_cfx_already', 'This fix looks like it is already in the document.')}
+                </span>
+            )
+        }
         if (applyState.kind === 'failed') {
             let msg: string | React.ReactNode
             if (applyState.reason === 'wrong-doc') {

@@ -107,9 +107,13 @@ function LLMCompliancePane() {
         return (
             <div style={{ padding: 12, color: MUTED }}>
                 {t(
-                    'compliance_no_rubrics',
-                    'No review rubrics are configured for your profile yet. Add your own in your LLM settings (<i>AI Settings → Compliance Review</i>).'
+                    'compliance_no_rubrics_pre',
+                    'No review rubrics are configured for your profile yet. Add your own in your LLM settings ('
                 )}
+                <em>
+                    {t('compliance_no_rubrics_path', 'AI Settings → Compliance Review')}
+                </em>
+                {t('compliance_no_rubrics_post', ')')}
             </div>
         )
     }

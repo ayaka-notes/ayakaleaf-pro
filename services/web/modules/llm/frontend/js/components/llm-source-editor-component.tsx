@@ -102,15 +102,63 @@ function LLMSourceEditorComponent() {
                     const line = doc.line(lineNo)
                     if (oldText) {
                         const at = line.text.indexOf(oldText)
-                        if (at === -1) {
-                            return reply(false, 'not-found')
+                        if (at !== -1) {
+                            from = line.from + at
+                            to = line.from + at + oldText.length
                         }
-                        from = line.from + at
-                        to = line.from + at + oldText.length
                     } else {
                         from = line.to
                         to = line.to
                     }
+                }
+                // overleaf-lab (2026): the line hint above can be stale (the model
+                // re-quotes the text, or the doc shifted after an earlier apply).
+                // Fall back to a document-wide exact search first...
+                const docText = doc.toString()
+                if (from === -1 && oldText) {
+                    const at = docText.indexOf(oldText)
+                    if (at !== -1) {
+                        from = at
+                        to = at + oldText.length
+                    }
+                }
+                // ...then a whitespace-tolerant match: collapse whitespace runs in
+                // both the suggestion and the document, and map the normalized
+                // offset back to the original range. Still content-exact — never
+                // fuzzy-applies.
+                if (from === -1 && oldText) {
+                    const nOld = oldText.replace(/\s+/g, ' ').trim()
+                    if (nOld.length > 0) {
+                        let normDoc = ''
+                        const map: number[] = []
+                        let prevWs = true
+                        for (let i = 0; i < docText.length; i++) {
+                            if (/[\s]/.test(docText[i])) {
+                                if (!prevWs) {
+                                    normDoc += ' '
+                                    map.push(i)
+                                }
+                            } else {
+                                normDoc += docText[i]
+                                map.push(i)
+                            }
+                            prevWs = /[\s]/.test(docText[i])
+                        }
+                        const atN = normDoc.indexOf(nOld)
+                        if (atN !== -1) {
+                            from = map[atN]
+                            to = map[atN + nOld.length - 1] + 1
+                        }
+                    }
+                }
+                if (from === -1 && oldText) {
+                    // overleaf-lab (2026): a stale card may re-suggest a fix the
+                    // user already applied — detect the NEW text being present and
+                    // say so, instead of a confusing "not found" error.
+                    if (newText && docText.includes(newText)) {
+                        return reply(false, 'already-applied')
+                    }
+                    return reply(false, 'not-found')
                 }
                 if (from === to && !newText) {
                     return reply(false, 'not-found')

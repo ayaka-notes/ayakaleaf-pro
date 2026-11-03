@@ -273,10 +273,17 @@
   &[data-active='connection'] [data-sec='connection'],
   &[data-active='models'] [data-sec='models'],
   &[data-active='prompt'] [data-sec='prompt'],
-  &[data-active='compliance'] [data-sec='compliance'],
   &[data-active='prompts'] [data-sec='prompts'],
+  &[data-active='availability'] [data-sec='availability'],
   &[data-active='usage'] [data-sec='usage'] {
     display: block;
+  }
+
+  // overleaf-lab: the Usage section is a direct grid child (outside the form,
+  // read-only meter) — pin it to the content column so it renders below the
+  // form instead of auto-flowing under the sidebar.
+  .llm-settings-section[data-sec='usage'] {
+    grid-column: 2;
   }
 
   // overleaf-lab: sidebar navigation — console-style list, active highlight.

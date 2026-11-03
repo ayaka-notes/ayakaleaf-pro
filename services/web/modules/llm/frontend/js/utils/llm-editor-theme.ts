@@ -35,7 +35,22 @@ export function readEditorThemeColors(): { bg?: string; fg?: string } {
 
 export function applyEditorThemeVars(scope: HTMLElement | null): void {
     if (!scope) return
-    const { bg, fg } = readEditorThemeColors()
+    let { bg, fg } = readEditorThemeColors()
+    // overleaf-lab (2026-11): a user's editor theme can supply a background /
+    // foreground pair with poor or zero contrast (e.g. a dark background with a
+    // dark root text color). The panel then becomes unreadable — exactly the
+    // "conflicting background and font colors" report. Guard: if the pair does
+    // not reach WCAG AA (4.5:1), pin the text to a color that does.
+    if (bg && fg) {
+        const c = parseColor(bg)
+        const f = parseColor(fg)
+        if (c && f && contrastRatio(c, f) < 4.5) {
+            const bgLum = luminance(c)
+            fg = bgLum < 0.4 ? '#f4f5f6' : '#111418'
+            scope.style.setProperty('--wf-editor-fg', fg)
+            bg = bg // keep the real background
+        }
+    }
     if (bg) scope.style.setProperty('--wf-editor-bg', bg)
     if (fg) scope.style.setProperty('--wf-editor-fg', fg)
     // Keep the accent legible on DARK editor themes (e.g. dracula/monokai
@@ -56,6 +71,31 @@ export function applyEditorThemeVars(scope: HTMLElement | null): void {
     scope.style.setProperty('--wf-accent', '#28518f')
     scope.style.setProperty('--wf-accent-hi', '#214475')
     scope.style.setProperty('--wf-accent-soft', 'rgba(40, 81, 143, 0.10)')
+}
+
+function parseColor(v: string): { r: number; g: number; b: number } | null {
+    const m = v.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/)
+    if (!m) return null
+    return { r: +m[1], g: +m[2], b: +m[3] }
+}
+
+function luminance({ r, g, b }: { r: number; g: number; b: number }): number {
+    const f = (v: number) => {
+        const s = v / 255
+        return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4)
+    }
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+}
+
+function contrastRatio(
+    a: { r: number; g: number; b: number },
+    b: { r: number; g: number; b: number }
+): number {
+    const l1 = luminance(a)
+    const l2 = luminance(b)
+    const hi = Math.max(l1, l2)
+    const lo = Math.min(l1, l2)
+    return (hi + 0.05) / (lo + 0.05)
 }
 
 export interface EditorThemeWatcher {

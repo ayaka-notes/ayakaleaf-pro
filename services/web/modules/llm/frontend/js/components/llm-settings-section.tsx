@@ -349,10 +349,6 @@ export default function LLMSettingsSection({ compact = false }: { compact?: bool
         <div className="llm-settings llm-buo">
             {!compact && (
             <div className="llm-settings-header">
-
-                <h1 className="llm-settings-header-title">
-                    {t('llm_byo_title', 'My LLM providers')}
-                </h1>
                 <p className="llm-settings-header-desc">
                     {t(
                         'llm_byo_desc',

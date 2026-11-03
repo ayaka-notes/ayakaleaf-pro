@@ -274,7 +274,10 @@ async function chat(req, res) {
 
     // System prompt: admin-configured prompt (if any) + language-follow
     // instruction, merged with a client system message when present.
-    const languageInstruction = "Reply in the same language as the user's latest message (for example, answer in Italian if the user writes in Italian)."
+    // overleaf-lab (2026-11): no language examples in the instruction — a
+    // concrete example ("e.g. answer in Italian ...") anchors small models
+    // toward that language. The directive must stay neutral.
+    const languageInstruction = "Reply in the same language as the user's latest message. Never pick a different language on your own."
     const adminSystemPrompt = lane === 'site' ? (await getSystemPrompt()) : ''
     const systemPreamble = adminSystemPrompt
         ? `${adminSystemPrompt}\n\n${languageInstruction}`
@@ -283,6 +286,20 @@ async function chat(req, res) {
     const finalMessages = hasSystemMessage
         ? [{ role: 'system', content: `${systemPreamble}\n\n${messages[0].content}` }, ...messages.slice(1)]
         : [{ role: 'system', content: systemPreamble }, ...messages]
+    // overleaf-lab (2026-11): small models often ignore a system-side language
+    // rule, so repeat the directive right after the user's own turn — a trailing
+    // user-side instruction dominates a weak model's output language.
+    try {
+        for (let i = finalMessages.length - 1; i >= 0; i--) {
+            if (finalMessages[i].role === 'user') {
+                finalMessages[i] = {
+                    ...finalMessages[i],
+                    content: `${finalMessages[i].content}\n\n(Instruction: reply in the same language as my message above.)`
+                }
+                break
+            }
+        }
+    } catch { /* non-fatal: language reminder only */ }
 
     const started = Date.now()
     logger.info(
