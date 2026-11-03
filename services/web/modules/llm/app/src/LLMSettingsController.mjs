@@ -664,6 +664,11 @@ export default {
     saveSelectedModel: expressify(saveSelectedModel),
     // overleaf-lab (2026-08-27): user-scoped compliance review rubrics
     getUserCompliance: expressify(getUserCompliance),
-    saveUserCompliance: expressify(saveUserCompliance)
+    saveUserCompliance: expressify(saveUserCompliance),
+    // overleaf-lab (2026-11): user-scoped editor prefs (inline completion toggle).
+    // NOTE: the router references these by property name — forgetting them here
+    // makes express throw "Route.get() requires a callback function" at boot.
+    getUserPrefs: expressify(getUserPrefs),
+    saveUserPrefs: expressify(saveUserPrefs)
 }
 
