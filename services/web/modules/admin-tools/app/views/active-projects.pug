@@ -1,0 +1,8 @@
+meta(name="ol-dummy", content="placeholder")
+
+h3 Active Projects (Currently Being Edited)
+p.text-muted Real-time information from the editor service showing who is actively working on which projects.
+#active-projects-container
+
+each file in entrypointScripts('modules/admin-tools/pages/active-projects')
+  script(type='text/javascript' nonce=scriptNonce src=file)

@@ -14,6 +14,7 @@ block content
 								.nav-tabs-container
 									ul.nav.nav-tabs.align-left(role='tablist')
 										+bookmarkable-tabset-header('system-messages', 'System Messages', true)
+										+bookmarkable-tabset-header('active-projects', 'Active Projects')
 										+bookmarkable-tabset-header('open-sockets', 'Open Sockets')
 										+bookmarkable-tabset-header('open-close-editor', 'Open/Close Editor')
 										if hasFeature('saas')
@@ -41,6 +42,10 @@ block content
 										form(method='post' action='/admin/messages/clear')
 											input(name='_csrf' type='hidden' value=csrfToken)
 											button.btn.btn-danger(type='submit') Clear all messages
+
+									.tab-pane(role='tabpanel' id='active-projects')
+										.row-spaced
+											include ../../../modules/admin-tools/app/views/active-projects.pug
 
 									.tab-pane(role='tabpanel' id='open-sockets')
 										.row-spaced
