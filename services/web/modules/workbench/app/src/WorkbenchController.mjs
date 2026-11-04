@@ -141,14 +141,29 @@ async function chat(req, res) {
   // Tesseract/Ocrmypdf for scans) BEFORE the model sees them, so text-only
   // lanes can read them. Opt-in in the user's LLM settings; failed parts
   // keep the raw attachment and the normal refusal path explains it.
+  // overleaf-lab (2026-11, bug hunt): the FAILED count matters to the refusal
+  // message — "enable OCR text mode" is wrong advice when the mode was ON
+  // and the extraction could not read the attachment.
+  let extraction = null
   try {
     const prof = await UserGetter.promises.getUser(userId, { llmTextExtract: 1 })
     if (prof && prof.llmTextExtract === true) {
       const { messages: extracted, report } = await toTextMessages(messages)
-      if (report.length) messages = extracted
+      if (report.length) {
+        messages = extracted
+        const failed = report.filter(x => x.mode === 'failed')
+        if (failed.length) {
+          extraction = {
+            anyFailed: true,
+            kinds: [...new Set(failed.map(x => x.kind))],
+            reasons: [...new Set(failed.map(x => x.reason))],
+          }
+        }
+      }
     }
   } catch (err) {
     logger.warn({ err, userId }, 'workbench chat: text-extraction mode failed, raw attachments kept')
+    extraction = { anyFailed: true, kinds: ['pdf', 'image'], reasons: ['service'] }
   }
   const toolCallLimit = createToolCallLimit(messages, getMaxSteps())
   if (toolCallLimit.exhausted()) {
@@ -292,6 +307,11 @@ async function chat(req, res) {
         APICallError.isInstance(err) &&
         [400, 415, 422].includes(err.statusCode)
       ) {
+        // overleaf-lab (bug hunt): extraction was attempted and could not
+        // read the PDF → the lane-remedy below (pick a PDF-capable model)
+        // is the only actionable part; don't imply the user must toggle
+        // anything when text mode was already on.
+        if (extraction?.anyFailed) return 'ai_pdf_unreadable'
         return lane ? 'ai_pdf_not_supported_byo' : 'ai_pdf_not_supported_site'
       }
       // overleaf-lab (2026-11, owner report): an image attachment was routed
@@ -305,6 +325,11 @@ async function chat(req, res) {
         APICallError.isInstance(err) &&
         /multimodal|modality|image|vision/i.test(String(err?.message || ''))
       ) {
+        // overleaf-lab (bug hunt): OCR text mode was ON but tesseract could
+        // not read this image (blurry scan, unsupported format) — a different
+        // message than "mode is off", so the user is not told to enable a
+        // setting they already enabled.
+        if (extraction?.anyFailed) return 'ai_image_unreadable'
         return lane ? 'ai_image_not_supported_byo' : 'ai_image_not_supported_site'
       }
       return 'The AI service returned an error. Please try again.'

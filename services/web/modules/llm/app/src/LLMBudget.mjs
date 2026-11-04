@@ -28,7 +28,10 @@ const RATE_PER_MINUTE = Math.max(1, Number.parseInt(process.env.LLM_USER_RATE_PE
 // Minimum sane daily floor: a few thousand tokens of chat must always fit.
 const DAILY_TOKENS = Math.max(1000, Number.parseInt(process.env.LLM_USER_DAILY_TOKENS, 10) || 1_000_000)
 
-// overleaf-lab: ensure the shared collection + TTL index exist (idempotent).
+// overleaf-lab (bug hunt 2026-11): the collection now holds ONE document per
+// user, so the "TTL" index (expireAfterSeconds on a non-Date field) was
+// never doing anything — keep the createIndex call for shape compatibility
+// but it no longer needs to clean up.
 let ready = null
 function collection() {
     if (!ready) {
@@ -73,9 +76,28 @@ export async function guardLLMCall(userId) {
     const day = dayKey()
     const coll = collection()
     try {
+        // overleaf-lab (bug hunt 2026-11): ONE document per user. The previous
+        // filter {userId, minute} UPSERTED a fresh document every active
+        // minute (thousands per heavy user per day), and the "TTL" index
+        // never fires because expireAfterSeconds requires a Date field — the
+        // collection would grow unbounded. Single-doc upsert + conditional
+        // in-update resets preserve the rolling-minute / per-day semantics.
         const bumped = await coll.findOneAndUpdate(
-            { userId, minute },
-            { $inc: { calls: 1 }, $set: { minute, day } },
+            { userId },
+            [
+                {
+                    $set: {
+                        calls: {
+                            $cond: [{ $eq: ['$minute', minute] }, { $add: ['$calls', 1] }, 1],
+                        },
+                        minute,
+                        day,
+                        tokens: {
+                            $cond: [{ $eq: ['$day', day] }, '$tokens', 0],
+                        },
+                    },
+                },
+            ],
             { upsert: true, returnDocument: 'after' }
         )
         if (bumped.calls > RATE_PER_MINUTE) {
@@ -92,8 +114,8 @@ export async function guardLLMCall(userId) {
 
     // Daily token budget (check against the CURRENT day's counter).
     try {
-        const doc = await coll.findOne({ userId })
-        const usedToday = doc && doc.day === day ? doc.tokens || 0 : 0
+        const doc = await coll.findOne({ userId, day })
+        const usedToday = doc && (doc.tokens || 0)
         if (DAILY_TOKENS - usedToday <= 0) {
             throw Object.assign(
                 new Error(`Daily token budget reached (${DAILY_TOKENS} tokens/day). Resets at midnight UTC.`),
@@ -113,7 +135,7 @@ export async function guardLLMCall(userId) {
             collection()
                 .findOneAndUpdate(
                     { userId, day: d },
-                    { $inc: { tokens: tokens }, $set: { day: d } },
+                    [{ $set: { tokens: { $add: ['$tokens', tokens] } } }],
                     { upsert: true }
                 )
                 .catch(err => logger.warn({ err }, '[LLMBudget] token record failed (non-fatal)'))

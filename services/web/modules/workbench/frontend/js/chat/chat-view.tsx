@@ -229,6 +229,14 @@ export default function ChatView({
         setProblem(
           'The model for this chat rejected the PDF. Choose a PDF-capable model for Chat in LLM settings, or enable “Read images & PDF attachments as text (OCR)” in your LLM settings.'
         )
+      } else if (error.message === 'ai_pdf_unreadable') {
+        // overleaf-lab (bug hunt 2026-11): OCR text mode was ON but the server
+        // could not extract readable text from this PDF (scanned pages the
+        // OCR did not read, or a format it cannot open). Saying "enable OCR" 
+        // would be wrong — it was already on.
+        setProblem(
+          'The "read as text" mode was on, but the server could not extract usable text from this PDF (it may be a blurry scan or an unsupported format). If the text is important, re-save the PDF with a text layer, or pick a PDF-capable model for Chat in your LLM settings.'
+        )
       } else if (error.message === 'ai_image_not_supported_byo') {
         // overleaf-lab (2026-11, owner report): the attached image was routed
         // to a text-only model and the provider rejected it ("not a
@@ -236,6 +244,13 @@ export default function ChatView({
         // image-capable model for the chat slot or use the OCR text mode.
         setProblem(
           'Your model cannot see images. Pick an image-capable model for Chat in your LLM settings (File → LLM settings) — or enable “Read images & PDF attachments as text (OCR)” in your LLM settings and the image will be read as text instead.'
+        )
+      } else if (error.message === 'ai_image_unreadable') {
+        // overleaf-lab (bug hunt 2026-11): OCR text mode was ON but Tesseract 
+        // could not read this image. Distinct from "mode is off" — the user
+        // already enabled it, so the remedy is about the image or the model.
+        setProblem(
+          'The "read as text" mode was on, but the server could not read text from this image (it may be too blurry, or a format the OCR cannot open). Try a clearer image, or pick an image-capable model for Chat in your LLM settings (File → LLM settings).'
         )
       } else if (error.message === 'ai_image_not_supported_site') {
         // Site/operator lane: no vision model is enabled server-side.
