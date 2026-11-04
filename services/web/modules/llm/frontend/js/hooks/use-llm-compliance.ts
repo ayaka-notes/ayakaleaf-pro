@@ -103,7 +103,7 @@ function escapeHtml(s: string): string {
 // It opens in any browser and can be saved as PDF via the browser's Print dialog,
 // which avoids bundling a PDF library. Colors are fixed (a printable light document),
 // independent of the app theme.
-function buildReportHtml(result: ComplianceResult): string {
+export function buildReportHtml(result: ComplianceResult): string {
     const counts: Record<ComplianceStatus, number> = {
         ok: 0,
         partial: 0,

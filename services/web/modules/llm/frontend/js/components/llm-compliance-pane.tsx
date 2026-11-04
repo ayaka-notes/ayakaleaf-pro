@@ -1,9 +1,24 @@
-import React from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import MaterialIcon from '@/shared/components/material-icon'
 import OLButton from '@/shared/components/ol/ol-button'
-import { useLLMCompliance } from '../hooks/use-llm-compliance'
+import OLTooltip from '@/shared/components/ol/ol-tooltip'
+import OLIconButton from '@/shared/components/ol/ol-icon-button'
+import {
+    Dropdown,
+    DropdownMenu,
+    DropdownItem,
+} from '@/shared/components/dropdown/dropdown-menu'
+import { useLLMCompliance, buildReportHtml } from '../hooks/use-llm-compliance'
 import { useLLMModelSelection } from '../hooks/use-llm-model-selection'
+import {
+    clearRuns,
+    listRuns,
+    removeRun,
+    saveRun,
+} from '../utils/llm-review-history'
+import type { StoredReviewRun } from '../utils/llm-review-history'
+import getMeta from '@/utils/meta'
 import type {
     ComplianceItem,
     ComplianceStatus,
@@ -94,6 +109,187 @@ function LLMCompliancePane() {
         downloadReport,
         hasRubrics,
     } = useLLMCompliance()
+
+    // overleaf-lab (2026-11, owner request: "the AI check history is still
+    // missing"): completed reviews persist per-project and can be re-opened,
+    // downloaded, deleted or cleared. The pane stays a single surface (the
+    // owner confirmed AI check and AI assistant stay SEPARATE windows).
+    const projectId = getMeta('ol-project_id')
+    const [runs, setRuns] = useState<StoredReviewRun[]>([])
+    const [viewing, setViewing] = useState<StoredReviewRun | null>(null)
+    const [menuOpen, setMenuOpen] = useState(false)
+    const menuRef = useRef<HTMLUListElement | null>(null)
+    // overleaf-lab: save a finished live result EXACTLY ONCE (guard against
+    // the effect re-firing when the same result object stays in state).
+    const savedResultRef = useRef<object | null>(null)
+
+    useEffect(() => {
+        let cancelled = false
+        if (!projectId) return
+        void listRuns(projectId).then(stored => {
+            if (!cancelled) setRuns(stored)
+        })
+        return () => { cancelled = true }
+    }, [projectId])
+
+    useEffect(() => {
+        if (phase !== 'done' || !result) return
+        if (savedResultRef.current === result) return
+        savedResultRef.current = result
+        if (!projectId) return
+        void saveRun(projectId, result).then(run => {
+            if (run) setRuns(cur => [run, ...cur].slice(0, 20))
+        })
+    }, [phase, result, projectId])
+
+    // overleaf-lab (2026-11): the history menu is capped to the NARROW rail
+    // panel width (the panel container has overflow:hidden; a wide menu would
+    // clip) — same fixed positioning lesson as the assistant's menu.
+    useLayoutEffect(() => {
+        if (!menuOpen) return
+        const menu = menuRef.current
+        if (!menu) return
+        const position = () => {
+            const panel =
+                document.getElementById('ide-redesign-sidebar-panel-llm-chat') ||
+                document.querySelector('.llm-rail-pane')
+            if (!panel) return
+            const bounds = panel.getBoundingClientRect()
+            const anchor = document.getElementById('review-run-history-anchor')
+            const top = anchor ? anchor.getBoundingClientRect().bottom + 4 : bounds.top + 40
+            const width = Math.min(320, bounds.width - 12)
+            menu.style.position = 'fixed'
+            menu.style.left = `${Math.round(bounds.left + 6)}px`
+            menu.style.top = `${Math.round(top)}px`
+            menu.style.width = `${Math.round(width)}px`
+            menu.style.maxWidth = `${Math.round(width)}px`
+            menu.style.transform = 'none'
+        }
+        position()
+        const close = () => setMenuOpen(false)
+        window.addEventListener('resize', close)
+        window.addEventListener('scroll', close, true)
+        return () => {
+            window.removeEventListener('resize', close)
+            window.removeEventListener('scroll', close, true)
+        }
+    }, [menuOpen])
+
+    const openRun = (run: StoredReviewRun): void => {
+        setViewing(run)
+        setMenuOpen(false)
+    }
+
+    const deleteRun = (runId: string): void => {
+        if (projectId) void removeRun(projectId, runId)
+        setRuns(cur => cur.filter(r => r.id !== runId))
+        setViewing(cur => (cur && cur.id === runId ? null : cur))
+    }
+
+    const clearAllRuns = (): void => {
+        if (projectId) void clearRuns(projectId)
+        setRuns([])
+        setViewing(null)
+        setMenuOpen(false)
+    }
+
+    // overleaf-lab: download the SAME HTML report for a saved run (the live
+    // downloadReport is bound to the live result object).
+    const downloadSaved = (run: StoredReviewRun): void => {
+        const html = buildReportHtml(run.result)
+        const safeRubricName =
+            (run.result.rubric?.name || 'review')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '') || 'review'
+        const d = new Date(run.finishedAt)
+        const pad = (n: number) => String(n).padStart(2, '0')
+        const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`
+        const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.download = `review-${safeRubricName}-${stamp}.html`
+        document.body.appendChild(anchor)
+        anchor.click()
+        document.body.removeChild(anchor)
+        URL.revokeObjectURL(url)
+    }
+
+    const relativeTime = (ts: number): string => {
+        const d = Date.now() - ts
+        if (d < 60e3) return t('just_now', 'just now')
+        if (d < 3600e3) return `${Math.floor(d / 60e3)} ${t('min_ago', 'min ago')}`
+        if (d < 86400e3) return `${Math.floor(d / 3600e3)} ${t('h_ago', 'h ago')}`
+        return new Date(ts).toLocaleString()
+    }
+
+    // overleaf-lab: a finished run is being re-opened from the history —
+    // render it EXACTLY like the live report (structured items included).
+    if (viewing) {
+        const rv = viewing.result
+        const counts = rv.items.reduce(
+            (acc, item) => {
+                acc[item.status] = (acc[item.status] || 0) + 1
+                return acc
+            },
+            {} as Record<ComplianceStatus, number>,
+        )
+        return (
+            <div
+                style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minHeight: 0,
+                    flex: 1,
+                    padding: 12,
+                    overflow: 'hidden',
+                }}
+            >
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <MaterialIcon type="history" fontSize={16} style={{ color: MUTED, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0, fontSize: '0.85em', color: MUTED, overflowWrap: 'anywhere' }}>
+                        {t('saved_run_note', 'Saved run from')} {new Date(viewing.finishedAt).toLocaleString()}
+                    </div>
+                    <OLButton variant="secondary" size="sm" onClick={() => setViewing(null)} title={t('back_to_live', 'Back')}>
+                        <MaterialIcon type="close" fontSize={16} />
+                    </OLButton>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '10px 0 8px' }}>
+                    <OLButton variant="secondary" type="button" onClick={() => downloadSaved(viewing)}>
+                        <MaterialIcon type="download" /> {t('download_report', 'Download report')}
+                    </OLButton>
+                </div>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: '0.85em', marginBottom: 8 }}>
+                    <span style={{ color: STATUS_STYLE.ok.color }}>{t('status_ok', 'OK')}: {counts.ok || 0}</span>
+                    <span style={{ color: STATUS_STYLE.partial.color }}>{t('status_partial', 'Partial')}: {counts.partial || 0}</span>
+                    <span style={{ color: STATUS_STYLE.missing.color }}>{t('status_missing', 'Missing')}: {counts.missing || 0}</span>
+                    <span style={{ color: MUTED }}>{t('status_na', 'N/A')}: {counts.na || 0}</span>
+                </div>
+                {rv.summary && (
+                    <div
+                        style={{
+                            padding: 10,
+                            borderRadius: 6,
+                            background: 'rgba(125,125,125,0.14)',
+                            color: 'var(--content-primary-themed)',
+                            overflowWrap: 'anywhere',
+                        }}
+                    >
+                        {rv.summary}
+                    </div>
+                )}
+                <div style={{ color: MUTED, fontSize: '0.85em', margin: '6px 0' }}>
+                    {t('model_label', 'Model')}: {rv.model} · {t('rubric_label', 'Rubric')}: {rv.rubric?.name}
+                </div>
+                <div style={{ marginTop: 8, overflowY: 'auto', minHeight: 0, flex: 1 }}>
+                    {rv.items.map((item, idx) => (
+                        <ComplianceReportItem key={idx} item={item} />
+                    ))}
+                </div>
+            </div>
+        )
+    }
 
     if (!rubricsLoaded) {
         return (
@@ -354,35 +550,92 @@ function LLMCompliancePane() {
                 overflow: 'hidden',
             }}
         >
-            {/* Header row: rubric selector + run button. overleaf-lab (owner
-                request 2026-08-26): the model picker is gone — File → "Select
-                LLM Model" is the sole selection entry point. */}
+            {/* Header row: rubric selector + run button + history. overleaf-lab
+                (owner request 2026-08-26): the model picker is gone — File →
+                "Select LLM Model" is the sole selection entry point. */}
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <select
-                    className="form-select"
-                    value={selectedRubricId}
-                    onChange={e => setSelectedRubricId(e.target.value)}
-                    disabled={isActive}
-                    aria-label={t('review_rubric', 'Review rubric')}
-                    style={{ flex: 1, minWidth: 0 }}
-                >
-                    {rubrics.map(rubric => (
-                        <option key={rubric.id} value={rubric.id}>
-                            {rubric.name}
-                        </option>
-                    ))}
-                </select>
-                {showRunButton && (
-                    <OLButton
-                        variant="primary"
-                        type="button"
-                        onClick={() => runReview(selectedModel || undefined)}
-                        disabled={!selectedRubricId}
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <select
+                        className="form-select"
+                        value={selectedRubricId}
+                        onChange={e => setSelectedRubricId(e.target.value)}
+                        disabled={isActive}
+                        aria-label={t('review_rubric', 'Review rubric')}
+                        style={{ flex: 1, minWidth: 0 }}
                     >
-                        <MaterialIcon type="fact_check" />{' '}
-                        {t('run_review', 'Run review')}
-                    </OLButton>
-                )}
+                        {rubrics.map(rubric => (
+                            <option key={rubric.id} value={rubric.id}>
+                                {rubric.name}
+                            </option>
+                        ))}
+                    </select>
+                    {showRunButton && (
+                        <OLButton
+                            variant="primary"
+                            type="button"
+                            onClick={() => runReview(selectedModel || undefined)}
+                            disabled={!selectedRubricId}
+                        >
+                            <MaterialIcon type="fact_check" />{' '}
+                            {t('run_review', 'Run review')}
+                        </OLButton>
+                    )}
+                </div>
+                {/* overleaf-lab (2026-11): the review-run history (owner request: it was
+                    missing) — completed runs persist here, per project. */}
+                <div id="review-run-history-anchor" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <Dropdown show={menuOpen} onHide={() => setMenuOpen(false)} onShow={() => setMenuOpen(true)}>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <OLTooltip id="review-run-history" description={t('review_history', 'Review history')} overlayProps={{ placement: 'bottom' }}>
+                                <OLIconButton
+                                    className="rail-panel-header-button-subdued"
+                                    icon="history"
+                                    size="sm"
+                                    onClick={() => setMenuOpen(open => !open)}
+                                />
+                            </OLTooltip>
+                            <DropdownMenu ref={menuRef} className="review-history-menu" style={{ maxHeight: '55vh', overflowY: 'auto' }}>
+                                {runs.length === 0 && (
+                                    <DropdownItem disabled>{t('review_no_history', 'No finished reviews yet')}</DropdownItem>
+                                )}
+                                {runs.slice(0, 15).map(run => {
+                                    const rc = run.result.items.reduce((acc: Record<string, number>, it) => { acc[it.status] = (acc[it.status] || 0) + 1; return acc }, {} as Record<string, number>)
+                                    return (
+                                        <div key={run.id} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                            <DropdownItem
+                                                style={{ flex: 1, textAlign: 'left', minWidth: 0 }}
+                                                onClick={() => openRun(run)}
+                                            >
+                                                <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
+                                                    {run.result.rubric?.name || t('review', 'Review')}
+                                                </span>
+                                                <span style={{ fontSize: 11, opacity: 0.65 }}>
+                                                    {relativeTime(run.finishedAt)} · {rc.ok || 0}✓ {rc.partial || 0}~ {rc.missing || 0}✗
+                                                </span>
+                                            </DropdownItem>
+                                            <OLIconButton
+                                                size="sm"
+                                                icon="delete"
+                                                unfilled
+                                                accessibilityLabel={t('delete_run', 'Delete this saved run')}
+                                                onClick={() => deleteRun(run.id)}
+                                            />
+                                        </div>
+                                    )
+                                })}
+                                <hr className="dropdown-divider" />
+                                <DropdownItem
+                                    disabled={runs.length === 0}
+                                    onClick={clearAllRuns}
+                                    style={{ color: 'var(--error-color, #dc3545)' }}
+                                >
+                                    <MaterialIcon type="delete_sweep" fontSize={16} />
+                                    {t('clear_all_runs', 'Clear all review history…')}
+                                </DropdownItem>
+                            </DropdownMenu>
+                        </div>
+                    </Dropdown>
+                </div>
             </div>
 
             {/* overleaf-lab: queued state - position note + cancel */}

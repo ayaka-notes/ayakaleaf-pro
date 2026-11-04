@@ -14,12 +14,10 @@
 // shared by all: lane resolution (per-task model selection), admin kill
 // switches (llmDisabledByAdmin + per-feature flags), per-user budget, and the
 // single usage ledger (LLMUsage).
-import React, { useState } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
-import MaterialIcon from '@/shared/components/material-icon'
 import RailPanelHeader from '@/features/ide-react/components/rail/rail-panel-header'
 import LLMCompliancePane from './llm-compliance-pane'
-import LLMReviewChat from './llm-review-chat'
 import { RailElement } from '@/features/ide-react/util/rail-types'
 import getMeta from '@/utils/meta'
 import { useLLMFeatures } from '../hooks/use-llm-features'
@@ -29,55 +27,14 @@ function LLMPane() {
     const { t } = useTranslation()
     const features = useLLMFeatures()
     const reviewVisible = features.reviewEnabled
-    // overleaf-lab (2026-11, owner request): the review pane now has TWO
-    // surfaces — Check (the rubric run, unchanged) and Chat (its OWN
-    // conversation + history, on the 'review' task lane). Both stay MOUNTED
-    // (hidden via CSS) so switching tabs never drops the chat state or timer.
-    const [tab, setTab] = useState<'check' | 'chat'>('check')
-
-    const tabButton = (key: 'check' | 'chat', label: string, icon: string): React.ReactElement => (
-        <button
-            type="button"
-            key={key}
-            onClick={() => setTab(key)}
-            aria-pressed={tab === key}
-            style={{
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                padding: '8px 4px',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: 13,
-                background: tab === key
-                    ? 'var(--brand-primary, #0d6efd)'
-                    : 'transparent',
-                color: tab === key
-                    ? 'var(--white, #fff)'
-                    : 'var(--content-primary-themed)',
-                borderRadius: 6,
-            }}
-        >
-            <MaterialIcon type={icon} fontSize={16} />
-            {label}
-        </button>
-    )
+    // overleaf-lab (2026-11, owner decision): the AI check stays a SEPARATE
+    // single-surface window (the compliance runner + its review-run history).
+    // The AI assistant in the workbench is the chat window. No tabs, no
+    // fusion of the two panes.
 
     return (
-        <div className="llm-rail-pane" style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <div className="llm-rail-pane">
             <RailPanelHeader title={t('ai_check', 'AI check')} />
-            <div
-                style={{
-                    display: 'flex',
-                    gap: 4,
-                    padding: '8px 12px 0',
-                }}
-            >
-                {tabButton('check', t('review_tab_check', 'Check'), 'fact_check')}
-                {tabButton('chat', t('review_tab_chat', 'Chat'), 'chat')}
-            </div>
             {features.loaded && !reviewVisible ? (
                 // overleaf-lab: the admin disabled compliance review for this
                 // project, so there is nothing to show here. (Chat has its own
@@ -96,34 +53,17 @@ function LLMPane() {
                     )}
                 </div>
             ) : (
-                <>
-                    <div
-                        style={{
-                            display: tab === 'check'
-                                ? 'flex'
-                                : 'none',
-                            flexDirection: 'column',
-                            flex: 1,
-                            minHeight: 0,
-                            overflow: 'hidden',
-                        }}
-                    >
-                        <LLMCompliancePane />
-                    </div>
-                    <div
-                        style={{
-                            display: tab === 'chat'
-                                ? 'flex'
-                                : 'none',
-                            flexDirection: 'column',
-                            flex: 1,
-                            minHeight: 0,
-                            overflow: 'hidden',
-                        }}
-                    >
-                        <LLMReviewChat />
-                    </div>
-                </>
+                <div
+                    style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        flex: 1,
+                        minHeight: 0,
+                        overflow: 'hidden',
+                    }}
+                >
+                    <LLMCompliancePane />
+                </div>
             )}
         </div>
     )
