@@ -10,7 +10,7 @@
  * Switching a conversation starts a ChatView seeded with the stored turns;
  * tool results and editor context re-attach on the next user message.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuid } from 'uuid'
 import type { UIMessage } from 'ai'
@@ -254,6 +254,47 @@ export default function AssistantPanel() {
     opacity: 0.65,
   }
 
+  // overleaf-lab (2026-11, owner report: "z level still broken, most of it is
+  // blocked"): the REAL cause was clipping, not z-index — the rail panel
+  // container (#ide-redesign-sidebar-panel-workbench) has overflow:hidden, and
+  // the Popper menu opened wider than the panel, so everything past the panel
+  // edge was CLIPPED and the editor behind showed through. Fix: keep the menu
+  // inside the panel bounds. Popper is disabled (usePopper={false}) and the
+  // menu is positioned fixed (inline, nothing to override it) at the panel's
+  // left edge, below the header, width-capped to the panel width. Being inside
+  // the header's 1060 stacking context it also wins the paint war over the
+  // editor (z0) where their boxes overlap.
+  const menuRef = useRef<HTMLUListElement | null>(null)
+  useLayoutEffect(() => {
+    if (!historyOpen) return
+    const menu = menuRef.current
+    if (!menu) return
+    const position = () => {
+      const panel =
+        document.getElementById('ide-redesign-sidebar-panel-workbench') ||
+        document.querySelector('[data-assistant-panel]')
+      if (!panel) return
+      const bounds = panel.getBoundingClientRect()
+      const header = menu.closest('.rail-panel-header')
+      const headerBottom = header ? header.getBoundingClientRect().bottom : bounds.top + 44
+      const width = Math.min(330, bounds.width - 16)
+      menu.style.position = 'fixed'
+      menu.style.left = `${Math.round(bounds.left + 8)}px`
+      menu.style.top = `${Math.round(headerBottom + 4)}px`
+      menu.style.width = `${Math.round(width)}px`
+      menu.style.maxWidth = `${Math.round(width)}px`
+      menu.style.transform = 'none'
+    }
+    position()
+    const close = () => setHistoryOpen(false)
+    window.addEventListener('resize', close)
+    window.addEventListener('scroll', close, true)
+    return () => {
+      window.removeEventListener('resize', close)
+      window.removeEventListener('scroll', close, true)
+    }
+  }, [historyOpen])
+
   return (
     <div className="d-flex flex-column h-100" data-assistant-panel="">
       <RailPanelHeader
@@ -267,7 +308,13 @@ export default function AssistantPanel() {
                 icon="history"
                 onClick={() => setHistoryOpen(open => !open)}
               />
-              <DropdownMenu style={{ maxWidth: 330, maxHeight: '60vh', overflowY: 'auto' }}>
+              <DropdownMenu
+                ref={menuRef}
+                // no Popper: it positioned the menu past the panel edge where the
+                // panel's overflow:hidden clipped it (see useLayoutEffect above)
+                {...({ usePopper: false } as object)}
+                style={{ maxHeight: '60vh', overflowY: 'auto' }}
+              >
                 {conversations.length === 0 && (
                   <div style={listLabelStyle}>{t('no_chat_history_yet', 'No archived chats yet')}</div>
                 )}
