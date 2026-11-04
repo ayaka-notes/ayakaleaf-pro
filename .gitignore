@@ -15,3 +15,5 @@ docker-compose.override.yml
 .pi/
 services/web/.cache/
 services/web/node_modules/
+services/web/public/*.mjs
+services/web/public/*.mjs.LICENSE.txt
