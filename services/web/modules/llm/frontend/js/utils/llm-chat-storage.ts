@@ -30,6 +30,11 @@ export interface StoredConversation {
 
 export interface ProjectHistory {
     projectId: string
+    // overleaf-lab (2026-11, owner request): which surface owns this history —
+    // 'assistant' (the shared key, legacy) or 'review' (the AI-check pane's
+    // own chat). Non-default scopes use `${projectId}/${scope}` as the store
+    // key so the two histories never mix.
+    scope?: string
     activeId: string | null
     conversations: StoredConversation[]
 }
@@ -135,11 +140,15 @@ function clampHistory(history: ProjectHistory): ProjectHistory {
     return { ...history, conversations }
 }
 
-export async function loadProject(projectId: string): Promise<ProjectHistory | null> {
+export async function loadProject(projectId: string, scope?: string): Promise<ProjectHistory | null> {
     if (!isAvailable()) return null
     try {
         const db = await openDB()
-        const value = await toPromise(db.transaction(STORE, 'readonly').objectStore(STORE).get(projectId))
+        // overleaf-lab (2026-11): scope-aware key — non-default scopes go to
+        // `${projectId}/${scope}`; the default keeps the LEGACY bare key so the
+        // assistant's existing history reads back unchanged.
+        const key = scope && scope !== 'assistant' ? `${projectId}/${scope}` : projectId
+        const value = await toPromise(db.transaction(STORE, 'readonly').objectStore(STORE).get(key))
         if (!value || !Array.isArray(value.conversations)) return null
         return value as ProjectHistory
     }
@@ -153,7 +162,13 @@ export async function saveProject(history: ProjectHistory): Promise<boolean> {
     try {
         const db = await openDB()
         const tx = db.transaction(STORE, 'readwrite')
-        tx.objectStore(STORE).put(clampHistory(history))
+        // overleaf-lab (2026-11): row carries its scope; the store KEY is scope-
+        // aware (assistant = legacy bare key, review = `${projectId}/review`).
+        const row = { ...history, scope: history.scope || 'assistant' }
+        const key = row.scope && row.scope !== 'assistant'
+            ? `${row.projectId}/${row.scope}`
+            : row.projectId
+        tx.objectStore(STORE).put(clampHistory(row), key)
         await new Promise<void>((resolve, reject) => {
             tx.oncomplete = () => resolve()
             tx.onerror = () => reject(tx.error || new Error('IDB save failed'))
@@ -166,12 +181,13 @@ export async function saveProject(history: ProjectHistory): Promise<boolean> {
     }
 }
 
-export async function clearProject(projectId: string): Promise<boolean> {
+export async function clearProject(projectId: string, scope?: string): Promise<boolean> {
     if (!isAvailable()) return false
     try {
         const db = await openDB()
         const tx = db.transaction(STORE, 'readwrite')
-        tx.objectStore(STORE).delete(projectId)
+        const key = scope && scope !== 'assistant' ? `${projectId}/${scope}` : projectId
+        tx.objectStore(STORE).delete(key)
         await new Promise<void>((resolve, reject) => {
             tx.oncomplete = () => resolve()
             tx.onerror = () => reject(tx.error || new Error('IDB delete failed'))

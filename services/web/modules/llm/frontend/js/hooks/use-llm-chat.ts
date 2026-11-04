@@ -92,13 +92,22 @@ const SYSTEM_PROMPT = `You are an expert LaTeX debugging assistant and compiler 
 
 Remember: The user is likely frustrated. Be encouraging and clear!`
 
-export const useLLMChat = () => {
+export const useLLMChat = (
+    options: { scope?: string; systemPrompt?: string; task?: string } = {},
+) => {
     const projectId = getMeta('ol-project_id')
+    // overleaf-lab (2026-11, owner request): the review pane runs this SAME
+    // hook with scope 'review' — its history lives under its OWN store key
+    // (`<project>/review`) and its lane under the 'review' task slot, so the
+    // assistant's history and shared selection stay untouched.
+    const scope = options.scope || 'assistant'
+    const sysPrompt = options.systemPrompt || SYSTEM_PROMPT
+    const task = options.task || 'chat'
 
     const [messages, setMessages] = useState<Message[]>([
         {
             role: 'system',
-            content: SYSTEM_PROMPT,
+            content: sysPrompt,
         },
     ])
     const [isLoading, setIsLoading] = useState(false)
@@ -240,6 +249,7 @@ export const useLLMChat = () => {
                 projectId,
                 activeId: convId,
                 conversations: list,
+                scope,
             })
         },
         [projectId, refreshMeta],
@@ -294,6 +304,10 @@ export const useLLMChat = () => {
                         // chat, ask-AI, review, generators and compile-fix all
                         // run on exactly the user's chosen model.
                         messages: newMessages,
+                        // overleaf-lab (2026-11): task-aware lanes — the review
+                        // pane sends task:'review' so its File→"Select LLM
+                        // Task" → Review slot is honored (default stays 'chat').
+                        task,
                     },
                     signal: abortControllerRef.current.signal,
                     swallowAbortError: false,
@@ -408,7 +422,7 @@ export const useLLMChat = () => {
             activeConversationIdRef.current = id
             setActiveConversationId(id)
             setMessages([
-                { role: 'system', content: SYSTEM_PROMPT },
+                { role: 'system', content: sysPrompt },
                 ...conv.messages
                     .filter(m => m.role === 'user' || m.role === 'assistant')
                     .map(m => ({ role: m.role, content: m.content })),
@@ -423,10 +437,11 @@ export const useLLMChat = () => {
                     projectId,
                     activeId: id,
                     conversations: storedRef.current.conversations,
+                    scope,
                 })
             }
         },
-        [projectId],
+        [projectId, scope, sysPrompt],
     )
 
     // overleaf-lab (issue #119): delete one conversation (+ reset the pane if
@@ -440,7 +455,7 @@ export const useLLMChat = () => {
                 activeConversationIdRef.current = null
                 storedRef.current.activeId = null
                 setActiveConversationId(null)
-                setMessages([{ role: 'system', content: SYSTEM_PROMPT }])
+                setMessages([{ role: 'system', content: sysPrompt }])
                 setError(null)
                 setLastUserMessage('')
             }
@@ -450,10 +465,11 @@ export const useLLMChat = () => {
                     projectId,
                     activeId: activeConversationIdRef.current,
                     conversations: storedRef.current.conversations,
+                    scope,
                 })
             }
         },
-        [projectId, refreshMeta],
+        [projectId, scope, sysPrompt, refreshMeta],
     )
 
     // overleaf-lab (issue #119): wipe every stored conversation for the project
@@ -464,12 +480,12 @@ export const useLLMChat = () => {
             activeConversationIdRef.current = null
             setConversations([])
             setActiveConversationId(null)
-            setMessages([{ role: 'system', content: SYSTEM_PROMPT }])
+            setMessages([{ role: 'system', content: sysPrompt }])
             setError(null)
             setLastUserMessage('')
-            if (projectId) await clearProject(projectId)
+            if (projectId) await clearProject(projectId, scope)
         },
-        [projectId],
+        [projectId, scope, sysPrompt],
     )
 
     // overleaf-lab (issue #119): export the current conversation as Markdown
@@ -538,7 +554,7 @@ export const useLLMChat = () => {
                     )
                     if (body.length) {
                         setMessages([
-                            { role: 'system', content: SYSTEM_PROMPT },
+                            { role: 'system', content: sysPrompt },
                             ...body.map(m => ({ role: m.role, content: m.content })),
                         ])
                         const lastUser = [...body].reverse().find(m => m.role === 'user')

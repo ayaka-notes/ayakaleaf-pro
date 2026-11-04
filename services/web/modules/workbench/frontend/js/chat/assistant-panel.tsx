@@ -237,23 +237,6 @@ export default function AssistantPanel() {
     setHistoryOpen(false)
   }
 
-  if (!view) return null
-
-  const close = () => {
-    setOpen(false)
-    // The shared rail header also closes the rail; only right for a left dock
-    if (side === 'left') setIsOpen(false)
-    else setIsOpen(isOpen)
-  }
-
-  const listLabelStyle = {
-    padding: '6px 12px',
-    fontSize: 11,
-    textTransform: 'uppercase',
-    letterSpacing: '0.04em',
-    opacity: 0.65,
-  }
-
   // overleaf-lab (2026-11, owner report: "z level still broken, most of it is
   // blocked"): the REAL cause was clipping, not z-index — the rail panel
   // container (#ide-redesign-sidebar-panel-workbench) has overflow:hidden, and
@@ -264,9 +247,11 @@ export default function AssistantPanel() {
   // left edge, below the header, width-capped to the panel width. Being inside
   // the header's 1060 stacking context it also wins the paint war over the
   // editor (z0) where their boxes overlap.
+  // NOTE: hooks must run BEFORE the `if (!view) return null` early return
+  // (React #310: a conditional hook order crashed the whole rail).
   const menuRef = useRef<HTMLUListElement | null>(null)
   useLayoutEffect(() => {
-    if (!historyOpen) return
+    if (!historyOpen || !view) return
     const menu = menuRef.current
     if (!menu) return
     const position = () => {
@@ -293,7 +278,24 @@ export default function AssistantPanel() {
       window.removeEventListener('resize', close)
       window.removeEventListener('scroll', close, true)
     }
-  }, [historyOpen])
+  }, [historyOpen, view])
+
+  if (!view) return null
+
+  const close = () => {
+    setOpen(false)
+    // The shared rail header also closes the rail; only right for a left dock
+    if (side === 'left') setIsOpen(false)
+    else setIsOpen(isOpen)
+  }
+
+  const listLabelStyle = {
+    padding: '6px 12px',
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+    opacity: 0.65,
+  }
 
   return (
     <div className="d-flex flex-column h-100" data-assistant-panel="">

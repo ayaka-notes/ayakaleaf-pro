@@ -273,7 +273,9 @@ async function chat(req, res) {
     let spec
     let model
     try {
-        const resolved = await resolveLane(userId, parseModelRef(modelRefString))
+        // overleaf-lab (2026-11): task-aware — the review pane sends task:'review'
+        // (see the handler above) so its per-task model slot is honored.
+        const resolved = await resolveLane(userId, parseModelRef(modelRefString), task)
         lane = resolved.lane
         spec = resolved.spec
         model = resolved.model

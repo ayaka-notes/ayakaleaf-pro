@@ -595,3 +595,20 @@
         }
     }
 }
+
+// overleaf-lab (2026-11, owner request): the review pane's chat + its history
+// menu. The rail panel container has overflow:hidden, so the menu (anchored at
+// the right-hand header button, dropdown-menu-end) stays inside the panel —
+// no clipping, no overflow into the editor.
+.review-history-menu {
+  max-width: min(320px, 88vw);
+}
+.review-history-menu .dropdown-item {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+[data-review-chat] textarea {
+  flex: 1;
+  resize: none;
+  font-size: 0.9em;
+}
