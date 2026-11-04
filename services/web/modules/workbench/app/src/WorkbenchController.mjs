@@ -18,6 +18,7 @@ import {
   getMaxSteps,
   SYSTEM_PROMPT,
 } from './WorkbenchAiClient.mjs'
+import { resolveWorkbenchLane } from './LlmBridge.mjs'
 import { CLIENT_TOOLS, convertWorkbenchMessages } from './WorkbenchTools.mjs'
 import { WEB_SEARCH_TOOL, isWebSearchConfigured } from './WebSearchTool.mjs'
 import { DOCS_SEARCH_TOOL, isDocsSearchConfigured } from './DocsSearchTool.mjs'
@@ -66,10 +67,16 @@ function hasValidAttachments(messages) {
 async function chat(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
 
-  if (!isConfigured()) {
+  // overleaf-lab (2026-11, BYO phase 1): the request may run on the operator
+  // gateway (legacy) or on this user's resolved LLM lane (BYO row / site
+  // provider) when the operator gateway is not set. Both paths below use the
+  // same provider/model plumbing.
+  const lane = await resolveWorkbenchLane(userId).catch(() => null)
+
+  if (!isConfigured() && !lane) {
     logger.warn(
       { userId },
-      'workbench AI chat requested but no AI gateway is configured (set AI_BASE_URL / AI_API_KEY / AI_MODEL)'
+      'workbench AI chat requested but no AI gateway is configured (set AI_BASE_URL / AI_API_KEY / AI_MODEL) and no user LLM lane resolved'
     )
     // The client uses 403 responses to display the AI-unavailable notice.
     return res.status(403).json({ error: 'ai_not_configured' })
@@ -168,12 +175,14 @@ async function chat(req, res) {
     system += `\n\nThe earlier part of this conversation was summarized:\n\n${historySummary}`
   }
 
-  const resolvedModel = resolveModel(history)
+  const resolvedModel = resolveModel(history, lane)
 
   try {
     const result = streamText({
       model: wrapLanguageModel({
-        model: getProvider()(resolvedModel),
+        model: getProvider(
+          lane ? { baseURL: lane.baseURL, apiKey: lane.apiKey } : undefined
+        )(resolvedModel),
         middleware: toolCallLimit.middleware,
       }),
       system,

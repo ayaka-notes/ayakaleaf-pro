@@ -3,6 +3,7 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import nodeFetch from 'node-fetch'
 import { Readable } from 'node:stream'
+import { createHash } from 'node:crypto'
 
 /**
  * Configures the AI SDK provider, optional HTTP proxy, and model selection
@@ -51,22 +52,31 @@ function _getProxyFetch() {
   return _proxyFetch
 }
 
-/** Lazily build (and cache) the OpenAI-compatible provider. */
-export function getProvider() {
-  if (!_provider) {
+/** Lazily build (and cache) the OpenAI-compatible provider.
+ * overleaf-lab (2026-11, BYO phase 1): a per-gateway cache — the workbench
+ * chat may run against the operator gateway OR a user BYO/site lane resolved
+ * per request (LlmBridge.mjs); each (baseURL, apiKey) pair gets its own
+ * provider instance, the operator defaults remain for calls without a cfg. */
+const _providers = new Map()
+
+export function getProvider(cfg = null) {
+  const baseURL = cfg?.baseURL ?? Settings.workbenchAi?.baseURL
+  const apiKey = cfg?.apiKey ?? Settings.workbenchAi?.apiKey
+  const key = createHash('sha256').update(String(baseURL) + '|' + String(apiKey)).digest('hex')
+  if (!_providers.has(key)) {
     const config = {
       name: 'workbench',
-      baseURL: Settings.workbenchAi.baseURL,
-      apiKey: Settings.workbenchAi.apiKey,
+      baseURL,
+      apiKey,
       includeUsage: true,
     }
     const proxyFetch = _getProxyFetch()
     if (proxyFetch) {
       config.fetch = proxyFetch
     }
-    _provider = createOpenAICompatible(config)
+    _providers.set(key, createOpenAICompatible(config))
   }
-  return _provider
+  return _providers.get(key)
 }
 
 /** Whether a user attached a PDF anywhere in the conversation. */
@@ -80,8 +90,15 @@ export function hasPdf(messages = []) {
 
 /**
  * Selects the instance's configured text, image or PDF model for a request.
+ * overleaf-lab (2026-11, BYO phase 1): when a resolved user lane (BYO row or
+ * site provider) is passed, its model is used for the whole conversation —
+ * the user's gateway defines its own capabilities; the operator pdfModel/
+ * imageModel overrides apply to the operator gateway only.
  */
-export function resolveModel(messages = []) {
+export function resolveModel(messages = [], lane = null) {
+  if (lane?.model) {
+    return lane.model
+  }
   // Follow-up requests retain earlier attachments, so route the entire conversation.
   if (Settings.workbenchAi?.pdfModel && hasPdf(messages)) {
     return Settings.workbenchAi.pdfModel
