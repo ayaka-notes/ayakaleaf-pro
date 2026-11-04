@@ -2733,5 +2733,17 @@
   "zotero_sync_success_plural": "",
   "zotero_sync_up_to_date": "",
   "zotero_upgrade_prompt_content": "",
-  "zotero_upgrade_prompt_title": ""
+  "zotero_upgrade_prompt_title": "",
+  "edit_image": "",
+  "discard": "",
+  "keep_editing": "",
+  "retry": "",
+  "unsaved_image_changes": "",
+  "image_edit_failed": "",
+  "image_edit_upload_failed": "",
+  "image_edit_upload_read_failed": "",
+  "image_edit_backstop": "",
+  "image_edit_open_original": "",
+  "image_edit_loading": "",
+  "image_edit_save_hint": ""
 }
