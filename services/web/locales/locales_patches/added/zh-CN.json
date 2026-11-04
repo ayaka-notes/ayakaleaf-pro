@@ -6,6 +6,7 @@
   "checking_project_x_status": "正在检查__provider__中的项目状态",
   "create_project_in_x": "创建一个__provider__存储库",
   "export_project_to_x": "将项目导出到__provider__",
+  "format_document": "格式化文档",
   "import_from_x": "从__provider__导入",
   "importing_and_merging_changes_in_x": "正在导入合并__provider__中的更改",
   "link_to_x": "建立与您的__provider__账户的关联",

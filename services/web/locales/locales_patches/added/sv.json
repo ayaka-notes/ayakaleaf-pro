@@ -6,6 +6,7 @@
   "checking_project_x_status": "Kontrollerar projektstatus på __provider__",
   "create_project_in_x": "Skapa ett __provider__ repo",
   "export_project_to_x": "Exportera Projekt till __provider__",
+  "format_document": "Formatera dokument",
   "import_from_x": "Importera från __provider__",
   "importing_and_merging_changes_in_x": "Importerar och slår samman ändringar i __provider__",
   "link_to_x": "Länk till ditt __provider__ konto",

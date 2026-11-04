@@ -6,6 +6,7 @@
   "checking_project_x_status": "Projenin __provider__’daki durumu kontrol ediliyor",
   "create_project_in_x": "__provider__ deposu oluştur",
   "export_project_to_x": "Projeyi __provider__’a yükle",
+  "format_document": "Belgeyi biçimlendir",
   "import_from_x": "__provider__’dan yükle",
   "importing_and_merging_changes_in_x": "Değişiklikler __provider__’a aktarılıyor",
   "link_to_x": "__provider__ hesabınız ile bağlantı oluşturun",

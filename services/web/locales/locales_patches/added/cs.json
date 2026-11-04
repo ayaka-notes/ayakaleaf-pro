@@ -6,6 +6,7 @@
   "checking_project_x_status": "Kontroluji stav projektu na __provider__u",
   "create_project_in_x": "Vytvořit __provider__ repozitář.",
   "export_project_to_x": "Exportovat projekt do __provider__u",
+  "format_document": "Formátovat dokument",
   "import_from_x": "Importovat z __provider__u",
   "importing_and_merging_changes_in_x": "Importuji a merguji změny v __provider__u",
   "link_to_x": "Spojit s vašim __provider__ účtem",

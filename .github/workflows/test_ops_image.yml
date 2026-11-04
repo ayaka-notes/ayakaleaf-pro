@@ -49,6 +49,7 @@ jobs:
             sandboxed-compiles,
             pandoc,
             symbol-palette,
+            autoformatter,
             template-gallery,
             git-bridge,
             mcp-server,

@@ -6,6 +6,7 @@
   "checking_project_x_status": "__provider__のプロジェクトステータスを確認中",
   "create_project_in_x": "__provider__リポジトリの作成",
   "export_project_to_x": "プロジェクトを__provider__にエクスポート",
+  "format_document": "ドキュメントのフォーマット",
   "import_from_x": "__provider__からインポート",
   "importing_and_merging_changes_in_x": "__provider__の変更をインポートおよび統合中",
   "link_to_x": "あなたの__provider__アカウントに接続",

@@ -6,6 +6,7 @@
   "checking_project_x_status": "Tarkistetaan projektin tilaa __provider__issa",
   "create_project_in_x": "Luo __provider__-repository",
   "export_project_to_x": "Vie Projekti __provider__iin",
+  "format_document": "Muotoile asiakirja",
   "import_from_x": "Tuo __provider__ista",
   "importing_and_merging_changes_in_x": "Tuodaan ja yhdistetään muutoksia __provider__issa",
   "link_to_x": "Linkitä __provider__-tiliisi",

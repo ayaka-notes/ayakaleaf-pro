@@ -6,6 +6,7 @@
   "checking_project_x_status": "__provider__에 프로젝트 상태 확인 중",
   "create_project_in_x": "__provider__ 저장소 만들기",
   "export_project_to_x": "__provider__으로 프로젝트 보내기",
+  "format_document": "문서 서식",
   "import_from_x": "__provider__에서 불러오기",
   "importing_and_merging_changes_in_x": "__provider__의 변경사항들을 불러오고 합칩니다",
   "link_to_x": "__provider__ 계정에 연결하기",

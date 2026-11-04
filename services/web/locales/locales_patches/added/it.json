@@ -6,6 +6,7 @@
   "checking_project_x_status": "Controllo dello stato del progetto __provider__",
   "create_project_in_x": "Crea un repository __provider__",
   "export_project_to_x": "Esporta Progetto in __provider__",
+  "format_document": "Formatta documento",
   "import_from_x": "Importa da __provider__",
   "importing_and_merging_changes_in_x": "Importazione e unione modifiche in __provider__",
   "link_to_x": "Collega il tuo account __provider__",

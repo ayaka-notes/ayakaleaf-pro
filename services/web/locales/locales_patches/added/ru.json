@@ -6,6 +6,7 @@
   "checking_project_x_status": "Проверка статуса проекта на __provider__",
   "create_project_in_x": "Создать проект на __provider__",
   "export_project_to_x": "Экспорт проекта на __provider__",
+  "format_document": "Форматировать документ",
   "import_from_x": "Импорт с __provider__",
   "importing_and_merging_changes_in_x": "Импорт и слияние изменений в __provider__",
   "link_to_x": "Привязать аккаунт на __provider__",
