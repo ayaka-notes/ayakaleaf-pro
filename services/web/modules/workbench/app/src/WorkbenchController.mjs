@@ -282,13 +282,16 @@ async function chat(req, res) {
 
     const onError = err => {
       logger.err({ err, userId }, 'workbench chat stream error')
-      // Gateways that take images but not PDF files refuse the request
+      // A rejected PDF request may be a gateway, a model or a request
+      // validation error — the status alone cannot identify the cause
+      // (ayakaleaf #122 follow-up, 2026-10-28). Route the notice by lane:
+      // BYO/site rows are the user's own choice, operator gateways are admin's.
       if (
         hasPdf(history) &&
         APICallError.isInstance(err) &&
         [400, 415, 422].includes(err.statusCode)
       ) {
-        return 'ai_pdf_not_supported'
+        return lane ? 'ai_pdf_not_supported_byo' : 'ai_pdf_not_supported_site'
       }
       return 'The AI service returned an error. Please try again.'
     }

@@ -214,12 +214,20 @@ export default function ChatView({
       } else if (error instanceof ToolBudgetError) {
         setProblem(error.message)
       } else if (error.message === 'ai_pdf_not_supported') {
-        // Set by the server when the model refused a chat with a PDF file.
-        // overleaf-lab (2026-11): lane-neutral — on BYO lanes the fix is the
-        // user's own Chat model choice (LLM settings), on operator gateways
-        // the admin's AI_PDF_MODEL; both boil down to "use a vision model".
+        // overleaf-lab (2026-11): legacy code path (pre split) — keep handling
+        setProblem('The current model cannot read PDF files. Choose a vision-capable model for Chat in LLM settings.')
+      } else if (error.message === 'ai_pdf_not_supported_site') {
+        // overleaf-lab (ayakaleaf #122 follow-up, 2026-10-28): operator gateway
+        // refused the PDF-bearing request — gateway file handling or the
+        // AI_PDF_MODEL configuration; the status alone cannot tell which.
         setProblem(
-          'The current model cannot read PDF files. Choose a vision-capable model for Chat in LLM settings.'
+          "The AI service rejected this request containing a PDF. Ask the administrator to check the gateway's PDF file support and the PDF model configuration."
+        )
+      } else if (error.message === 'ai_pdf_not_supported_byo') {
+        // BYO/site lane: the user's model choice (or a text-only model) is the
+        // cause — point at the two levers that work for them.
+        setProblem(
+          'The model for this chat rejected the PDF. Choose a PDF-capable model for Chat in LLM settings, or enable “Read images & PDF attachments as text (OCR)” in your LLM settings.'
         )
       } else {
         debugConsole.error(error)

@@ -99,9 +99,14 @@ export function resolveModel(messages = [], lane = null) {
   if (lane?.model) {
     return lane.model
   }
-  // Follow-up requests retain earlier attachments, so route the entire conversation.
-  if (Settings.workbenchAi?.pdfModel && hasPdf(messages)) {
-    return Settings.workbenchAi.pdfModel
+  // overleaf-lab (ayakaleaf #122 follow-up, upstream comment 2026-10-28): a PDF
+  // anywhere in the retained history routes the WHOLE conversation to the PDF
+  // route BEFORE the image route is considered — a vision model need not
+  // support PDF file parts (e.g. Qwen-VL on vLLM reads images but refuses
+  // 'file' parts). Previously, with AI_PDF_MODEL unset, a PDF+image history
+  // claimed the image route and landed PDFs on image-only models.
+  if (hasPdf(messages)) {
+    return Settings.workbenchAi?.pdfModel || Settings.workbenchAi?.model
   }
   if (
     Settings.workbenchAi?.imageModel &&
