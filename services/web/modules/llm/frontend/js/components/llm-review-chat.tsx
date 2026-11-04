@@ -9,7 +9,7 @@
 // It reuses the llm module's chat hook (scope 'review') — zero new server
 // surface: POST /llm/chat now accepts the task name (default 'chat' for all
 // existing callers; the server resolves the per-task model slot).
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import MaterialIcon from '@/shared/components/material-icon'
 import OLButton from '@/shared/components/ol/ol-button'
@@ -71,6 +71,43 @@ function LLMReviewChat() {
 
     const [input, setInput] = useState('')
     const [menuOpen, setMenuOpen] = useState(false)
+    const menuRef = useRef<HTMLUListElement | null>(null)
+
+    // overleaf-lab (2026-11, same lesson as the assistant's z-order fix):
+    // the rail panel container has overflow:hidden and is NARROWER than this
+    // menu (320px), so the right-edge-anchored menu clipped at the panel's
+    // left edge (icon + text cut, editor bleeding through). Position the menu
+    // fixed inside the panel bounds (width-capped to the panel) — no clipping,
+    // and it still wins the paint order over the editor.
+    useLayoutEffect(() => {
+        if (!menuOpen) return
+        const menu = menuRef.current
+        if (!menu) return
+        const position = () => {
+            const panel =
+                document.getElementById('ide-redesign-sidebar-panel-llm-chat') ||
+                document.querySelector('[data-review-chat]')
+            if (!panel) return
+            const bounds = panel.getBoundingClientRect()
+            const anchor = document.getElementById('review-history-anchor')
+            const top = anchor ? anchor.getBoundingClientRect().bottom + 4 : bounds.top + 40
+            const width = Math.min(320, bounds.width - 12)
+            menu.style.position = 'fixed'
+            menu.style.left = `${Math.round(bounds.left + 6)}px`
+            menu.style.top = `${Math.round(top)}px`
+            menu.style.width = `${Math.round(width)}px`
+            menu.style.maxWidth = `${Math.round(width)}px`
+            menu.style.transform = 'none'
+        }
+        position()
+        const close = () => setMenuOpen(false)
+        window.addEventListener('resize', close)
+        window.addEventListener('scroll', close, true)
+        return () => {
+            window.removeEventListener('resize', close)
+            window.removeEventListener('scroll', close, true)
+        }
+    }, [menuOpen])
 
     // auto-scroll on new content
     const scrollRef = useRef<HTMLDivElement | null>(null)
@@ -126,8 +163,8 @@ function LLMReviewChat() {
                             />
                         </OLTooltip>
                         <DropdownMenu
+                            ref={menuRef}
                             className="review-history-menu"
-                            align="end"
                             style={{ maxHeight: '55vh', overflowY: 'auto' }}
                         >
                             <DropdownItem onClick={newConversation}>
