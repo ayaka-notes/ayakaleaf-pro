@@ -7,7 +7,10 @@ import { z } from 'zod'
  * call to the client, which posts the result back with the next request.
  */
 
-const lineNumber = z.number().int().min(1)
+// coerce: BYO/open-model lanes (e.g. qwen3 via Ollama) often send line
+// numbers as strings ("1000"); z.coerce accepts "1000" and 1000 and still
+// rejects non-numeric input (NaN fails the checks below).
+const lineNumber = z.coerce.number().int().min(1)
 const docPath = z.string().min(1).describe('Path of the document in the project.')
 
 export const CLIENT_TOOLS = {
