@@ -76,7 +76,19 @@ function useFollowBottom(trigger: unknown) {
   return { box, onScroll }
 }
 
-export default function ChatView({ chatId, view }: { chatId: string; view: EditorView }) {
+export default function ChatView({
+  chatId,
+  view,
+  initialMessages,
+  onMessages,
+}: {
+  chatId: string
+  view: EditorView
+  /** overleaf-lab (merge phase 2): seeded turns when a stored conversation is opened. */
+  initialMessages?: UIMessage[]
+  /** overleaf-lab (merge phase 2): live message report for history persistence. */
+  onMessages?: (messages: UIMessage[]) => void
+}) {
   const {
     hasSuggestionsLeft,
     premiumSuggestionResetDate,
@@ -154,6 +166,9 @@ export default function ChatView({ chatId, view }: { chatId: string; view: Edito
               messages: messages.slice(from),
               summary: kept?.summary,
               enabledTools: SERVER_TOOLS,
+              // overleaf-lab (merge phase 3): let the shared usage ledger group
+              // workbench calls per project (same scoping as the llm endpoint).
+              projectId: getMeta('ol-project_id'),
             },
           }
         },
@@ -169,9 +184,18 @@ export default function ChatView({ chatId, view }: { chatId: string; view: Edito
     []
   )
 
-  const { messages, setMessages, sendMessage, addToolOutput, stop, status } = useChat({
+  const {
+    messages,
+    setMessages,
+    sendMessage,
+    addToolOutput,
+    stop,
+    status,
+  } = useChat({
     id: chatId,
     transport,
+    // overleaf-lab (merge phase 2): seeded from the stored conversation on open.
+    ...(initialMessages ? { messages: initialMessages } : {}),
     // A tool that ends after Stop must not start the next step
     sendAutomaticallyWhen: options =>
       !stopped.current && lastAssistantMessageIsCompleteWithToolCalls(options),
@@ -240,6 +264,15 @@ export default function ChatView({ chatId, view }: { chatId: string; view: Edito
       }
     },
   })
+
+  // overleaf-lab (merge phase 2): report the live messages upward so the panel
+  // can persist them (debounced there). The initial report covers seeded turns.
+  const onMessagesRef = useRef(onMessages)
+  onMessagesRef.current = onMessages
+  useEffect(() => {
+    onMessagesRef.current?.(messages)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages])
 
   // A new chat must not keep running when the panel goes away
   const stopRef = useRef(stop)
