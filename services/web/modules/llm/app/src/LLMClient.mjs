@@ -297,7 +297,12 @@ function recordCall(options, spec, usage) {
   }
 }
 
-function commonCallOptions(options, { defaultMaxRetries = 1 } = {}) {
+function commonCallOptions(options, { defaultMaxRetries = 2 } = {}) {
+  // overleaf-lab (2026-11, owner report): provider gateways flap in 5-20s bursts
+  // (observed: academiccloud 502 for ~20s, then the same call succeeded). The
+  // AI SDK retries transient statuses (429/5xx) with exponential backoff; two
+  // in-band retries absorb the short bursts, longer ones still surface the
+  // actionable retry message.
   return {
     temperature: options.temperature,
     maxOutputTokens: options.maxOutputTokens,
@@ -344,7 +349,7 @@ export async function chatObject(spec, messages, schema, options = {}) {
       schema: toStandardSchema(schema),
       system,
       messages: coreMessages,
-      ...commonCallOptions(options, { defaultMaxRetries: 0 })
+      ...commonCallOptions(options, { defaultMaxRetries: 1 })
     });
     const object = result.object;
     const usage = usageOf(result);
