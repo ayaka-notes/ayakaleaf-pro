@@ -3,6 +3,11 @@ import { expressify } from '@overleaf/promise-utils'
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
 import UserGetter from '../../../../app/src/Features/User/UserGetter.mjs'
 import { userHasLlmLane } from './LlmBridge.mjs'
+// overleaf-lab (merge phase 3): the admin feature flags — the chat toggle now
+// governs the workbench assistant like every other surface. Read lazily per
+// request so a flag change takes effect without a restart (it is a JSON file
+// in Settings.llm.adminSettings, read by the llm module per call).
+import { getLLMFeatureFlags } from '../../../llm/app/src/LLMAdminController.mjs'
 
 export async function getAiAccess(userId) {
   const denied = { chat: false, errorAssistant: false }
@@ -11,6 +16,15 @@ export async function getAiAccess(userId) {
   // Read current permissions so an admin can revoke access to an open session.
   const user = await UserGetter.promises.getUser(userId, { aiFeatures: 1 })
   if (!user || user.aiFeatures?.enabled === false) return denied
+
+  // overleaf-lab (merge phase 3): one admin switch for chat, every surface.
+  try {
+    const flags = await getLLMFeatureFlags()
+    if (flags && flags.chatEnabled === false) return denied
+  } catch {
+    // Flag read failed: keep the previous per-user resolution (fail open),
+    // matching the llm module's own enforcement style.
+  }
 
   if (Settings.workbenchAi?.enabled) {
     return { chat: true, errorAssistant: true }

@@ -10,6 +10,7 @@ import {
   DEFAULT_ASK_AI_SYSTEM_PROMPT,
   DEFAULT_ERROR_PROMPT,
   DEFAULT_REVIEW_SYSTEM_PROMPT,
+  DEFAULT_WORKBENCH_SYSTEM_PROMPT,
   DEFAULT_ASK_AI_ACTION_PROMPTS,
   mergeActionPrompts,
 } from './LLMPrompts.mjs' // overleaf-lab: editable prompt defaults + merge helper
@@ -119,11 +120,14 @@ async function buildDisplaySettings() {
     askAiSystemPrompt: settings.askAiSystemPrompt || DEFAULT_ASK_AI_SYSTEM_PROMPT,
     errorPrompt: settings.errorPrompt || DEFAULT_ERROR_PROMPT,
     reviewSystemPrompt: settings.reviewSystemPrompt || DEFAULT_REVIEW_SYSTEM_PROMPT,
+    // overleaf-lab (merge phase 4): the unified AI assistant (workbench) prompt.
+    workbenchSystemPrompt: settings.workbenchSystemPrompt || DEFAULT_WORKBENCH_SYSTEM_PROMPT,
     askAiActionPrompts: mergeActionPrompts(settings.askAiActionPrompts),
     promptDefaults: {
       askAiSystemPrompt: DEFAULT_ASK_AI_SYSTEM_PROMPT,
       errorPrompt: DEFAULT_ERROR_PROMPT,
       reviewSystemPrompt: DEFAULT_REVIEW_SYSTEM_PROMPT,
+      workbenchSystemPrompt: DEFAULT_WORKBENCH_SYSTEM_PROMPT,
       askAiActionPrompts: DEFAULT_ASK_AI_ACTION_PROMPTS,
     },
   }
@@ -173,6 +177,8 @@ const llmSettingsSchema = z.object({
   askAiSystemPrompt: z.string().max(8000).optional(),
   errorPrompt: z.string().max(8000).optional(),
   reviewSystemPrompt: z.string().max(8000).optional(),
+  // overleaf-lab (merge phase 4): unified assistant (workbench) prompt override.
+  workbenchSystemPrompt: z.string().max(8000).optional(),
 
   // overleaf-lab: action prompts, when provided, must be a plain (non-array) object.
   askAiActionPrompts: z
@@ -217,6 +223,7 @@ async function saveAdminSettings(req, res) {
     askAiSystemPrompt,
     errorPrompt,
     reviewSystemPrompt,
+    workbenchSystemPrompt,
     askAiActionPrompts,
   } = safeBody.data
 
@@ -313,6 +320,8 @@ async function saveAdminSettings(req, res) {
     askAiSystemPrompt: typeof askAiSystemPrompt === 'string' ? askAiSystemPrompt : (existing.askAiSystemPrompt || ''),
     errorPrompt: typeof errorPrompt === 'string' ? errorPrompt : (existing.errorPrompt || ''),
     reviewSystemPrompt: typeof reviewSystemPrompt === 'string' ? reviewSystemPrompt : (existing.reviewSystemPrompt || ''),
+    // overleaf-lab (merge phase 4): same empty-string-means-default rule.
+    workbenchSystemPrompt: typeof workbenchSystemPrompt === 'string' ? workbenchSystemPrompt : (existing.workbenchSystemPrompt || ''),
     askAiActionPrompts: sanitizedActionPrompts,
   }
 
@@ -455,6 +464,8 @@ export async function getLLMPrompts() {
     askAiSystemPrompt: s.askAiSystemPrompt || DEFAULT_ASK_AI_SYSTEM_PROMPT,
     errorPrompt: s.errorPrompt || DEFAULT_ERROR_PROMPT,
     reviewSystemPrompt: s.reviewSystemPrompt || DEFAULT_REVIEW_SYSTEM_PROMPT,
+    // overleaf-lab (merge phase 4): workbench assistant prompt, same resolution.
+    workbenchSystemPrompt: s.workbenchSystemPrompt || DEFAULT_WORKBENCH_SYSTEM_PROMPT,
     askAiActionPrompts: mergeActionPrompts(s.askAiActionPrompts),
   }
 }

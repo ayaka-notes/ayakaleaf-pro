@@ -31,6 +31,17 @@ import {
   secondsUntilReset,
   recordTokenUsage,
 } from './TokenQuota.mjs'
+// overleaf-lab (2026-11, merge phases 3+4): ONE governance plane and ONE usage
+// ledger shared with every llm-module surface — the admin feature flags (the
+// chat toggle now governs this endpoint), the per-user budget guard, and the
+// LLMUsage ledger that feeds the admin/user usage meters. The workbench prompt
+// comes from the same admin-editable prompt store.
+import {
+  getLLMFeatureFlags,
+  getLLMPrompts,
+} from '../../../llm/app/src/LLMAdminController.mjs'
+import { guardLLMCall } from '../../../llm/app/src/LLMBudget.mjs'
+import { recordUsage } from '../../../llm/app/src/LLMUsage.mjs'
 
 function hasValidAttachments(messages) {
   return messages.every(message =>
@@ -80,6 +91,34 @@ async function chat(req, res) {
     )
     // The client uses 403 responses to display the AI-unavailable notice.
     return res.status(403).json({ error: 'ai_not_configured' })
+  }
+
+  // overleaf-lab (merge phase 3): the admin "chat" feature flag governs this
+  // endpoint like it governed the old chat pane — one switch, every surface.
+  // (A failed flag read fails open, matching the llm module's own behavior.)
+  try {
+    const flags = await getLLMFeatureFlags()
+    if (flags && flags.chatEnabled === false) {
+      return res.status(403).json({ error: 'feature_disabled', message: 'The chat feature is disabled' })
+    }
+  } catch {
+    // fail open; the flags are enforced by the llm endpoint the same way
+  }
+
+  // overleaf-lab (merge phase 3): the SAME per-user budget guard as every llm
+  // lane, applied to site-paid paths (operator gateway or site provider row).
+  // User-paid BYO rows are exempt: that budget is the user's own API spend,
+  // capped elsewhere by the tool-call limit and the workbench token quota.
+  let sitePaidBudget = null
+  const sitePaid = !lane || lane.lane === 'site'
+  if (sitePaid) {
+    try {
+      sitePaidBudget = await guardLLMCall(userId)
+    } catch (err) {
+      logger.warn({ err, userId, code: err?.code }, 'workbench chat budget guard rejected')
+      res.status(err?.code === 'llm-rate-limited' || err?.code === 'llm-budget' ? 429 : 503)
+      return res.json({ error: err?.code || 'llm-error', message: err?.message || 'LLM budget guard' })
+    }
   }
 
   // summary: the earlier turns, summarized by a previous request
@@ -132,7 +171,15 @@ async function chat(req, res) {
   if (webFetch) tools.web_fetch = WEB_FETCH_TOOL
 
   // Include instructions for the server tools available in this request.
-  let system = SYSTEM_PROMPT
+  // overleaf-lab (merge phase 4): the system prompt is the admin-effective
+  // value from the shared prompt store (override when set, else the shipped
+  // default); the tool instructions below are appended exactly as before.
+  let system
+  try {
+    system = (await getLLMPrompts()).workbenchSystemPrompt
+  } catch {
+    system = SYSTEM_PROMPT
+  }
   if (webSearch || webFetch) {
     // The model would otherwise take its training cutoff for today
     system += `\n\nToday is ${new Date().toISOString().slice(0, 10)}.`
@@ -194,6 +241,25 @@ async function chat(req, res) {
         if (userId) {
           await recordTokenUsage(userId, usage?.totalTokens)
         }
+        // overleaf-lab (merge phase 3): feed the ONE shared usage ledger — the
+        // admin and user meters (LLMUsage) cover the workbench now, by action
+        // 'workbench-chat' with the resolved lane and model for transparency.
+        recordUsage(
+          {
+            userId,
+            // The client sends the project id so the ledger can group per project.
+            projectId: req.body?.projectId,
+            action: 'workbench-chat',
+            lane: lane?.lane === 'user' ? 'user:byo' : lane?.lane === 'site' ? 'site' : 'operator',
+            model: resolvedModel || '',
+          },
+          {
+            inputTokens: usage?.inputTokens,
+            outputTokens: usage?.outputTokens,
+            totalTokens: usage?.totalTokens,
+          }
+        )
+        if (sitePaidBudget) sitePaidBudget.record(usage?.outputTokens)
       },
     })
 
