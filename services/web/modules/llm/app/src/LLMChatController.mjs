@@ -246,6 +246,11 @@ function sendError(res, err, fallbackStatus) {
 
 async function chat(req, res) {
     const { messages, model: modelRefString } = req.body
+    // overleaf-lab (2026-11): the client may name the TASK (default 'chat') so
+    // its per-task model slot (File → Select LLM Task → Review) applies.
+    const task = typeof req.body.task === 'string' && req.body.task.trim()
+        ? req.body.task.trim()
+        : 'chat'
     const projectId = req.params.Project_id
     const userId = SessionManager.getLoggedInUserId(req.session)
 
