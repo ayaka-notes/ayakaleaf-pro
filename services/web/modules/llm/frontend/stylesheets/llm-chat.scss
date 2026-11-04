@@ -52,38 +52,14 @@
     --llm-suggestions-max-width: 350px;
 }
 
-// overleaf-lab (owner request 2026-08-25): the `--llm-chat-*` chain has to be
-// re-resolved INSIDE the editor-theme scope. Custom properties are resolved
-// where they are DEFINED (:root), so the two-hop lookup
-// (--llm-chat-bg → --wf-panel-bg → --wf-editor-bg) froze the :root values
-// for everything rendered in the rail/toolbar scope. Defining the same names
-// one level closer (on .llm-wf-editor-scoped itself) makes the chain resolve
-// against the editor-derived --wf-* values on that element — the chat pane and
-// every chat surface then follow the Editor theme, exactly like the toolbar.
-.llm-wf-editor-scoped {
-    --llm-chat-bg: var(--wf-panel-bg, #fafafa);
-    --llm-chat-color: var(--wf-panel-text, #1e293b);
-    --llm-chat-text-color: var(--wf-panel-text, #1e293b);
-    --llm-chat-instructions-color: var(--wf-muted, #475569);
-    --llm-chat-new-message-bg: transparent;
-    --llm-chat-new-message-textarea-color: var(--wf-panel-text, #1e293b);
-    --llm-chat-new-message-textarea-bg: var(--wf-row-hi, #fff);
-    --llm-chat-new-message-textarea-border: var(--wf-border-in, #dfe5ec);
-    --llm-chat-new-message-border: var(--wf-panel-border, #e3e8ef);
-    --llm-chat-message-user-bg: var(--wf-accent, #28518f);
-    --llm-chat-message-user-text: #fff;
-    --llm-chat-message-assistant-bg: var(--wf-row-hi, #fff);
-    --llm-chat-message-assistant-text: var(--wf-panel-text, #1e293b);
-    --llm-chat-code-bg: var(--wf-code-bg, #f1f4f8);
-    --llm-chat-code-text: var(--wf-panel-text, #1e293b);
-    --llm-chat-suggestions-bg: var(--wf-row-hi, #fff);
-    --llm-chat-suggestions-color: var(--wf-panel-text, #1e293b);
-    --llm-chat-suggestions-title-color: var(--wf-muted, #475569);
-    --llm-chat-suggestion-item-bg: var(--wf-row-hi, #fff);
-    --llm-chat-suggestion-item-color: var(--wf-panel-text, #1e293b);
-    --llm-model-selector-label-color: var(--wf-muted, #475569);
-    --llm-model-selector-select-color: var(--wf-panel-text, #1e293b);
-}
+// overleaf-lab (2026-11, owner report "chat stuck light, dark broken"): the
+// 2026-08-25 re-resolution of --llm-chat-* on .llm-wf-editor-scoped is
+// REMOVED for the rail panel — that is exactly what forced the panel to the
+// EDITOR's light colors inside a DARK app theme. Policy: the rail panel is an
+// app-theme surface; its --llm-chat-* chain now resolves against the :root
+// (light) and [data-bs-theme='dark'] (dark) token values directly, so the
+// panel follows the app theme like every other IDE chrome. The editor
+// overlay keeps the editor theme via its own scoped tokens (llm-ui.scss).
 
 // overleaf-lab: dark-theme values for the --wf-* tokens. Top-level
 // [data-bs-theme=dark] (attribute on <html>, the same selector shape the app
@@ -294,10 +270,21 @@
         }
 
         &.llm-history-row-active .llm-history-row-title::before {
-            content: '● ';
-            color: var(--wf-btn-primary, #4f8df9);
-            font-size: 0.6em;
-            vertical-align: 2px;
+            /* overleaf-lab (2026-11): pure-CSS dot. dart-sass 1.77 emits a
+               leading BOM whenever the output contains any non-ASCII
+               (content: '●'); webpack then splices that BOM into the MIDDLE
+               of the bundled CSS, and Chromium stops parsing the rest of the
+               module -- which silently killed this file's :root palette and
+               dark-theme rules ("dark theme broken / chat stuck light").
+               No non-ASCII anywhere in the compiled output. */
+            content: '';
+            display: inline-block;
+            width: 0.55em;
+            height: 0.55em;
+            margin-right: 0.45em;
+            border-radius: 999px;
+            background: var(--wf-btn-primary, #4f8df9);
+            vertical-align: baseline;
         }
 
         &.llm-history-row-active .llm-history-row-delete {
