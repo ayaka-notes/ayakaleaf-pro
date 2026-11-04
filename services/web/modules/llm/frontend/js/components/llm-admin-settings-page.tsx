@@ -159,6 +159,8 @@ export default function LLMAdminSettingsPage() {
     const [askAiSystemPrompt, setAskAiSystemPrompt] = useState<string>((getMeta('ol-askAiSystemPrompt') as string) || '')
     const [errorPrompt, setErrorPrompt] = useState<string>((getMeta('ol-errorPrompt') as string) || '')
     const [reviewSystemPrompt, setReviewSystemPrompt] = useState<string>((getMeta('ol-reviewSystemPrompt') as string) || '')
+    // overleaf-lab (merge phase 4): unified AI assistant (workbench) prompt.
+    const [workbenchSystemPrompt, setWorkbenchSystemPrompt] = useState<string>((getMeta('ol-workbenchSystemPrompt') as string) || '')
     const initialActions = (getMeta('ol-askAiActionPrompts') as Record<string, string>) || {}
     const [askAiActionPrompts, setAskAiActionPrompts] = useState<Record<string, string>>(initialActions && typeof initialActions === 'object' ? initialActions : {})
     // overleaf-lab: keep the Ask AI action templates block collapsed by default
@@ -217,6 +219,7 @@ export default function LLMAdminSettingsPage() {
                     askAiSystemPrompt,
                     errorPrompt,
                     reviewSystemPrompt,
+                    workbenchSystemPrompt,
                     askAiActionPrompts,
                 },
             })
@@ -357,7 +360,7 @@ export default function LLMAdminSettingsPage() {
                   <div className="llm-settings-section-body">
                       {/* overleaf-lab: one toggle switch per feature */}
                       {[
-                          { key: 'chat', on: chatEnabled, set: setChatEnabled, title: t('feature_chat', 'Chat'), help: t('feature_chat_help', 'The AI chat panel and Ask AI on selection.') },
+                          { key: 'chat', on: chatEnabled, set: setChatEnabled, title: t('feature_chat', 'Chat'), help: t('feature_chat_help', 'The AI assistant (workbench): chat, tools and its history. Ask AI on selection keeps working independently.') },
                           { key: 'completion', on: completionEnabled, set: setCompletionEnabled, title: t('feature_completion', 'Inline completion'), help: t('feature_completion_help', 'Autocomplete suggestions while typing.') },
                           { key: 'review', on: reviewEnabled, set: setReviewEnabled, title: t('feature_review', 'Compliance review'), help: t('feature_review_help', 'The whole-document review.') },
                       ].map(f => (
@@ -779,6 +782,17 @@ export default function LLMAdminSettingsPage() {
                           def: promptDefaults.reviewSystemPrompt,
                           label: t('review_system_prompt', 'Review system prompt'),
                           help: t('review_system_prompt_help', 'System prompt for the whole-document compliance review.'),
+                      },
+                      {
+                          key: 'workbenchSystemPrompt',
+                          value: workbenchSystemPrompt,
+                          set: setWorkbenchSystemPrompt,
+                          def: promptDefaults.workbenchSystemPrompt,
+                          label: t('assistant_system_prompt', 'AI assistant system prompt'),
+                          help: t(
+                              'assistant_system_prompt_help',
+                              'System prompt of the unified AI assistant in the workbench (chat, tools, editing). The language and LaTeX-formatting rules live here; keep it neutral — no example languages.'
+                          ),
                       },
                   ].map(field => (
                       <div key={field.key} className="ol-llm-admin-settings__mb-xl">
