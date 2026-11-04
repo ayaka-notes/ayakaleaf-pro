@@ -38,6 +38,7 @@ import {
   saveConversation,
 } from '../history/chat-history'
 import type { StoredConversation } from '../utils/llm-chat-storage'
+import '../stylesheets/assistant-panel.scss'
 
 function HeaderButton({
   id,

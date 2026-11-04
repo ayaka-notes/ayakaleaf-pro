@@ -211,9 +211,12 @@ export default function ChatView({
       } else if (error instanceof ToolBudgetError) {
         setProblem(error.message)
       } else if (error.message === 'ai_pdf_not_supported') {
-        // Set by the server when the model refused a chat with a PDF file
+        // Set by the server when the model refused a chat with a PDF file.
+        // overleaf-lab (2026-11): lane-neutral — on BYO lanes the fix is the
+        // user's own Chat model choice (LLM settings), on operator gateways
+        // the admin's AI_PDF_MODEL; both boil down to "use a vision model".
         setProblem(
-          'The AI model cannot read PDF files. Ask your administrator to set AI_PDF_MODEL to a model that can.'
+          'The current model cannot read PDF files. Choose a vision-capable model for Chat in LLM settings.'
         )
       } else {
         debugConsole.error(error)
