@@ -514,7 +514,14 @@ async function getUserPrefs(req, res) {
         return res.status(401).json({ ok: false, error: 'unauthorized', message: 'Login required' })
     }
     const profile = await readProfile(userId)
-    res.json({ ok: true, completionEnabled: profile?.completionEnabled !== false })
+    res.json({
+      ok: true,
+      completionEnabled: profile?.completionEnabled !== false,
+      // overleaf-lab (2026-11, owner request): off by default; when on, image /
+      // PDF chat attachments are converted to text on the server (Tesseract
+      // OCR for scans) instead of being sent as pixels to the model.
+      textExtract: profile?.llmTextExtract === true,
+    })
 }
 
 async function saveUserPrefs(req, res) {
@@ -526,11 +533,18 @@ async function saveUserPrefs(req, res) {
     if (typeof req.body?.completionEnabled === 'boolean') {
         set.completionEnabled = req.body.completionEnabled
     }
+    if (typeof req.body?.textExtract === 'boolean') {
+        set.llmTextExtract = req.body.textExtract
+    }
     if (Object.keys(set).length === 0) {
         return res.status(400).json({ ok: false, error: 'bad-request', message: 'No known preference' })
     }
     await User.updateOne({ _id: userId }, { $set: set })
-    res.json({ ok: true, completionEnabled: set.completionEnabled ?? undefined })
+    res.json({
+        ok: true,
+        completionEnabled: set.completionEnabled !== undefined ? set.completionEnabled : undefined,
+        textExtract: set.llmTextExtract !== undefined ? set.llmTextExtract : undefined,
+    })
 }
 
 async function getSelectedModel(req, res) {

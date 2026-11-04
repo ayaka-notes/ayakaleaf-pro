@@ -1,8 +1,11 @@
 // overleaf-lab (2026-11, owner request): the user's EDITOR-SCOPED LLM
-// preferences. Today: the inline "ghost text" completion toggle — per user,
-// stored on the profile (GET/POST /user/llm/prefs), applied immediately to the
-// live editor plugin (setInlineCompletionEnabled) and enforced server-side
-// (the /completion endpoint returns empty data when it is off).
+// preferences.
+//   1. the inline "ghost text" completion toggle — per user, stored on the
+//      profile (GET/POST /user/llm/prefs), applied immediately to the live
+//      editor plugin (setInlineCompletionEnabled) and enforced server-side
+//      (the /completion endpoint returns empty data when it is off).
+//   2. the text-extraction / OCR toggle for image+PDF chat attachments —
+//      server-side (workbench) so text-only model lanes can read them.
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getJSON, postJSON } from '@/infrastructure/fetch-json'
@@ -13,13 +16,17 @@ export default function LLMEditorSettings() {
     const { t } = useTranslation()
     // null = not loaded yet (indeterminate)
     const [on, setOn] = useState<boolean | null>(null)
+    const [extract, setExtract] = useState<boolean | null>(null)
     const [busy, setBusy] = useState(false)
 
     useEffect(() => {
         let cancelled = false
         getJSON('/user/llm/prefs')
             .then((d: any) => {
-                if (!cancelled) setOn(d?.completionEnabled !== false)
+                if (!cancelled) {
+                    setOn(d?.completionEnabled !== false)
+                    setExtract(d?.textExtract === true)
+                }
             })
             .catch(() => {
                 if (!cancelled) setOn(null) // offline: keep the default (on)
@@ -47,6 +54,21 @@ export default function LLMEditorSettings() {
         }
     }, [])
 
+    const toggleExtract = useCallback(async (next: boolean) => {
+        setExtract(next)
+        setBusy(true)
+        try {
+            await postJSON('/user/llm/prefs', { body: { textExtract: next } })
+        }
+        catch {
+            // profile write failed; nothing is applied in-tab — the server
+            // reads the profile on every chat request
+        }
+        finally {
+            setBusy(false)
+        }
+    }, [])
+
     return (
         <div className="llm-editor-settings">
             <label className="llm-editor-settings-row">
@@ -65,6 +87,24 @@ export default function LLMEditorSettings() {
                 {t(
                     'llm_editor_inline_completion_hint',
                     'While you type in the source editor, the rest of the line is suggested as ghost text after a short pause. Accept with Tab (or Ctrl/Cmd+Enter), dismiss by continuing to type or pressing Escape. Manual trigger: Ctrl/Cmd+\\.'
+                )}
+            </p>
+            <label className="llm-editor-settings-row">
+                <input
+                    type="checkbox"
+                    checked={extract === true}
+                    disabled={extract === null || busy}
+                    onChange={e => void toggleExtract(e.target.checked)}
+                />
+                <span>
+                    <MaterialIcon type="photo_camera" className="me-1" />
+                    {t('llm_editor_text_extract', 'Read images & PDF attachments as text (OCR)')}
+                </span>
+            </label>
+            <p className="llm-editor-settings-hint">
+                {t(
+                    'llm_editor_text_extract_hint',
+                    'When on, attached images and PDFs are converted to text on the server (Tesseract OCR for scans) instead of being sent as images. Use this when your chosen model has no image (vision) support. The model sees the extracted text, not the picture.'
                 )}
             </p>
         </div>

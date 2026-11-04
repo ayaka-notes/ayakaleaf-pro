@@ -10,6 +10,7 @@ import {
   wrapLanguageModel,
 } from 'ai'
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
+import UserGetter from '../../../../app/src/Features/User/UserGetter.mjs'
 import {
   isConfigured,
   getProvider,
@@ -19,6 +20,7 @@ import {
   SYSTEM_PROMPT,
 } from './WorkbenchAiClient.mjs'
 import { resolveWorkbenchLane } from './LlmBridge.mjs'
+import { toTextMessages } from './PdfExtract.mjs'
 import { CLIENT_TOOLS, convertWorkbenchMessages } from './WorkbenchTools.mjs'
 import { WEB_SEARCH_TOOL, isWebSearchConfigured } from './WebSearchTool.mjs'
 import { DOCS_SEARCH_TOOL, isDocsSearchConfigured } from './DocsSearchTool.mjs'
@@ -122,15 +124,30 @@ async function chat(req, res) {
   }
 
   // summary: the earlier turns, summarized by a previous request
-  const { messages, summary } = req.body || {}
+  const { messages: rawMessages, summary } = req.body || {}
   if (
-    !Array.isArray(messages) ||
+    !Array.isArray(rawMessages) ||
     (summary !== undefined && typeof summary !== 'string')
   ) {
     return res.status(400).json({ error: 'invalid_request' })
   }
+  let messages = rawMessages
   if (!hasValidAttachments(messages)) {
     return res.status(400).json({ error: 'invalid_attachments' })
+  }
+  // overleaf-lab (2026-11, owner request): per-user text-extraction mode.
+  // Image/PDF attachments are converted to text on this server (pdftotext,
+  // Tesseract/Ocrmypdf for scans) BEFORE the model sees them, so text-only
+  // lanes can read them. Opt-in in the user's LLM settings; failed parts
+  // keep the raw attachment and the normal refusal path explains it.
+  try {
+    const prof = await UserGetter.promises.getUser(userId, { llmTextExtract: 1 })
+    if (prof && prof.llmTextExtract === true) {
+      const { messages: extracted, report } = await toTextMessages(messages)
+      if (report.length) messages = extracted
+    }
+  } catch (err) {
+    logger.warn({ err, userId }, 'workbench chat: text-extraction mode failed, raw attachments kept')
   }
   const toolCallLimit = createToolCallLimit(messages, getMaxSteps())
   if (toolCallLimit.exhausted()) {
@@ -330,7 +347,13 @@ export default {
   getAccess: expressify(async (req, res) => {
     res.set('Cache-Control', 'no-store')
     const access = await getAiAccess(SessionManager.getLoggedInUserId(req.session))
-    res.json({ allowed: access.chat, errorAssistant: access.errorAssistant })
+    res.json({
+      allowed: access.chat,
+      errorAssistant: access.errorAssistant,
+      // overleaf-lab (2026-11): tells the client whether render_pdf_page should
+      // hand the model page TEXT (text-extraction mode) instead of a page image.
+      textExtract: access.textExtract === true,
+    })
   }),
   chat,
 }

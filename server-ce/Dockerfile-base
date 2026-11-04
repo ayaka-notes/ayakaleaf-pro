@@ -25,6 +25,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       unattended-upgrades \
       build-essential wget net-tools unzip time poppler-utils optipng strace nginx git python3 python-is-python3 zlib1g-dev libpcre3-dev gettext-base libwww-perl ca-certificates curl gnupg \
       qpdf \
+# overleaf-lab (2026-11, owner request): server-side text extraction / OCR so
+# text-only LLM lanes can still understand image and PDF attachments.
+# poppler-utils (above) provides pdftotext; ocrmypdf adds the OCR stage for
+# scanned PDFs; tesseract does OCR directly for image attachments (eng+deu).
+      ocrmypdf tesseract-ocr tesseract-ocr-deu \
 # upgrade base-image, batch all the upgrades together, rather than installing them on-by-one (which is slow!)
 &&  unattended-upgrade --verbose --no-minimal-upgrade-steps \
 # install Node.js https://github.com/nodesource/distributions#nodejs

@@ -88,6 +88,13 @@ function PdfLlmCompileFixCard({ logEntry }: Props) {
         { kind: 'idle' } | { kind: 'pending' } | { kind: 'applied' }
         | { kind: 'failed'; reason: string; openDoc?: string; actualLine?: string }
     >({ kind: 'idle' })
+    // overleaf-lab (2026-11, owner report): the model usually QUOTES the line
+    // corrected (its 'old' text never occurs in the document — it contains the
+    // typo), so the first exact-match apply fails for exactly the main use
+    // case (typo fixes). Remember the hinted line after that not-found,
+    // and the PRIMARY "Apply fix" button then performs the confirmed line
+    // replace — one button, two sensible clicks, no dead end.
+    const [lineRetry, setLineRetry] = useState<number | null>(null)
 
     // Keep the card in sync with the store (button triggers, re-runs).
     useEffect(() => {
@@ -105,6 +112,7 @@ function PdfLlmCompileFixCard({ logEntry }: Props) {
     useEffect(() => {
         setCopied(false)
         setApplyState({ kind: 'idle' })
+        setLineRetry(null)
     }, [status])
 
     const copy = useCallback(async () => {
@@ -163,8 +171,15 @@ function PdfLlmCompileFixCard({ logEntry }: Props) {
                 if (d.reqId !== reqId) return
                 clearTimeout(timer)
                 window.removeEventListener('llm-cfx-apply-reply', onReply)
-                if (d.ok) setApplyState({ kind: 'applied' })
-                else setApplyState({ kind: 'failed', reason: d.reason || 'error', openDoc: d.openDoc, actualLine: d.actualLine })
+                if (d.ok) {
+                    setApplyState({ kind: 'applied' })
+                    setLineRetry(null)
+                } else {
+                    setApplyState({ kind: 'failed', reason: d.reason || 'error', openDoc: d.openDoc, actualLine: d.actualLine })
+                    if (d.reason === 'not-found' && result.line) {
+                        setLineRetry(result.line)
+                    }
+                }
                 resolve()
             }
             window.addEventListener('llm-cfx-apply-reply', onReply)
@@ -214,12 +229,6 @@ function PdfLlmCompileFixCard({ logEntry }: Props) {
             }
             if (applyState.reason === 'not-found' && status.result?.line) {
                 const lineNo = status.result.line
-                // overleaf-lab (2026-11, owner report): the button label rendered
-                // the literal '{n}' — the 3-arg t() form does not interpolate in
-                // this i18next setup. Build the number in with plain string math
-                // (works with or without a translation catalog).
-                const replaceLabel = (t('llm_cfx_replace_line', 'Replace line {n} with the suggestion') as string)
-                    .replace('{n}', String(lineNo))
                 const actual = (applyState.actualLine || '').trim()
                 return (
                     <span
@@ -235,15 +244,9 @@ function PdfLlmCompileFixCard({ logEntry }: Props) {
                                     <code style={{ fontSize: '0.85rem' }}>{actual.slice(0, 120)}</code>
                                 </>
                             )}
+                            {' '}
+                            <strong>{t('llm_cfx_apply_will_replace', 'Apply replaces that line with the suggested one.')}</strong>
                         </span>
-                        <button
-                            type="button"
-                            className="llm-cfx-btn llm-cfx-apply"
-                            onClick={() => void apply('line')}
-                        >
-                            <MaterialIcon type="check_circle" style={{ fontSize: 16 }} />
-                            <span>{replaceLabel}</span>
-                        </button>
                     </span>
                 )
             } else if (applyState.reason === 'not-found') {
@@ -336,7 +339,7 @@ function PdfLlmCompileFixCard({ logEntry }: Props) {
                 <button
                     type="button"
                     className="llm-cfx-btn llm-cfx-apply"
-                    onClick={() => void apply()}
+                    onClick={() => void apply(lineRetry !== null ? 'line' : undefined)}
                     disabled={applyState.kind === 'pending' || applyState.kind === 'applied'}
                 >
                     <MaterialIcon type={applyState.kind === 'applied' ? 'check' : 'check_circle'} style={{ fontSize: 16 }} />
@@ -344,7 +347,14 @@ function PdfLlmCompileFixCard({ logEntry }: Props) {
                         ? t('llm_cfx_applied_btn', 'Applied')
                         : applyState.kind === 'pending'
                             ? t('llm_cfx_applying', 'Applying…')
-                            : t('llm_cfx_apply', 'Apply fix')}
+                            : lineRetry !== null
+                                // overleaf-lab (2026-11, owner report): after a
+                                // model-quoted-line not-found, the PRIMARY action
+                                // becomes the confirmed line replace — the label
+                                // uses plain string math because 3-arg t() does
+                                // not interpolate in this i18next setup.
+                                ? (t('llm_cfx_replace_line', 'Replace line {n} with the suggestion') as string).replace('{n}', String(lineRetry))
+                                : t('llm_cfx_apply', 'Apply fix')}
                 </button>
                 <button type="button" className="llm-cfx-btn llm-cfx-again" onClick={differentFix}>
                     <MaterialIcon type="refresh" style={{ fontSize: 16 }} />

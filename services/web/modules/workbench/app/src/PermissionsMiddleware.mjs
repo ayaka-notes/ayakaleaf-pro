@@ -10,12 +10,18 @@ import { userHasLlmLane } from './LlmBridge.mjs'
 import { getLLMFeatureFlags } from '../../../llm/app/src/LLMAdminController.mjs'
 
 export async function getAiAccess(userId) {
-  const denied = { chat: false, errorAssistant: false }
+  const denied = { chat: false, errorAssistant: false, textExtract: false }
   if (!userId) return denied
 
   // Read current permissions so an admin can revoke access to an open session.
-  const user = await UserGetter.promises.getUser(userId, { aiFeatures: 1 })
+  const user = await UserGetter.promises.getUser(userId, { aiFeatures: 1, llmTextExtract: 1 })
   if (!user || user.aiFeatures?.enabled === false) return denied
+
+  // overleaf-lab (2026-11, owner request): per-user text-extraction mode —
+  // image/PDF attachments are OCR'd/extracted on the server so text-only
+  // lanes can read them. Rides along with the access payload so the client
+  // (render_pdf_page) can switch from page images to page text.
+  const textExtract = user.llmTextExtract === true
 
   // overleaf-lab (merge phase 3): one admin switch for chat, every surface.
   try {
@@ -27,7 +33,7 @@ export async function getAiAccess(userId) {
   }
 
   if (Settings.workbenchAi?.enabled) {
-    return { chat: true, errorAssistant: true }
+    return { chat: true, errorAssistant: true, textExtract }
   }
 
   // overleaf-lab (2026-11, BYO phase 1): no operator workbench gateway —
@@ -36,7 +42,7 @@ export async function getAiAccess(userId) {
   // and the BYO gate are enforced inside the shared lane resolver, so one
   // switch still governs every surface. errorAssistant stays operator-gated.
   if (await userHasLlmLane(userId)) {
-    return { chat: true, errorAssistant: false }
+    return { chat: true, errorAssistant: false, textExtract }
   }
 
   return denied

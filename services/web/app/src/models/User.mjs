@@ -265,6 +265,12 @@ export const UserSchema = new Schema(
     // E2E: POST /user/llm/prefs ok:true then GET still true).
     llmTaskModels: Schema.Types.Mixed,
     completionEnabled: { type: Boolean },
+    // overleaf-lab (2026-11, owner request): when true, image/PDF chat
+    // attachments are converted to text on the server (pdftotext +
+    // Tesseract/Ocrmypdf for scans) instead of being sent as pixels, so
+    // text-only models can read them. Same strict-mode landmine as above:
+    // it MUST be declared here or $set silently persists nothing.
+    llmTextExtract: { type: Boolean },
     suspended: { type: Boolean },
     dsMobileApp: {
       subscribed: { type: Boolean },

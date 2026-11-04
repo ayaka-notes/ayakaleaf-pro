@@ -23,6 +23,9 @@ export type ToolRun = {
   openPath: string
   actions: ProjectActions
   signal: AbortSignal
+  // overleaf-lab (2026-11): text-extraction mode — render_pdf_page returns
+  // page text instead of a page image (for text-only lane models).
+  textExtract?: boolean
 }
 
 export type ToolSpec = {
@@ -126,7 +129,7 @@ export const TOOLS: Record<string, ToolSpec> = {
 
   render_pdf_page: {
     label: ({ page }) => `Look at PDF page ${page}`,
-    run: ({ page }, { actions, signal }) => actions.renderPage(page, signal),
+    run: ({ page }, { actions, signal, textExtract }) => actions.renderPage(page, signal, { textMode: textExtract === true }),
     body: part =>
       part.state === 'output-available' && (
         <img

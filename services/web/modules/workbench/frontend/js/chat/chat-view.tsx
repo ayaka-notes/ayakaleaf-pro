@@ -21,7 +21,7 @@ import { useFileTreePathContext } from '@/features/file-tree/contexts/file-tree-
 import useAiConsent from '@/shared/hooks/use-ai-consent'
 import useAbortController from '@/shared/hooks/use-abort-controller'
 import AiPaywallNotification from '@/shared/components/ai-paywall-notification'
-import useAiAccess from '../hooks/use-ai-access'
+import useAiAccess, { useTextExtract } from '../hooks/use-ai-access'
 import { useProjectActions } from '../hooks/use-project-actions'
 import { TOOLS, type Respond } from '../agent/tools'
 import { AiUnavailableError, QuotaExceededError, ToolBudgetError, ToolRefusal } from '../errors'
@@ -101,6 +101,9 @@ export default function ChatView({
   } = useEditorContext()
   const { hasGivenAiConsent } = useAiConsent()
   const hasAccess = useAiAccess()
+  // overleaf-lab (2026-11): the user’s text-extraction mode — render_pdf_page
+  // returns page text instead of a page image so text-only lanes can read it.
+  const textExtract = useTextExtract()
   const aiOffHere = getMeta('ol-showAiFeaturesDisabled')
   const { signal } = useAbortController()
   const actions = useProjectActions()
@@ -242,6 +245,7 @@ export default function ChatView({
               openPath: path,
               actions: actionsRef.current,
               signal: controller.signal,
+              textExtract,
             })
           ),
           controller.signal
