@@ -164,11 +164,14 @@ export async function saveProject(history: ProjectHistory): Promise<boolean> {
         const tx = db.transaction(STORE, 'readwrite')
         // overleaf-lab (2026-11): row carries its scope; the store KEY is scope-
         // aware (assistant = legacy bare key, review = `${projectId}/review`).
-        const row = { ...history, scope: history.scope || 'assistant' }
-        const key = row.scope && row.scope !== 'assistant'
-            ? `${row.projectId}/${row.scope}`
-            : row.projectId
-        tx.objectStore(STORE).put(clampHistory(row), key)
+        // The store has keyPath 'projectId', so the composite key MUST be the
+        // projectId field value itself — put() with an explicit key is illegal
+        // on a keyPath store.
+        const key = history.scope && history.scope !== 'assistant'
+            ? `${history.projectId}/${history.scope}`
+            : history.projectId
+        const row = { ...history, scope: history.scope || 'assistant', projectId: key }
+        tx.objectStore(STORE).put(clampHistory(row))
         await new Promise<void>((resolve, reject) => {
             tx.oncomplete = () => resolve()
             tx.onerror = () => reject(tx.error || new Error('IDB save failed'))

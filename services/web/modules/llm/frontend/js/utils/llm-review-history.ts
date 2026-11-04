@@ -130,13 +130,17 @@ export async function saveRun(projectId: string, result: ComplianceResult, lane?
         const tx = db.transaction(STORE, 'readwrite')
         const key = keyOf(projectId)
         const existing = await toPromise<RunsRow | undefined>(tx.objectStore(STORE).get(key))
+        // overleaf-lab (2026-11, bug): the store has keyPath 'projectId', so
+        // `put(value, explicitKey)` is ILLEGAL (it threw and the save died
+        // silently in the catch). The store key MUST be the projectId field
+        // value — set it to the composite scope key.
         const row: RunsRow = {
-            projectId,
+            projectId: key,
             activeId: run.id,
             runs: existing && Array.isArray(existing.runs) ? [run, ...existing.runs] : [run],
         }
         row.runs = row.runs.slice(0, MAX_RUNS)
-        await toPromise(tx.objectStore(STORE).put(row, key))
+        await toPromise(tx.objectStore(STORE).put(row))
         await new Promise<void>((resolve, reject) => {
             tx.oncomplete = () => resolve()
             tx.onerror = () => reject(tx.error || new Error('IDB save failed'))
@@ -159,7 +163,9 @@ export async function removeRun(projectId: string, runId: string): Promise<void>
         if (!existing) return
         existing.runs = existing.runs.filter(r => r.id !== runId)
         if (existing.activeId === runId) existing.activeId = null
-        await toPromise(tx.objectStore(STORE).put(existing, key))
+        // overleaf-lab: keyPath store — put() WITHOUT an explicit key (the
+        // row's own projectId field IS the composite store key).
+        await toPromise(tx.objectStore(STORE).put(existing))
     }
     catch { /* no-op storage */ }
 }
