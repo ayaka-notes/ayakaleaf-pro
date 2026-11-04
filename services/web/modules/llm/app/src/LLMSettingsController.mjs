@@ -571,7 +571,14 @@ async function saveSelectedModel(req, res) {
     // AI surface to fallback lanes — only accept a well-formed model reference
     // (`name`, `name:tag`, `site:name`, or `u:<rowId>:name`) or the empty
     // string (explicit reset). Anything else is a client bug, not a model.
-    if (value && !/^[A-Za-z0-9._\-/]+(:[A-Za-z0-9._\-/]+){0,2}$/.test(value)) {
+    // overleaf-lab (2026-11, owner report: 400 on save): the BYO model NAME is
+    // whatever the user's provider calls it — `+`, spaces, parentheses are
+    // legal there — so a user-ref accepts any non-empty name; the SITE ref
+    // keeps the strict form (it must match the admin's allowed-models pool
+    // anyway, and those names are under admin control).
+    const isSiteRef = /^[A-Za-z0-9._\-/]+(:[A-Za-z0-9._\-/]+){0,2}$/.test(value)
+    const isUserRef = /^u:[0-9a-f]{8}:.+$/s.test(value)
+    if (value && !isSiteRef && !isUserRef) {
         return res.status(400).json({ ok: false, error: 'bad-request', message: 'Invalid model reference' })
     }
     // overleaf-lab (2026-11): save per-task when a task is given; otherwise

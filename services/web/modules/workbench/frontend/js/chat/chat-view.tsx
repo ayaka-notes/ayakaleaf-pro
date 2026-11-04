@@ -229,6 +229,19 @@ export default function ChatView({
         setProblem(
           'The model for this chat rejected the PDF. Choose a PDF-capable model for Chat in LLM settings, or enable “Read images & PDF attachments as text (OCR)” in your LLM settings.'
         )
+      } else if (error.message === 'ai_image_not_supported_byo') {
+        // overleaf-lab (2026-11, owner report): the attached image was routed
+        // to a text-only model and the provider rejected it ("not a
+        // multimodal model"). BYO lane: the user holds the fix — pick an
+        // image-capable model for the chat slot or use the OCR text mode.
+        setProblem(
+          'Your model cannot see images. Pick an image-capable model for Chat in your LLM settings (File → LLM settings) — or enable “Read images & PDF attachments as text (OCR)” in your LLM settings and the image will be read as text instead.'
+        )
+      } else if (error.message === 'ai_image_not_supported_site') {
+        // Site/operator lane: no vision model is enabled server-side.
+        setProblem(
+          'No image-capable model is enabled for this chat. Ask your administrator to enable a vision model, or enable “Read images & PDF attachments as text (OCR)” in your LLM settings.'
+        )
       } else {
         debugConsole.error(error)
         setProblem(true)

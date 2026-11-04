@@ -16,6 +16,7 @@ import {
   getProvider,
   resolveModel,
   hasPdf,
+  hasImage,
   getMaxSteps,
   SYSTEM_PROMPT,
 } from './WorkbenchAiClient.mjs'
@@ -292,6 +293,19 @@ async function chat(req, res) {
         [400, 415, 422].includes(err.statusCode)
       ) {
         return lane ? 'ai_pdf_not_supported_byo' : 'ai_pdf_not_supported_site'
+      }
+      // overleaf-lab (2026-11, owner report): an image attachment was routed
+      // to a TEXT-ONLY model (no image task slot selected) and the provider
+      // rejects it — e.g. AcademicCloud: "not a multimodal model". Same
+      // lane-aware remedy as the PDF refusal: the user can pick an
+      // image-capable model (File → Select LLM Task → Image task... the
+      // modal offers the per-task slots) or the admin enables one.
+      if (
+        hasImage(history) &&
+        APICallError.isInstance(err) &&
+        /multimodal|modality|image|vision/i.test(String(err?.message || ''))
+      ) {
+        return lane ? 'ai_image_not_supported_byo' : 'ai_image_not_supported_site'
       }
       return 'The AI service returned an error. Please try again.'
     }

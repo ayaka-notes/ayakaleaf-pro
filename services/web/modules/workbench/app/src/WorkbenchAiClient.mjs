@@ -88,6 +88,17 @@ export function hasPdf(messages = []) {
   )
 }
 
+/** Whether a user attached an IMAGE anywhere in the conversation. */
+export function hasImage(messages = []) {
+  return messages.some(message =>
+    message.parts?.some(
+      part =>
+        (part.type === 'file' && typeof part.mediaType === 'string' && part.mediaType.startsWith('image/')) ||
+        (part.type === 'tool-render_pdf_page' && part.state === 'output-available')
+    )
+  )
+}
+
 /**
  * Selects the instance's configured text, image or PDF model for a request.
  * overleaf-lab (2026-11, BYO phase 1): when a resolved user lane (BYO row or
