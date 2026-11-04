@@ -161,9 +161,23 @@ async function extractFromImage(buf, mediaType, tmp) {
     inFile,
     '-',
     '--psm', '3',
-    '--language', OCR_LANGS,
+    // overleaf-lab (2026-11, owner report: OCR mode was ON but images were
+    // not read): this tesseract build REJECTS `--language` ("unknown command
+    // line argument") — the option is `-l`, and it wants the PLUS form
+    // (`eng+deu`), which the comma form mis-parses here. `eng+deu` verified
+    // working in the live container.
+    '-l', OCR_LANGS,
   ])
-  return { text: capText(text.stdout || ''), ocrRan: true }
+  // overleaf-lab: this build mixes diagnostics into stdout ("Estimating
+  // resolution as …") — drop the known tesseract progress/diagnostic lines
+  // so the model gets clean text only.
+  const clean = (text.stdout || '')
+    .split('\n')
+    .filter(line =>
+      !/^(Estimating resolution|Resolving|Trying|Auto-orient|Calculating|Page segmentation|WARNING:)/.test(line.trim())
+    )
+    .join('\n')
+  return { text: capText(clean), ocrRan: true }
 }
 
 /**
