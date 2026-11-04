@@ -4,3 +4,14 @@
 # user defined files
 .env
 docker-compose.override.yml
+
+# overleaf-lab (2026-11): build & session artifacts — never commit
+# (a git add -A once swept ~16k of these into a commit; this prevents it)
+.pnp.cjs
+.pnp.loader.mjs
+.yarn/cache/
+.yarn/unplugged/
+.yarn/install-state.gz
+.pi/
+services/web/.cache/
+services/web/node_modules/
