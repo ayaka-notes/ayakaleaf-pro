@@ -127,7 +127,13 @@ function LLMCompliancePane() {
         let cancelled = false
         if (!projectId) return
         void listRuns(projectId).then(stored => {
-            if (!cancelled) setRuns(stored)
+            if (cancelled) return
+            setRuns(stored)
+            // overleaf-lab (2026-11, owner request): when the user LEAVES and
+            // RETURNS to the project, the LATEST review run re-opens
+            // automatically (the saved-view with its report + download). The
+            // live check surface stays one click away (Back / close the view).
+            if (stored.length) setViewing(stored[0])
         })
         return () => { cancelled = true }
     }, [projectId])

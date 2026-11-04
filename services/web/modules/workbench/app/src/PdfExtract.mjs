@@ -178,7 +178,12 @@ export async function toTextMessages(messages) {
   const caps = capabilities()
   const report = []
   const jobs = []
-  const jobByPart = new Map()
+  // overleaf-lab (2026-11, owner report: OCR mode was ON but the image still
+  // hit the provider): the part→result map used to store the job PROMISES,
+  // so `r.text` was always undefined and every attachment "failed" — while
+  // the extraction actually succeeded and was discarded. Results are now
+  // matched by index AFTER Promise.all, so resolved values are used.
+  const partOrder = []
 
   for (const message of messages || []) {
     if (!Array.isArray(message?.parts)) continue
@@ -224,15 +229,16 @@ export async function toTextMessages(messages) {
           }
         })()
       )
-      jobByPart.set(part, jobs[jobs.length - 1])
+      partOrder.push(part)
     }
   }
   const results = await Promise.all(jobs)
+  const resolvedByPart = new Map(partOrder.map((part, i) => [part, results[i]]))
 
   const outMessages = (messages || []).map(message => {
     if (!Array.isArray(message?.parts)) return message
     const newParts = message.parts.map(part => {
-      const r = jobByPart.get(part)
+      const r = resolvedByPart.get(part)
       if (!r) return part // not an extractable attachment
       if (!r.text) {
         report.push({ name: r.name, kind: r.kind, mode: 'failed', reason: r.reason })
