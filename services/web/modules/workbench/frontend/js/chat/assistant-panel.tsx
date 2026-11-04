@@ -37,7 +37,7 @@ import {
   removeConversation,
   saveConversation,
 } from '../history/chat-history'
-import type { StoredConversation } from '../../../llm/frontend/js/utils/llm-chat-storage'
+import type { StoredConversation } from '../utils/llm-chat-storage'
 
 function HeaderButton({
   id,

@@ -23,7 +23,7 @@ import {
   saveProject,
   type StoredConversation,
   type StoredMessage,
-} from '../../../llm/frontend/js/utils/llm-chat-storage'
+} from '../utils/llm-chat-storage'
 import getMeta from '@/utils/meta'
 
 /** First user text with the injected <editor-context> block removed. */
