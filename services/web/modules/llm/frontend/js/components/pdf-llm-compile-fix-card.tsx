@@ -86,7 +86,7 @@ function PdfLlmCompileFixCard({ logEntry }: Props) {
     // Apply state: idle → pending → applied, or a failure reason.
     const [applyState, setApplyState] = useState<
         { kind: 'idle' } | { kind: 'pending' } | { kind: 'applied' }
-        | { kind: 'failed'; reason: string; openDoc?: string }
+        | { kind: 'failed'; reason: string; openDoc?: string; actualLine?: string }
     >({ kind: 'idle' })
 
     // Keep the card in sync with the store (button triggers, re-runs).
@@ -158,12 +158,13 @@ function PdfLlmCompileFixCard({ logEntry }: Props) {
                     ok?: boolean
                     reason?: string
                     openDoc?: string
+                    actualLine?: string
                 }
                 if (d.reqId !== reqId) return
                 clearTimeout(timer)
                 window.removeEventListener('llm-cfx-apply-reply', onReply)
                 if (d.ok) setApplyState({ kind: 'applied' })
-                else setApplyState({ kind: 'failed', reason: d.reason || 'error', openDoc: d.openDoc })
+                else setApplyState({ kind: 'failed', reason: d.reason || 'error', openDoc: d.openDoc, actualLine: d.actualLine })
                 resolve()
             }
             window.addEventListener('llm-cfx-apply-reply', onReply)
@@ -212,19 +213,36 @@ function PdfLlmCompileFixCard({ logEntry }: Props) {
                 )
             }
             if (applyState.reason === 'not-found' && status.result?.line) {
+                const lineNo = status.result.line
+                // overleaf-lab (2026-11, owner report): the button label rendered
+                // the literal '{n}' — the 3-arg t() form does not interpolate in
+                // this i18next setup. Build the number in with plain string math
+                // (works with or without a translation catalog).
+                const replaceLabel = (t('llm_cfx_replace_line', 'Replace line {n} with the suggestion') as string)
+                    .replace('{n}', String(lineNo))
+                const actual = (applyState.actualLine || '').trim()
                 return (
                     <span
                         className="llm-cfx-apply-status"
                         style={{ display: 'inline-flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}
                     >
-                        {t('llm_cfx_apply_notfound', 'That text is no longer there — the line may have changed.')}
+                        <span>
+                            {t('llm_cfx_apply_notfound', 'That text is no longer there — the line may have changed.')}
+                            {actual && (
+                                <>{' '}
+                                    {t('llm_cfx_line_now', 'Line')} {lineNo}{' '}
+                                    {t('llm_cfx_line_now_is', 'now reads:')}{' '}
+                                    <code style={{ fontSize: '0.85rem' }}>{actual.slice(0, 120)}</code>
+                                </>
+                            )}
+                        </span>
                         <button
                             type="button"
-                            className="llm-cfx-btn"
-                            style={{ padding: '0.125rem 0.5rem', fontSize: '0.8rem' }}
+                            className="llm-cfx-btn llm-cfx-apply"
                             onClick={() => void apply('line')}
                         >
-                            {t('llm_cfx_replace_line', 'Replace line {n} with the suggestion', { n: status.result.line })}
+                            <MaterialIcon type="check_circle" style={{ fontSize: 16 }} />
+                            <span>{replaceLabel}</span>
                         </button>
                     </span>
                 )

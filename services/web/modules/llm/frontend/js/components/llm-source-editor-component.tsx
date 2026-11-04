@@ -177,7 +177,13 @@ function LLMSourceEditorComponent() {
                     if (newText && docText.includes(newText)) {
                         return reply(false, 'already-applied')
                     }
-                    return reply(false, 'not-found')
+                    // overleaf-lab (2026-11, owner report): tell the card what the
+                    // hinted line ACTUALLY says — the model often re-quotes code
+                    // (e.g. a typo'd line corrected in its suggestion), and seeing
+                    // the real content makes the line-replace offer actionable.
+                    const hl = Math.max(1, Math.min(parseInt(detail.line, 10) || 1, doc.lines))
+                    const actual = doc.line(hl).text
+                    return reply(false, 'not-found', { actualLine: actual ? actual.slice(0, 400) : undefined })
                 }
                 if (from === to && !newText) {
                     return reply(false, 'not-found')

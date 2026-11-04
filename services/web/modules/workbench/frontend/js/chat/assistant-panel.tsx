@@ -38,7 +38,7 @@ import {
   saveConversation,
 } from '../history/chat-history'
 import type { StoredConversation } from '../utils/llm-chat-storage'
-import '../stylesheets/assistant-panel.scss'
+import '../../stylesheets/assistant-panel.scss'
 
 function HeaderButton({
   id,
@@ -135,6 +135,14 @@ export default function AssistantPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Keep the history menu in sync with the store (titles update as the first
+  // message saves, new chats appear in the list) — overleaf-lab (2026-11, owner
+  // report: menu only updated after leaving/entering the project).
+  const refreshList = useCallback(async () => {
+    if (!idb()) return
+    setConversations(await listConversations().catch(() => []))
+  }, [])
+
   const scheduleSave = useCallback(
     (messages: UIMessage[]) => {
       liveMessages.current = messages
@@ -143,9 +151,10 @@ export default function AssistantPanel() {
       saveTimer.current = setTimeout(() => {
         saveTimer.current = null
         flush(liveChatId.current)
+        void refreshList()
       }, 800)
     },
-    [flush]
+    [flush, refreshList]
   )
 
   useEffect(
@@ -155,11 +164,6 @@ export default function AssistantPanel() {
     },
     [flush]
   )
-
-  const refreshList = useCallback(async () => {
-    if (!idb()) return
-    setConversations(await listConversations().catch(() => []))
-  }, [])
 
   // --- conversation actions ------------------------------------------------
   const startNewChat = () => {
