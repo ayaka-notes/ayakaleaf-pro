@@ -32,14 +32,12 @@ export async function getAiAccess(userId) {
     // matching the llm module's own enforcement style.
   }
 
-  if (Settings.workbenchAi?.enabled) {
-    return { chat: true, errorAssistant: true, textExtract, textOnly: false }
-  }
-
   // overleaf-lab (2026-11-05): text-only BYO lanes (e.g. Ollama qwen3:8b)
   // cannot use page IMAGES either — tell the client once (shared 1h cache)
   // so render_pdf_page hands the model page TEXT proactively, instead of
-  // failing AFTER the provider rejects the image.
+  // failing AFTER the provider rejects the image. This must run for BOTH
+  // resolution paths (workbenchAi enabled or BYO lane), because this
+  // deployment runs workbenchAi.enabled with BYO lanes underneath.
   let textOnly = false
   if (!textExtract) {
     try {
@@ -51,6 +49,10 @@ export async function getAiAccess(userId) {
     } catch {
       textOnly = false
     }
+  }
+
+  if (Settings.workbenchAi?.enabled) {
+    return { chat: true, errorAssistant: true, textExtract, textOnly }
   }
 
   // overleaf-lab (2026-11, BYO phase 1): no operator workbench gateway —
