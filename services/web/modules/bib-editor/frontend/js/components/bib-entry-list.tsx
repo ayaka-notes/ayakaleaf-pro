@@ -337,6 +337,7 @@ export default function BibEntryList({
           <div
             key={`${rowIdOf(entry)}-${(entry as { sourceStart?: number }).sourceStart ?? ''}`}
             data-index={i}
+            data-entry-id={rowIdOf(entry)}
             className="bibtex-entry-card-row"
             role="listitem"
           >

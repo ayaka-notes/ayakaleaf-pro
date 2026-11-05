@@ -57,6 +57,13 @@ import type { ParsedBibEntry } from '../utils/bib-parser'
 import { generateAvailableCitationKey } from '../utils/bib-key-generation'
 import { normaliseOrcidEntryKeys, splitImportText } from '../utils/bib-import'
 import { downloadBibFilename, downloadBibBulkFilename, selectedEntriesInOrder, bulkDeleteIds, nextEntry, prevEntry } from '../utils/preview-model.ts'
+import {
+  bibPreviewSessionKey,
+  readBibPreviewSession,
+  resolveBibPreviewSession,
+  writeBibPreviewSession,
+} from '../utils/bib-preview-session.ts'
+import { captureBibListPosition, restoreBibListPosition } from '../utils/bib-list-position.ts'
 import '../../stylesheets/bib-editor-panel.css'
 import '../../stylesheets/bib-saas.css'
 
@@ -92,7 +99,7 @@ function BibEditorPanel() {
     canRedo,
   } = useBibEditorContext()
   const { showVisual } = useEditorPropertiesContext()
-  const { openDocName } = useEditorOpenDocContext()
+  const { openDocName, currentDocumentId } = useEditorOpenDocContext()
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
  /** C5: the Paste-references import modal is open */
@@ -154,10 +161,75 @@ function BibEditorPanel() {
   const openDocNameMirror = useRef(openDocName)
   const flushMirror = useRef<() => void>(() => {})
   const scrollToMirror = useRef<(p: number) => void>(() => {})
+  // Preview session (UI state per document): panel root for list capture,
+  // latest scoped key, once-only restore flag.
+  const panelRootRef = useRef<HTMLDivElement | null>(null)
+  const sessionKeyRef = useRef<string | null>(null)
+  const restoredSession = useRef(false)
   useEffect(() => { selectionMirror.current = selection }, [selection])
   useEffect(() => { sourceMirror.current = source }, [source])
   useEffect(() => { entriesMirror.current = entries }, [entries])
   useEffect(() => { openDocNameMirror.current = openDocName }, [openDocName])
+  useEffect(() => {
+    sessionKeyRef.current = currentDocumentId
+      ? bibPreviewSessionKey(currentDocumentId)
+      : null
+  }, [currentDocumentId])
+
+  // ── Preview session: restore + persist UI state per open document ────
+
+  // Restore on (re)mount, once the parse exists: select the previously
+  // previewed entry and re-anchor the list scroll (first visible row plus
+  // in-row offset works even if preceding rows changed height).
+  useEffect(() => {
+    const key = sessionKeyRef.current
+    if (restoredSession.current || !key || selection !== null || entries.length === 0) {
+      return
+    }
+    const { entry, listPosition } = resolveBibPreviewSession(
+      readBibPreviewSession(key),
+      entries
+    )
+    if (!entry) return
+    restoredSession.current = true
+    selectEntry(entry)
+    if (listPosition) {
+      // Rows render in the same commit as the selection effect; defer so
+      // the list body has layout before we measure.
+      requestAnimationFrame(() => {
+        const listEl = panelRootRef.current?.querySelector('.bibtex-entry-list')
+        restoreBibListPosition(listEl as HTMLElement | null, listPosition)
+      })
+    }
+  }, [selection, entries, selectEntry])
+
+  // Persist when the selection moves to an existing entry (the row is
+  // visible, so the capture is meaningful); the unmount effect below
+  // captures the final state.
+  useEffect(() => {
+    const key = sessionKeyRef.current
+    if (!key || selection?.kind !== 'existing') return
+    const listEl = panelRootRef.current?.querySelector('.bibtex-entry-list')
+    writeBibPreviewSession(key, {
+      entryId: selection.entryId,
+      listPosition: captureBibListPosition(listEl as HTMLElement | null),
+    })
+  }, [selection])
+
+  // Final capture on unmount (tab close / visual exit): use the LATEST
+  // document + selection mirrors; storage failures are swallowed.
+  useEffect(() => {
+    return () => {
+      const key = sessionKeyRef.current
+      const sel = selectionMirror.current
+      if (!key || sel?.kind !== 'existing') return
+      const listEl = panelRootRef.current?.querySelector('.bibtex-entry-list')
+      writeBibPreviewSession(key, {
+        entryId: sel.entryId,
+        listPosition: captureBibListPosition(listEl as HTMLElement | null),
+      })
+    }
+  }, [])
 
   /**
    * Flush the open form into the current document (REDESIGN_PLAN.md R2,
@@ -583,7 +655,7 @@ function BibEditorPanel() {
   }, [entries])
 
   return (
-    <div className="bib-editor-panel">
+    <div className="bib-editor-panel" ref={panelRootRef}>
       {writeFailure !== null && (
         <div className="bib-write-failure-banner" role="alert">
           <span className="bib-write-failure-banner-text">
