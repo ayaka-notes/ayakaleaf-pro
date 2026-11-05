@@ -2,7 +2,7 @@ import logger from '@overleaf/logger'
 import fs from 'node:fs'
 import path from 'node:path'
 import { getUsageSummary } from './LLMUsage.mjs'; // overleaf-lab (usage meter)
-import User from '../../../app/src/models/User.mjs' // overleaf-lab (2026-11-05): per-user MCP override
+import { User } from '../../../../app/src/models/User.mjs' // overleaf-lab (2026-11-05): per-user MCP override (named export, 4 levels up)
 import { z } from 'zod'
 import { expressify } from '@overleaf/promise-utils'
 import { encryptSecret, decryptSecret } from './LLMCrypto.mjs' // overleaf-lab: at-rest encryption of admin API key
