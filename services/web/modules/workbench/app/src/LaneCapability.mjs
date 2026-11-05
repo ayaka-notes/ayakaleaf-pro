@@ -27,9 +27,11 @@ import logger from '@overleaf/logger'
 const TTL_MS = 60 * 60 * 1000
 const cache = new Map()
 
-// 1×1 transparent PNG (67 bytes).
+// 8×8 red PNG (Qwen-VL-family vision encoders reject ~1×1 images — 1×1 gave
+// a false "no images" answer for image-capable relays; 8×8 is the smallest
+// size verified accepted by qwen3.8:latest on this relay).
 const PNG_B64 =
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkqAcAABcX0mA8QgAAAABJRU5ErkJggg=='
+  'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEklEQVR4nGP8z4AdMOEQH6QSAM1BAQ/oQeJvAAAAAElFTkSuQmCC'
 
 // Minimal valid one-page PDF (text "probe").
 const PDF_MIN = [
