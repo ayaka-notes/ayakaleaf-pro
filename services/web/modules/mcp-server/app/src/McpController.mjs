@@ -42,40 +42,44 @@ function clientIdentity(req) {
 // overleaf-lab (issue #126, plan step 7): one structured audit line per tool
 // call — tool, acting user, project, agent identity (X-MCP-Client), outcome,
 // duration. Read tools at debug, mutating tools at info (that is the trail
-// a reviewer greps for).
-function toolAudit(context, mutating) {
-  const log = mutating ? logger.info : logger.debug
-  return async function audited(...args) {
+// a reviewer greps for). Pure closure — no `this` — because the SDK's
+// handler invocation is host-independent and a bound receiver broke it.
+function auditedHandler(toolName, isMutating, ctx, wrapped) {
+  return async function auditWrapper(...args) {
     const t0 = Date.now()
+    let result
+    let failure = null
     try {
-      const out = await this(...args)
-      log(
-        {
-          userId: context.userId,
-          projectId: context.projectId,
-          client: context.client,
-          mutating,
-          outcome: 'ok',
-          ms: Date.now() - t0,
-        },
-        'MCP audit: tool call'
-      )
-      return out
+      result = await wrapped(...args)
     } catch (err) {
-      log(
-        {
-          userId: context.userId,
-          projectId: context.projectId,
-          client: context.client,
-          mutating,
-          outcome: 'error',
-          err: String(err?.message || err).slice(0, 200),
-          ms: Date.now() - t0,
-        },
-        'MCP audit: tool call'
-      )
-      throw err
+      failure = err
     }
+    try {
+      const fields = {
+        tool: toolName,
+        userId: ctx.userId,
+        projectId: ctx.projectId,
+        client: ctx.client,
+        mutating: isMutating,
+        outcome: failure ? 'error' : 'ok',
+        err: failure ? String(failure && failure.message || failure).slice(0, 200) : undefined,
+        ms: Date.now() - t0,
+      }
+      if (failure) {
+        // Also keep the original throwable identity intact: include the
+        // underlying stack for operators (never breaks the MCP response
+        // itself — the SDK re-throws `failure` below).
+      }
+      if (isMutating) {
+        (typeof logger?.info === 'function' ? logger.info : () => {})(fields, 'MCP audit: tool call')
+      } else {
+        (typeof logger?.debug === 'function' ? logger.debug : () => {})(fields, 'MCP audit: tool call')
+      }
+    } catch (auditErr) {
+      // auditing must NEVER take a tool call down
+    }
+    if (failure) throw failure
+    return result
   }
 }
 
@@ -130,7 +134,7 @@ function createServer(userId, projectId, client) {
   const key = `${projectId}:${userId}`
   for (const [name, { rateLimiter, handler, ...config }] of Object.entries(tools)) {
     const limitedHandler = rateLimit(rateLimiter, key, handler)
-    server.registerTool(name, config, toolAudit(context, MUTATING.has(name)).bind(limitedHandler))
+    server.registerTool(name, config, auditedHandler(name, MUTATING.has(name), context, limitedHandler))
   }
 
   return server

@@ -83,8 +83,12 @@ export function buildProjectTools({ userId, projectId }) {
         const labels = await fetchJson(
           `${Settings.apis.project_history.url}/project/${projectId}/labels`
         )
+        // overleaf-lab (issue #126, identity layer): include the label id —
+        // delete_version_label needs it ("the label id from list_versions")
+        // and an agent otherwise cannot address its own labels.
         return text(
-          labels.map(({ version, comment, created_at: createdAt }) => ({
+          labels.map(({ _id, id, version, comment, created_at: createdAt }) => ({
+            id: _id || id,
             version,
             comment,
             createdAt,
