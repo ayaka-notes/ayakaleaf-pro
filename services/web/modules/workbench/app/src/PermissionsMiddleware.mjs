@@ -2,7 +2,8 @@ import Settings from '@overleaf/settings'
 import { expressify } from '@overleaf/promise-utils'
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
 import UserGetter from '../../../../app/src/Features/User/UserGetter.mjs'
-import { userHasLlmLane } from './LlmBridge.mjs'
+import { userHasLlmLane, resolveWorkbenchLane } from './LlmBridge.mjs'
+import { probeLane } from './LaneCapability.mjs'
 // overleaf-lab (merge phase 3): the admin feature flags — the chat toggle now
 // governs the workbench assistant like every other surface. Read lazily per
 // request so a flag change takes effect without a restart (it is a JSON file
