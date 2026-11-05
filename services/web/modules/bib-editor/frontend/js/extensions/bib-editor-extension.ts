@@ -294,7 +294,10 @@ class BibEditorPlugin {
     const transaction = this.view.state.update({
       changes: { from: 0, to: this.view.state.doc.length, insert: doc },
       selection: { anchor: 0 },
-      userEvent: 'history',
+      // Undo is a first-class OT origin (source-editor/realtime.ts maps
+      // userEvent 'undo' onto the document op metadata) — tag the move so
+      // the sync pipeline and any listeners see an undo, not a plain edit.
+      userEvent: direction === -1 ? 'undo' : 'redo',
     })
     this.view.dispatch(transaction)
     this.emitHistoryState()
