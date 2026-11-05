@@ -41,6 +41,8 @@ import {
 import type { BibEntry } from '../utils/bib-types'
 import { getEntryType, getMissingRequiredFields } from '../utils/bib-types'
 import { matchesSearch, splitHighlighted } from '../utils/preview-model'
+import type { BibEntryDiagnosticsMap } from '../utils/bib-source-diagnostics'
+import { diagnosticLabel } from '../utils/bib-source-diagnostics'
 
 /** Default stable row identity = citation key (in-project usage). */
 function defaultRowIdOf(entry: BibEntry): string {
@@ -76,6 +78,8 @@ type Props = {
   rowIdOf?: (entry: BibEntry) => string
   /** Rows whose citation key is used by more than one row (SaaS warning) */
   duplicateIds?: Set<string>
+  /** Rows carrying source diagnostics, keyed by entry object identity */
+  diagnostics?: BibEntryDiagnosticsMap
   /** library view: bulk Download (selection) */
   onBulkDownload?: () => void
   /** trash view: bulk Restore */
@@ -112,6 +116,7 @@ export default function BibEntryList({
   showUpdatedAt = false,
   rowIdOf = defaultRowIdOf,
   duplicateIds,
+  diagnostics,
   onBulkDownload,
   onBulkRestore,
   bulkDeleteLabel,
@@ -353,6 +358,11 @@ export default function BibEntryList({
               fullLayout={cardLayout === 'full'}
               showUpdatedAt={showUpdatedAt}
               duplicate={duplicateIds?.has(rowIdOf(entry)) ?? false}
+              sourceIssue={
+                diagnostics?.get(entry)?.[0]
+                  ? diagnosticLabel(diagnostics.get(entry)![0], t)
+                  : undefined
+              }
             />
           </div>
         ))}
@@ -373,6 +383,7 @@ function BibEntryCard({
   fullLayout,
   showUpdatedAt,
   duplicate,
+  sourceIssue,
 }: {
   entry: BibEntry
   index: number
@@ -389,6 +400,8 @@ function BibEntryCard({
   showUpdatedAt?: boolean
   /** SaaS `bibtex_duplicates_keys` warning (duplicate citation key) */
   duplicate?: boolean
+  /** Human-readable first source diagnostic for this entry (board #5) */
+  sourceIssue?: string
 }) {
   const t = useTranslation().t
   const typeDef = getEntryType(entry.type)
@@ -483,6 +496,18 @@ function BibEntryCard({
             <span className="bibtex-entry-error-icon" role="img" aria-label={t('Entry has errors')}>
               <span className="material-symbols" aria-hidden="true">
                 error
+              </span>
+            </span>
+          )}
+          {sourceIssue && (
+            <span
+              className="bibtex-entry-syntax-icon"
+              role="img"
+              aria-label={sourceIssue}
+              title={sourceIssue}
+            >
+              <span className="material-symbols" aria-hidden="true">
+                rule
               </span>
             </span>
           )}

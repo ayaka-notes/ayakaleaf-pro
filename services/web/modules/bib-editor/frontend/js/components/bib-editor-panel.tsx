@@ -57,6 +57,8 @@ import type { ParsedBibEntry } from '../utils/bib-parser'
 import { generateAvailableCitationKey } from '../utils/bib-key-generation'
 import { normaliseOrcidEntryKeys, splitImportText } from '../utils/bib-import'
 import { downloadBibFilename, downloadBibBulkFilename, selectedEntriesInOrder, bulkDeleteIds, nextEntry, prevEntry } from '../utils/preview-model.ts'
+import { validateBibSource, attachDiagnostics, diagnosticLabel } from '../utils/bib-source-diagnostics'
+import { plural } from '../utils/plural'
 import {
   bibPreviewSessionKey,
   readBibPreviewSession,
@@ -434,6 +436,16 @@ function BibEditorPanel() {
     return entries.findIndex(e => e.id === selection.entryId)
   }, [selection, entries])
 
+  // ── Source diagnostics (board #5): WHERE a .bib is broken ──────────
+  // validateBibSource is pure: it flags unterminated entries (the parser
+  // silently drops those), invalid keys and duplicate fields, with 1-based
+  // line numbers for the banner's "Go to line" action.
+  const diagnosticsInfo = useMemo(() => {
+    const diagnostics = validateBibSource(source)
+    const { byEntry, unattached } = attachDiagnostics(entries, diagnostics)
+    return { byEntry, all: [...unattached, ...byEntry.values().flat()] }
+  }, [source, entries])
+
   const handlePreviewClose = useCallback(() => {
     setShowDeleteConfirm(false)
     flushCurrentForm()
@@ -742,6 +754,32 @@ function BibEditorPanel() {
 
       <div className="bib-editor-panel-content">
         <div className="bibtex-list-and-preview">
+          {diagnosticsInfo.all.length > 0 && (
+            <div className="bib-source-issues" role="alert" aria-live="polite">
+              <span className="bib-source-issues-title">
+                <span className="material-symbols" aria-hidden="true">warning</span>
+                {plural(t, diagnosticsInfo.all.length, '1 source problem found', '__count__ source problems found')}
+              </span>
+              <ul className="bib-source-issues-list">
+                {diagnosticsInfo.all.map(d => (
+                  <li key={d.from}>
+                    <span className="bib-source-issues-text">
+                      {diagnosticLabel(d, t)}
+                      {' '}
+                      {t('line __line__', { line: d.line })}
+                    </span>
+                    <button
+                      type="button"
+                      className="bib-source-issues-goto"
+                      onClick={() => scrollTo(d.entryFrom ?? d.from)}
+                    >
+                      {t('Go')}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
             <BibEntryList
               entries={entries}
               onSelect={selectEntry}
@@ -760,6 +798,7 @@ function BibEditorPanel() {
                 selectedIds.length > 0 ? handleBulkDownload : undefined
               }
               openDocName={openDocName ?? undefined}
+              diagnostics={diagnosticsInfo.byEntry}
               onAddPaste={() => {
                 // clear any stale upload text so "Paste references" is blank
                 setUploadText('')

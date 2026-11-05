@@ -689,6 +689,68 @@
   font-size: var(--font-size-01);
 }
 
+/* --- Source diagnostics banner (board #5) --------------------------------
+   Above the entry list: where the .bib is broken, with a per-issue
+   "Go" action that scrolls the list to the offending entry. */
+
+.bib-editor-panel .bib-source-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.5rem 0.25rem 0.375rem;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--bibtex-already-in-library-color, #d4a10c);
+  border-left-width: 3px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bibtex-already-in-library-color, #d4a10c) 7%, transparent);
+  font-size: 0.875rem;
+}
+
+.bib-editor-panel .bib-source-issues-title {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-weight: 600;
+}
+
+.bib-editor-panel .bib-source-issues-title .material-symbols {
+  font-size: 1.25rem;
+}
+
+.bib-editor-panel .bib-source-issues-list {
+  margin: 0;
+  padding-left: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.bib-editor-panel .bib-source-issues-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.bib-editor-panel .bib-source-issues-text {
+  flex: 1 1 auto;
+  color: var(--grey-80, #333);
+}
+
+.bib-editor-panel .bib-source-issues-goto {
+  flex: 0 0 auto;
+  align-self: center;
+  border: 1px solid var(--grey-50, #aaa);
+  background: var(--grey-10, #f5f5f5);
+  border-radius: 4px;
+  padding: 0.0625rem 0.5rem;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  color: inherit;
+}
+.bib-editor-panel .bib-source-issues-goto:hover {
+  background: var(--grey-20, #eee);
+}
+
 /* --- Windowed list body (C3: absolute rows + data-index) ----------------- */
 
 .bib-editor-panel .bibtex-entry-list-body {
@@ -1268,6 +1330,19 @@
   align-items: center;
 }
 .bib-editor-panel .bibtex-entry-duplicate-icon .material-symbols {
+  font-size: 1.125rem;
+}
+
+/* Board #5: source-diagnostic chip on entries that carry syntax issues. */
+.bib-editor-panel .bibtex-entry-syntax-icon {
+  color: var(--bibtex-already-in-library-color, #d4a10c);
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  cursor: default;
+  padding: 0;
+}
+.bib-editor-panel .bibtex-entry-syntax-icon .material-symbols {
   font-size: 1.125rem;
 }
 
