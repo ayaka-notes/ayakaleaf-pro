@@ -699,7 +699,10 @@ async function adminUserUsageSummary(req, res) {
     const providers = Array.isArray(userDoc.llmProviders) ? userDoc.llmProviders : []
     const rowNames = {}
     for (const p of providers) {
-        if (p && p._id != null) rowNames[String(p._id)] = p.name || String(p._id)
+        if (p && (p._id != null || p.id != null)) {
+            const key = String(p._id != null ? p._id : p.id)
+            rowNames[key] = p.name || key
+        }
     }
     const tasks = {}
     for (const k of TASK_KEYS) {

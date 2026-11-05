@@ -105,8 +105,12 @@ export function buildCommentTools({ userId, projectId }) {
           message
         )
         return text(
-          `Comment started (thread ${threadId}); it is live in the Overleaf ` +
-            'review panel now. reply_to_comment continues it.'
+          `Comment started (thread ${threadId}, message ${String(
+            message.id ?? message._id
+          )}); it is live now — in the review panel's "Other comments" ` +
+            'section and the chat pane. reply_to_comment continues it, '
+          +
+            'delete_comment removes it.'
         )
       },
     },
@@ -134,20 +138,20 @@ export function buildCommentTools({ userId, projectId }) {
           projectId,
           'You cannot comment on this project'
         )
-        const message = await ChatApiHandler.promises.editMessage(
+        await ChatApiHandler.promises.editMessage(
           projectId,
           String(threadId),
           String(messageId),
           userId,
           content
         )
-        const user = await UserInfoManager.promises.getPersonalInfo(userId)
-        message.user = UserInfoController.formatPersonalInfo(user)
+        // same event as the web edit route (TrackChangesController.editMessage)
         EditorRealTimeController.emitToRoom(
           projectId,
           'edit-message',
           String(threadId),
-          message
+          String(messageId),
+          content
         )
         return text('Message edited; the review panel updated it live.')
       },
@@ -214,22 +218,30 @@ export function buildCommentTools({ userId, projectId }) {
           projectId,
           'You cannot delete this comment'
         )
-        const docId = await findCommentDoc(projectId, String(threadId))
-        const user = await UserInfoManager.promises.getPersonalInfo(userId)
+        let docId = null
+        try {
+          docId = await findCommentDoc(projectId, String(threadId))
+        } catch {
+          // not anchored to a range — an "Other comments" thread: delete
+          // the chat thread only (nothing in the docstore to clean)
+        }
         await ChatApiHandler.promises.deleteThread(projectId, String(threadId))
-        EditorRealTimeController.emitToRoom(
-          projectId,
-          'delete-comment',
-          docId,
-          String(threadId),
-          UserInfoController.formatPersonalInfo(user)
-        )
-        await DocumentUpdaterHandler.promises.deleteThread(
-          projectId,
-          docId,
-          String(threadId),
-          userId
-        )
+        const user = await UserInfoManager.promises.getPersonalInfo(userId)
+        if (docId) {
+          EditorRealTimeController.emitToRoom(
+            projectId,
+            'delete-comment',
+            docId,
+            String(threadId),
+            UserInfoController.formatPersonalInfo(user)
+          )
+          await DocumentUpdaterHandler.promises.deleteThread(
+            projectId,
+            docId,
+            String(threadId),
+            userId
+          )
+        }
         return text('Comment deleted.')
       },
     },
@@ -264,8 +276,7 @@ export function buildCommentTools({ userId, projectId }) {
         const paths = new Map(
           docs.map(({ doc, path }) => [doc._id.toString(), path.slice(1)])
         )
-        return text(
-          comments
+        const anchored = comments
             .filter(({ comment }) => threads[comment.op.t])
             .filter(({ comment }) => includeResolved || !threads[comment.op.t].resolved)
             .map(({ docId, comment }) => {
@@ -278,14 +289,34 @@ export function buildCommentTools({ userId, projectId }) {
                 ...(thread.resolved && {
                   resolvedBy: person(thread.resolved_by_user),
                 }),
-                messages: thread.messages.map(message => ({
+                messages: (thread.messages || []).map(message => ({
                   author: person(message.user),
                   content: message.content,
                   timestamp: new Date(message.timestamp).toISOString(),
                 })),
               }
             })
-        )
+        // threads not anchored to a range show in the panel's "Other
+        // comments" (the MCP add_comment creates those)
+        const anchoredIds = new Set(anchored.map(c => c.threadId))
+        const standalone = Object.entries(threads)
+          .filter(([threadId]) => !anchoredIds.has(threadId))
+          .filter(([, thread]) => includeResolved || !thread.resolved)
+          .map(([threadId, thread]) => ({
+            threadId,
+            file: null,
+            text: (thread.messages?.[0]?.content || '').slice(0, 200),
+            resolved: Boolean(thread.resolved),
+            ...(thread.resolved && {
+              resolvedBy: person(thread.resolved_by_user),
+            }),
+            messages: (thread.messages || []).map(message => ({
+              author: person(message.user),
+              content: message.content,
+              timestamp: new Date(message.timestamp).toISOString(),
+            })),
+          }))
+        return text([...anchored, ...standalone])
       },
     },
 

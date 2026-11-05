@@ -1,4 +1,4 @@
-import { z } from '../../../../app/src/infrastructure/Validation.mjs'
+import { z, zz } from '../../../../app/src/infrastructure/Validation.mjs'
 import AuthorizationManager from '../../../../app/src/Features/Authorization/AuthorizationManager.mjs'
 import DocstoreManager from '../../../../app/src/Features/Docstore/DocstoreManager.mjs'
 import DocumentUpdaterHandler from '../../../../app/src/Features/DocumentUpdater/DocumentUpdaterHandler.mjs'
@@ -7,8 +7,8 @@ import ProjectEntityHandler from '../../../../app/src/Features/Project/ProjectEn
 import UserInfoManager from '../../../../app/src/Features/User/UserInfoManager.mjs'
 import UserInfoController from '../../../../app/src/Features/User/UserInfoController.mjs'
 import { Project } from '../../../../app/src/models/Project.mjs'
-import { checkAccess, person, rateLimiters, text } from './McpUtils.mjs'
-import { findEntity, filePath } from './FileTools.mjs'
+import { checkAccess, filePath, person, rateLimiters, text } from './McpUtils.mjs'
+import { findEntity } from './FileTools.mjs'
 // The review panel's tracked changes: the ranges of every doc (pending
 // insertions/deletions, per user) as the panel reads them through
 // DocstoreManager.getAllRanges (the panel's /project/:id/ranges route uses
@@ -23,8 +23,8 @@ import { findEntity, filePath } from './FileTools.mjs'
 // below says exactly that.
 const blockLinkViewers = (userId, projectId) =>
   checkAccess(
-    (userId, projectId) =>
-      !AuthorizationManager.promises.isRestrictedUserForProject(userId, projectId),
+    async (userId, projectId) =>
+      !(await AuthorizationManager.promises.isRestrictedUserForProject(userId, projectId)),
     userId,
     projectId,
     'You can\'t see the tracked changes of this project (you joined by link)'
@@ -121,7 +121,7 @@ export function buildTrackChangesTools({ userId, projectId }) {
         changeIds: z
           .array(
             z.union([
-              z.objectId(),
+              zz.objectId(),
               z.string().min(1),
             ])
           )

@@ -30,8 +30,8 @@ import { checkAccess, filePath, limited, person, rateLimiters, text } from './Mc
 const historyUrl = path => `${Settings.apis.project_history.url}${path}`
 const blockLinkViewers = (userId, projectId) =>
   checkAccess(
-    (userId, projectId) =>
-      !AuthorizationManager.promises.isRestrictedUserForProject(userId, projectId),
+    async (userId, projectId) =>
+      !(await AuthorizationManager.promises.isRestrictedUserForProject(userId, projectId)),
     userId,
     projectId,
     'You can\'t see the history of this project (you joined by link)'
@@ -52,7 +52,7 @@ const canWrite = (userId, projectId) =>
     projectId,
     'You can\'t change the files of this project'
   )
-const asPath = p => (p.startsWith('/') ? p : `/${p}`)
+const asPath = p => p.replace(/^\/+/, '') // history pathnames are bare ("src/intro.tex")
 async function latestVersion(projectId, userId) {
   const body = await fetchJson(historyUrl(`/project/${projectId}/version`), {
     headers: { 'X-User-Id': userId },
@@ -88,10 +88,21 @@ export function buildHistoryTools({ userId, projectId }) {
         const updates = data.updates || (Array.isArray(data) ? data : [])
         return text(
           updates.map(entry => ({
-            version: entry.version,
-            user: person(entry.user) || entry.user_id || null,
-            date: new Date(entry.create_time).toISOString(),
-            comment: entry.comment || '',
+            // summarized updates span a version range (fromV..toV); a single
+            // edit is fromV+1..toV, i.e. "version toV"
+            version:
+              entry.toV != null
+                ? entry.fromV == null || entry.fromV + 1 === entry.toV
+                  ? entry.toV
+                  : `${entry.fromV + 1}…${entry.toV}`
+                : entry.version,
+            users: (entry.meta?.users || [])
+              .map(u => person(u))
+              .filter(Boolean),
+            date: new Date(entry.meta?.end_ts || entry.meta?.start_ts || 0)
+              .toISOString(),
+            comment: entry.labels?.[0]?.comment || entry.comment || '',
+            labels: (entry.labels || []).map(l => l.comment).filter(Boolean),
             files: Array.from(entry.pathnames || []).map(p => p.slice(1)),
           }))
         )
@@ -100,13 +111,18 @@ export function buildHistoryTools({ userId, projectId }) {
     get_diff: {
       rateLimiter: rateLimiters.getDiff,
       description:
-        'The diff between two versions — of ONE file (give the file ' +
-        'path) or of THE WHOLE PROJECT (omit the file). A unified diff, ' +
-        'truncated to a readable size. versionA older, versionB newer; ' +
-        'omit both for the whole content so far.',
+        'The diff between two versions. Without a file: which files were '
+        +
+        'added/changed/removed in that span + per-file details. With a file: '
+        +
+        'the unified content diff of that file. Truncated to a readable '
+        +
+        'size. versionA older, versionB newer; omit both for the whole '
+        +
+        'content so far.',
       inputSchema: {
         file: filePath.optional().describe(
-          'One file, e.g. sections/intro.tex; without it the whole project.'
+          'One file, e.g. sections/intro.tex; without it the file list + per-file summary.'
         ),
         versionA: z
           .number()
@@ -129,31 +145,24 @@ export function buildHistoryTools({ userId, projectId }) {
           (await latestVersion(projectId, userId).catch(() => null)) ??
           0
         const from = versionA ?? 0
-        let url
-        if (file) {
-          url =
-            historyUrl(
+        const url = file
+          ? historyUrl(
               `/project/${projectId}/diff?pathname=${encodeURIComponent(
                 asPath(file)
               )}&from=${from}&to=${to}`
             )
-        } else {
-          url = historyUrl(
-            `/project/${projectId}/filetree/diff?from=${from}&to=${to}`
-          )
-        }
+          : historyUrl(
+              `/project/${projectId}/filetree/diff?from=${from}&to=${to}`
+            )
         const body = await fetchJson(url, {
           headers: { 'X-User-Id': userId },
         })
         const data = await HistoryManager.promises.injectUserDetails(body).catch(
           () => body
         )
-        return text(
-          limited(
-            typeof data === 'string' ? data : JSON.stringify(data, null, 2),
-            'diff'
-          )
-        )
+        const out =
+          typeof data === 'string' ? data : JSON.stringify(data, null, 2)
+        return text(limited(out, 'diff'))
       },
     },
     read_version_file: {
@@ -174,7 +183,7 @@ export function buildHistoryTools({ userId, projectId }) {
         await blockLinkViewers(userId, projectId)
         await canRead(userId, projectId)
         const url = historyUrl(
-          `/project/${projectId}/version/${version}/${asPath(file).slice(1).split('/').map(encodeURIComponent).join('/')}`
+          `/project/${projectId}/version/${version}/${asPath(file).split('/').map(encodeURIComponent).join('/')}`
         )
         const res = await fetch(url, { headers: { 'X-User-Id': userId } })
         if (!res.ok) {
@@ -248,10 +257,22 @@ export function buildHistoryTools({ userId, projectId }) {
           : historyUrl(
               `/project/${projectId}/user/${userId}/labels/${labelId}`
             )
-        await fetchJson(url, {
+        // the DELETE responds 204 with an empty body — not JSON
+        const res = await fetch(url, {
           method: 'DELETE',
           headers: { 'X-User-Id': userId },
         })
+        if (!res.ok && res.status !== 204) {
+          const body = await res.text().catch(() => '')
+          if (res.status === 404) {
+            throw new Error(
+              'Label not found or it is not yours — list the labels with list_versions.'
+            )
+          }
+          throw new Error(
+            `Deleting the label failed: ${res.status} ${body}`.slice(0, 300)
+          )
+        }
         return text('Label deleted.')
       },
     },
@@ -317,7 +338,7 @@ export function buildHistoryTools({ userId, projectId }) {
           userId,
           projectId,
           version,
-          asPath(file)
+          asPath(file).replace(/^\/+/, '')
         )
         return text(
           `Restored ${file} to version ${version}. The previous content ` +

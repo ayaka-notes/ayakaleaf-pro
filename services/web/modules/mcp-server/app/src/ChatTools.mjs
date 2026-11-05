@@ -11,11 +11,11 @@ const messageId = zz.objectId().describe('The messageId from list_chat.')
 export function buildChatTools({ userId, projectId }) {
   const blockLinkViewers = () =>
     checkAccess(
-      (userId, projectId) =>
-        !AuthorizationManager.promises.isRestrictedUserForProject(
+      async (userId, projectId) =>
+        !(await AuthorizationManager.promises.isRestrictedUserForProject(
           userId,
           projectId
-        ),
+        )),
       userId,
       projectId,
       'You can\'t see the chat of this project (you joined by link)'
@@ -88,7 +88,8 @@ export function buildChatTools({ userId, projectId }) {
           content
         )
         return text(
-          `Sent (message ${String(message._id)}). The chat shows it live in Overleaf.`
+          `Sent (message ${String(message.id ?? message._id)}). The chat ` +
+            'shows it live in Overleaf.'
         )
       },
     },
