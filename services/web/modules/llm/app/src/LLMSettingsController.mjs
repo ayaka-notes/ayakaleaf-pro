@@ -591,8 +591,20 @@ async function saveSelectedModel(req, res) {
         await User.updateOne({ _id: userId }, { $set: { ['llmTaskModels.' + task]: value } })
         return res.json({ ok: true, selected: value, task })
     }
-    await User.updateOne({ _id: userId }, { $set: { llmSelectedModel: value } })
-    res.json({ ok: true, selected: value })
+    // overleaf-lab (2026-11-05, owner report b65fe8b6): saving the SHARED
+    // default ("All tasks (default)") must be the model used for EVERY task —
+    // stale per-task overrides would otherwise keep silently winning
+    // (resolveProfileModelForTask: override > default), so the UI's "used
+    // everywhere" promise was false. Clearing all four override slots on
+    // every default save keeps the two write paths unambiguous: touching the
+    // default always re-anchors every task to it; per-task saves below are
+    // the ONLY way an override gets (re-)established.
+    const set = { llmSelectedModel: value }
+    for (const k of TASK_KEYS) {
+        set['llmTaskModels.' + k] = ''
+    }
+    await User.updateOne({ _id: userId }, { $set: set })
+    res.json({ ok: true, selected: value, clearedTasks: TASK_KEYS.slice() })
 }
 
 // overleaf-lab (2026-08-27, owner request): USER-SCOPED compliance review
@@ -666,8 +678,43 @@ async function userUsageSummary(req, res) {
     }
     return res.json({ ok: false, error: 'unavailable' })
 }
-
-
+// overleaf-lab (2026-11-05, TODO-9613994b): admin view of ONE user's token
+// accounting ("which model is this user hitting?" — e.g. the 2026-11-05
+// image-refusal debug). Same ledger aggregation as the user's own page, plus
+// that user's live model selection (default + per-task overrides + BYO row
+// names) so the admin can confirm exactly which lane each task resolves to.
+// Gated by ensureUserIsSiteAdmin in LLMRouter; works for ANY user id, not
+// only the session user.
+async function adminUserUsageSummary(req, res) {
+    const userId = req.params.userId
+    const userDoc = await User.findOne({ _id: userId }).lean()
+    if (!userDoc) {
+        return res.status(404).json({ ok: false, error: 'not-found' })
+    }
+    const days = parseInt(req.query.days, 10)
+    const summary = await getUsageSummary({ userId, days: Number.isFinite(days) ? days : 30 })
+    if (!summary) {
+        return res.json({ ok: false, error: 'unavailable' })
+    }
+    const providers = Array.isArray(userDoc.llmProviders) ? userDoc.llmProviders : []
+    const rowNames = {}
+    for (const p of providers) {
+        if (p && p._id != null) rowNames[String(p._id)] = p.name || String(p._id)
+    }
+    const tasks = {}
+    for (const k of TASK_KEYS) {
+        tasks[k] = typeof userDoc.llmTaskModels?.[k] === 'string' ? userDoc.llmTaskModels[k] : ''
+    }
+    res.json({
+        ok: true,
+        ...summary,
+        selection: {
+            default: typeof userDoc.llmSelectedModel === 'string' ? userDoc.llmSelectedModel : '',
+            tasks,
+            rowNames,
+        },
+    })
+}
 export default {
     isUserSettingsAllowed,
     requireUserSettingsAllowed,
@@ -680,6 +727,7 @@ export default {
     checkProviderConnection: expressify(checkProviderConnection),
     scanProviderModels: expressify(scanProviderModels),
     userUsageSummary: expressify(userUsageSummary), // overleaf-lab (usage meter)
+    adminUserUsageSummary: expressify(adminUserUsageSummary), // overleaf-lab (2026-11-05, admin per-user usage)
     // overleaf-lab: user-scoped shared model selection (File → "Select LLM Model")
     getSelectedModel: expressify(getSelectedModel),
     saveSelectedModel: expressify(saveSelectedModel),

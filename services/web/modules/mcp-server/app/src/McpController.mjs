@@ -15,8 +15,11 @@ import {
   compileUserId,
 } from './CompileTools.mjs'
 import { buildCommentTools } from './CommentTools.mjs'
+import { buildChatTools } from './ChatTools.mjs'
 import { buildFileTools } from './FileTools.mjs'
+import { buildHistoryTools } from './HistoryTools.mjs'
 import { buildProjectTools } from './ProjectTools.mjs'
+import { buildTrackChangesTools } from './TrackChangesTools.mjs'
 import { rateLimit } from './McpUtils.mjs'
 
 // The router checked that the user can read the project
@@ -49,6 +52,9 @@ function createServer(userId, projectId) {
     ...buildCompileTools(context),
     ...buildFileTools(context),
     ...buildCommentTools(context),
+    ...buildChatTools(context),
+    ...buildHistoryTools(context),
+    ...buildTrackChangesTools(context),
   }
   const key = `${projectId}:${userId}`
   for (const [name, { rateLimiter, handler, ...config }] of Object.entries(tools)) {

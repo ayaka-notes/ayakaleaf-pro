@@ -1,4 +1,5 @@
 import { z, zz } from '../../../../app/src/infrastructure/Validation.mjs'
+import { randomBytes } from 'crypto'
 import AuthorizationManager from '../../../../app/src/Features/Authorization/AuthorizationManager.mjs'
 import ChatApiHandler from '../../../../app/src/Features/Chat/ChatApiHandler.mjs'
 import ChatManager from '../../../../app/src/Features/Chat/ChatManager.mjs'
@@ -57,6 +58,181 @@ export function buildCommentTools({ userId, projectId }) {
     )
 
   return {
+    add_comment: {
+      rateLimiter: rateLimiters.addComment,
+      description:
+        'Start a NEW comment thread in Overleaf with the given text; it '
+        +
+        'shows in the review panel under the Other comments section (not '
+        +
+        'anchored to text — the MCP server cannot insert the text-anchor '
+        +
+        'operation: for an anchored comment use list_comments on the file '
+        +
+        'and reply_to_comment, or anchor it in Overleaf). Use it for '
+        +
+        'project-wide questions or notes about a file.',
+      inputSchema: {
+        content: z.string().min(1).describe('The comment text.'),
+      },
+      handler: async ({ content }) => {
+        await checkAccess(
+          (userId, projectId) =>
+            AuthorizationManager.promises.canUserWriteOrReviewProjectContent(
+              userId,
+              projectId
+            ),
+          userId,
+          projectId,
+          'You cannot comment on this project'
+        )
+        // same creation path as the panel: a fresh thread id, then the
+        // first message (the chat service creates the thread on the first
+        // message, exactly as the browser\'s post-thread-message does)
+        const threadId = randomBytes(12).toString('hex')
+        const message = await ChatApiHandler.promises.sendComment(
+          projectId,
+          threadId,
+          userId,
+          content
+        )
+        const user = await UserInfoManager.promises.getPersonalInfo(userId)
+        message.user = UserInfoController.formatPersonalInfo(user)
+        EditorRealTimeController.emitToRoom(
+          projectId,
+          'new-comment',
+          threadId,
+          message
+        )
+        return text(
+          `Comment started (thread ${threadId}); it is live in the Overleaf ` +
+            'review panel now. reply_to_comment continues it.'
+        )
+      },
+    },
+    edit_comment_message: {
+      rateLimiter: rateLimiters.editComment,
+      description:
+        'Edit one message of a comment thread (list_comments gives the '
+        +
+        'thread id; the message id is the one the panel\'s editing shows, '
+        +
+        'the first message of a thread is the comment text).',
+      inputSchema: {
+        threadId,
+        messageId: zz.objectId().describe('The message to edit.'),
+        content: z.string().min(1).describe('The new text.'),
+      },
+      handler: async ({ threadId, messageId, content }) => {
+        await checkAccess(
+          (userId, projectId) =>
+            AuthorizationManager.promises.canUserWriteOrReviewProjectContent(
+              userId,
+              projectId
+            ),
+          userId,
+          projectId,
+          'You cannot comment on this project'
+        )
+        const message = await ChatApiHandler.promises.editMessage(
+          projectId,
+          String(threadId),
+          String(messageId),
+          userId,
+          content
+        )
+        const user = await UserInfoManager.promises.getPersonalInfo(userId)
+        message.user = UserInfoController.formatPersonalInfo(user)
+        EditorRealTimeController.emitToRoom(
+          projectId,
+          'edit-message',
+          String(threadId),
+          message
+        )
+        return text('Message edited; the review panel updated it live.')
+      },
+    },
+    delete_comment_message: {
+      rateLimiter: rateLimiters.deleteComment,
+      description:
+        'Delete one message of a comment thread. Editors delete any '
+        +
+        'message; reviewers only their own, like the review panel.',
+      inputSchema: {
+        threadId,
+        messageId: zz.objectId().describe('The message to delete.'),
+      },
+      handler: async ({ threadId, messageId }) => {
+        // same rule as the panel route: writers delete any message
+        // (TrackChangesController.deleteMessage), non-writers only their
+        // own
+        if (
+          !(await AuthorizationManager.promises.canUserWriteProjectContent(
+            userId,
+            projectId
+          ))
+        ) {
+          const message = await ChatApiHandler.promises.getThreadMessage(
+            projectId,
+            String(threadId),
+            String(messageId)
+          )
+          if (String(message?.user_id) !== String(userId)) {
+            throw new Error('Only the author can delete this message')
+          }
+        }
+        await ChatApiHandler.promises.deleteMessage(
+          projectId,
+          String(threadId),
+          String(messageId)
+        )
+        EditorRealTimeController.emitToRoom(
+          projectId,
+          'delete-message',
+          String(threadId),
+          String(messageId)
+        )
+        return text('Message deleted.')
+      },
+    },
+    delete_comment: {
+      rateLimiter: rateLimiters.deleteComment,
+      description:
+        'Delete a whole comment thread and its anchor from the file '
+        +
+        '(the panel\'s delete comment).',
+      inputSchema: { threadId },
+      handler: async ({ threadId }) => {
+        await checkAccess(
+          (userId, projectId) =>
+            AuthorizationManager.promises.canUserDeleteOrResolveThread(
+              userId,
+              projectId,
+              String(threadId)
+            ),
+          userId,
+          projectId,
+          'You cannot delete this comment'
+        )
+        const docId = await findCommentDoc(projectId, String(threadId))
+        const user = await UserInfoManager.promises.getPersonalInfo(userId)
+        await ChatApiHandler.promises.deleteThread(projectId, String(threadId))
+        EditorRealTimeController.emitToRoom(
+          projectId,
+          'delete-comment',
+          docId,
+          String(threadId),
+          UserInfoController.formatPersonalInfo(user)
+        )
+        await DocumentUpdaterHandler.promises.deleteThread(
+          projectId,
+          docId,
+          String(threadId),
+          userId
+        )
+        return text('Comment deleted.')
+      },
+    },
     list_comments: {
       rateLimiter: rateLimiters.listComments,
       description:

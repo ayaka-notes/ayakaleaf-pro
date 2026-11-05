@@ -15,6 +15,25 @@ export function text(value) {
     ],
   }
 }
+// overleaf-lab (2026-11-05, MCP plan): truncate long tool outputs so an MCP
+// client never chokes on a megabyte diff/history; signal the cut.
+export const MAX_TEXT_CHARS = 20000
+export function limited(value, label = 'output', limit = MAX_TEXT_CHARS) {
+  const str = typeof value === 'string' ? value : JSON.stringify(value, null, 2)
+  if (str.length <= limit) return str
+  return (
+    str.slice(0, limit) +
+    `\n\n[${label} truncated at ${limit} characters; ${str.length - limit} more. ` +
+    'Narrow the request — fewer files or versions, a smaller limit — to see the rest.]'
+  )
+}
+// overleaf-lab (2026-11-05, MCP plan): author line for chat messages and
+// change lists, as the review panel shows them: "Name <email>" or email.
+export function person(user) {
+  if (!user?.email) return null
+  const name = [user.first_name, user.last_name].filter(Boolean).join(' ')
+  return name ? `${name} <${user.email}>` : user.email
+}
 
 export async function checkAccess(canUser, userId, projectId, message) {
   if (!(await canUser(userId, projectId))) throw new Error(message)
@@ -90,6 +109,79 @@ export const rateLimiters = {
     duration: 60,
   }),
   reopenComment: new RateLimiter('mcp-reopen-comment', {
+    points: 30,
+    duration: 60,
+  }),
+  // overleaf-lab (2026-11-05, MCP plan): batch-1 tools (issue #126)
+  listChat: new RateLimiter('mcp-list-chat', {
+    points: 60,
+    duration: 60,
+  }),
+  sendChatMessage: new RateLimiter('mcp-send-chat-message', {
+    points: 30,
+    duration: 60,
+  }),
+  editChatMessage: new RateLimiter('mcp-edit-chat-message', {
+    points: 30,
+    duration: 60,
+  }),
+  deleteChatMessage: new RateLimiter('mcp-delete-chat-message', {
+    points: 30,
+    duration: 60,
+  }),
+  addComment: new RateLimiter('mcp-add-comment', {
+    points: 30,
+    duration: 60,
+  }),
+  editComment: new RateLimiter('mcp-edit-comment', {
+    points: 30,
+    duration: 60,
+  }),
+  deleteComment: new RateLimiter('mcp-delete-comment', {
+    points: 30,
+    duration: 60,
+  }),
+  listHistory: new RateLimiter('mcp-list-history', {
+    points: 60,
+    duration: 60,
+  }),
+  getDiff: new RateLimiter('mcp-get-diff', {
+    points: 30,
+    duration: 60,
+  }),
+  createVersion: new RateLimiter('mcp-create-version', {
+    points: 10,
+    duration: 60,
+  }),
+  deleteVersionLabel: new RateLimiter('mcp-delete-version-label', {
+    points: 10,
+    duration: 60,
+  }),
+  restoreProject: new RateLimiter('mcp-restore-project', {
+    points: 5,
+    duration: 60,
+  }),
+  restoreFileVersion: new RateLimiter('mcp-restore-file-version', {
+    points: 5,
+    duration: 60,
+  }),
+  listChanges: new RateLimiter('mcp-list-changes', {
+    points: 60,
+    duration: 60,
+  }),
+  acceptChanges: new RateLimiter('mcp-accept-changes', {
+    points: 30,
+    duration: 60,
+  }),
+  setTrackedChanges: new RateLimiter('mcp-set-tracked-changes', {
+    points: 10,
+    duration: 60,
+  }),
+  renameFile: new RateLimiter('mcp-rename-file', {
+    points: 30,
+    duration: 60,
+  }),
+  moveFile: new RateLimiter('mcp-move-file', {
     points: 30,
     duration: 60,
   }),

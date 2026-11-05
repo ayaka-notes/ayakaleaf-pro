@@ -44,6 +44,29 @@ export function getAiUsage(userId: string): Promise<AiUsage> {
 export function resetAiUsage(userId: string): Promise<AiUsage> {
   return postJSON(`/admin/user/${userId}/ai-usage/reset`)
 }
+// overleaf-lab (2026-11-05, TODO-9613994b): the LLM ledger usage of ONE user
+// (same numbers as that user's own /user/llm-settings Usage block), plus the
+// user's current model selection so the admin can see which lane each task
+// resolves to.
+export type LlmUsageSelection = {
+  default: string
+  tasks: Record<string, string>
+  rowNames: Record<string, string>
+}
+export type LlmUsage = {
+  days: number
+  calls: number
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+  byDay: Array<{ day: string; calls: number; totalTokens: number }>
+  byAction: Array<{ action: string; calls: number; totalTokens: number }>
+  byModel: Array<{ model: string; calls: number; totalTokens: number }>
+  selection: LlmUsageSelection
+}
+export function getLlmUsage(userId: string, days = 30): Promise<LlmUsage> {
+  return getJSON(`/admin/llm/usage/${userId}?days=${days}`)
+}
 
 export function sendRegEmail(userId: string) {
   return postJSON(`/admin/user/${userId}/send-activation`)

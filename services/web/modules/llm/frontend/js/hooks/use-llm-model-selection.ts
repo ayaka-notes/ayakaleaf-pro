@@ -156,7 +156,15 @@ export function useLLMModelSelection() {
             )
             // Persist to the user profile (best-effort; the local bridge
             // already made the choice live everywhere in this tab).
+            // overleaf-lab (2026-11-05, b65fe8b6): the server also clears
+            // every per-task override when the shared default is saved (that
+            // is what "All tasks (default)" means) — mirror that locally so
+            // the per-task table updates immediately. Keep local overrides if
+            // the write failed (the server still has them).
             void postJSON('/user/llm/selected-model', { body: { selected: value } })
+                .then(() => {
+                    setTasks({ chat: '', completion: '', review: '', error: '' })
+                })
                 .catch(() => {
                     /* profile write failed — local selection still works */
                 })

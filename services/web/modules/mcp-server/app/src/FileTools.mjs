@@ -31,6 +31,9 @@ async function findEntity(projectId, path) {
     exactCaseMatch: true,
   })
 }
+// overleaf-lab (2026-11-05, MCP plan): shared with the history / tracked-
+// change tools (path → entity resolution, with the same error shape).
+export { findEntity }
 
 // The latest content of a doc, with the edits not saved yet
 export async function readDoc(projectId, path) {
@@ -150,6 +153,82 @@ export function buildFileTools({ userId, projectId }) {
           userId
         )
         return text(`Deleted ${path}. ${pullHint(projectId)}`)
+      },
+    },
+
+    // overleaf-lab (2026-11-05, MCP plan): rename and move, the panel's
+    // file actions — the same EditorController operations the panel's
+    // rename/move routes run, with the same write-project permission.
+    rename_file: {
+      rateLimiter: rateLimiters.renameFile,
+      description:
+        'Rename a file or folder (its name only, same folder). To move it '
+        +
+        'to another folder use move_file.',
+      inputSchema: {
+        path: filePath.describe('The current path.'),
+        name: z
+          .string()
+          .min(1)
+          .max(255)
+          .describe('The new name (no slashes).'),
+      },
+      handler: async ({ path, name }) => {
+        await checkCanEdit(userId, projectId)
+        if (name.includes('/')) throw new Error('name must not contain slashes')
+        const { element, type } = await findEntity(projectId, path).catch(err => {
+          if (err instanceof Errors.NotFoundError) throw new Error(`${path} not found`)
+          throw err
+        })
+        await EditorController.promises.renameEntity(
+          projectId,
+          element._id,
+          type,
+          name,
+          userId,
+          EDIT_SOURCE
+        )
+        return text(`Renamed ${path} to ${name}. ${pullHint(projectId)}`)
+      },
+    },
+    move_file: {
+      rateLimiter: rateLimiters.moveFile,
+      description:
+        'Move a file or folder into another folder. The target folder '
+        +
+        'must exist (write_file can create one).',
+      inputSchema: {
+        path: filePath.describe('The current path.'),
+        targetFolder: filePath.describe(
+          'The target folder, e.g. sections.'
+        ),
+      },
+      handler: async ({ path, targetFolder }) => {
+        await checkCanEdit(userId, projectId)
+        const { element, type } = await findEntity(projectId, path).catch(err => {
+          if (err instanceof Errors.NotFoundError) throw new Error(`${path} not found`)
+          throw err
+        })
+        const folder = await findEntity(projectId, targetFolder).catch(err => {
+          if (err instanceof Errors.NotFoundError) {
+            throw new Error(
+              `Target folder ${targetFolder} not found. Use list_files to see the folders, ` +
+                'or create the file directly at the target path with write_file.'
+            )
+          }
+          throw err
+        })
+        if (folder.type !== 'folder') {
+          throw new Error(`${targetFolder} is not a folder`)
+        }
+        await EditorController.promises.moveEntity(
+          projectId,
+          folder.element._id,
+          type,
+          userId,
+          EDIT_SOURCE
+        )
+        return text(`Moved ${path} into ${targetFolder}/. ${pullHint(projectId)}`)
       },
     },
   }

@@ -285,5 +285,13 @@ export default {
             LLMAdminController.usageSummary
         )
         logger.debug({}, '[LLM] Route registered: GET /admin/llm/usage')
+        // overleaf-lab (2026-11-05, TODO-9613994b): per-admin view of ONE user's
+        // usage + live model selection, for the admin user account page.
+        webRouter.get(
+            '/admin/llm/usage/:userId',
+            AuthorizationMiddleware.ensureUserIsSiteAdmin,
+            LLMSettingsController.adminUserUsageSummary
+        )
+        logger.debug({}, '[LLM] Route registered: GET /admin/llm/usage/:userId')
     }
 }
