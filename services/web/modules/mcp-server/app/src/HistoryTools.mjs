@@ -59,7 +59,7 @@ async function latestVersion(projectId, userId) {
   })
   return body.version
 }
-export function buildHistoryTools({ userId, projectId }) {
+export function buildHistoryTools({ userId, projectId, client }) {
   return {
     list_history: {
       rateLimiter: rateLimiters.listHistory,
@@ -199,9 +199,11 @@ export function buildHistoryTools({ userId, projectId }) {
     create_version: {
       rateLimiter: rateLimiters.createVersion,
       description:
-        'Create a named version at the current state (the "create version" ' +
-        'of the history panel), with a comment; then visible to the user ' +
-        'in the panel and in list_versions here.',
+        'Create a named version at the current state (the "create version" '
+        + 'of the history panel), with a comment; then visible to the user '
+        + 'in the panel and in list_versions here. Versions created through '
+        + 'MCP are marked "via MCP" in their comment, so the owner can tell '
+        + 'agent-created versions apart.',
       inputSchema: {
         comment: z.string().min(1).max(200).describe('The label/comment.'),
       },
@@ -215,16 +217,22 @@ export function buildHistoryTools({ userId, projectId }) {
           'You can\'t create named versions of this project'
         )
         const version = await latestVersion(projectId, userId)
+        // overleaf-lab (issue #126, plan step 7 — AI identity layer): the
+        // version's author is the PAT owner; the marker makes it visible to
+        // humans reviewing the history that THIS version came from an agent
+        // (and which one, when the harness sends X-MCP-Client).
+        const source = client && client !== 'mcp' ? ` via MCP ${client}` : ' via MCP'
+        const labeled = [comment.trim(), source].filter(Boolean).join('').slice(0, 240)
         const label = await fetchJson(
           historyUrl(`/project/${projectId}/labels`),
           {
             method: 'POST',
             headers: { 'X-User-Id': userId },
-            json: { comment, version, user_id: userId },
+            json: { comment: labeled, version, user_id: userId },
           }
         )
         return text(
-          `Version ${version} is now labeled \u201c${comment}\u201d (id ${label.id}).`
+          `Version ${version} is now labeled \u201c${labeled}\u201d (id ${label.id}).`
         )
       },
     },

@@ -23,7 +23,63 @@ import { buildTrackChangesTools } from './TrackChangesTools.mjs'
 import { rateLimit } from './McpUtils.mjs'
 
 // The router checked that the user can read the project
-function createServer(userId, projectId) {
+// overleaf-lab (issue #126, plan step 7 — AI identity layer): who exactly is
+// "the MCP user"? The PAT owner's identity is already on every record (the
+// web endpoints run as that user), so the remaining question is WHICH AGENT
+// acted. Agents self-identify with the optional `X-MCP-Client` header (e.g.
+// "cursor/1.4", "my-assistant/qwen3" — the harness MAY include its model
+// name); the server also stamps a provenance marker onto version comments
+// (see HistoryTools.create_version), and every tool call lands in a
+// structured audit line below (MCP audit). Together: a human reviewing the
+// history can tell agent activity apart from manual edits.
+function clientIdentity(req) {
+  const raw = req?.headers?.['x-mcp-client']
+  if (typeof raw !== 'string') return 'mcp'
+  const cleaned = raw.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 80)
+  return cleaned.length ? cleaned : 'mcp'
+}
+
+// overleaf-lab (issue #126, plan step 7): one structured audit line per tool
+// call — tool, acting user, project, agent identity (X-MCP-Client), outcome,
+// duration. Read tools at debug, mutating tools at info (that is the trail
+// a reviewer greps for).
+function toolAudit(context, mutating) {
+  const log = mutating ? logger.info : logger.debug
+  return async function audited(...args) {
+    const t0 = Date.now()
+    try {
+      const out = await this(...args)
+      log(
+        {
+          userId: context.userId,
+          projectId: context.projectId,
+          client: context.client,
+          mutating,
+          outcome: 'ok',
+          ms: Date.now() - t0,
+        },
+        'MCP audit: tool call'
+      )
+      return out
+    } catch (err) {
+      log(
+        {
+          userId: context.userId,
+          projectId: context.projectId,
+          client: context.client,
+          mutating,
+          outcome: 'error',
+          err: String(err?.message || err).slice(0, 200),
+          ms: Date.now() - t0,
+        },
+        'MCP audit: tool call'
+      )
+      throw err
+    }
+  }
+}
+
+function createServer(userId, projectId, client) {
   const server = new McpServer(
     { name: 'overleaf', version: '1.0.0' },
     {
@@ -42,11 +98,15 @@ function createServer(userId, projectId) {
         `the working directory organized as:\n` +
         `./${projectId}/  the git clone of the project, sources only\n` +
         './output.pdf  the downloaded PDF and other output files\n' +
-        'Never download output files into the clone, and never commit them.',
+        'Never download output files into the clone, and never commit them.\n'
+        + 'If your harness supports the X-MCP-Client HTTP header, send it on '
+        + 'every request (e.g. "cursor/1.4" or "my-assistant/qwen3"): it is '
+        + 'recorded in the server audit trail and in version comments, so the '
+        + 'project owner can tell agent activity apart from manual edits.',
     }
   )
 
-  const context = { userId, projectId }
+  const context = { userId, projectId, client: client || 'mcp' }
   const tools = {
     ...buildProjectTools(context),
     ...buildCompileTools(context),
@@ -56,9 +116,21 @@ function createServer(userId, projectId) {
     ...buildHistoryTools(context),
     ...buildTrackChangesTools(context),
   }
+  // overleaf-lab (issue #126, plan step 7): the mutating tools — their calls
+  // are audited at info level with the agent identity attached.
+  const MUTATING = new Set([
+    'write_file', 'edit_file', 'delete_file', 'rename_file', 'move_file',
+    'add_comment', 'reply_to_comment', 'edit_comment_message',
+    'delete_comment_message', 'delete_comment', 'resolve_comment',
+    'reopen_comment', 'send_chat_message', 'edit_chat_message',
+    'delete_chat_message', 'create_version', 'delete_version_label',
+    'restore_project_version', 'restore_file_version', 'accept_changes',
+    'reject_changes', 'set_tracked_changes', 'update_settings', 'compile',
+  ])
   const key = `${projectId}:${userId}`
   for (const [name, { rateLimiter, handler, ...config }] of Object.entries(tools)) {
-    server.registerTool(name, config, rateLimit(rateLimiter, key, handler))
+    const limitedHandler = rateLimit(rateLimiter, key, handler)
+    server.registerTool(name, config, toolAudit(context, MUTATING.has(name)).bind(limitedHandler))
   }
 
   return server
@@ -67,7 +139,8 @@ function createServer(userId, projectId) {
 async function handleRequest(req, res) {
   const server = createServer(
     req.oauth_user._id.toString(),
-    req.params.project_id
+    req.params.project_id,
+    clientIdentity(req)
   )
   // Stateless: a new server and transport for every request
   const transport = new StreamableHTTPServerTransport({
