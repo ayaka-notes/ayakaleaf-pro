@@ -2,7 +2,7 @@ import logger from '@overleaf/logger'
 import { callbackify } from '@overleaf/promise-utils'
 import LinkedFilesHandler from '../../../../app/src/Features/LinkedFiles/LinkedFilesHandler.mjs'
 import LinkedFilesErrors from '../../../../app/src/Features/LinkedFiles/LinkedFilesErrors.mjs'
-import MendeleyApiClient from './MendeleyApiClient.mjs'
+import * as MendeleyApiClient from './MendeleyApiClient.mjs'
 import {
   MendeleyForbiddenError,
   MendeleyExpiredError,
