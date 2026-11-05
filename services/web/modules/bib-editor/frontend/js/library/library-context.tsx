@@ -239,10 +239,18 @@ export function LibraryProvider({
     (dir: 1 | -1) => {
       if (previewIndex === -1 || visible.length === 0) return
       const nextIndex = previewIndex + dir
+      if (dir > 0 && nextIndex >= visible.length) {
+        // End of the loaded page with more to come: extend the list (the
+        // button is enabled via canNext; the next Next then advances).
+        if (nextCursorRef.current) {
+          void loadMore()
+        }
+        return
+      }
       if (nextIndex < 0 || nextIndex >= visible.length) return
       setSelection(visible[nextIndex].rowId)
     },
-    [previewIndex, visible]
+    [previewIndex, visible, loadMore]
   )
 
   const canPrev = previewIndex > 0
@@ -300,7 +308,10 @@ export function LibraryProvider({
   const saveEntry = useCallback(
     async (rowId: string, originalKey: string, entry: SaveRequest) => {
       try {
-        await api.updateEntry(originalKey, entry)
+        // rowId carries the stable row identity (Mongo `_id` when the list
+        // has one) so duplicate-key rows address the exact document; the
+        // server falls back to the key otherwise.
+        await api.updateEntry(originalKey, entry, rowId)
         await refresh()
         return null
       } catch (err) {

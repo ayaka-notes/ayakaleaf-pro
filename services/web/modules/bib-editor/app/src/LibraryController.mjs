@@ -113,13 +113,20 @@ async function matchReferences(req, res) {
 async function updateReference(req, res) {
   const userId = getUserId(req)
   const originalKey = req.params.key
-  const { key, type, fields } = req.body?.entries?.[0] ?? req.body ?? {}
+  const { key, type, fields, _id } = req.body?.entries?.[0] ?? req.body ?? {}
   try {
-    const entry = await LibraryManager.updateReferenceEntry(userId, originalKey, {
-      key,
-      type,
-      fields,
-    })
+    const entry = await LibraryManager.updateReferenceEntry(
+      userId,
+      originalKey,
+      {
+        key,
+        type,
+        fields,
+        // Row-precise targeting (duplicate keys): the client sends the row's
+        // Mongo _id; the manager prefers it and falls back to the key.
+        targetId: typeof _id === 'string' && _id ? _id : undefined,
+      }
+    )
     res.json(entry)
   } catch (err) {
     if (err?.notFound) {

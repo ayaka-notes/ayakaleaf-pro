@@ -173,8 +173,18 @@ function parseFields(fieldsStr: string): Record<string, string> {
         i = braceEnd + 1
       }
     } else if (fieldsStr[i] === '"') {
-      const close = fieldsStr.indexOf('"', i + 1)
-      if (close === -1) {
+      // A backslash escapes the following character (\" in a quoted value
+      // is a literal quote, not the closing delimiter).
+      let close = i + 1
+      while (close < n) {
+        if (fieldsStr[close] === '\\') {
+          close += 2
+          continue
+        }
+        if (fieldsStr[close] === '"') break
+        close++
+      }
+      if (close >= n) {
         value = fieldsStr.slice(i + 1)
         i = n
       } else {

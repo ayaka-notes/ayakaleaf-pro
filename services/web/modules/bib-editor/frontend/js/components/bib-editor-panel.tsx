@@ -678,7 +678,9 @@ function BibEditorPanel() {
       {writeFailure !== null && (
         <div className="bib-write-failure-banner" role="alert">
           <span className="bib-write-failure-banner-text">
-            {t('Could not save: the file changed or is no longer a bibliography.')}
+            {writeFailure === 'duplicate-key'
+              ? t('That citation key is used by more than one entry, so it can’t be targeted on its own. Select the entry in the list and use the Delete bulk action to remove every entry that shares the key.')
+              : t('Could not save: the file changed or is no longer a bibliography.')}
           </span>
           <button
             type="button"

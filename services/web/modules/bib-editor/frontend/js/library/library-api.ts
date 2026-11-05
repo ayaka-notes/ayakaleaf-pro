@@ -27,6 +27,8 @@ export function failureFromError(err: unknown): ApiFailure {
   if (err instanceof FetchError) {
     const body = (err.data ?? {}) as {
       message?: string | { text?: string }
+      /** 409 duplicate key — top-level in the server payload */
+      duplicateKey?: string
       info?: { duplicateKey?: string }
     }
     const message =
@@ -36,7 +38,7 @@ export function failureFromError(err: unknown): ApiFailure {
     return {
       message,
       status: err.response?.status,
-      duplicateKey: body.info?.duplicateKey,
+      duplicateKey: body.duplicateKey ?? body.info?.duplicateKey,
     }
   }
   return {
@@ -89,13 +91,24 @@ export async function matchKeys(
   return res.matches
 }
 
+const OBJECT_ID_HEX = /^[0-9a-f]{24}$/i
+
 export async function updateEntry(
   originalKey: string,
-  entry: { key?: string; type: string; fields: LibraryFieldApi[] }
+  entry: { key?: string; type: string; fields: LibraryFieldApi[] },
+  /** Stable row id (Mongo `_id`) when the client knows it — duplicate
+   *  keys address the exact row; otherwise the server falls back to key. */
+  targetRowId?: string | null
 ): Promise<LibraryEntryApi> {
+  const body: { key?: string; type: string; fields: LibraryFieldApi[]; _id?: string } = {
+    ...entry,
+  }
+  if (targetRowId && OBJECT_ID_HEX.test(targetRowId)) {
+    body._id = targetRowId
+  }
   return patchJSON<LibraryEntryApi>(
     `/library/references/${encodeURIComponent(originalKey)}`,
-    { body: entry }
+    { body }
   )
 }
 

@@ -135,8 +135,14 @@ export function planBibDelete(
   }
   const entries = parseBibFile(source)
   const match = entries.filter(e => e.id === entryId)
-  if (match.length !== 1) {
+  if (match.length === 0) {
     return { ok: false, reason: ENTRY_GONE_REASON }
+  }
+  if (match.length > 1) {
+    // The selection model addresses entries by key, so a single-row delete
+    // cannot say WHICH occurrence is meant. Reject with an honest reason
+    // (the UI explains bulk delete removes all occurrences).
+    return { ok: false, reason: 'duplicate-key' }
   }
   const { sourceStart, sourceEnd } = match[0]
   // consume trailing newlines so we don't leave blank lines
@@ -164,12 +170,14 @@ export type BibBulkDeleteGuard =
   | { ok: false; reason: string }
 
 /**
- * Plan a bulk delete of several entries against the *current* source (Phase
- * B W5). The guard is ALL-OR-NOTHING: when ANY id is missing from the
- * fresh parse, the WHOLE op is rejected (no partial deletes). On success the
- * changes are sorted ascending and applied as a single CodeMirror dispatch.
- * Duplicate ids in `entryIds` are deduplicated (a card can't be picked
- * twice, but the planner must stay pure+safe).
+ * Plan a bulk delete of several entries against the *current* source
+ * (Phase B W5). The guard is ALL-OR-NOTHING over PRESENCE: when ANY id is
+ * missing from the fresh parse, the WHOLE op is rejected (no partial
+ * deletes). An id shared by several rows deletes ALL of its occurrences —
+ * consistent with the checkbox model, where every row with that key is
+ * checked at once and no row can be picked in isolation. On success the
+ * changes are sorted ascending and applied as a single CodeMirror
+ * dispatch. Duplicate ids in `entryIds` are deduplicated.
  */
 export function planBibBulkDelete(
   source: string,
@@ -188,20 +196,23 @@ export function planBibBulkDelete(
   const ranges: { from: number; to: number }[] = []
   for (const id of unique) {
     const match = entries.filter(e => e.id === id)
-    if (match.length !== 1) {
+    if (match.length === 0) {
       return { ok: false, reason: ENTRY_GONE_REASON }
     }
-    const { sourceStart, sourceEnd } = match[0]
-    // consume trailing newlines so we don't leave blank lines (same as the
-    // single planner)
-    let end = sourceEnd
-    while (
-      end < source.length &&
-      (source[end] === '\n' || source[end] === '\r')
-    ) {
-      end++
+    // Every occurrence of the id is part of the selection.
+    for (const m of match) {
+      const { sourceStart, sourceEnd } = m
+      // consume trailing newlines so we don't leave blank lines (same as the
+      // single planner)
+      let end = sourceEnd
+      while (
+        end < source.length &&
+        (source[end] === '\n' || source[end] === '\r')
+      ) {
+        end++
+      }
+      ranges.push({ from: sourceStart, to: end })
     }
-    ranges.push({ from: sourceStart, to: end })
   }
   ranges.sort((a, b) => a.from - b.from)
   // Defensive: distinct ids have distinct, non-overlapping parser ranges.

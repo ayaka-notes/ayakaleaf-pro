@@ -15,32 +15,46 @@
  */
 
 /**
- * Escape a raw field value for writing inside braces: a `}` that is not
- * part of a balanced {…} pair gets a backslash (e.g. `a}b` → `a\}b`).
- * Balanced nested braces are preserved; already-escaped `\}` is idempotent.
+ * Escape a raw field value for writing inside braces. Keeps balanced
+ * {…} groups untouched (author formatting preserved); escapes a `}` with
+ * no matching `{`, and — unlike the pre-2026-11-05 port of this helper —
+ * also an unmatched `{` (which the old depth counter copied through,
+ * producing unparseable output like `{a{b}`). Already-escaped `\{`/`\}`
+ * are preserved; the result is idempotent.
  */
 export function escapeBibValue(value) {
-  let out = ''
-  let depth = 0
+  const outChars = []
+  const openPositions = [] // outChars indices of unmatched '{'
   for (let i = 0; i < value.length; i++) {
     const c = value[i]
-    if (c === '\\' && (value[i + 1] === '{' || value[i + 1] === '}')) {
-      out += c
-      i++
-      out += value[i]
+    if (c === '\\') {
+      outChars.push(c)
+      if (i + 1 < value.length) {
+        i++
+        outChars.push(value[i])
+      }
       continue
     }
-    if (c === '{') depth++
-    else if (c === '}') {
-      if (depth === 0) {
-        out += '\\}'
-        continue
-      }
-      depth--
+    if (c === '{') {
+      openPositions.push(outChars.length)
+      outChars.push(c)
+      continue
     }
-    out += c
+    if (c === '}') {
+      if (openPositions.length) {
+        openPositions.pop()
+        outChars.push(c)
+      } else {
+        outChars.push('\\}')
+      }
+      continue
+    }
+    outChars.push(c)
   }
-  return out
+  for (const pos of openPositions) {
+    outChars.splice(pos, 0, '\\')
+  }
+  return outChars.join('')
 }
 
 /**

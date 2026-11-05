@@ -3484,6 +3484,7 @@
   "__count__ source problems found": "__count__ source problems found",
   "line __line__": "line __line__",
   "Go": "Go",
+  "That citation key is used by more than one entry, so it can’t be targeted on its own. Select the entry in the list and use the Delete bulk action to remove every entry that shares the key.": "That citation key is used by more than one entry, so it can’t be targeted on its own. Select the entry in the list and use the Delete bulk action to remove every entry that shares the key.",
   "DOI format looks invalid": "DOI format looks invalid",
   "URL looks invalid": "URL looks invalid",
   "Import from DOI": "Import from DOI",

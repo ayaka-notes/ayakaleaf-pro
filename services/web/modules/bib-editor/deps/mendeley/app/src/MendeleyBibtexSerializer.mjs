@@ -42,6 +42,45 @@ function firstAuthor(authors) {
   return ''
 }
 
+/**
+ * Brace-safe value escaping for the `{value}` form: balanced groups are
+ * kept, a stray `}` is escaped, and an unmatched `{` is escaped too (a
+ * plain depth counter would emit unparseable output like `{a{b}`).
+ * Mirrors the shared `escapeBibValue` (app/src/LibrarySerializer.mjs).
+ */
+function escapeBibValue(value) {
+  const outChars = []
+  const openPositions = []
+  for (let i = 0; i < value.length; i++) {
+    const c = value[i]
+    if (c === '\\') {
+      outChars.push(c)
+      if (i + 1 < value.length) {
+        i++
+        outChars.push(value[i])
+      }
+      continue
+    }
+    if (c === '{') {
+      openPositions.push(outChars.length)
+      outChars.push(c)
+      continue
+    }
+    if (c === '}') {
+      if (openPositions.length) {
+        openPositions.pop()
+        outChars.push(c)
+      } else {
+        outChars.push('\\}')
+      }
+      continue
+    }
+    outChars.push(c)
+  }
+  for (const pos of openPositions) outChars.splice(pos, 0, '\\')
+  return outChars.join('')
+}
+
 export function serializeMendeleyDocument(doc) {
   if (!doc || typeof doc !== 'object') return ''
   const title = (doc.title || '').trim()
@@ -86,6 +125,6 @@ export function serializeMendeleyDocument(doc) {
     ? `mend_${id}`
     : `mend_${(authors.split(',')[0] || 'x').replace(/[^a-zA-Z]/g, '')}${year || 'nd'}`
 
-  const lines = fields.map(([k, v]) => `\t${k} = {${v}},`)
+  const lines = fields.map(([k, v]) => `\t${k} = {${escapeBibValue(v)}},`)
   return `@${type}{${citeKey},\n${lines.join('\n')}\n}\n`
 }

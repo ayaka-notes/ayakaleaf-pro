@@ -184,12 +184,15 @@ export async function matchReferenceKeys(userId, entries) {
 
 /**
  * Update one active entry by key (optionally rename).
- * `targetKey` = the (new) key; rename collision → `duplicate-key` error.
+ * `targetId` (the row's Mongo _id, when the client knows it) addresses the
+ * EXACT document — required for duplicate-key rows; when absent/invalid the
+ * lookup falls back to the citation key. `targetKey` = the (new) key;
+ * rename collision → `duplicate-key` error.
  */
 export async function updateReferenceEntry(
   userId,
   originalKey,
-  { key, type, fields }
+  { key, type, fields, targetId }
 ) {
   const check = validateLibraryEntry({
     key: key ?? originalKey,
@@ -202,11 +205,22 @@ export async function updateReferenceEntry(
     throw err
   }
   const newKey = String(key ?? originalKey).trim()
-  const doc = await LibraryReference.findOne({
-    user_id: userId,
-    key: originalKey,
-    trashedAt: null,
-  }).exec()
+  let doc = null
+  const tid = toObjectId(targetId)
+  if (tid) {
+    doc = await LibraryReference.findOne({
+      _id: tid,
+      user_id: userId,
+      trashedAt: null,
+    }).exec()
+  }
+  if (!doc) {
+    doc = await LibraryReference.findOne({
+      user_id: userId,
+      key: originalKey,
+      trashedAt: null,
+    }).exec()
+  }
   if (!doc) {
     const err = new Error('not-found')
     err.notFound = true

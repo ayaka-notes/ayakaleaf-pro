@@ -208,7 +208,15 @@ export default function LibraryPage() {
         const fieldEntries = Object.entries(report.entry.fields).map(
           ([name, value]) => ({ name, value: String(value ?? '') })
         )
-        const err = await lib.saveEntry(report.originalId, report.originalId, {
+        // Ship the key as the user sees it in the form: a rename now takes
+        // effect (previously silently dropped); a cleared key keeps the
+        // original (library entries are key-validated server-side).
+        const key = report.entry.id.trim()
+        // Address the EXACT row: the currently open preview row's stable id
+        // (Mongo _id when the list has one) disambiguates duplicate keys.
+        const targetRowId = lib.selected?.rowId || report.originalId
+        const err = await lib.saveEntry(targetRowId, report.originalId, {
+          key: key || undefined,
           type: report.entry.type,
           fields: fieldEntries,
         })
