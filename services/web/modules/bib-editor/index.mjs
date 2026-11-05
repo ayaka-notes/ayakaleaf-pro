@@ -2,8 +2,13 @@ import Settings from '@overleaf/settings'
 import AuthenticationController from '../../app/src/Features/Authentication/AuthenticationController.mjs'
 
 /**
- * bib-editor module (self-contained: the orcid-picker + zotero-picker
- * backends it needs are vendored under `deps/` and registered here).
+ * bib-editor module (self-contained for its OWN surfaces: the ORCID picker
+ * backend is vendored under `deps/` and registered here; the Zotero &
+ * Mendeley connectors are canonical modules — services/web/modules/zotero
+ * and services/web/modules/mendeley — which register their own routes
+ * (including the /user/zotero/picker/* & /user/mendeley/picker/* endpoints
+ * this module's library-page picker modals call, and seed Settings.zotero /
+ * Settings.mendeley from the same ZOTERO_* / MENDELEY_* env vars).
  *
  *  - In-project `.bib` visual editor — registered additively via
  *    `settings.defaults.js` (`sourceEditorExtensions`,
@@ -47,56 +52,11 @@ if (Settings.bibLibrary.enabled === undefined) {
   Settings.bibLibrary.enabled = true
 }
 
-// -- zotero picker env seeds (no site-settings on this base — ZOTERO_* env
-// values are the source of truth; the router gate reads them per request)
-// See deps/zotero/app/src (vendored from the zotero module).
-{
-  // The base tpr-webmodule (zotero connector) may have loaded first and seeded
-  // Settings.zotero from ZOTERO_CLIENT_ID. Merge instead of clobber: keep its
-  // fields (clientID, callbackURL) and add clientKey so both naming
-  // conventions work with whichever credential name the deployment set.
-  const base = Settings.zotero || {}
-  const siteUrl = Settings.siteUrl.replace(/\/+$/, '') || 'http://localhost'
-  Settings.zotero = {
-    ...base,
-    clientKey: process.env.ZOTERO_CLIENT_KEY || base.clientID,
-    clientSecret:
-      process.env.ZOTERO_CLIENT_SECRET || base.clientSecret || undefined,
-    callbackURL:
-      base.callbackURL || `${siteUrl}/user/zotero/oauth/callback`,
-  }
-}
-
-// -- mendeley picker env seeds (MENDELEY_* env is the source of truth, same
-// pattern as zotero above: merged over any site_settings value)
-{
-  const base = Settings.mendeley || {}
-  const siteUrl = Settings.siteUrl.replace(/\/+$/, '') || 'http://localhost'
-  Settings.mendeley = {
-    ...base,
-    clientID:
-      base.clientID ||
-      base.clientId ||
-      process.env.MENDELEY_CLIENT_ID ||
-      process.env.MENDELEY_CLIENT_KEY ||
-      undefined,
-    clientSecret: base.clientSecret || process.env.MENDELEY_CLIENT_SECRET || undefined,
-    callbackURL:
-      base.callbackURL ||
-      process.env.MENDELEY_CALLBACK_URL ||
-      `${siteUrl}/user/mendeley/oauth/callback`,
-    enabled: base.enabled !== undefined ? base.enabled : true,
-  }
-}
 
 const LibraryRoutes =
   (await import('./app/src/LibraryRoutes.mjs')).default
 const OrcidPickerRouter =
   (await import('./deps/orcid-picker/app/src/OrcidPickerRouter.mjs')).default
-const ZoteroRouter =
-  (await import('./deps/zotero/app/src/ZoteroRouter.mjs')).default
-const MendeleyRouter =
-  (await import('./deps/mendeley/app/src/MendeleyRouter.mjs')).default
 
 /** @import { WebModule } from "../../types/web-module" */
 
@@ -108,16 +68,16 @@ const bibEditorModule = {
       if (Settings.bibLibrary.enabled) {
         await LibraryRoutes.apply(webRouter)
       }
-      // ON by default: adds only login-required GET/DELETE routes guarded by
-      // env secrets (zotero/mendeley) or SSRF/size/time guards (orcid).
+      // ON by default: adds only login-required GET routes guarded by
+      // SSRF/size/time guards (orcid).
       await OrcidPickerRouter.apply(webRouter)
-      await ZoteroRouter.apply(webRouter)
-      await MendeleyRouter.apply(webRouter)
 
       // Gating surface for the bib-editor/library UI: which reference
       // managers are CONFIGURED on this instance (client id + secret both
-      // set). The frontend hides the corresponding "Import from …" entries
-      // when false, so an unconfigured connector is never offered.
+      // set). Settings.zotero/Settings.mendeley are seeded by the canonical
+      // zotero/mendeley modules at boot (same env vars). The frontend hides
+      // the corresponding "Import from …" entries when false, so an
+      // unconfigured connector is never offered.
       webRouter.get(
         '/bib/services',
         AuthenticationController.requireLogin(),

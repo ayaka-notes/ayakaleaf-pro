@@ -1012,11 +1012,11 @@ module.exports = {
     createFileModes: [
       Path.resolve(
         __dirname,
-        '../modules/tpr-webmodule/frontend/js/components/create-file-mode-zotero'
+        '../modules/zotero/frontend/js/components/create-file-mode-zotero'
       ),
       Path.resolve(
         __dirname,
-        '../modules/tpr-webmodule/frontend/js/components/create-file-mode-mendeley'
+        '../modules/mendeley/frontend/js/components/create-file-mode-mendeley'
       ),
     ],
     devToolbar: [],
@@ -1039,25 +1039,25 @@ module.exports = {
     tprFileViewInfo: [
       Path.resolve(
         __dirname,
-        '../modules/tpr-webmodule/frontend/js/components/tpr-file-view-info'
+        '../modules/zotero/frontend/js/components/tpr-file-view-info'
       ),
     ],
     tprFileViewRefreshError: [
       Path.resolve(
         __dirname,
-        '../modules/tpr-webmodule/frontend/js/components/tpr-file-view-refresh-error'
+        '../modules/zotero/frontend/js/components/tpr-file-view-refresh-error'
       ),
     ],
     tprFileViewRefreshButton: [
       Path.resolve(
         __dirname,
-        '../modules/tpr-webmodule/frontend/js/components/tpr-file-view-refresh-button'
+        '../modules/zotero/frontend/js/components/tpr-file-view-refresh-button'
       ),
     ],
     tprFileViewNotOriginalImporter: [
       Path.resolve(
         __dirname,
-        '../modules/tpr-webmodule/frontend/js/components/tpr-file-view-not-original-importer'
+        '../modules/zotero/frontend/js/components/tpr-file-view-not-original-importer'
       ),
     ],
     contactUsModal: [],
@@ -1155,11 +1155,11 @@ module.exports = {
     referenceLinkingWidgets: [
       Path.resolve(
         __dirname,
-        '../modules/tpr-webmodule/frontend/js/components/zotero-widget'
+        '../modules/zotero/frontend/js/components/zotero-widget'
       ),
       Path.resolve(
         __dirname,
-        '../modules/tpr-webmodule/frontend/js/components/mendeley-widget'
+        '../modules/mendeley/frontend/js/components/mendeley-widget'
       ),
     ],
     importProjectFromGithubModalWrapper: [
@@ -1306,11 +1306,11 @@ module.exports = {
       ),
       Path.resolve(
         __dirname,
-        '../modules/tpr-webmodule/frontend/js/components/zotero-integration-card.tsx'
+        '../modules/zotero/frontend/js/components/zotero-integration-card.tsx'
       ),
       Path.resolve(
         __dirname,
-        '../modules/tpr-webmodule/frontend/js/components/mendeley-integration-card.tsx'
+        '../modules/mendeley/frontend/js/components/mendeley-integration-card.tsx'
       ),
     ],
     referenceSearchSetting: [],
@@ -1357,7 +1357,8 @@ module.exports = {
     'gitlab-sync',
     'gitea-sync',
     'dropbox',
-    'tpr-webmodule',
+    'zotero',
+    'mendeley',
     'workbench',
     'error-assistant',
     'instance-features',

@@ -10,7 +10,7 @@ import {
   writeBibPreviewSession,
 } from '../../../frontend/js/utils/bib-preview-session.ts'
 import { escapeBibValue as serverEscape, serializeBibEntry as serverSerialize } from '../../../app/src/LibrarySerializer.mjs'
-import { serializeMendeleyDocument } from '../../../deps/mendeley/app/src/MendeleyBibtexSerializer.mjs'
+import { serializeMendeleyDocument } from '../../../../mendeley/app/src/MendeleyBibtexSerializer.mjs'
 
 describe('BUG HUNT: parser edges', () => {
   it('escaped quote inside a BARE quoted value does not truncate the value', () => {

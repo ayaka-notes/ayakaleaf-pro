@@ -2990,5 +2990,10 @@
   "Link Mendeley": true,
   "No items found": true,
   "Showing __count__ item(s)": true,
-  "Loading…": true
+  "Loading…": true,
+  "all_collections": "All collections",
+  "my_publications": "My Publications",
+  "problem_checking_connection_with_provider": "Sorry, there was a problem checking the connection with __provider__ service. Please try again in a few moments.",
+  "zotero_could_not_load_collections": "Could not load Zotero collections",
+  "zotero_reference_loading_error_not_linked": "Refresh failed: the account used to import the file is no longer linked to Zotero or has been removed."
 }
