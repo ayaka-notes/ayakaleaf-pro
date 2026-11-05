@@ -437,7 +437,10 @@ export default {
       errorAssistant: access.errorAssistant,
       // overleaf-lab (2026-11): tells the client whether render_pdf_page should
       // hand the model page TEXT (text-extraction mode) instead of a page image.
-      textExtract: access.textExtract === true,
+      // true when the user opted in OR the resolved lane's model is text-only
+      // (capability probe): a text-only model cannot read a page image, so the
+      // agent switches to text mode automatically — no user setting required.
+      textExtract: access.textExtract === true || access.textOnly === true,
     })
   }),
   chat,
