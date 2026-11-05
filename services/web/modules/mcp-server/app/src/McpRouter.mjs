@@ -6,7 +6,7 @@ import { requireProjectAccess } from '../../../git-bridge/app/src/GitBridgeRoute
 import McpController from './McpController.mjs'
 import { rateLimiters } from './McpUtils.mjs'
 import { readAdminSettings } from '../../../llm/app/src/LLMAdminController.mjs' // overleaf-lab (2026-11-05): MCP service switch
-import User from '../../../../app/src/models/User.mjs' // overleaf-lab (2026-11-05): per-user MCP override
+import { User } from '../../../../app/src/models/User.mjs' // overleaf-lab (2026-11-05): per-user MCP override
 
 // overleaf-lab (owner request 2026-11-05): MCP service governance gates.
 // 1) site switch — from the LLM admin settings file (llmDisabledByAdmin
