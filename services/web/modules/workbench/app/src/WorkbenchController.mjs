@@ -441,6 +441,9 @@ export default {
       // (capability probe): a text-only model cannot read a page image, so the
       // agent switches to text mode automatically — no user setting required.
       textExtract: access.textExtract === true || access.textOnly === true,
+      // overleaf-lab (2026-11-05): the raw capability-derived flag — lets the
+      // per-call re-check distinguish "user setting" from "lane text-only".
+      textOnly: access.textOnly === true,
     })
   }),
   chat,

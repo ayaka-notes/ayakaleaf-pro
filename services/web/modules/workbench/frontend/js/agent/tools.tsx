@@ -140,8 +140,10 @@ export const TOOLS: Record<string, ToolSpec> = {
       let textMode = textExtract === true
       if (!textMode) {
         try {
-          const data = await getJSON<{ textOnly?: boolean }>('/workbench/access')
-          if (data?.textOnly === true) textMode = true
+          const data = await getJSON<{ textOnly?: boolean; textExtract?: boolean }>('/workbench/access')
+          // textOnly: lane is text-only (server probe, 1h cache)
+          // textExtract: true when user opted in OR lane text-only
+          if (data?.textOnly === true || data?.textExtract === true) textMode = true
         } catch {
           // keep context value (fail to the legacy image render)
         }
