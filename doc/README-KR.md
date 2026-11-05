@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <a href="https://ayakaleaf-pro.ayaka.space"><img src="logo.png" alt="Ayakaleaf Pro" width="300"></a>
+  <a href="https://ayakaleaf-pro.ayaka.space"><picture><source media="(prefers-color-scheme: dark)" srcset="logo-dark.png"><img src="logo.png" alt="Ayakaleaf Pro" width="300"></picture></a>
 </h1>
 
 <h4 align="center">모든 Pro 기능을 갖춘 Overleaf Community Edition 확장판 <br/>(오픈 소스, 무료 사용, 자체 호스팅 가능).</h4>
@@ -118,10 +118,14 @@ Overleaf 내부 구조, 컴파일 성능, 자체 호스팅 LaTeX 인프라에 �
 - Copyright (c) [Pro Authors](https://ayakaleaf-pro.ayaka.space/on-premises/readme/features-and-copyright), 2026-now.
 
 ## 후원
-- [Vultr](https://www.vultr.com/)
-- [Linux Do Community](https://linux.do)
-- [OpenAI Codex OSS](https://openai.com/en/form/codex-for-oss/)
-- [GitBook](https://www.gitbook.com/)
+
+<p align="center">
+  <a href="https://www.vultr.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/vultr-dark.svg"><img src="sponsors/vultr.svg" alt="Vultr" width="160"></picture></a>
+  <a href="https://linux.do"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/linux-do-dark.svg"><img src="sponsors/linux-do.svg" alt="Linux Do Community" width="160"></picture></a>
+  <a href="https://openai.com/en/form/codex-for-oss/"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/openai-codex-oss-dark.svg"><img src="sponsors/openai-codex-oss.svg" alt="OpenAI Codex OSS" width="160"></picture></a>
+  <a href="https://www.gitbook.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/gitbook-dark.svg"><img src="sponsors/gitbook.svg" alt="GitBook" width="160"></picture></a>
+  <a href="https://www.mintlify.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/mintlify-dark.svg"><img src="sponsors/mintlify.svg" alt="Mintlify" width="160"></picture></a>
+</p>
 
 ## Star History
 

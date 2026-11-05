@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <a href="https://ayakaleaf-pro.ayaka.space"><img src="doc/logo.png" alt="Ayakaleaf Pro" width="300"></a>
+  <a href="https://ayakaleaf-pro.ayaka.space"><picture><source media="(prefers-color-scheme: dark)" srcset="doc/logo-dark.png"><img src="doc/logo.png" alt="Ayakaleaf Pro" width="300"></picture></a>
 </h1>
 
 <h4 align="center">Overleaf Community Edition enhanced with all Pro features <br/>(open source, free to use, self-hostable).</h4>
@@ -118,10 +118,14 @@ The code in this repository is released under the GNU AFFERO GENERAL PUBLIC LICE
 - Copyright (c) [Pro Authors](https://ayakaleaf-pro.ayaka.space/on-premises/readme/features-and-copyright), 2026-now.
 
 ## Sponsor
-- [Vultr](https://www.vultr.com/)
-- [Linux Do Community](https://linux.do)
-- [OpenAI Codex OSS](https://openai.com/en/form/codex-for-oss/)
-- [GitBook](https://www.gitbook.com/)
+
+<p align="center">
+  <a href="https://www.vultr.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="doc/sponsors/vultr-dark.svg"><img src="doc/sponsors/vultr.svg" alt="Vultr" width="160"></picture></a>
+  <a href="https://linux.do"><picture><source media="(prefers-color-scheme: dark)" srcset="doc/sponsors/linux-do-dark.svg"><img src="doc/sponsors/linux-do.svg" alt="Linux Do Community" width="160"></picture></a>
+  <a href="https://openai.com/en/form/codex-for-oss/"><picture><source media="(prefers-color-scheme: dark)" srcset="doc/sponsors/openai-codex-oss-dark.svg"><img src="doc/sponsors/openai-codex-oss.svg" alt="OpenAI Codex OSS" width="160"></picture></a>
+  <a href="https://www.gitbook.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="doc/sponsors/gitbook-dark.svg"><img src="doc/sponsors/gitbook.svg" alt="GitBook" width="160"></picture></a>
+  <a href="https://www.mintlify.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="doc/sponsors/mintlify-dark.svg"><img src="doc/sponsors/mintlify.svg" alt="Mintlify" width="160"></picture></a>
+</p>
 
 ## Star History
 
