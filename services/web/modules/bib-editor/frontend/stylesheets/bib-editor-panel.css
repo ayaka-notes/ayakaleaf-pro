@@ -383,6 +383,13 @@
   font-size: var(--font-size-01);
 }
 
+/* Non-blocking format warnings (year/date/DOI/URL) — softer than errors. */
+.bib-form-warning {
+  color: var(--content-warning, #b26a00);
+  font-weight: bold;
+  font-size: var(--font-size-01);
+}
+
 .bib-form-input,
 .bib-form-textarea {
   font-size: var(--font-size-02);
@@ -392,6 +399,10 @@
 
 .bib-form-input-error {
   border-color: var(--content-danger) !important;
+}
+
+.bib-form-input-warning {
+  border-color: var(--content-warning, #b26a00) !important;
 }
 
 .bib-form-divider {

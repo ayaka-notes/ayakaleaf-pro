@@ -1,16 +1,74 @@
 import { describe, it, expect } from 'vitest'
 import { validateEntry } from '../../../frontend/js/utils/bib-validate.ts'
 
+import {
+  validateEntry,
+  isValidCitationKey,
+  hasValidBiblatexDate,
+  isFormatWarning,
+  hasBlockingValidationErrors,
+} from '../../../frontend/js/utils/bib-validate.ts'
+
 describe('bib-validate (Check button, pure)', () => {
-  it('flags every empty standalone required field (existing entry)', () => {
-    // id empty -> id-required; all required fields empty -> required-missing
+  it('empty citation key is VALID source; required fields still flagged', () => {
+    // Empty key: no message (the editor generates one at materialize time).
     const res = validateEntry({ type: 'article', id: '', fields: {} }, 'existing')
     expect(res.valid).toBe(false)
-    expect(res.byField.id.kind).toBe('id-required')
+    expect(res.byField.id).toBeUndefined()
+    expect(isFormatWarning(res.byField.id)).toBe(false)
     expect(res.byField.author.kind).toBe('required-missing')
     expect(res.byField.title.kind).toBe('required-missing')
     expect(res.byField.journal.kind).toBe('required-missing')
     expect(res.byField.year.kind).toBe('required-missing')
+  })
+
+  it('a non-empty invalid citation key is an error (format warnings are not)', () => {
+    const empty = validateEntry({ type: 'misc', id: '', fields: {} }, 'new')
+    expect(empty.byField.id).toBeUndefined()
+    expect(empty.valid).toBe(true)
+
+    const res = validateEntry({ type: 'misc', id: 'has space', fields: {} }, 'existing')
+    expect(res.byField.id.kind).toBe('id-invalid')
+    expect(isFormatWarning(res.byField.id)).toBe(false)
+    expect(hasBlockingValidationErrors(res)).toBe(true)
+
+    // legal btparse characters, including unicode (biber accepts non-ASCII)
+    expect(isValidCitationKey('smith2024')).toBe(true)
+    expect(isValidCitationKey('李2020')).toBe(true)
+    expect(isValidCitationKey('has space')).toBe(false)
+    expect(isValidCitationKey('a,b')).toBe(false)
+  })
+
+  it('date / urldate: BibLaTeX date syntax is a warning, not an error', () => {
+    const bad = validateEntry({ type: 'misc', id: 'm', fields: { date: 'not a date' } }, 'existing')
+    expect(bad.byField.date.kind).toBe('date-format')
+    expect(isFormatWarning(bad.byField.date)).toBe(true)
+    expect(hasBlockingValidationErrors(bad)).toBe(false)
+
+    const urldate = validateEntry({ type: 'misc', id: 'm', fields: { urldate: 'xx' } }, 'existing')
+    expect(urldate.byField.urldate.kind).toBe('date-format')
+  })
+
+  it('hasValidBiblatexDate: full, partial, ranged, uncertain; rejects junk', () => {
+    expect(hasValidBiblatexDate('2020')).toBe(true)
+    expect(hasValidBiblatexDate('2020-03')).toBe(true)
+    expect(hasValidBiblatexDate('2020-03-15')).toBe(true)
+    expect(hasValidBiblatexDate('2020-XX')).toBe(true)
+    expect(hasValidBiblatexDate('2010/2020')).toBe(true)
+    expect(hasValidBiblatexDate('2010-03 / 2010-06')).toBe(true)
+    expect(hasValidBiblatexDate('2020-03-15T10:30:00Z')).toBe(true)
+    expect(hasValidBiblatexDate('2020?')).toBe(true) // uncertainty marker
+    expect(hasValidBiblatexDate('not a date')).toBe(false)
+    expect(hasValidBiblatexDate('')).toBe(true) // empty is fine (caller skips)
+  })
+
+  it('format warnings never block; required-missing does', () => {
+    const warn = validateEntry({ type: 'misc', id: 'm', fields: { year: '20x1' } }, 'existing')
+    expect(warn.byField.year.kind).toBe('year-format')
+    expect(hasBlockingValidationErrors(warn)).toBe(false)
+
+    const block = validateEntry({ type: 'article', id: '', fields: {} }, 'existing')
+    expect(hasBlockingValidationErrors(block)).toBe(true)
   })
 
   it('OR-group: message attached to EVERY empty member (book: author|editor)', () => {

@@ -49,7 +49,7 @@ import {
   OPTIONAL_FIELD_TAXONOMY,
   offeredOptionalFields,
 } from '../utils/overleaf-type-map.ts'
-import { validateEntry } from '../utils/bib-validate'
+import { validateEntry, isFormatWarning } from '../utils/bib-validate'
 import { helperKeyForField } from '../utils/bib-form-helper'
 import type { BibEntry } from '../utils/bib-types'
 
@@ -305,12 +305,12 @@ export default function BibEntryForm({
         }
         return t('__a__ is required', { a: fieldLabel(fieldName) })
       }
-      case 'id-required':
-        return t('Citation key is required')
       case 'id-invalid':
         return t('Citation key contains invalid characters')
       case 'year-format':
         return t('Year should be a 4-digit number')
+      case 'date-format':
+        return t('Date format looks invalid')
       case 'doi-format':
         return t('DOI format looks invalid')
       case 'url-invalid':
@@ -370,8 +370,11 @@ export default function BibEntryForm({
   const renderField = (fieldName: string) => {
     const isStarred = requiredStarSet.has(fieldName)
     const message = messageFor(fieldName)
+    // Format warnings (year/date/DOI/URL) render softer than hard errors.
+    const warning = isFormatWarning(checkResult?.byField[fieldName])
     const helper = rowHelper(fieldName)
     const value = fields[fieldName] || ''
+    const inputInvalidClass = message ? (warning ? 'bib-form-input-warning' : 'bib-form-input-error') : ''
     return (
       <div className="form-group bib-form-row" key={fieldName}>
         <OLFormLabel
@@ -387,9 +390,7 @@ export default function BibEntryForm({
           <OLFormControl
             as="textarea"
             id={`bib-field-${fieldName}`}
-            className={`bib-form-textarea ${
-              message ? 'bib-form-input-error' : ''
-            }`}
+            className={`bib-form-textarea ${inputInvalidClass}`}
             maxLength={4096}
             autoComplete="off"
             type="text"
@@ -406,9 +407,7 @@ export default function BibEntryForm({
         ) : (
           <OLFormControl
             id={`bib-field-${fieldName}`}
-            className={`bib-form-input ${
-              message ? 'bib-form-input-error' : ''
-            }`}
+            className={`bib-form-input ${inputInvalidClass}`}
             maxLength={512}
             type="text"
             value={value}
@@ -418,7 +417,9 @@ export default function BibEntryForm({
         )}
         {helper && <OLFormText>{helper}</OLFormText>}
         {message && (
-          <span className="bib-form-error">{message}</span>
+          <span className={warning ? 'bib-form-warning' : 'bib-form-error'}>
+            {message}
+          </span>
         )}
       </div>
     )
