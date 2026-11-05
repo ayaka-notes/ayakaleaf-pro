@@ -16,15 +16,38 @@ let encryptorInstance = null
  *   2. JSON file with encryptor data in the persistent volume (/var/lib/overleaf/data/)
  *      — auto-generated on first use, survives container rebuilds
  */
+function _legacyCipherPair() {
+  // tpr-webmodule-era credentials (the connector that stored zotero tokens
+  // before 2026-11-05): label '2024.1-v3' (or ZOTERO_CIPHER_LABEL), key from
+  // ZOTERO_CIPHER_PASSWORD or the .zotero-cipher-key file on the data volume.
+  const legacyLabel = process.env.ZOTERO_CIPHER_LABEL || '2024.1-v3'
+  let legacyPassword = process.env.ZOTERO_CIPHER_PASSWORD
+  if (!legacyPassword) {
+    try {
+      legacyPassword = fs.readFileSync(
+        '/var/lib/overleaf/data/.zotero-cipher-key', 'utf8'
+      ).trim()
+    } catch (err) {
+      legacyPassword = undefined
+    }
+  }
+  if (!legacyPassword) return null
+  return {
+    cipherPasswords: { [legacyLabel]: legacyPassword },
+  }
+}
+
 function _getEncryptorData() {
   const cipherPassword = process.env.ZOTERO_TOKEN_CIPHER_PASSWORD || process.env.TOKEN_CIPHER_PASSWORD
   const cipherLabel = process.env.ZOTERO_TOKEN_CIPHER_LABEL ||
                       process.env.TOKEN_CIPHER_LABEL ||
                       TOKEN_CIPHER_LABEL
+  const legacy = _legacyCipherPair()
   if (cipherPassword) {
     return {
       cipherLabel,
       cipherPasswords: {
+        ...(legacy ? legacy.cipherPasswords : {}),
         [cipherLabel]: cipherPassword
       }
     }
@@ -34,7 +57,14 @@ function _getEncryptorData() {
                      process.env.TOKEN_CIPHER_FILE ||
                      TOKEN_CIPHER_FILE
   try {
-    return JSON.parse(fs.readFileSync(cipherFile, 'utf8'))
+    const fromFile = JSON.parse(fs.readFileSync(cipherFile, 'utf8'))
+    return {
+      ...fromFile,
+      cipherPasswords: {
+        ...(legacy ? legacy.cipherPasswords : {}),
+        ...(fromFile.cipherPasswords || {}),
+      },
+    }
   } catch (err) {
     if (err.code === 'ENOENT') {
       logger.info({ cipherFile }, 'Creating new cipherFile')
@@ -43,11 +73,14 @@ function _getEncryptorData() {
       throw err
     }
   }
-  // File doesn't exist yet — generate one
+  // File doesn't exist yet — generate one (legacy tpr key is read from its
+  // own source at runtime, so old tokens stay decryptable without being
+  // copied into the new file)
   try {
     const encryptorData = {
       cipherLabel,
       cipherPasswords: {
+        ...((legacy && legacy.cipherPasswords) || {}),
         [cipherLabel]: crypto.randomBytes(32).toString('base64')
       },
     }

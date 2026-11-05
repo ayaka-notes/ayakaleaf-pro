@@ -10,6 +10,13 @@ export default {
       ZoteroController.getGroups
     )
 
+    // legacy path (tpr-webmodule create-file mode + older host UIs) — same handler
+    webRouter.get(
+      '/zotero/groups',
+      AuthenticationController.requireLogin(),
+      ZoteroController.getGroups
+    )
+
     webRouter.get(
       '/user/zotero/collections',
       AuthenticationController.requireLogin(),

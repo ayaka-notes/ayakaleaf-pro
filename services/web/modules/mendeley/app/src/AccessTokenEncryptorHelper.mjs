@@ -70,16 +70,16 @@ function _getEncryptor(provider) {
  * key.
  */
 export function createAccessTokenEncryptor(provider) {
+  const e = _getEncryptor(provider)
   return {
+    // flat API (the mendeley API client calls encryptJson/decryptToJson
+    // directly — the tpr-webmodule lineage nested these under .promises)
+    encryptJson: (json) => e.promises.encryptJson(json),
+    decryptToJson: (encryptedJson) => e.promises.decryptToJson(encryptedJson),
+    // legacy tpr-webmodule surface kept for compatibility
     promises: {
-      async encryptJson(json) {
-        return await _getEncryptor(provider).promises.encryptJson(json)
-      },
-      async decryptToJson(encryptedJson) {
-        return await _getEncryptor(provider).promises.decryptToJson(
-          encryptedJson
-        )
-      },
+      encryptJson: (json) => e.promises.encryptJson(json),
+      decryptToJson: (encryptedJson) => e.promises.decryptToJson(encryptedJson),
     },
   }
 }

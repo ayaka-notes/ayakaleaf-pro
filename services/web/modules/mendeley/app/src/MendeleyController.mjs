@@ -238,7 +238,7 @@ async function getPickerBibtex(req, res) {
 async function getGroups(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
   try {
-    const groups = await MendeleyApiClient.getMendeleyGroups(userId)
+    const groups = await Api.getMendeleyGroups(userId)
     if (groups === null) {
       // credentials missing/undecryptable — the account is not linked
       return res.status(403).json({ error: 'forbidden', message: 'mendeley_groups_relink' })
