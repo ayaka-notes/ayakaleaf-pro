@@ -55,6 +55,13 @@
     margin-bottom: 1.25rem;
   }
 
+  // overleaf-lab (2026-11-05): small note line inside section bodies (MCP section)
+  &-note {
+    color: var(--content-secondary, #666);
+    font-size: 0.85em;
+    margin: 6px 8px 0;
+  }
+
   &-body {
     border: 1px solid var(--wf-border-in, #dfe5ec);
     border-radius: 6px;

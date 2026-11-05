@@ -271,6 +271,11 @@ export const UserSchema = new Schema(
     // text-only models can read them. Same strict-mode landmine as above:
     // it MUST be declared here or $set silently persists nothing.
     llmTextExtract: { type: Boolean },
+    // overleaf-lab (owner request 2026-11-05): per-user MCP override. Tri-state:
+    // undefined/null = follow the site switch, true = force allow, false = deny
+    // (MCP endpoint returns 403 for this user). Managed from the admin account
+    // card; enforced in McpRouter.
+    llmMcpEnabled: { type: Boolean },
     suspended: { type: Boolean },
     dsMobileApp: {
       subscribed: { type: Boolean },

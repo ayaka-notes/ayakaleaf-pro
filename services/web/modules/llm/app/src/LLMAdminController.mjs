@@ -2,6 +2,7 @@ import logger from '@overleaf/logger'
 import fs from 'node:fs'
 import path from 'node:path'
 import { getUsageSummary } from './LLMUsage.mjs'; // overleaf-lab (usage meter)
+import User from '../../../app/src/models/User.mjs' // overleaf-lab (2026-11-05): per-user MCP override
 import { z } from 'zod'
 import { expressify } from '@overleaf/promise-utils'
 import { encryptSecret, decryptSecret } from './LLMCrypto.mjs' // overleaf-lab: at-rest encryption of admin API key
@@ -114,6 +115,8 @@ async function buildDisplaySettings() {
     completionEnabled: settings.completionEnabled !== false,
     reviewEnabled: settings.reviewEnabled !== false,
     llmDisabledByAdmin: settings.llmDisabledByAdmin === true,
+    // overleaf-lab (2026-11-05): MCP switch defaults to ON when unset.
+    mcpEnabled: settings.mcpEnabled !== false,
     // overleaf-lab: editable prompt overrides. Show the EFFECTIVE value (the
     // admin override when set, else the shipped default) plus the pristine
     // defaults so the admin page can offer a reset-to-default button.
@@ -171,6 +174,12 @@ const llmSettingsSchema = z.object({
 
   llmDisabledByAdmin: z.boolean().optional(),
 
+  // overleaf-lab (owner request 2026-11-05): MCP service switch under the
+  // LLM settings page. True (default) = MCP endpoint available; false = every
+  // MCP call gets a clear 503. Per-user overrides live on the User document
+  // (User.llmMcpEnabled) and are managed from the admin user account card.
+  mcpEnabled: z.boolean().optional(),
+
   // overleaf-lab: editable prompt overrides. Each scalar prompt, when provided,
   // must be a string capped at 8000 chars. An empty string is allowed and means
   // "fall back to default" (buildDisplaySettings/getLLMPrompts use `|| DEFAULT`).
@@ -219,6 +228,7 @@ async function saveAdminSettings(req, res) {
     completionEnabled,
     reviewEnabled,
     llmDisabledByAdmin,
+    mcpEnabled, // overleaf-lab (2026-11-05): MCP service switch
     // overleaf-lab: editable prompt overrides.
     askAiSystemPrompt,
     errorPrompt,
@@ -315,6 +325,8 @@ async function saveAdminSettings(req, res) {
     completionEnabled: typeof completionEnabled === 'boolean' ? completionEnabled : (existing.completionEnabled !== false),
     reviewEnabled: typeof reviewEnabled === 'boolean' ? reviewEnabled : (existing.reviewEnabled !== false),
     llmDisabledByAdmin: typeof llmDisabledByAdmin === 'boolean' ? llmDisabledByAdmin : (existing.llmDisabledByAdmin === true),
+    // overleaf-lab (2026-11-05): MCP service switch — default ON when never set.
+    mcpEnabled: typeof mcpEnabled === 'boolean' ? mcpEnabled : (existing.mcpEnabled !== false),
     // overleaf-lab: editable prompt overrides. An empty string is stored as-is
     // and later falls back to the default via `|| DEFAULT`.
     askAiSystemPrompt: typeof askAiSystemPrompt === 'string' ? askAiSystemPrompt : (existing.askAiSystemPrompt || ''),
@@ -346,6 +358,50 @@ async function saveAdminSettings(req, res) {
 }
 
 // Exported so LLMChatController can prepend the admin system prompt
+// overleaf-lab (owner request 2026-11-05): per-user MCP service override.
+// Tri-state: 'default' follows the site switch, 'enabled' force-allows,
+// 'disabled' denies (403 at the MCP router). Stored on User.llmMcpEnabled.
+const MCP_USER_MODES = ['default', 'enabled', 'disabled']
+
+function mcpModeFromUserDoc(doc) {
+  if (!doc) {
+    return 'default'
+  }
+  if (doc.llmMcpEnabled === true) {
+    return 'enabled'
+  }
+  if (doc.llmMcpEnabled === false) {
+    return 'disabled'
+  }
+  return 'default'
+}
+
+async function getMcpUserMode(req, res) {
+  const doc = await User.findOne({ _id: req.params.userId }).select('llmMcpEnabled')
+  res.json({ ok: true, mode: mcpModeFromUserDoc(doc) })
+}
+
+async function saveMcpUserMode(req, res) {
+  const mode = typeof req.body?.mode === 'string' ? req.body.mode : ''
+  if (!MCP_USER_MODES.includes(mode)) {
+    return res.status(400).json({
+      ok: false,
+      error: 'bad-mode',
+      message: `mode must be one of: ${MCP_USER_MODES.join(', ')}`,
+    })
+  }
+  const value = mode === 'enabled' ? true : mode === 'disabled' ? false : null
+  const updated = await User.findByIdAndUpdate(
+    req.params.userId,
+    { $set: { llmMcpEnabled: value } },
+    { new: true },
+  ).select('llmMcpEnabled')
+  if (!updated) {
+    return res.status(404).json({ ok: false, error: 'not-found', message: 'User not found' })
+  }
+  res.json({ ok: true, mode: mcpModeFromUserDoc(updated) })
+}
+
 export async function getSystemPrompt() {
   const settings = readAdminSettings()
   return settings.systemPrompt || null
@@ -579,5 +635,7 @@ export default {
   saveAdminSettings: expressify(saveAdminSettings),
   checkAdminLLMConnection: expressify(checkAdminLLMConnection),
   scanAdminModels: expressify(scanAdminModels),  usageSummary: expressify(usageSummary),
+  getMcpUserMode: expressify(getMcpUserMode), // overleaf-lab (2026-11-05): per-user MCP mode (admin)
+  saveMcpUserMode: expressify(saveMcpUserMode), // overleaf-lab (2026-11-05): per-user MCP mode (admin)
 
 }

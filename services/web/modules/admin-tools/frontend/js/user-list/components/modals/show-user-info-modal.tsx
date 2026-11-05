@@ -7,7 +7,7 @@ import OLCard from '@/shared/components/ol/ol-card'
 import OLBadge from '@/shared/components/ol/ol-badge'
 import { formatDate } from '@/utils/dates'
 import UsersActionModal from './users-action-modal'
-import { getAdditionalUserInfo, getLlmUsage, type LlmUsage } from '../../util/api'
+import { getAdditionalUserInfo, getLlmUsage, type LlmUsage, getMcpUserMode, setMcpUserMode, type McpUserMode } from '../../util/api'
 
 type ShowUserInfoModalProps = Pick<
   React.ComponentProps<typeof UsersActionModal>,
@@ -47,6 +47,24 @@ function ShowUserInfoModal({
   // loaded on open; 'loading' | 'error' before/without data.
   const [llmUsage, setLlmUsage] = useState<LlmUsage | null>(null)
   const [llmUsageState, setLlmUsageState] = useState<'loading' | 'ok' | 'error' | 'empty'>('loading')
+  // overleaf-lab (owner request 2026-11-05): per-user MCP access override.
+  const [mcpMode, setMcpMode] = useState<McpUserMode>('default')
+  const [mcpBusy, setMcpBusy] = useState(false)
+  const [mcpSaved, setMcpSaved] = useState(false)
+  useEffect(() => {
+    if (!showModal) return
+    let cancelled = false
+    getMcpUserMode(user.id)
+      .then((r) => {
+        if (!cancelled && r && (r.mode === 'enabled' || r.mode === 'disabled' || r.mode === 'default')) {
+          setMcpMode(r.mode)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [showModal, user.id])
   useEffect(() => {
     if (!showModal) return
     let cancelled = false
@@ -222,6 +240,70 @@ function ShowUserInfoModal({
           )}
         </OLCard>
       )}
+      <OLCard>
+        {(Body) => (
+          <>
+            <Card.Header>{t('mcp_service', 'MCP service')}</Card.Header>
+            <Body>
+              <InfoRow
+                label={t('mcp_access', 'MCP access')}
+                value={
+                  <span className="d-inline-flex align-items-center gap-2">
+                    <select
+                      className="form-select form-select-sm d-inline-block"
+                      style={{ width: 'auto', minWidth: '200px' }}
+                      value={mcpMode}
+                      disabled={mcpBusy}
+                      onChange={(e) => {
+                        setMcpMode(e.target.value as McpUserMode)
+                        setMcpSaved(false)
+                      }}
+                    >
+                      <option value="default">{t('mcp_mode_default', 'Follow site setting')}</option>
+                      <option value="enabled">{t('mcp_mode_enabled', 'Allow (override site off)')}</option>
+                      <option value="disabled">{t('mcp_mode_disabled', 'Deny (403 at the MCP endpoint)')}</option>
+                    </select>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-primary"
+                      disabled={mcpBusy}
+                      onClick={async () => {
+                        setMcpBusy(true)
+                        setMcpSaved(false)
+                        try {
+                          const r = await setMcpUserMode(user.id, mcpMode)
+                          if (r && r.mode) {
+                            setMcpMode(r.mode)
+                            setMcpSaved(true)
+                          }
+                        } catch {
+                          // leave the select as-is; user can retry
+                        } finally {
+                          setMcpBusy(false)
+                        }
+                      }}
+                    >
+                      {mcpBusy ? '…' : t('mcp_save', 'Save')}
+                    </button>
+                    {mcpSaved ? (
+                      <span className="text-success" role="status">
+                        {t('mcp_saved', 'Saved')}
+                      </span>
+                    ) : null}
+                  </span>
+                }
+              />
+              <InfoRow
+                label={t('mcp_hint', 'Note')}
+                value={t(
+                  'mcp_user_hint',
+                  'The site-wide switch is under /admin/llm/settings → MCP service. "Deny" blocks only this account (403); "Allow" works even when the site switch is off.',
+                )}
+              />
+            </Body>
+          </>
+        )}
+      </OLCard>
     </UsersActionModal>
   )
 }
@@ -243,6 +325,57 @@ function modelName(value: string, rowNames: Record<string, string>): string {
   }
   return value
 }
+// overleaf-lab (owner request 2026-11-05): compact usage graph for the admin
+// per-user card. Pure CSS bars (no chart library), reads the `byDay` series
+// already fetched by the per-user usage endpoint, shows the last 14 days.
+function LlmUsageChart({
+  usage,
+  t,
+}: {
+  usage: LlmUsage
+  t: (key: string, ...rest: unknown[]) => string
+}) {
+  const days = (usage.byDay || []).slice(-14)
+  if (days.length === 0) return null
+  const max = Math.max(
+    1,
+    ...days.map((d) => Math.max(0, d.totalTokens || 0)),
+  )
+  return (
+    <div
+      className="llm-admin-usage-chart"
+      role="img"
+      aria-label={t(
+        'llm_admin_usage_graph_aria',
+        'Daily LLM token usage, last 14 days',
+      )}
+    >
+      <div className="llm-admin-usage-chart-bars">
+        {days.map((d) => {
+          const tokens = Math.max(0, d.totalTokens || 0)
+          const pct = Math.round((100 * tokens) / max)
+          return (
+            <div
+              key={d.day}
+              className={
+                tokens > 0
+                  ? 'llm-admin-usage-chart-bar llm-admin-usage-chart-bar-active'
+                  : 'llm-admin-usage-chart-bar'
+              }
+              style={{ height: `${Math.max(pct, tokens > 0 ? 8 : 3)}%` }}
+              title={`${d.day}: ${d.calls || 0} request${(d.calls || 0) === 1 ? '' : 's'} · ${fmtTok(tokens)} tokens`}
+            />
+          )
+        })}
+      </div>
+      <div className="llm-admin-usage-chart-labels">
+        <span>{days[0].day.slice(5)}</span>
+        <span>{days[days.length - 1].day.slice(5)}</span>
+      </div>
+    </div>
+  )
+}
+
 function LlmUsageRows({
   usage,
   t,
@@ -278,6 +411,13 @@ function LlmUsageRows({
         label={t('llm_admin_usage_total', 'Total tokens')}
         value={fmtTok(usage.totalTokens)}
       />
+      {(usage.byDay || []).length > 0 && (
+        <OLRow className="mb-2">
+          <OLCol xs={12}>
+            <LlmUsageChart usage={usage} t={t} />
+          </OLCol>
+        </OLRow>
+      )}
       {busyDays.length > 0 && (
         <InfoRow
           label={t('llm_admin_usage_days', 'Busy days (last 7 active)')}

@@ -1,5 +1,5 @@
 import { GetUsersResponseBody, Sort, User } from '../../../../types/user/api'
-import { deleteJSON, getJSON, postJSON } from '@/infrastructure/fetch-json'
+import { deleteJSON, getJSON, postJSON, putJSON } from '@/infrastructure/fetch-json'
 
 export function getUsers(sortBy: Sort): Promise<GetUsersResponseBody> {
   return postJSON('/admin/users', { body: { sort: sortBy } })
@@ -66,6 +66,19 @@ export type LlmUsage = {
 }
 export function getLlmUsage(userId: string, days = 30): Promise<LlmUsage> {
   return getJSON(`/admin/llm/usage/${userId}?days=${days}`)
+}
+
+// overleaf-lab (owner request 2026-11-05): per-user MCP service override.
+// Tri-state: 'default' follows the site switch, 'enabled' force-allows,
+// 'disabled' denies the user (403 at the MCP endpoint).
+export type McpUserMode = 'default' | 'enabled' | 'disabled'
+
+export function getMcpUserMode(userId: string): Promise<{ ok: boolean; mode: McpUserMode }> {
+  return getJSON(`/admin/llm/mcp-user/${userId}`)
+}
+
+export function setMcpUserMode(userId: string, mode: McpUserMode): Promise<{ ok: boolean; mode: McpUserMode }> {
+  return putJSON(`/admin/llm/mcp-user/${userId}`, { mode })
 }
 
 export function sendRegEmail(userId: string) {

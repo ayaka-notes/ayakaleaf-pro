@@ -293,5 +293,19 @@ export default {
             LLMSettingsController.adminUserUsageSummary
         )
         logger.debug({}, '[LLM] Route registered: GET /admin/llm/usage/:userId')
+
+        webRouter.get(
+            '/admin/llm/mcp-user/:userId',
+            AuthorizationMiddleware.ensureUserIsSiteAdmin,
+            LLMAdminController.getMcpUserMode
+        )
+        logger.debug({}, '[LLM] Route registered: GET /admin/llm/mcp-user/:userId')
+
+        webRouter.put(
+            '/admin/llm/mcp-user/:userId',
+            AuthorizationMiddleware.ensureUserIsSiteAdmin,
+            LLMAdminController.saveMcpUserMode
+        )
+        logger.debug({}, '[LLM] Route registered: PUT /admin/llm/mcp-user/:userId')
     }
 }

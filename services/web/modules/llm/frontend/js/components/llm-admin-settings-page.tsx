@@ -153,6 +153,12 @@ export default function LLMAdminSettingsPage() {
     const [llmDisabledByAdmin, setLlmDisabledByAdmin] = useState<boolean>(
         getMeta('ol-llmDisabledByAdmin') === 'true'
     )
+    // overleaf-lab (owner request 2026-11-05): MCP service switch. Default ON
+    // (meta tag is 'true' unless admin disabled it); turning it off makes
+    // every MCP call fail with a clear 503.
+    const [mcpEnabled, setMcpEnabled] = useState<boolean>(
+        getMeta('ol-mcpEnabled') !== 'false'
+    )
     // overleaf-lab: editable AI prompts. Empty field means the backend uses its
     // built-in default; promptDefaults feeds the per-field reset buttons.
     const promptDefaults = (getMeta('ol-promptDefaults') as any) || {}
@@ -216,6 +222,7 @@ export default function LLMAdminSettingsPage() {
                     completionEnabled,
                     reviewEnabled,
                     llmDisabledByAdmin,
+                    mcpEnabled, // overleaf-lab (2026-11-05): MCP service switch
                     askAiSystemPrompt,
                     errorPrompt,
                     reviewSystemPrompt,
@@ -323,6 +330,7 @@ export default function LLMAdminSettingsPage() {
                   { id: 'prompt', icon: 'description', label: t('system_prompt', 'System Prompt') },
                   { id: 'prompts', icon: 'edit_note', label: t('ai_prompts', 'AI Prompts') },
                   { id: 'availability', icon: 'shield', label: t('services_availability', 'Services (availability)') }, // overleaf-lab (grammar port)
+                  { id: 'mcp', icon: 'link', label: t('mcp_service', 'MCP service') }, // overleaf-lab (2026-11-05)
                   { id: 'usage', icon: 'insights', label: t('llm_usage', 'Usage') }, // overleaf-lab (usage meter)
               ].map(s => (
                   <button
@@ -918,6 +926,43 @@ export default function LLMAdminSettingsPage() {
                               {t('llm_disabled_by_admin', 'Disable LLM for all users (force off, even BYO)')}
                           </label>
                       </div>
+                  </div>
+              </div>
+
+              {/* overleaf-lab (owner request 2026-11-05): Section 7 — MCP service
+                  switch (global on/off for the project-scoped MCP endpoint;
+                  per-user overrides are managed on each admin account card). */}
+              <div className="llm-settings-section" data-sec="mcp">
+                  <div className="llm-settings-section-header">
+                      <span className="llm-settings-section-badge">7</span>
+                      <MaterialIcon type="link" />
+                      {t('mcp_service', 'MCP service')}
+                  </div>
+                  <p className="llm-settings-section-desc">
+                      {t(
+                          'mcp_service_desc',
+                          'MCP (Model Context Protocol) lets external agents read/write project files through the PAT-scoped endpoint. Disabling it blocks all MCP calls for every user.'
+                      )}
+                  </p>
+                  <div className="llm-settings-section-body">
+                      <div className="ol-llm-admin-settings__feature-row">
+                          <input
+                              type="checkbox"
+                              id="mcp-enabled"
+                              checked={mcpEnabled}
+                              onChange={e => setMcpEnabled(e.target.checked)}
+                              style={{ marginRight: '0.5rem' }}
+                          />
+                          <label htmlFor="mcp-enabled">
+                              {t('mcp_enabled', 'Enable MCP service (default on)')}
+                          </label>
+                      </div>
+                      <p className="llm-settings-section-note">
+                          {t(
+                              'mcp_service_note',
+                              'Per-user overrides (allow/deny individual accounts) are on the admin account card. When off, MCP calls return "mcp_disabled" (503) and download links fail; existing PATs are unaffected.'
+                          )}
+                      </p>
                   </div>
               </div>
 
