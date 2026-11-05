@@ -33,7 +33,24 @@ export async function getAiAccess(userId) {
   }
 
   if (Settings.workbenchAi?.enabled) {
-    return { chat: true, errorAssistant: true, textExtract }
+    return { chat: true, errorAssistant: true, textExtract, textOnly: false }
+  }
+
+  // overleaf-lab (2026-11-05): text-only BYO lanes (e.g. Ollama qwen3:8b)
+  // cannot use page IMAGES either — tell the client once (shared 1h cache)
+  // so render_pdf_page hands the model page TEXT proactively, instead of
+  // failing AFTER the provider rejects the image.
+  let textOnly = false
+  if (!textExtract) {
+    try {
+      const lane = await resolveWorkbenchLane(userId)
+      if (lane?.baseURL && lane?.model) {
+        const caps = await probeLane(lane.baseURL, lane.apiKey, lane.model)
+        textOnly = caps?.images === false
+      }
+    } catch {
+      textOnly = false
+    }
   }
 
   // overleaf-lab (2026-11, BYO phase 1): no operator workbench gateway —
@@ -42,10 +59,10 @@ export async function getAiAccess(userId) {
   // and the BYO gate are enforced inside the shared lane resolver, so one
   // switch still governs every surface. errorAssistant stays operator-gated.
   if (await userHasLlmLane(userId)) {
-    return { chat: true, errorAssistant: false, textExtract }
+    return { chat: true, errorAssistant: false, textExtract, textOnly }
   }
 
-  return denied
+  return { ...denied, textOnly }
 }
 
 function requireAccess(feature) {

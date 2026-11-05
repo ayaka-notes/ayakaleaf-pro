@@ -21,6 +21,7 @@ import {
   SYSTEM_PROMPT,
 } from './WorkbenchAiClient.mjs'
 import { resolveWorkbenchLane } from './LlmBridge.mjs'
+import { probeLane } from './LaneCapability.mjs'
 import { toTextMessages } from './PdfExtract.mjs'
 import { CLIENT_TOOLS, convertWorkbenchMessages } from './WorkbenchTools.mjs'
 import { WEB_SEARCH_TOOL, isWebSearchConfigured } from './WebSearchTool.mjs'
@@ -164,6 +165,48 @@ async function chat(req, res) {
   } catch (err) {
     logger.warn({ err, userId }, 'workbench chat: text-extraction mode failed, raw attachments kept')
     extraction = { anyFailed: true, kinds: ['pdf', 'image'], reasons: ['service'] }
+  }
+  // overleaf-lab (2026-11-05, owner report: "image works with qwen3.8:latest
+  // but not the pdf"): a BYO lane is its own capability boundary. OpenAI-
+  // compatible relays (Ollama/vLLM) accept image parts but reject OpenAI
+  // `file` PDF parts; text-only models reject images. Instead of refusing
+  // AFTER the provider rejects, probe the lane once (1h in-process cache)
+  // and auto-convert the shape(s) it does not accept — the same
+  // pdftotext/Tesseract pipeline as the user's text-extraction mode, no
+  // user action. Unknown capability (null) keeps the native part and the
+  // existing refusal path still explains it.
+  if (lane?.baseURL && lane?.model && (hasPdf(messages) || hasImage(messages))) {
+    let caps = null
+    try {
+      caps = await probeLane(lane.baseURL, lane.apiKey, lane.model)
+    } catch (err) {
+      logger.warn({ err, userId }, 'workbench chat: capability probe failed, native attachments kept')
+    }
+    const kinds = []
+    if (hasPdf(messages) && caps?.pdf === false) kinds.push('pdf')
+    if (hasImage(messages) && caps?.images === false) kinds.push('image')
+    if (kinds.length) {
+      try {
+        const { messages: converted, report } = await toTextMessages(messages, kinds)
+        if (report.length) {
+          messages = converted
+          const failed = report.filter(x => x.mode === 'failed')
+          extraction = failed.length
+            ? {
+                anyFailed: true,
+                kinds: [...new Set(failed.map(x => x.kind))],
+                reasons: [...new Set(failed.map(x => x.reason))],
+              }
+            : { anyFailed: false, automatic: true, kinds }
+          logger.info(
+            { userId, model: lane.model, kinds, report },
+            'workbench chat: auto text-conversion for lane capabilities'
+          )
+        }
+      } catch (err) {
+        logger.warn({ err, userId }, 'workbench chat: auto text-conversion failed, raw attachments kept')
+      }
+    }
   }
   const toolCallLimit = createToolCallLimit(messages, getMaxSteps())
   if (toolCallLimit.exhausted()) {

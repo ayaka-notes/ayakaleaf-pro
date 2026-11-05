@@ -188,7 +188,10 @@ async function extractFromImage(buf, mediaType, tmp) {
  *
  * Returns { messages, report, caps }.
  */
-export async function toTextMessages(messages) {
+// overleaf-lab (2026-11-05): optional kinds filter — ['pdf'] / ['image'] /
+// both (default). Lets callers convert ONLY the attachment shape the lane
+// rejects (e.g. a PDF-file-capable vision model still gets native images).
+export async function toTextMessages(messages, kinds = null) {
   const caps = capabilities()
   const report = []
   const jobs = []
@@ -206,6 +209,7 @@ export async function toTextMessages(messages) {
       const mt = String(part?.mediaType || '')
       const isPdf = mt === 'application/pdf'
       if (!isPdf && !mt.startsWith('image/')) continue
+      if (kinds && !kinds.includes(isPdf ? 'pdf' : 'image')) continue
       const prefix = `data:${mt};base64,`
       const url = String(part?.url || '')
       if (!url.startsWith(prefix)) continue // attachment validation rejects these anyway

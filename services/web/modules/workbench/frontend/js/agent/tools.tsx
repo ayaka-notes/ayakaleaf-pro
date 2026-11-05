@@ -130,15 +130,34 @@ export const TOOLS: Record<string, ToolSpec> = {
   render_pdf_page: {
     label: ({ page }) => `Look at PDF page ${page}`,
     run: ({ page }, { actions, signal, textExtract }) => actions.renderPage(page, signal, { textMode: textExtract === true }),
-    body: part =>
-      part.state === 'output-available' && (
-        <img
-          className="d-block mx-auto my-2 rounded shadow-sm"
-          style={{ ...boxed, maxWidth: '100%', maxHeight: 400 }}
-          alt={`PDF page ${part.input.page}`}
-          src={`data:image/png;base64,${part.output}`}
-        />
-      ),
+    body: part => {
+      if (part.state !== 'output-available') return null
+      const out = part.output
+      // overleaf-lab (2026-11-05): text-extraction mode (user setting OR a
+      // text-only lane) returns page TEXT — render it as text; the classic
+      // image render (base64 PNG always starts with 'iVBOR') as before.
+      if (typeof out === 'string' && out.startsWith('iVBOR')) {
+        return (
+          <img
+            className="d-block mx-auto my-2 rounded shadow-sm"
+            style={{ ...boxed, maxWidth: '100%', maxHeight: 400 }}
+            alt={`PDF page ${part.input?.page ?? ''}`}
+            src={`data:image/png;base64,${out}`}
+          />
+        )
+      }
+      return (
+        <details className="my-2" open>
+          <summary className="small fw-semibold">PDF page {String(part.input?.page ?? '')} — text (vision not available on this model)</summary>
+          <pre
+            className="small mb-0 mt-1 p-2 rounded bg-subtle text-break"
+            style={{ whiteSpace: 'pre-wrap', maxHeight: 400, overflow: 'auto' }}
+          >
+            {typeof out === 'string' ? out : JSON.stringify(out ?? '')}
+          </pre>
+        </details>
+      )
+    },
   },
 
   get_pdf_outline: {
