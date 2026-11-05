@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import getMeta from '@/utils/meta'
-import { postJSON } from '@/infrastructure/fetch-json'
+import { postJSON, getJSON } from '@/infrastructure/fetch-json'
 import useAsync from '@/shared/hooks/use-async'
 import OLButton from '@/shared/components/ol/ol-button'
 import OLFormGroup from '@/shared/components/ol/ol-form-group'
@@ -159,6 +159,32 @@ export default function LLMAdminSettingsPage() {
     const [mcpEnabled, setMcpEnabled] = useState<boolean>(
         getMeta('ol-mcpEnabled') !== 'false'
     )
+    // overleaf-lab (owner request 2026-11-05): per-service on/off — the list
+    // is fetched from the live registry (single source of truth), each
+    // service rendered with a checkbox and an info affordance (ⓘ) showing
+    // what it does and which tools it contains.
+    const [mcpServiceList, setMcpServiceList] = useState<
+        { key: string; label: string; description: string; enabled: boolean; tools: { name: string; description: string; mutating: boolean }[] }[]
+    >([])
+    const [mcpServicesOn, setMcpServicesOn] = useState<Record<string, boolean>>({})
+    const [mcpInfoOpen, setMcpInfoOpen] = useState<string | null>(null)
+    useEffect(() => {
+        let cancelled = false
+        getJSON('/admin/llm/mcp-tools')
+            .then((d: any) => {
+                if (cancelled || !Array.isArray(d?.services)) return
+                setMcpServiceList(d.services)
+                const init: Record<string, boolean> = {}
+                d.services.forEach((s: any) => { init[s.key] = s.enabled !== false })
+                setMcpServicesOn(init)
+            })
+            .catch(() => {
+                /* listing is non-critical; the global switch still works */
+            })
+        return () => {
+            cancelled = true
+        }
+    }, [])
     // overleaf-lab: editable AI prompts. Empty field means the backend uses its
     // built-in default; promptDefaults feeds the per-field reset buttons.
     const promptDefaults = (getMeta('ol-promptDefaults') as any) || {}
@@ -223,6 +249,7 @@ export default function LLMAdminSettingsPage() {
                     reviewEnabled,
                     llmDisabledByAdmin,
                     mcpEnabled, // overleaf-lab (2026-11-05): MCP service switch
+                    mcpServices: mcpServiceList.length ? mcpServicesOn : undefined, // overleaf-lab (2026-11-05): per-service on/off
                     askAiSystemPrompt,
                     errorPrompt,
                     reviewSystemPrompt,
@@ -957,6 +984,63 @@ export default function LLMAdminSettingsPage() {
                               {t('mcp_enabled', 'Enable MCP service (default on)')}
                           </label>
                       </div>
+                      {/* overleaf-lab (owner request 2026-11-05): the available
+                          MCP services with per-service on/off + info (ⓘ) showing
+                          what each service does and which tools it contains. */}
+                      {mcpServiceList.length > 0 && (
+                          <div className="llm-settings-section-body" style={{ marginTop: '0.75rem' }}>
+                              <p className="llm-settings-section-note" style={{ marginBottom: '0.5rem' }}>
+                                  {t(
+                                      'mcp_services_sub',
+                                      'Available services — switch any of them off to remove it for every user:'
+                                  )}
+                              </p>
+                              {mcpServiceList.map(svc => {
+                                  const on = mcpServicesOn[svc.key] !== false
+                                  const infoOpen = mcpInfoOpen === svc.key
+                                  return (
+                                      <div key={svc.key} className="ol-llm-admin-settings__mcp-service">
+                                          <div className="ol-llm-admin-settings__mcp-service-row">
+                                              <input
+                                                  type="checkbox"
+                                                  id={`mcp-svc-${svc.key}`}
+                                                  disabled={!mcpEnabled}
+                                                  checked={on}
+                                                  onChange={e => setMcpServicesOn(cur => ({ ...cur, [svc.key]: e.target.checked }))}
+                                                  style={{ marginRight: '0.5rem' }}
+                                              />
+                                              <label htmlFor={`mcp-svc-${svc.key}`} style={{ flex: 1 }}>
+                                                  {svc.label}
+                                              </label>
+                                              <button
+                                                  type="button"
+                                                  className="ol-llm-admin-settings__mcp-info-btn"
+                                                  aria-expanded={infoOpen}
+                                                  aria-label={svc.label + ': what it does'}
+                                                  title={t('mcp_svc_info', 'What this service does')}
+                                                  onClick={() => setMcpInfoOpen(cur => (cur === svc.key ? null : svc.key))}
+                                              >
+                                                  <MaterialIcon type={infoOpen ? 'close' : 'info'} />
+                                              </button>
+                                          </div>
+                                          {infoOpen && (
+                                              <div className="ol-llm-admin-settings__mcp-info">
+                                                  <p>{svc.description}</p>
+                                                  <ul>
+                                                      {svc.tools.map(tool => (
+                                                          <li key={tool.name}>
+                                                              <code>{tool.name}</code>
+                                                              {tool.description ? ` — ${tool.description}` : ''}
+                                                          </li>
+                                                      ))}
+                                                  </ul>
+                                              </div>
+                                          )}
+                                      </div>
+                                  )
+                              })}
+                          </div>
+                      )}
                       <p className="llm-settings-section-note">
                           {t(
                               'mcp_service_note',

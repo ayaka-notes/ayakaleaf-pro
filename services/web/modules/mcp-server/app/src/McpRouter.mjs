@@ -3,7 +3,7 @@ import AuthenticationController from '../../../../app/src/Features/Authenticatio
 import AuthorizationManager from '../../../../app/src/Features/Authorization/AuthorizationManager.mjs'
 import RateLimiterMiddleware from '../../../../app/src/Features/Security/RateLimiterMiddleware.mjs'
 import { requireProjectAccess } from '../../../git-bridge/app/src/GitBridgeRouter.mjs'
-import McpController from './McpController.mjs'
+import McpController, { MCP_SERVICE_GROUPS } from './McpController.mjs'
 import { rateLimiters } from './McpUtils.mjs'
 import { readAdminSettings } from '../../../llm/app/src/LLMAdminController.mjs' // overleaf-lab (2026-11-05): MCP service switch
 import { User } from '../../../../app/src/models/User.mjs' // overleaf-lab (2026-11-05): per-user MCP override
@@ -18,6 +18,17 @@ async function mcpServiceGate(req, res, next) {
   try {
     const settings = readAdminSettings()
     const siteOff = settings.mcpEnabled === false
+    // overleaf-lab (2026-11-05, owner request): per-service off-switches —
+    // computed here (settings already in hand) and handed to the controller
+    // via the request; disabled services are not registered at all.
+    try {
+      const svc = settings && typeof settings.mcpServices === 'object' ? settings.mcpServices : null
+      req.mcpDisabledServices = svc
+        ? MCP_SERVICE_GROUPS.filter(g => svc[g.key] === false).map(g => g.key)
+        : []
+    } catch {
+      req.mcpDisabledServices = []
+    }
     const userId = req.auth && req.auth.userId
     let override = null
     if (userId) {

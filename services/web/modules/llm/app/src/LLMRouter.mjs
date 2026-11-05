@@ -301,6 +301,13 @@ export default {
         )
         logger.debug({}, '[LLM] Route registered: GET /admin/llm/mcp-user/:userId')
 
+        webRouter.get(
+            '/admin/llm/mcp-tools',
+            AuthorizationMiddleware.ensureUserIsSiteAdmin,
+            LLMAdminController.getMcpTools
+        )
+        logger.debug({}, '[LLM] Route registered: GET /admin/llm/mcp-tools')
+
         webRouter.put(
             '/admin/llm/mcp-user/:userId',
             AuthorizationMiddleware.ensureUserIsSiteAdmin,

@@ -88,7 +88,61 @@ function auditedHandler(toolName, isMutating, ctx, wrapped) {
   }
 }
 
-function createServer(userId, projectId, client) {
+// overleaf-lab (2026-11-05, owner request): the MCP service groups — the
+// SINGLE source of truth for (a) the admin settings listing + per-service
+// on/off, and (b) registration in createServer below. Keys are stable ids
+// (persisted in admin settings mcpServices); labels are UI text.
+export const MCP_SERVICE_GROUPS = [
+  { key: 'projects', label: 'Projects', build: buildProjectTools,
+    description: 'See who is working in the project: collaborators (people with access rights) and the project settings — read-only lookups.' },
+  { key: 'compile', label: 'Compile', build: buildCompileTools,
+    description: 'Start an Overleaf compile, check its status, and download the resulting PDF or other output files through a time-limited secure link.' },
+  { key: 'files', label: 'Files', build: buildFileTools,
+    description: 'Work with project files: list, search, read, create, edit, rename, move and delete files. Edits are live (collaborators see them in real time).' },
+  { key: 'comments', label: 'Comments', build: buildCommentTools,
+    description: 'Manage margin comments and chat messages: read, create, reply, edit, resolve and delete — including the text ranges a comment is attached to.' },
+  { key: 'chat', label: 'Chat', build: buildChatTools,
+    description: 'Read and write the project chat (team messages), including replying to and resolving existing messages.' },
+  { key: 'versions', label: 'Versions & history', build: buildHistoryTools,
+    description: 'Version control: create and list version labels, inspect diffs and history, and restore a project or file to a previous version.' },
+  { key: 'track_changes', label: 'Track changes', build: buildTrackChangesTools,
+    description: 'Collaborative editing protocol: enable tracked changes, accept or reject pending change suggestions, and read the diff state of files.' },
+]
+const MCP_MUTATING_TOOLS = new Set([
+  'write_file', 'edit_file', 'delete_file', 'rename_file', 'move_file',
+  'add_comment', 'reply_to_comment', 'edit_comment_message',
+  'delete_comment_message', 'delete_comment', 'resolve_comment',
+  'reopen_comment', 'send_chat_message', 'edit_chat_message',
+  'delete_chat_message', 'create_version', 'delete_version_label',
+  'restore_project_version', 'restore_file_version', 'accept_changes',
+  'reject_changes', 'set_tracked_changes', 'update_settings', 'compile',
+])
+
+// overleaf-lab (2026-11-05, owner request): list the AVAILABLE MCP services
+// for the admin page (name, purpose, per-service on/off state). The builders
+// are the single source of truth, so this can never drift from registration.
+export function listMcpServices() {
+  const context = { userId: 'list', projectId: 'list', client: 'list' }
+  const out = []
+  for (const g of MCP_SERVICE_GROUPS) {
+    const { key, label, build } = g
+    let tools = []
+    try {
+      tools = Object.entries(build(context) || {}).map(([name, def]) => ({
+        name,
+        description: typeof def?.description === 'string' ? def.description : '',
+        mutating: MCP_MUTATING_TOOLS.has(name),
+      }))
+    } catch {
+      // a broken builder must not take the listing down
+    }
+    out.push({ key, label, description: g.description || '', tools })
+
+  }
+  return out
+}
+
+function createServer(userId, projectId, client, disabledServices = []) {
   const server = new McpServer(
     { name: 'overleaf', version: '1.0.0' },
     {
@@ -115,41 +169,39 @@ function createServer(userId, projectId, client) {
     }
   )
 
-  const context = { userId, projectId, client: client || 'mcp' }
-  const tools = {
-    ...buildProjectTools(context),
-    ...buildCompileTools(context),
-    ...buildFileTools(context),
-    ...buildCommentTools(context),
-    ...buildChatTools(context),
-    ...buildHistoryTools(context),
-    ...buildTrackChangesTools(context),
-  }
-  // overleaf-lab (issue #126, plan step 7): the mutating tools — their calls
-  // are audited at info level with the agent identity attached.
-  const MUTATING = new Set([
-    'write_file', 'edit_file', 'delete_file', 'rename_file', 'move_file',
-    'add_comment', 'reply_to_comment', 'edit_comment_message',
-    'delete_comment_message', 'delete_comment', 'resolve_comment',
-    'reopen_comment', 'send_chat_message', 'edit_chat_message',
-    'delete_chat_message', 'create_version', 'delete_version_label',
-    'restore_project_version', 'restore_file_version', 'accept_changes',
-    'reject_changes', 'set_tracked_changes', 'update_settings', 'compile',
-  ])
+  const context = { userId, projectId, client: client || 'mcp', disabledServices }
+  // overleaf-lab (2026-11-05, owner request): services disabled via the
+  // admin settings (mcpServices) are NOT registered at all — tools/list
+  // therefore never shows them, and calls to them fail as unknown tools.
   const key = `${projectId}:${userId}`
-  for (const [name, { rateLimiter, handler, ...config }] of Object.entries(tools)) {
-    const limitedHandler = rateLimit(rateLimiter, key, handler)
-    server.registerTool(name, config, auditedHandler(name, MUTATING.has(name), context, limitedHandler))
+  const disabled = new Set(context.disabledServices || [])
+  for (const { key: serviceKey, build } of MCP_SERVICE_GROUPS) {
+    if (disabled.has(serviceKey)) continue
+    const defs = build(context) || {}
+    for (const [name, { rateLimiter, handler, ...config }] of Object.entries(defs)) {
+      const limitedHandler = rateLimit(rateLimiter, key, handler)
+      server.registerTool(
+        name,
+        config,
+        auditedHandler(name, MCP_MUTATING_TOOLS.has(name), context, limitedHandler),
+      )
+    }
   }
 
   return server
 }
 
 async function handleRequest(req, res) {
+  // overleaf-lab (2026-11-05, owner request): per-service admin off-switches
+  // (admin settings → MCP service, default all on). Computed in the gate
+  // (McpRouter) where the admin settings are already read — attached to the
+  // request, so no settings read here and no import cycle.
+  const disabledServices = Array.isArray(req.mcpDisabledServices) ? req.mcpDisabledServices : []
   const server = createServer(
     req.oauth_user._id.toString(),
     req.params.project_id,
-    clientIdentity(req)
+    clientIdentity(req),
+    disabledServices
   )
   // Stateless: a new server and transport for every request
   const transport = new StreamableHTTPServerTransport({

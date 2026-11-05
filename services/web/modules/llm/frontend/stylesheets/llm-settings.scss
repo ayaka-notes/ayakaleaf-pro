@@ -495,6 +495,58 @@
     border-top: 1px solid var(--wf-border-in, #dfe5ec);
   }
 
+  /* overleaf-lab (owner request 2026-11-05): per-service MCP on/off rows
+     with an info (i) affordance that expands the "what it does" detail. */
+  .ol-llm-admin-settings__mcp-service {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--wf-border-in, #dfe5ec);
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+  }
+
+  .ol-llm-admin-settings__mcp-service-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .ol-llm-admin-settings__mcp-info-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--wf-border-in, #dfe5ec);
+    border-radius: 50%;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    cursor: pointer;
+    color: var(--wf-primary-btn-bg, #4788ff);
+  }
+
+  .ol-llm-admin-settings__mcp-info-btn:hover,
+  .ol-llm-admin-settings__mcp-info-btn[aria-expanded='true'] {
+    background: var(--wf-primary-btn-bg, #4788ff);
+    color: #fff;
+  }
+
+  .ol-llm-admin-settings__mcp-info {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-left: 3px solid var(--wf-primary-btn-bg, #4788ff);
+    background: var(--wf-background-05, #f6f8fa);
+    font-size: 0.875rem;
+  }
+
+  .ol-llm-admin-settings__mcp-info ul {
+    margin: 0.5rem 0 0;
+    padding-left: 1.1rem;
+  }
+
+  .ol-llm-admin-settings__mcp-info li {
+    margin: 0.15rem 0;
+  }
+
   .ol-llm-admin-settings__feature-title {
     font-weight: 500;
   }

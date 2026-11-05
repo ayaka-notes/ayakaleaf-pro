@@ -5,6 +5,10 @@ import { getUsageSummary } from './LLMUsage.mjs'; // overleaf-lab (usage meter)
 import { User } from '../../../../app/src/models/User.mjs' // overleaf-lab (2026-11-05): per-user MCP override (named export, 4 levels up)
 import { z } from 'zod'
 import { expressify } from '@overleaf/promise-utils'
+// overleaf-lab (2026-11-05, owner request): the MCP service listing for the
+// admin page comes from the mcp-server module's own builders (single source
+// of truth — LlmBridge proves cross-module web imports build fine).
+import { listMcpServices } from '../../../mcp-server/app/src/McpController.mjs'
 import { encryptSecret, decryptSecret } from './LLMCrypto.mjs' // overleaf-lab: at-rest encryption of admin API key
 import { listModels, detectProviderType } from './LLMClient.mjs' // overleaf-lab: AI-SDK provider seam
 import {
@@ -117,6 +121,17 @@ async function buildDisplaySettings() {
     llmDisabledByAdmin: settings.llmDisabledByAdmin === true,
     // overleaf-lab (2026-11-05): MCP switch defaults to ON when unset.
     mcpEnabled: settings.mcpEnabled !== false,
+    // overleaf-lab (2026-11-05): per-service on/off — surface with all-defaults
+    // filled in (absent = enabled) so the admin page can render the full list.
+    mcpServices: {
+      projects: (settings.mcpServices || {}).projects !== false,
+      compile: (settings.mcpServices || {}).compile !== false,
+      files: (settings.mcpServices || {}).files !== false,
+      comments: (settings.mcpServices || {}).comments !== false,
+      chat: (settings.mcpServices || {}).chat !== false,
+      versions: (settings.mcpServices || {}).versions !== false,
+      track_changes: (settings.mcpServices || {}).track_changes !== false,
+    },
     // overleaf-lab: editable prompt overrides. Show the EFFECTIVE value (the
     // admin override when set, else the shipped default) plus the pristine
     // defaults so the admin page can offer a reset-to-default button.
@@ -179,6 +194,11 @@ const llmSettingsSchema = z.object({
   // MCP call gets a clear 503. Per-user overrides live on the User document
   // (User.llmMcpEnabled) and are managed from the admin user account card.
   mcpEnabled: z.boolean().optional(),
+  // overleaf-lab (owner request 2026-11-05): per-service on/off (systemwide).
+  // Object keyed by service key (projects|compile|files|comments|chat|
+  // versions|track_changes); false = that service is removed for EVERY user.
+  // Absent/unset keys default to enabled, so existing installs keep it all.
+  mcpServices: z.record(z.boolean()).optional(),
 
   // overleaf-lab: editable prompt overrides. Each scalar prompt, when provided,
   // must be a string capped at 8000 chars. An empty string is allowed and means
@@ -229,6 +249,7 @@ async function saveAdminSettings(req, res) {
     reviewEnabled,
     llmDisabledByAdmin,
     mcpEnabled, // overleaf-lab (2026-11-05): MCP service switch
+    mcpServices, // overleaf-lab (2026-11-05): per-service on/off (systemwide)
     // overleaf-lab: editable prompt overrides.
     askAiSystemPrompt,
     errorPrompt,
@@ -327,6 +348,9 @@ async function saveAdminSettings(req, res) {
     llmDisabledByAdmin: typeof llmDisabledByAdmin === 'boolean' ? llmDisabledByAdmin : (existing.llmDisabledByAdmin === true),
     // overleaf-lab (2026-11-05): MCP service switch — default ON when never set.
     mcpEnabled: typeof mcpEnabled === 'boolean' ? mcpEnabled : (existing.mcpEnabled !== false),
+    // overleaf-lab (2026-11-05): per-service on/off — merge over the defaults
+    // (all true) so a partial save can't wipe services it didn't mention.
+    mcpServices: { ...(existing.mcpServices || {}), ...((mcpServices && typeof mcpServices === 'object') ? mcpServices : {}) },
     // overleaf-lab: editable prompt overrides. An empty string is stored as-is
     // and later falls back to the default via `|| DEFAULT`.
     askAiSystemPrompt: typeof askAiSystemPrompt === 'string' ? askAiSystemPrompt : (existing.askAiSystemPrompt || ''),
@@ -379,6 +403,31 @@ function mcpModeFromUserDoc(doc) {
 async function getMcpUserMode(req, res) {
   const doc = await User.findOne({ _id: req.params.userId }).select('llmMcpEnabled')
   res.json({ ok: true, mode: mcpModeFromUserDoc(doc) })
+}
+
+// overleaf-lab (2026-11-05, owner request): the available MCP services —
+// rendered in the admin settings → MCP service section. Read-only listing;
+// the gate itself is unchanged.
+async function getMcpTools(req, res) {
+  let services = []
+  try {
+    services = listMcpServices()
+  } catch {
+    services = []
+  }
+  // overleaf-lab (2026-11-05, owner request): include the per-service on/off
+  // state so the admin page can render each service with an enable/disable
+  // control plus an info affordance (description) of what it does.
+  const settings = readAdminSettings()
+  const off = (settings || {}).mcpServices || {}
+  const out = services.map(s => ({
+    key: s.key,
+    label: s.label,
+    description: s.description || '',
+    enabled: off[s.key] !== false,
+    tools: s.tools,
+  }))
+  res.json({ ok: true, services: out })
 }
 
 async function saveMcpUserMode(req, res) {
@@ -637,5 +686,6 @@ export default {
   scanAdminModels: expressify(scanAdminModels),  usageSummary: expressify(usageSummary),
   getMcpUserMode: expressify(getMcpUserMode), // overleaf-lab (2026-11-05): per-user MCP mode (admin)
   saveMcpUserMode: expressify(saveMcpUserMode), // overleaf-lab (2026-11-05): per-user MCP mode (admin)
+  getMcpTools: expressify(getMcpTools), // overleaf-lab (2026-11-05): MCP service listing (admin)
 
 }
