@@ -237,6 +237,14 @@ export default function LibraryPage() {
     }
   }, [selectedRow])
 
+  // Bulk Download for the selection (server: GET /library/references/download?ids=…;
+  // the button was dead until this wiring — component/i18n/API all existed).
+  const handleBulkDownload = useCallback(() => {
+    if (selectedIds.length > 0) {
+      api.triggerDownload({ ids: selectedIds })
+    }
+  }, [selectedIds])
+
   // ---- render ------------------------------------------------------------
   return (
     <div className="library-page-main">
@@ -489,6 +497,7 @@ export default function LibraryPage() {
               onBulkRestore={
                 isTrash ? () => void lib.restoreEntries(selectedIds) : undefined
               }
+              onBulkDownload={handleBulkDownload}
               onBulkDelete={handleListDelete}
               bulkDeleteLabel={isTrash ? t('Delete permanently') : t('delete')}
             />
