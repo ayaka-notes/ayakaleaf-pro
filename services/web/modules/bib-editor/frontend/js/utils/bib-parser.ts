@@ -203,28 +203,41 @@ function parseFields(fieldsStr: string): Record<string, string> {
  * Idempotent: an already-escaped `\}` is left alone.
  */
 export function escapeBibValue(value: string): string {
-  let out = ''
-  let depth = 0
+  // A value is safe inside {…} only if its unescaped braces are balanced.
+  // Keep balanced braces as-is (preserving the author's formatting); escape
+  // stray `}` immediately and any `{` that never finds its closing `}`.
+  const outChars: string[] = []
+  const openPositions: number[] = [] // outChars indices of unmatched '{'
   for (let i = 0; i < value.length; i++) {
     const c = value[i]
-    if (c === '\\' && (value[i + 1] === '{' || value[i + 1] === '}')) {
-      // already-escaped brace: copy both, skip the brace
-      out += c
-      i++
-      out += value[i]
+    if (c === '\\') {
+      outChars.push(c)
+      if (i + 1 < value.length) {
+        i++
+        outChars.push(value[i])
+      }
       continue
     }
-    if (c === '{') depth++
-    else if (c === '}') {
-      if (depth === 0) {
-        out += '\\}'
-        continue
-      }
-      depth--
+    if (c === '{') {
+      openPositions.push(outChars.length)
+      outChars.push(c)
+      continue
     }
-    out += c
+    if (c === '}') {
+      if (openPositions.length) {
+        openPositions.pop()
+        outChars.push(c)
+      } else {
+        outChars.push('\\}')
+      }
+      continue
+    }
+    outChars.push(c)
   }
-  return out
+  for (const pos of openPositions) {
+    outChars.splice(pos, 0, '\\')
+  }
+  return outChars.join('')
 }
 
 /**

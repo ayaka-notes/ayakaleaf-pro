@@ -9,7 +9,7 @@
  * This kills the stale-offset bug: ranges are always recomputed against the
  * source we are about to write to, and clamped when they are no longer valid.
  */
-import { parseBibFile } from './bib-parser'
+import { parseBibFile, escapeBibValue } from './bib-parser'
 import type { BibEntry } from './bib-types'
 
 export type BibWritePlan = {
@@ -284,4 +284,381 @@ export function planBibImport(
     ok: true,
     changes: [{ from: source.length, to: source.length, insert }],
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Surgical edits (board #6): rewrite ONLY the regions that actually
+// changed (citation key, entry type, changed/added/removed fields) and
+// preserve every other byte of the entry — sibling field ordering,
+// spacing, inline comments, unusual-but-valid value quoting. Full
+// re-serialization (planBibWrite) is retained as a fallback for entries
+// the scanner cannot safely locate.
+// ─────────────────────────────────────────────────────────────────────
+
+/** One field edit. `value: null` deletes the field. */
+export type BibFieldEdit = {
+  name: string
+  value: string | null
+}
+
+/** A diff of one entry. `null` = unchanged; `key: ''` = clear the key. */
+export type BibEntryEdits = {
+  /** New citation key; `''` clears it; `null` = unchanged. */
+  key: string | null
+  /** New entry type; `null` = unchanged. */
+  type: string | null
+  /** Changed / added / removed fields (value `null` = remove). */
+  fields: BibFieldEdit[]
+}
+
+export type BibEditChange = {
+  /** inclusive start */
+  from: number
+  /** exclusive end (=== from for a pure insertion) */
+  to: number
+  insert: string
+}
+
+export type BibEditGuard =
+  | { ok: true; changes: BibEditChange[] }
+  | { ok: false; reason: string }
+
+/** Trim + collapse empty → null (the form's and parser's value model). */
+function normValue(v: string | undefined): string | null {
+  if (v === undefined) return null
+  const t = v.trim()
+  return t === '' ? null : t
+}
+
+/**
+ * Pure diff of an original (parsed) entry against an edited form entry.
+ * Only semantic changes are reported: whitespace-only differences and
+ * no-ops produce no edits (value `null` = the field is removed).
+ */
+export function diffBibEntry(
+  original: BibEntry,
+  edited: BibEntry
+): BibEntryEdits {
+  const origKey = normValue(original.id)
+  const newKey = normValue(edited.id)
+  const key =
+    origKey === newKey ? null : newKey === null ? '' : newKey
+
+  const type =
+    (original.type || 'misc').toLowerCase() ===
+    (edited.type || 'misc').toLowerCase()
+      ? null
+      : edited.type || 'misc'
+
+  const names = new Set<string>([
+    ...Object.keys(original.fields || {}),
+    ...Object.keys(edited.fields || {}),
+  ])
+  const fields: BibFieldEdit[] = []
+  for (const n of names) {
+    const o = normValue(original.fields?.[n])
+    const e = normValue(edited.fields?.[n])
+    if (o !== e) fields.push({ name: n, value: e })
+  }
+  return { key, type, fields }
+}
+
+type LocatedField = {
+  name: string
+  /** absolute offset of the field name */
+  nameFrom: number
+  /** absolute offset one PAST the value (inclusive value end) */
+  valueEnd: number
+}
+
+const FIELD_NAME = /^[\w-]+/
+
+/**
+ * Locate the top-level (brace-depth-0) fields inside [innerStart, innerEnd)
+ * of `source`. Returns the located fields, or `null` when the region is
+ * structurally malformed (unbalanced value, unterminated quote) — callers
+ * fall back to full re-serialization in that case.
+ */
+function locateFields(
+  source: string,
+  innerStart: number,
+  innerEnd: number
+): LocatedField[] | null {
+  const out: LocatedField[] = []
+  let depth = 0
+  let inQuotes = false
+  let i = innerStart
+  while (i < innerEnd) {
+    const ch = source[i]
+    if (inQuotes) {
+      if (ch === '\\') i++
+      else if (ch === '"') inQuotes = false
+      i++
+      continue
+    }
+    if (ch === '"') {
+      inQuotes = true
+      i++
+      continue
+    }
+    if (ch === '{') {
+      depth++
+      i++
+      continue
+    }
+    if (ch === '}') {
+      depth--
+      i++
+      continue
+    }
+    if (depth === 0) {
+      const m = FIELD_NAME.exec(source.slice(i, Math.min(i + 64, innerEnd)))
+      if (m && /^[A-Za-z]/.test(m[0])) {
+        let j = i + m[0].length
+        while (j < innerEnd && /\s/.test(source[j])) j++
+        if (source[j] === '=') {
+          j++
+          while (j < innerEnd && /\s/.test(source[j])) j++
+          if (j >= innerEnd) return null
+          if (source[j] === '{') {
+            let d = 0
+            let k = j
+            let inQ = false
+            for (; k < innerEnd; k++) {
+              const c = source[k]
+              if (inQ) {
+                if (c === '\\') k++
+                else if (c === '"') inQ = false
+                continue
+              }
+              if (c === '"') inQ = true
+              else if (c === '{') d++
+              else if (c === '}') {
+                d--
+                if (d === 0) break
+              }
+            }
+            if (d !== 0 || k >= innerEnd) return null
+            out.push({ name: m[0].toLowerCase(), nameFrom: i, valueEnd: k + 1 })
+            i = k + 1
+            continue
+          }
+          if (source[j] === '"') {
+            let k = j + 1
+            let esc = false
+            for (; k < innerEnd; k++) {
+              if (esc) {
+                esc = false
+                continue
+              }
+              if (source[k] === '\\') esc = true
+              else if (source[k] === '"') break
+            }
+            if (k >= innerEnd || source[k] !== '"') return null
+            out.push({ name: m[0].toLowerCase(), nameFrom: i, valueEnd: k + 1 })
+            i = k + 1
+            continue
+          }
+          // bare value: to the next ',' or end
+          let k = j
+          while (k < innerEnd && source[k] !== ',') k++
+          out.push({ name: m[0].toLowerCase(), nameFrom: i, valueEnd: k })
+          i = k
+          continue
+        }
+      }
+    }
+    i++
+  }
+  return out
+}
+
+/**
+ * Plan the smallest edit set for one entry given a diff. Offsets are in
+ * ONE source snapshot; changes are non-overlapping so the extension can
+ * dispatch them as a single CodeMirror transaction (one undo step).
+ *
+ * Reasons:
+ *  - 'not-a-bib-file'  : the document gate fails (same as planBibWrite)
+ *  - 'entry-gone'      : the anchor entry no longer resolves uniquely
+ *  - 'key-taken'       : the new key is already used by a different entry
+ *  - 'field-not-found' : a changed field can't be located / malformed — the
+ *                        caller falls back to planBibWrite
+ */
+export function planBibEditEntry(
+  source: string,
+  entry: BibEntry,
+  edits: BibEntryEdits,
+  originalId?: string
+): BibEditGuard {
+  if (!isBibDocument(source)) {
+    return { ok: false, reason: NOT_A_BIB_REASON }
+  }
+  const entries = parseBibFile(source)
+  const anchorId = originalId ?? entry.id
+  // Anchor on the citation key (the rename target is not in the parsed doc
+  // yet). A type mismatch only fails the anchor when the type is NOT part
+  // of this edit — otherwise it is the very change being written.
+  const byId = entries.filter(e => e.id === anchorId)
+  if (byId.length !== 1) {
+    return { ok: false, reason: ENTRY_GONE_REASON }
+  }
+  const target = byId[0]
+  const entryType = (entry.type || 'misc').toLowerCase()
+  if (target.type.toLowerCase() !== entryType && edits.type === null) {
+    return { ok: false, reason: ENTRY_GONE_REASON }
+  }
+
+  // Renamed key: reject when another entry already owns it.
+  if (edits.key !== null && edits.key !== anchorId) {
+    const clash = entries.find(e => e.id === edits.key && e !== target)
+    if (clash) return { ok: false, reason: KEY_TAKEN_REASON }
+  }
+
+  const open = target.sourceStart + source
+    .slice(target.sourceStart)
+    .indexOf('{')
+  if (open === -1 || open + 1 >= target.sourceEnd) {
+    return { ok: false, reason: 'field-not-found' }
+  }
+  const innerStart = open + 1
+  const innerEnd = target.sourceEnd - 1
+
+  const located = locateFields(source, innerStart, innerEnd)
+  if (located === null) {
+    return { ok: false, reason: 'field-not-found' }
+  }
+
+  const byName = new Map(located.map(f => [f.name, f]))
+  const changes: BibEditChange[] = []
+  const fieldText = (name: string, v: string) =>
+    `${name} = {${escapeBibValue(v.trim())}}`
+
+  // 1) citation key
+  if (edits.key !== null) {
+    const comma = depthZeroComma(source, innerStart, innerEnd)
+    if (comma === -1) {
+      if (edits.key !== '') {
+        // keyless entry: the whole inner is fields (or empty). Adding a key
+        // means splicing `key,` in front of the fields.
+        changes.push({ from: innerStart, to: innerStart, insert: `${edits.key},` })
+      }
+    } else if (edits.key === '') {
+      // Clear the key but KEEP the separating comma: `@misc{, title={T}}`
+      // is the keyless-with-fields spelling (dropping the comma would make
+      // the first field read as the key).
+      changes.push({ from: innerStart, to: comma, insert: '' })
+    } else {
+      // Replace the key tokens only; keep the separating comma.
+      changes.push({ from: innerStart, to: comma, insert: edits.key })
+    }
+  }
+
+  // 2) entry type: the identifier between '@' and the entry's '{'
+  if (edits.type !== null) {
+    changes.push({
+      from: target.sourceStart + 1,
+      to: open,
+      insert: edits.type,
+    })
+  }
+
+  // 3) fields
+  for (const fe of edits.fields) {
+    const loc = byName.get(fe.name)
+    if (fe.value === null) {
+      if (!loc) continue // nothing to remove
+      // Absorb ONE adjacent separator comma (and keep the spacing tidy):
+      // prefer the comma AFTER the value (also drop the whitespace run that
+      // preceded the field name), else the comma BEFORE it.
+      let from = loc.nameFrom
+      let to = loc.valueEnd
+      let k = to
+      let absAfter = false
+      while (k < innerEnd && /\s/.test(source[k])) k++
+      if (k < innerEnd && source[k] === ',') {
+        to = k + 1
+        absAfter = true
+      } else {
+        k = from
+        while (k > innerStart && /\s/.test(source[k - 1])) k--
+        if (k > innerStart && source[k - 1] === ',') from = k - 1
+      }
+      if (absAfter) {
+        k = from
+        while (k > innerStart && /\s/.test(source[k - 1])) k--
+        if (k > innerStart && source[k - 1] === ',') from = k
+      }
+      changes.push({ from, to, insert: '' })
+      continue
+    }
+    if (loc) {
+      changes.push({
+        from: loc.nameFrom,
+        to: loc.valueEnd,
+        insert: fieldText(loc.name, fe.value),
+      })
+      continue
+    }
+    // field absent → append at the end of the inner region.
+    //  - fields already present        → comma-separate before them
+    //  - key added in the same edit    → the key insert already ends in ','
+    //  - `@misc{}` / keyless text inner → a LEADING comma keeps the new field
+    //    a real field (`@misc{, title={T}}`), not a pseudo-key
+    const commaSep = !(located.length === 0 && edits.key !== null && edits.key !== '')
+    changes.push({
+      from: innerEnd,
+      to: innerEnd,
+      insert: `${commaSep ? ',' : ''} ${fieldText(fe.name, fe.value)}`,
+    })
+  }
+
+  if (changes.length === 0) {
+    // A no-op edit set is a deliberate, safe no-write (mirror planBibImport).
+    return { ok: true, changes: [] }
+  }
+
+  // Non-overlap guard, plus a merge of pure insertions that land on the
+  // SAME offset (key-add + field-add into an empty entry) so that the
+  // single change carries the intended text order unambiguously.
+  const sorted = [...changes].sort((a, b) => a.from - b.from)
+  const merged: BibEditChange[] = []
+  for (const ch of sorted) {
+    const last = merged[merged.length - 1]
+    if (
+      last &&
+      ch.from === ch.to &&
+      last.from === last.to &&
+      ch.from === last.from
+    ) {
+      last.insert += ch.insert
+      continue
+    }
+    merged.push({ ...ch })
+  }
+  for (let i = 1; i < merged.length; i++) {
+    if (merged[i].from < merged[i - 1].to) {
+      return { ok: false, reason: 'field-not-found' }
+    }
+  }
+  return { ok: true, changes: merged }
+}
+
+/** First `,` at brace-depth 0 / outside quotes inside [start, end), or -1. */
+function depthZeroComma(source: string, start: number, end: number): number {
+  let depth = 0
+  let inQuotes = false
+  for (let i = start; i < end; i++) {
+    const c = source[i]
+    if (inQuotes) {
+      if (c === '\\') i++
+      else if (c === '"') inQuotes = false
+      continue
+    }
+    if (c === '"') inQuotes = true
+    else if (c === '{') depth++
+    else if (c === '}') depth--
+    else if (c === ',' && depth === 0) return i
+  }
+  return -1
 }

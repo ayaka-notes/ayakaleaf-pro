@@ -31,6 +31,7 @@ import {
   planBibDelete,
   planBibBulkDelete,
   planBibImport,
+  planBibEditEntry,
   isBibDocument,
 } from '../utils/bib-write'
 import type { BibEntry } from '../utils/bib-types'
@@ -411,12 +412,18 @@ class BibEditorPlugin {
         mode,
         originalId,
         expectedSource,
+        edits,
       } = detail as {
         entry?: BibEntry
         entries?: BibEntry[]
         mode: 'existing' | 'new'
         originalId?: string
         expectedSource?: string
+        edits?: {
+          key: string | null
+          type: string | null
+          fields: Array<{ name: string; value: string | null }>
+        }
       } & { entryId?: string; entryIds?: string[] }
 
       if (ev.type === BIB_DELETE_EVENT && !isBibDocument(source)) {
@@ -431,6 +438,26 @@ class BibEditorPlugin {
       if (ev.type === BIB_WRITE_EVENT) {
         if (!entry) {
           return
+        }
+        // Board #6: prefer the surgical edit when a diff was supplied — it
+        // rewrites only the changed key/type/field regions and preserves the
+        // entry's other bytes (sibling field order, spacing, inline
+        // comments). Any structural surprise falls back to the full write.
+        if (mode === 'existing' && edits) {
+          const editGuard = planBibEditEntry(source, entry, edits, originalId)
+          if (editGuard.ok) {
+            this.view.dispatch({ changes: editGuard.changes })
+            this.emitState({ id: entry.id as string, mode, originalId })
+            return
+          }
+          // Hard guard (key-taken / not-a-bib / entry-gone): do NOT fall
+          // back over a rename collision.
+          if (editGuard.reason !== 'field-not-found') {
+            this.emitWriteFailed(editGuard.reason)
+            return
+          }
+          // 'field-not-found': entry structure the scanner can't trust →
+          // the full-entry write below is the safe fallback.
         }
         const guard = planBibWrite(
           source,

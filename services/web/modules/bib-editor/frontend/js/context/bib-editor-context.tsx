@@ -47,6 +47,17 @@ export type BibWriteRequest = {
   expectedSource: string
   /** For mode 'existing': the id of the entry BEFORE any rename (guard) */
   originalId?: string
+  /**
+   * Surgical edit set (board #6): when present for mode 'existing', the
+   * extension rewrites ONLY the changed regions (key/type/fields) and
+   * preserves the entry's other bytes; it falls back to the full-entry
+   * write when the entry cannot be safely located.
+   */
+  edits?: {
+    key: string | null
+    type: string | null
+    fields: Array<{ name: string; value: string | null }>
+  }
 }
 
 export type BibDeleteRequest = {

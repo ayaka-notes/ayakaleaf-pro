@@ -56,6 +56,7 @@ import type { BibEntry } from '../utils/bib-types'
 import type { ParsedBibEntry } from '../utils/bib-parser'
 import { generateAvailableCitationKey } from '../utils/bib-key-generation'
 import { normaliseOrcidEntryKeys, splitImportText } from '../utils/bib-import'
+import { diffBibEntry } from '../utils/bib-write'
 import { downloadBibFilename, downloadBibBulkFilename, selectedEntriesInOrder, bulkDeleteIds, nextEntry, prevEntry } from '../utils/preview-model.ts'
 import { validateBibSource, attachDiagnostics, diagnosticLabel } from '../utils/bib-source-diagnostics'
 import { plural } from '../utils/plural'
@@ -301,11 +302,17 @@ function BibEditorPanel() {
     if (unchanged) {
       return
     }
+    // Board #6: ship the semantic diff alongside the entry so the
+    // extension can rewrite ONLY the changed regions (the full-entry
+    // re-serialization remains the fallback for entries the scanner
+    // can't safely locate).
+    const edits = original ? diffBibEntry(original, entry) : undefined
     writeEntry({
       entry,
       mode: 'existing',
       originalId: form.originalId ?? undefined,
       expectedSource: sourceMirror.current,
+      edits,
     })
   }, [writeEntry])
 

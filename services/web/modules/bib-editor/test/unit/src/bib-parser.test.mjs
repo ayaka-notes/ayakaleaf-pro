@@ -109,3 +109,36 @@ describe('bib-parser', () => {
     expect(generateCitationKey({})).toBe('unknown0000')
   })
 })
+
+describe('escapeBibValue (balanced-brace safety)', () => {
+  it('leaves balanced braces untouched', () => {
+    expect(escapeBibValue('a{b}c')).toBe('a{b}c')
+    expect(escapeBibValue('x {a {b} c} y')).toBe('x {a {b} c} y')
+    expect(escapeBibValue('plain')).toBe('plain')
+  })
+
+  it('escapes a stray closing brace', () => {
+    expect(escapeBibValue('a}b')).toBe('a\\}b')
+  })
+
+  it('escapes an unmatched opening brace (round-trips through the parser)', () => {
+    expect(escapeBibValue('a{b')).toBe('a\\{b')
+    expect(escapeBibValue('a{b}c{d')).toBe('a{b}c\\{d')
+    // round-trip: the escaped value parses back to a stable form
+    const out = serializeBibEntry({ type: 'misc', id: 'k', fields: { title: 'a{b' } })
+    const [e] = parseBibFile(out)
+    expect(e.fields.title).toBe('a\\{b')
+  })
+
+  it('preserves already-escaped braces and trailing backslashes', () => {
+    expect(escapeBibValue('a\\{b')).toBe('a\\{b')
+    expect(escapeBibValue('a\\}b')).toBe('a\\}b')
+    expect(escapeBibValue('trailing\\')).toBe('trailing\\')
+  })
+
+  it('idempotent on already-escaped values (no double escaping)', () => {
+    const once = escapeBibValue('a{b') // → a\{b
+    expect(once).toBe('a\\{b')
+    expect(escapeBibValue(once)).toBe(once)
+  })
+})
