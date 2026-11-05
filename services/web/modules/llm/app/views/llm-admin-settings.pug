@@ -14,7 +14,8 @@ block append meta
     meta(name='ol-allowedModels' data-type='string' content=(allowedModels || []).join(','))
     //- overleaf-lab (grammar port): global force-off + LanguageTool service
     meta(name='ol-llmDisabledByAdmin' data-type='string' content=llmDisabledByAdmin ? 'true' : 'false')
-    meta(name='ol-mcpEnabled' data-type='string' content=mcpEnabled ? 'true' : 'false') // overleaf-lab (2026-11-05): MCP service switch
+    // overleaf-lab (2026-11-05): MCP service switch (default on)
+    meta(name='ol-mcpEnabled' data-type='string' content=mcpEnabled ? 'true' : 'false')
     meta(name='ol-knownModels' data-type='string' content=(knownModels || []).join(','))
     meta(name='ol-completionModel' data-type='string' content=completionModel)
     meta(name='ol-llmApiUrlFromEnv' data-type='string' content=llmApiUrlFromEnv ? 'true' : 'false')
