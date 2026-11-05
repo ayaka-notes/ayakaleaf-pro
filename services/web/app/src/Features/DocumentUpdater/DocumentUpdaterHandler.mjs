@@ -507,13 +507,16 @@ function buildFileMetadataForHistory(file) {
     delete metadata.build_id
     delete metadata.clsiServerId
   }
-  // importer_name is a display-only convenience written by the
-  // zotero/mendeley agents (resolvable from UserGetter at render time); the
-  // editor-core linked-file metadata schema (overleaf-editor-core
-  // rawLinkedFileData) does not accept it in history, so strip it here
-  // while keeping it on the file model for the file-view UI.
+  // Display/refresh-state keys the web agents keep on the file model but
+  // that the history metadata schema does not accept (overleaf-editor-core
+  // rawLinkedFileData, which is strict per provider): importer_name
+  // (display, resolvable from UserGetter) and collection_key (zotero
+  // refresh state). Strip from history only — the file model keeps them.
   if (metadata.importer_name !== undefined) {
     delete metadata.importer_name
+  }
+  if (metadata.collection_key !== undefined) {
+    delete metadata.collection_key
   }
   return metadata
 }
