@@ -198,7 +198,7 @@ const llmSettingsSchema = z.object({
   // Object keyed by service key (projects|compile|files|comments|chat|
   // versions|track_changes); false = that service is removed for EVERY user.
   // Absent/unset keys default to enabled, so existing installs keep it all.
-  mcpServices: z.record(z.boolean()).optional(),
+  mcpServices: z.record(z.string(), z.boolean()).optional(), // overleaf-lab: zod4 — two-arg form (key, value)
 
   // overleaf-lab: editable prompt overrides. Each scalar prompt, when provided,
   // must be a string capped at 8000 chars. An empty string is allowed and means
