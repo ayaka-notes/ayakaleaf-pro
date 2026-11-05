@@ -84,8 +84,9 @@ export function buildFileTools({ userId, projectId }) {
         'may have changed it, and add context when it appears more than once.',
       inputSchema: {
         path: filePath,
-        oldString: z.string().min(1).describe('Exact text to replace.'),
-        newString: z.string().describe('Replacement text.'),
+        // overleaf-lab (safety audit 2026-11-05): bounded replace payloads
+        oldString: z.string().min(1).max(200_000).describe('Exact text to replace (max 200k chars).'),
+        newString: z.string().max(1_000_000).describe('Replacement text (max 1 MB).'),
       },
       handler: async ({ path, oldString, newString }) => {
         await checkCanEdit(userId, projectId)
@@ -117,7 +118,9 @@ export function buildFileTools({ userId, projectId }) {
         'created as needed. Prefer edit_file to change part of a file.',
       inputSchema: {
         path: filePath,
-        content: z.string().describe('The whole content of the file.'),
+        // overleaf-lab (safety audit 2026-11-05): 1MB per write — bigger
+        // content belongs in a git push; caps docstore bloat per call.
+        content: z.string().max(1_000_000).describe('The whole content of the file (max 1 MB; use git for bigger).'),
       },
       handler: async ({ path, content }) => {
         await checkCanEdit(userId, projectId)

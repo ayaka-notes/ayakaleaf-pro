@@ -6,11 +6,12 @@ export const filePath = zz
   .describe('Path of the file in the project, e.g. "sections/intro.tex".')
 
 export function text(value) {
+  // overleaf-lab (safety audit 2026-11-05): bounded output for every tool
   return {
     content: [
       {
         type: 'text',
-        text: typeof value === 'string' ? value : JSON.stringify(value, null, 2),
+        text: limited(value, 'output', MAX_TOOL_OUTPUT_CHARS),
       },
     ],
   }
@@ -18,6 +19,11 @@ export function text(value) {
 // overleaf-lab (2026-11-05, MCP plan): truncate long tool outputs so an MCP
 // client never chokes on a megabyte diff/history; signal the cut.
 export const MAX_TEXT_CHARS = 20000
+// overleaf-lab (safety audit 2026-11-05): universal ceiling for EVERY tool
+// output. Even tools that use plain text() cannot make a client choke: no
+// legitimate tool call needs more than 200k characters for an agent to act
+// on (bigger reads belong in a git clone, as get_clone_info tells the agent).
+export const MAX_TOOL_OUTPUT_CHARS = 200000
 export function limited(value, label = 'output', limit = MAX_TEXT_CHARS) {
   const str = typeof value === 'string' ? value : JSON.stringify(value, null, 2)
   if (str.length <= limit) return str
