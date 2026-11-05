@@ -282,6 +282,7 @@
   &[data-active='prompt'] [data-sec='prompt'],
   &[data-active='prompts'] [data-sec='prompts'],
   &[data-active='availability'] [data-sec='availability'],
+  &[data-active='mcp'] [data-sec='mcp'], // overleaf-lab (2026-11-05): MCP service tab
   &[data-active='usage'] [data-sec='usage'] {
     display: block;
   }
