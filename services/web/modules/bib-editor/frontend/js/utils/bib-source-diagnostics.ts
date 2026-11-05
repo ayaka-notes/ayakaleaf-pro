@@ -255,3 +255,15 @@ export function attachDiagnostics(
   }
   return { byEntry, unattached }
 }
+
+/**
+ * Flatten { byEntry, unattached } to ONE flat diagnostic array (unattached
+ * first). `byEntry` is a Map — `byEntry.values()` is an iterator without
+ * `.flat()` (calling it crashes render; regression 2026-11-05).
+ */
+export function allDiagnostics(
+  byEntry: BibEntryDiagnosticsMap,
+  unattached: BibSourceDiagnostic[]
+): BibSourceDiagnostic[] {
+  return [...unattached, ...[...byEntry.values()].flat()]
+}

@@ -58,7 +58,7 @@ import { generateAvailableCitationKey } from '../utils/bib-key-generation'
 import { normaliseOrcidEntryKeys, splitImportText } from '../utils/bib-import'
 import { diffBibEntry } from '../utils/bib-write'
 import { downloadBibFilename, downloadBibBulkFilename, selectedEntriesInOrder, bulkDeleteIds, nextEntry, prevEntry } from '../utils/preview-model.ts'
-import { validateBibSource, attachDiagnostics, diagnosticLabel } from '../utils/bib-source-diagnostics'
+import { validateBibSource, attachDiagnostics, allDiagnostics, diagnosticLabel } from '../utils/bib-source-diagnostics'
 import { plural } from '../utils/plural'
 import {
   bibPreviewSessionKey,
@@ -450,7 +450,9 @@ function BibEditorPanel() {
   const diagnosticsInfo = useMemo(() => {
     const diagnostics = validateBibSource(source)
     const { byEntry, unattached } = attachDiagnostics(entries, diagnostics)
-    return { byEntry, all: [...unattached, ...byEntry.values().flat()] }
+    // allDiagnostics handles Map values safely (`.values().flat()` would
+    // crash: Map iterators have no .flat — regression 2026-11-05).
+    return { byEntry, all: allDiagnostics(byEntry, unattached) }
   }, [source, entries])
 
   const handlePreviewClose = useCallback(() => {

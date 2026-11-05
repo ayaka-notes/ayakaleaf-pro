@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   validateBibSource,
   attachDiagnostics,
+  allDiagnostics,
   diagnosticLabel,
 } from '../../../frontend/js/utils/bib-source-diagnostics.ts'
 import { parseBibFile } from '../../../frontend/js/utils/bib-parser.ts'
@@ -114,6 +115,31 @@ describe('attachDiagnostics', () => {
       'bib_syntax_duplicate_field',
     ])
     expect(unattached.map(d => d.code)).toEqual(['bib_entry_unterminated'])
+  })
+
+  it('allDiagnostics flattens Map values + unattached without crashing (regression: Map.values().flat() throws)', () => {
+    const src =
+      '@article{ok, title={A}, title={B}}\n@book{broken, note={x}'
+    const entries = parseBibFile(src)
+    const { byEntry, unattached } = attachDiagnostics(entries, validateBibSource(src))
+
+    // The old in-panel expression crashed at render (Map iterators have no
+    // .flat). Guard the safe helper directly.
+    let all
+    expect(() => {
+      all = allDiagnostics(byEntry, unattached)
+    }).not.toThrow()
+    expect(Array.isArray(all)).toBe(true)
+    expect(all.map(d => d.code).sort()).toEqual([
+      'bib_entry_unterminated',
+      'bib_syntax_duplicate_field',
+    ])
+  })
+
+  it('allDiagnostics handles an empty Map (no entries matched)', () => {
+    expect(allDiagnostics(new Map(), [{ from: 0, line: 1, code: 'x' }])).toEqual([
+      { from: 0, line: 1, code: 'x' },
+    ])
   })
 })
 
