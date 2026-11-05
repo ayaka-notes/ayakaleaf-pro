@@ -4,13 +4,18 @@ const YEAR_REGEX = /^\d{4}$/
 
 /**
  * Generates the base citation key ("Surname" + "Year", stripped of any
- * non-alphanumeric characters) from a parsed author list and a year string.
- * Returns '' if there's no first author or no valid 4-digit year — the
- * caller uses this to know that no suggestion is possible yet.
+ * characters outside letters/digits) from a parsed author list and a year
+ * string. Returns '' if there's no first author or no valid 4-digit year —
+ * the caller uses this to know that no suggestion is possible yet.
+ *
+ * Non-ASCII letters/digits are kept: btparse/biber accept them in citation
+ * keys (see shared/bibtex/bibtex-identifier.mts), so CJK and accented
+ * surnames still yield a usable key instead of degrading to ''.
  *
  * Examples: "John Doe" + "1994" -> "Doe1994"
  *           "John von Neumann" + "1965" -> "vonNeumann1965"
  *           "Catherine O'Hara" + "2012" -> "OHara2012"
+ *           "李雷" + "2020" -> "李2020"
  */
 export function generateBaseCitationKey({
   authors,
@@ -21,7 +26,7 @@ export function generateBaseCitationKey({
 }): string {
   const firstAuthor = authors.names[0]
   if (!firstAuthor) return ''
-  const surname = firstAuthor.toLast().replace(/[^A-Za-z0-9]/g, '')
+  const surname = firstAuthor.toLast().replace(/[^\p{L}\p{N}]/gu, '')
   if (!surname) return ''
   if (!YEAR_REGEX.test(year.trim())) return ''
   return surname + year.trim()

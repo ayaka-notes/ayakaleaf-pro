@@ -54,7 +54,7 @@ import MendeleyPickerModal from '../../../deps/mendeley/frontend/js/components/m
 import { useBibServices } from '../utils/provider-status'
 import type { BibEntry } from '../utils/bib-types'
 import type { ParsedBibEntry } from '../utils/bib-parser'
-import { generateCitationKey } from '../utils/bib-parser'
+import { generateAvailableCitationKey } from '../utils/bib-key-generation'
 import { normaliseOrcidEntryKeys, splitImportText } from '../utils/bib-import'
 import { downloadBibFilename, bulkDeleteIds, nextEntry, prevEntry } from '../utils/preview-model.ts'
 import '../../stylesheets/bib-editor-panel.css'
@@ -183,7 +183,13 @@ function BibEditorPanel() {
       }
       const finalEntry: BibEntry =
         entry.id === ''
-          ? { ...entry, id: generateCitationKey(entry.fields) }
+          ? {
+              ...entry,
+              id: generateAvailableCitationKey(
+                entry.fields,
+                entriesMirror.current.map(e => e.id)
+              ),
+            }
           : entry
       writeEntry({
         entry: finalEntry,
@@ -414,7 +420,13 @@ function BibEditorPanel() {
         const finalEntry: BibEntry =
           entry.id.trim() !== ''
             ? { ...entry, id: entry.id.trim() }
-            : { ...entry, id: generateCitationKey(entry.fields) }
+            : {
+                ...entry,
+                id: generateAvailableCitationKey(
+                  entry.fields,
+                  entriesMirror.current.map(e => e.id)
+                ),
+              }
         // Materialize (append). The extension re-emits the fresh parse
         // with the written id and the context re-binds to it only when the
         // entry actually landed (parse-confirmed, §2.3 / §12 P1a). On

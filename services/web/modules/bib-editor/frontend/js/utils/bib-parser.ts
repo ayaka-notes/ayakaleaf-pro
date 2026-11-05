@@ -281,38 +281,10 @@ export function removeEntryFromSource(
 
 /**
  * Generate a citation key from author/title/year fields.
+ *
+ * Re-export for backward compatibility: the implementation moved to
+ * `./bib-key-generation.ts` (deterministic Unknown/0000 fallbacks, shared
+ * suffix-collision handling). Prefer importing from there in new code.
  */
-export function generateCitationKey(fields: Record<string, string>): string {
-  const author = fields.author || ''
-  const year = fields.year || ''
-  const title = fields.title || ''
+export { generateCitationKey } from './bib-key-generation.ts'
 
-  // Extract first author's last name
-  const authors = author.split(/\s+and\s+/i)
-  const firstAuthor = authors[0] || ''
-  const lastName = firstAuthor.includes(',')
-    ? firstAuthor.split(',')[0].trim()
-    : firstAuthor.split(/\s+/).pop() || ''
-
-  const cleanLast = lastName.replace(/[^A-Za-z]/g, '')
-
-  if (cleanLast) {
-    return `${cleanLast}${year}`.toLowerCase()
-  }
-
-  // Fallback: first word of title + year
-  const firstWord = title
-    .split(/\s+/)[0]
-    ?.replace(/[^A-Za-z0-9]/g, '')
-    ?.toLowerCase()
-  if (firstWord) {
-    return `${firstWord}${year}`
-  }
-
-  // Last resort: random
-  const chars = 'abcdefghijklmnopqrstuvwxyz'
-  let rand = ''
-  for (let i = 0; i < 6; i++)
-    rand += chars[Math.floor(Math.random() * chars.length)]
-  return `ref${rand}${year}`
-}

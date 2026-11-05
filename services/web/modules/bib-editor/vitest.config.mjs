@@ -21,6 +21,7 @@ export default defineConfig({
     // points '@/...' at frontend/js in this app)
     alias: {
       '@': fileURLToPath(new URL('../../frontend/js/', import.meta.url)),
+      '@shared': fileURLToPath(new URL('../../shared/', import.meta.url)),
     },
     mainFields: ['module', 'main'],
     extensions: ['.ts', '.mjs', '.js', '.tsx', '.json'],

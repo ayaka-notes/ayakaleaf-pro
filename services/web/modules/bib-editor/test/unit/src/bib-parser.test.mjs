@@ -99,10 +99,13 @@ describe('bib-parser', () => {
     expect(removed).toBe('prefix\nsuffix\n')
   })
 
-  it('generateCitationKey derives last-name+year with fallbacks', () => {
+  it('generateCitationKey derives last-name+year with deterministic fallbacks', () => {
     expect(generateCitationKey({ author: 'Last, First and Other, X', year: '2024' })).toBe('last2024')
     expect(generateCitationKey({ author: 'John Smith', year: '2020' })).toBe('smith2020')
-    expect(generateCitationKey({ title: 'A Cool Paper', year: '2019' })).toBe('a2019')
-    expect(generateCitationKey({ year: '2001' })).toMatch(/^ref[a-z]{6}2001$/)
+    // no author → Unknown fallback (title is no longer used)
+    expect(generateCitationKey({ title: 'A Cool Paper', year: '2019' })).toBe('unknown2019')
+    // no author, no year → deterministic, never random
+    expect(generateCitationKey({ year: '2001' })).toBe('unknown2001')
+    expect(generateCitationKey({})).toBe('unknown0000')
   })
 })

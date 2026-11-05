@@ -34,7 +34,7 @@ import {
   OLDropdownMenu,
   OLDropdownItem,
 } from '@/shared/components/ol/ol-dropdown-menu'
-import { generateCitationKey } from '../utils/bib-parser'
+import { generateAvailableCitationKey } from '../utils/bib-key-generation'
 import { fetchEntryFromDoi } from '../utils/doi-fetcher'
 import {
   ENTRY_TYPES,
@@ -252,32 +252,15 @@ export default function BibEntryForm({
   }, [])
 
   const handleGenerateKey = useCallback(() => {
-    const base = generateCitationKey(fields)
-    // When editing, the current entry's own ID is not a collision
-    const otherIds = new Set(
-      kind === 'new'
-        ? existingIds
-        : existingIds.filter(eid => eid !== originalId)
+    // Shared suffix policy (`base`, `basea`, `baseb`, …); when editing,
+    // the current entry's own ID is not a collision.
+    setId(
+      generateAvailableCitationKey(
+        fields,
+        existingIds,
+        kind === 'existing' && originalId ? originalId : undefined
+      )
     )
-    if (!otherIds.has(base)) {
-      setId(base)
-      return
-    }
-    for (const ch of 'bcdefghijklmnopqrstuvwxyz') {
-      const candidate = `${base}${ch}`
-      if (!otherIds.has(candidate)) {
-        setId(candidate)
-        return
-      }
-    }
-    for (let n = 2; n < 1000; n++) {
-      const candidate = `${base}${n}`
-      if (!otherIds.has(candidate)) {
-        setId(candidate)
-        return
-      }
-    }
-    setId(base)
   }, [fields, existingIds, kind, originalId])
 
   const handleCheck = useCallback(() => {

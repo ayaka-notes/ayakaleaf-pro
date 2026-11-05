@@ -16,7 +16,9 @@
  *      guarded, all-or-nothing append).
  */
 import type { BibEntry } from './bib-types'
-import { generateCitationKey, parseBibFile } from './bib-parser.ts'
+import { generateCitationKey } from './bib-key-generation.ts'
+import { pickAvailableKey } from '@/features/bibtex/citation-key'
+import { parseBibFile } from './bib-parser.ts'
 import { humanizeCitationHeading } from './overleaf-type-map.ts'
 
 /** One pasted "item", in paste order. */
@@ -278,12 +280,7 @@ export function normaliseOrcidEntryKeys(
     if (!isValidKey(key)) {
       key = 'orcid'
     }
-    let final = key
-    let n = 2
-    while (seen.has(final)) {
-      final = `${key}${n}`
-      n += 1
-    }
+    let final = pickAvailableKey(key, Array.from(seen))
     seen.add(final)
     return final === entry.id ? entry : { ...entry, id: final }
   })
