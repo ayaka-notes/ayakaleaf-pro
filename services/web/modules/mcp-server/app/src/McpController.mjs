@@ -1,6 +1,7 @@
 import Path from 'path'
 import { pipeline } from 'stream/promises'
 import logger from '@overleaf/logger'
+import { appendFile } from 'node:fs/promises'
 import { expressify } from '@overleaf/promise-utils'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
@@ -44,6 +45,16 @@ function clientIdentity(req) {
 // duration. Read tools at debug, mutating tools at info (that is the trail
 // a reviewer greps for). Pure closure — no `this` — because the SDK's
 // handler invocation is host-independent and a bound receiver broke it.
+// overleaf-lab (issue #126, plan step 7): one structured audit line per tool
+// call — tool, acting user, project, agent identity (X-MCP-Client), outcome,
+// duration. Durable channel: JSON line appended to mcp-audit.log (container
+// log volume) plus stderr.
+//
+// IMPORTANT — the `@overleaf/logger` import must NOT be called from inside
+// MCP transport handlers: in this context it throws ("reading 'info' of
+// undefined") and, on some paths, hangs the request. appendFile + stderr are
+// bulletproof and keep the audit decoupled from the pino setup.
+const AUDIT_PATH = '/var/log/overleaf/mcp-audit.log'
 function auditedHandler(toolName, isMutating, ctx, wrapped) {
   return async function auditWrapper(...args) {
     const t0 = Date.now()
@@ -55,7 +66,9 @@ function auditedHandler(toolName, isMutating, ctx, wrapped) {
       failure = err
     }
     try {
-      const fields = {
+      const line = JSON.stringify({
+        audit: 'mcp',
+        ts: new Date().toISOString(),
         tool: toolName,
         userId: ctx.userId,
         projectId: ctx.projectId,
@@ -64,18 +77,10 @@ function auditedHandler(toolName, isMutating, ctx, wrapped) {
         outcome: failure ? 'error' : 'ok',
         err: failure ? String(failure && failure.message || failure).slice(0, 200) : undefined,
         ms: Date.now() - t0,
-      }
-      if (failure) {
-        // Also keep the original throwable identity intact: include the
-        // underlying stack for operators (never breaks the MCP response
-        // itself — the SDK re-throws `failure` below).
-      }
-      if (isMutating) {
-        (typeof logger?.info === 'function' ? logger.info : () => {})(fields, 'MCP audit: tool call')
-      } else {
-        (typeof logger?.debug === 'function' ? logger.debug : () => {})(fields, 'MCP audit: tool call')
-      }
-    } catch (auditErr) {
+      })
+      void appendFile(AUDIT_PATH, line + '\n').catch(() => {})
+      process.stderr.write(line + '\n')
+    } catch {
       // auditing must NEVER take a tool call down
     }
     if (failure) throw failure
