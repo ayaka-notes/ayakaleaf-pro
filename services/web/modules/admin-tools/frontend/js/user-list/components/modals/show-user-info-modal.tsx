@@ -392,6 +392,7 @@ function LlmUsageRows({
     ['completion', t('llm_task_completion', 'Inline completion')],
     ['review', t('llm_task_review', 'Compliance review')],
     ['error', t('llm_task_error', 'Error analysis')],
+    ['vision', t('llm_task_vision', 'Attachments (PDF/PNG)')],
   ]
   return (
     <>

@@ -86,7 +86,11 @@ async function chat(req, res) {
   // gateway (legacy) or on this user's resolved LLM lane (BYO row / site
   // provider) when the operator gateway is not set. Both paths below use the
   // same provider/model plumbing.
-  const lane = await resolveWorkbenchLane(userId).catch(() => null)
+  // overleaf-lab (2026-11-05, owner request): messages that carry attachments
+  // resolve the dedicated 'vision' task slot (Select Model → Attachments),
+  // falling back to the chat slot, then the shared default — so "text with
+  // Qwen-3.8, PDFs/PNGs with the vision model" is expressible explicitly.
+  const lane = await resolveWorkbenchLane(userId, Array.isArray(req.body?.messages) && hasValidAttachments(req.body.messages) ? 'vision' : 'chat').catch(() => null)
 
   if (!isConfigured() && !lane) {
     logger.warn(

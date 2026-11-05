@@ -25,7 +25,7 @@ export interface LLMModelOption {
     provider?: string
 }
 
-export const LLM_TASK_KEYS = ['chat', 'completion', 'review', 'error'] as const
+export const LLM_TASK_KEYS = ['chat', 'completion', 'review', 'error', 'vision'] as const
 export type LLMTask = (typeof LLM_TASK_KEYS)[number]
 
 async function fetchServerSelection(): Promise<{
@@ -42,7 +42,7 @@ async function fetchServerSelection(): Promise<{
         return { selected: value, tasks }
     }
     catch {
-        return { selected: '', tasks: { chat: '', completion: '', review: '', error: '' } }
+        return { selected: '', tasks: { chat: '', completion: '', review: '', error: '', vision: '', vision: '' } }
     }
 }
 
@@ -163,7 +163,7 @@ export function useLLMModelSelection() {
             // the write failed (the server still has them).
             void postJSON('/user/llm/selected-model', { body: { selected: value } })
                 .then(() => {
-                    setTasks({ chat: '', completion: '', review: '', error: '' })
+                    setTasks({ chat: '', completion: '', review: '', error: '', vision: '' })
                 })
                 .catch(() => {
                     /* profile write failed — local selection still works */

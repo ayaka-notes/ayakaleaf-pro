@@ -31,6 +31,7 @@ const LLMModelSelectModal = React.memo(function LLMModelSelectModal({
         { key: 'completion', label: t('llm_task_completion', 'Inline completion') },
         { key: 'review', label: t('llm_task_review', 'Compliance review') },
         { key: 'error', label: t('llm_task_error', 'Error analysis (suggest fix)') },
+        { key: 'vision', label: t('llm_task_vision', 'Attachments (PDF/PNG)') },
     ] as const
     const [task, setTask] = useState('')
 

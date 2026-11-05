@@ -480,7 +480,7 @@ const SELECTED_MODEL_MAX = 500
 // shared selection (llmSelectedModel) remains the default; a user may pick a
 // different model for a specific task. Empty string = "no override" (use the
 // shared default or the deployment chain).
-const TASK_KEYS = ['chat', 'completion', 'review', 'error']
+const TASK_KEYS = ['chat', 'completion', 'review', 'error', 'vision']
 
 async function readProfile(userId) {
     return User.findOne({ _id: userId }).lean().catch(() => null)
