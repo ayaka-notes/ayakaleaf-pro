@@ -10,6 +10,7 @@ import type { ProjectActions } from '../hooks/use-project-actions'
 import EditProposal, { type EditPart } from '../chat/edit-proposal'
 import type { Link } from '../chat/source-links'
 import { boxed } from '../chat/themed'
+import { getJSON } from '@/infrastructure/fetch-json'
 
 export type ToolOutput =
   | { tool: string; toolCallId: string; output: unknown }
@@ -129,7 +130,24 @@ export const TOOLS: Record<string, ToolSpec> = {
 
   render_pdf_page: {
     label: ({ page }) => `Look at PDF page ${page}`,
-    run: ({ page }, { actions, signal, textExtract }) => actions.renderPage(page, signal, { textMode: textExtract === true }),
+    // overleaf-lab (2026-11-05, build33 fix): the page-load access cache can
+    // go stale when the chat lane switches to a text-only model AFTER the
+    // panel mounted (e.g. per-task model override). A rendered image would
+    // then be rejected by the provider. When the context says "images ok",
+    // force-refresh the (cheap, 1h server-cached) access payload before
+    // rendering so the tool always matches the CURRENT lane.
+    run: async ({ page }, { actions, signal, textExtract }) => {
+      let textMode = textExtract === true
+      if (!textMode) {
+        try {
+          const data = await getJSON<{ textOnly?: boolean }>('/workbench/access')
+          if (data?.textOnly === true) textMode = true
+        } catch {
+          // keep context value (fail to the legacy image render)
+        }
+      }
+      return actions.renderPage(page, signal, { textMode })
+    },
     body: part => {
       if (part.state !== 'output-available') return null
       const out = part.output
