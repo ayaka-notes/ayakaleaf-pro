@@ -56,7 +56,7 @@ import type { BibEntry } from '../utils/bib-types'
 import type { ParsedBibEntry } from '../utils/bib-parser'
 import { generateAvailableCitationKey } from '../utils/bib-key-generation'
 import { normaliseOrcidEntryKeys, splitImportText } from '../utils/bib-import'
-import { downloadBibFilename, bulkDeleteIds, nextEntry, prevEntry } from '../utils/preview-model.ts'
+import { downloadBibFilename, downloadBibBulkFilename, selectedEntriesInOrder, bulkDeleteIds, nextEntry, prevEntry } from '../utils/preview-model.ts'
 import '../../stylesheets/bib-editor-panel.css'
 import '../../stylesheets/bib-saas.css'
 
@@ -531,21 +531,40 @@ function BibEditorPanel() {
     [importMany]
   )
 
-  // Download (OQ-6: whole file). The browser saves the current document
-  // text; no range export.
-  const handleDownload = useCallback(() => {
-    const blob = new Blob([sourceMirror.current], {
-      type: 'text/plain',
-    })
+  // Shared blob-download for the whole file (OQ-6) and the selection.
+  const downloadText = useCallback((text: string, filename: string) => {
+    const blob = new Blob([text], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = downloadBibFilename(openDocNameMirror.current ?? '')
+    a.download = filename
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
   }, [])
+
+  // Download (OQ-6: whole file). The browser saves the current document
+  // text; no range export.
+  const handleDownload = useCallback(() => {
+    downloadText(sourceMirror.current, downloadBibFilename(openDocNameMirror.current ?? ''))
+  }, [downloadText])
+
+  // Bulk download of the selection: preserves document order and writes one
+  // partial BibTeX file. Each entry's raw source slice is kept verbatim so
+  // formatting and in-entry comments survive.
+  const handleBulkDownload = useCallback(() => {
+    const selectedEntries = selectedEntriesInOrder(
+      entriesMirror.current,
+      selectedIdsRef.current
+    )
+    if (selectedEntries.length === 0) return
+    const source = sourceMirror.current
+    const text = selectedEntries
+      .map(e => source.slice(e.sourceStart, e.sourceEnd))
+      .join('\n')
+    downloadText(text, downloadBibBulkFilename(openDocNameMirror.current ?? ''))
+  }, [downloadText])
 
   // Bulk selection handlers (lifted into the panel — C4: the preview must
   // close for a deleted previewed row, and the confirm modal lives here).
@@ -664,6 +683,9 @@ function BibEditorPanel() {
                 selectedIds.length > 0
                   ? handleAskBulkDelete
                   : undefined
+              }
+              onBulkDownload={
+                selectedIds.length > 0 ? handleBulkDownload : undefined
               }
               openDocName={openDocName ?? undefined}
               onAddPaste={() => {

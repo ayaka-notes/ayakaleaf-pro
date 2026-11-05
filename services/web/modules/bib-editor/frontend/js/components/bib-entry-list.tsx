@@ -286,7 +286,7 @@ export default function BibEntryList({
             {t('Restore')}
           </button>
         ) : null}
-        {selectedIds.length > 0 && variant === 'library' && onBulkDownload ? (
+        {selectedIds.length > 0 && onBulkDownload ? (
           <button
             type="button"
             className="bibtex-bulk-actions-download-btn library-bulk-actions-download-btn btn btn-secondary btn-sm"
@@ -295,7 +295,7 @@ export default function BibEntryList({
               onBulkDownload?.()
             }}
           >
-            {t('Download')}
+            {variant === 'library' ? t('Download') : t('Download selected')}
           </button>
         ) : null}
         {selectedIds.length > 0 && onBulkDelete ? (

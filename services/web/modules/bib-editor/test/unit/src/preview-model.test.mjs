@@ -12,6 +12,8 @@ import {
   isTypeOnlyDraft,
   bulkDeleteIds,
   downloadBibFilename,
+  downloadBibBulkFilename,
+  selectedEntriesInOrder,
   matchesSearch,
   splitHighlighted,
 } from '../../../frontend/js/utils/preview-model.ts'
@@ -226,6 +228,28 @@ describe('C4: preview model', () => {
     it('appends .bib when missing', () => {
       expect(downloadBibFilename('sample')).toBe('sample.bib')
       expect(downloadBibFilename('')).toBe('bibliography.bib')
+    })
+  })
+
+  describe('downloadBibBulkFilename (bulk selection download)', () => {
+    it('names the partial file selected_<doc>.bib', () => {
+      expect(downloadBibBulkFilename('sample.bib')).toBe('selected_sample.bib')
+      expect(downloadBibBulkFilename('sample')).toBe('selected_sample.bib')
+      expect(downloadBibBulkFilename('')).toBe('selected_bibliography.bib')
+    })
+  })
+
+  describe('selectedEntriesInOrder (bulk selection in document order)', () => {
+    const mk = (id, n) => ({ id, sourceStart: n, sourceEnd: n + 1 })
+    it('keeps document order for the selected subset', () => {
+      const entries = [mk('a', 0), mk('b', 1), mk('c', 2), mk('d', 3)]
+      expect(selectedEntriesInOrder(entries, ['c', 'a']).map(e => e.id)).toEqual(['a', 'c'])
+    })
+    it('drops ids not present and ignores empty selection', () => {
+      const entries = [mk('a', 0), mk('b', 1)]
+      expect(selectedEntriesInOrder(entries, ['zzz', 'a'])[0].id).toBe('a')
+      expect(selectedEntriesInOrder(entries, [])).toEqual([])
+      expect(selectedEntriesInOrder([], ['a'])).toEqual([])
     })
   })
 

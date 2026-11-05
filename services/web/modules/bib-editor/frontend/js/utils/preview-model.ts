@@ -221,6 +221,26 @@ export function downloadBibFilename(openDocName: string): string {
   return name.endsWith('.bib') ? name : `${name || 'bibliography'}.bib`
 }
 
+/** Bulk (selection) download filename: one partial .bib file. */
+export function downloadBibBulkFilename(openDocName: string): string {
+  const name = (openDocName || '').trim()
+  const base = name.endsWith('.bib') ? name.slice(0, -4) : name
+  return `selected_${base || 'bibliography'}.bib`
+}
+
+/**
+ * Selection in document order (a subset of `entries`), for the bulk
+ * download: the browser file preserves the bibliography's own order and
+ * every other entry is excluded. Entries not present are dropped.
+ */
+export function selectedEntriesInOrder(
+  entries: Array<{ id: string; sourceStart: number; sourceEnd: number }>,
+  selectedIds: string[]
+): Array<{ id: string; sourceStart: number; sourceEnd: number }> {
+  const selected = new Set(selectedIds)
+  return entries.filter(e => selected.has(e.id))
+}
+
 /**
  * D15 (search scope) — the row's searchable text, per the reference:
  * the citation key, title, author, editor, year, and venue
