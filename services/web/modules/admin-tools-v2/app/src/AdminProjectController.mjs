@@ -146,7 +146,7 @@ async function projectPage(req, res) {
       User.findById(project.owner_ref, USER_FIELDS).lean().exec(),
       members(projectId),
       DocstoreManager.promises.getAllDeletedDocs(projectId),
-      HistoryManager.promises.getProjectBlobStats([historyId]),
+      historyId ? HistoryManager.promises.getProjectBlobStats([historyId]) : [],
     ])
     return res.render(Path.resolve(__dirname, '../views/admin-project'), {
       title: 'user_management',

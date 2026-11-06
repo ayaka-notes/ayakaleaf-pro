@@ -677,9 +677,10 @@ describe('a deleted project', function () {
         .should('equal', 404)
       // a purge deletes the project's log too: the admin's own log tells
       userId(ADMIN_EMAIL).then(adminId => {
+        // the restore above gave it a suffix
         expectLogged(`/admin/user/${adminId}`, 'purge-deleted-project')
           .its('info.name')
-          .should('equal', name)
+          .should('contain', name)
       })
     })
   })
