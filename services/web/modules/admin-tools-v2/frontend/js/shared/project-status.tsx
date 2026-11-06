@@ -67,7 +67,7 @@ export function projectActions(
           label: t('delete'),
           danger: true,
           intro: t('about_to_delete_projects'),
-          run: () => deleteJSON(`/project/${project.id}`),
+          run: () => deleteJSON(`/admin/project/${project.id}`),
         },
       ]
 }

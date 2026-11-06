@@ -3,12 +3,14 @@ import { DEFAULT_PASSWORD, login } from '../../../helpers/login'
 import { projectAccess, tryLogin } from '../../../helpers/adminTools'
 import { createGitToken } from '../../../helpers/git'
 import { createProject, projectName } from '../../../helpers/project'
+import { postWithCsrf, requestWithCsrf } from '../../../helpers/request'
 import { ADMIN_EMAIL, ensureAdminExists } from '../../../helpers/users'
 import {
   confirmDialog,
   createUser,
   dialog,
   everyRow,
+  expectLogged,
   headerAction,
   interceptSearch,
   openTab,
@@ -323,6 +325,120 @@ describe('integrations', function () {
 })
 
 describe('audit log', function () {
+  it('tells what an admin changed, with the admin as the initiator', function () {
+    const address = email('audit-changes')
+    createUser(address)
+    login(ADMIN_EMAIL)
+    userId(address).then(id => {
+      const page = `/admin/user/${id}`
+      visitUser(id, 'audit-logs')
+      const update = (body: object) =>
+        postWithCsrf(`${page}/update`, body).its('status').should('equal', 200)
+      update({ firstName: 'Changed' })
+      update({ isAdmin: true })
+      update({ isAdmin: false })
+      update({ features: { collaborators: 5 } })
+      update({ aiFeatures: { enabled: false } })
+      update({ suspended: true })
+      update({ suspended: false })
+      postWithCsrf(`${page}/ai-usage/reset`, {})
+        .its('status')
+        .should('equal', 200)
+      for (const operation of [
+        'change-name',
+        'change-admin-access',
+        'change-features',
+        'change-ai-features',
+        'account-suspension',
+        'account-reactivation',
+        'reset-ai-usage',
+      ]) {
+        expectLogged(page, operation)
+      }
+      cy.reload()
+      row('Change admin access').should('contain.text', ADMIN_EMAIL)
+    })
+  })
+
+  it('tells about a new password, which ends the sessions of the old one', function () {
+    const address = email('audit-password')
+    createUser(address)
+    login(address)
+    cy.visit('/project')
+    cy.getCookie('overleaf.sid').its('value').as('userCookie')
+    login(ADMIN_EMAIL)
+    userId(address).then(id => {
+      visitUser(id, 'audit-logs')
+      postWithCsrf(`/admin/user/${id}/update`, { password: `${run}-New-Password-1` })
+        .its('status')
+        .should('equal', 200)
+      expectLogged(`/admin/user/${id}`, 'update-password')
+    })
+    cy.get<string>('@userCookie').then(value => {
+      cy.clearAllCookies()
+      cy.setCookie('overleaf.sid', value)
+      cy.request({ url: '/user/personal_info', followRedirect: false })
+        .its('status')
+        .should('not.equal', 200)
+    })
+  })
+
+  it('tells who created, deleted and restored an account, and who purged it', function () {
+    const address = email('audit-lifecycle')
+    login(ADMIN_EMAIL)
+    cy.visit('/admin/user')
+    postWithCsrf('/admin/user/create', {
+      email: address,
+      first_name: 'Audit',
+      last_name: 'Lifecycle',
+    })
+      .its('status')
+      .should('equal', 200)
+    userId(address).then(id => {
+      const page = `/admin/user/${id}`
+      expectLogged(page, 'create-account')
+      const remove = () =>
+        postWithCsrf(`${page}/delete`, { sendEmail: false })
+          .its('status')
+          .should('equal', 200)
+      remove()
+      postWithCsrf(`${page}/restore`, {}).its('status').should('equal', 200)
+      expectLogged(page, 'delete-account')
+      expectLogged(page, 'restore-account')
+      remove()
+      requestWithCsrf('DELETE', page).its('status').should('equal', 200)
+    })
+    // a purge deletes the account's log too: the admin's own log tells
+    userId(ADMIN_EMAIL).then(adminId => {
+      expectLogged(`/admin/user/${adminId}`, 'purge-deleted-user')
+        .its('info.email')
+        .should('equal', address)
+    })
+  })
+
+  it('tells which admin gave all the projects of a user away', function () {
+    const owner = email('audit-owner')
+    const peer = email('audit-peer')
+    createUser(owner)
+    createUser(peer)
+    login(owner)
+    createProject(projectName('Audit transfer')).then(projectId => {
+      login(ADMIN_EMAIL)
+      userId(peer).then(peerId => {
+        userId(owner).then(ownerId => {
+          visitUser(ownerId, 'audit-logs')
+          postWithCsrf(`/admin/user/${ownerId}/transfer-projects`, {
+            toUserId: peerId,
+          })
+            .its('body.projectCount')
+            .should('equal', 1)
+          expectLogged(`/admin/user/${ownerId}`, 'transfer-projects')
+          expectLogged(`/admin/project/${projectId}`, 'transfer-ownership')
+        })
+      })
+    })
+  })
+
   it('searches the entries and filters them by operation', function () {
     const address = email('audit')
     createUser(address)

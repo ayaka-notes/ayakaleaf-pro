@@ -10,10 +10,12 @@ import { ADMIN_EMAIL, ensureAdminExists } from '../../../../helpers/users'
 import {
   confirmDialog,
   dialog,
+  expectLogged,
   interceptSearch,
   row,
   rowTexts,
   uniqueAlias,
+  userId,
 } from '../panel'
 
 // The Templates tab of /admin/project, with the template gallery on: finding,
@@ -209,6 +211,11 @@ describe('the Templates tab', function () {
     cy.get('.tab-pane.active tbody').should('contain.text', 'No Search Results')
     getTemplate(ids[doomed]).then(template => {
       expect(template?.id).to.equal(undefined)
+    })
+    userId(ADMIN_EMAIL).then(adminId => {
+      expectLogged(`/admin/user/${adminId}`, 'delete-template')
+        .its('info.name')
+        .should('equal', doomed)
     })
   })
 })

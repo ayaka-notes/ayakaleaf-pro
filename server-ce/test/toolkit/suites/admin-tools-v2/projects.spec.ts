@@ -7,6 +7,7 @@ import { shareProject, shareProjectByLink } from '../../../helpers/sharing'
 import { ADMIN_EMAIL } from '../../../helpers/users'
 import {
   confirmDialog,
+  expectLogged,
   createUser,
   dialog,
   header,
@@ -592,6 +593,7 @@ describe('the project page', function () {
       confirmDialog('Restore file')
       row('notes.tex').should('contain.text', '/notes-')
       row('notes.tex').findByRole('button', { name: 'Restore file' }).should('exist')
+      expectLogged(`/admin/project/${projectId}`, 'restore-deleted-doc')
       cy.reload()
       openTab('File tree')
       rowTexts().then(rows => expect(rows.join('|')).to.match(/notes-[0-9-]+\.tex/))
@@ -662,6 +664,8 @@ describe('a deleted project', function () {
       headerAction('Restore').click()
       confirmDialog('Restore')
       cy.get('.admin-panel-user-header').should('contain.text', 'Active')
+      expectLogged(`/admin/project/${projectId}`, 'project-deleted')
+      expectLogged(`/admin/project/${projectId}`, 'project-restored')
 
       headerAction('Delete').click()
       confirmDialog('Delete')
@@ -671,6 +675,12 @@ describe('a deleted project', function () {
       cy.request({ url: `/admin/project/${projectId}`, failOnStatusCode: false })
         .its('status')
         .should('equal', 404)
+      // a purge deletes the project's log too: the admin's own log tells
+      userId(ADMIN_EMAIL).then(adminId => {
+        expectLogged(`/admin/user/${adminId}`, 'purge-deleted-project')
+          .its('info.name')
+          .should('equal', name)
+      })
     })
   })
 

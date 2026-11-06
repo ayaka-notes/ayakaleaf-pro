@@ -6,6 +6,7 @@ import { db } from '../../../../app/src/infrastructure/mongodb.mjs'
 import { User } from '../../../../app/src/models/User.mjs'
 import { DeletedUser } from '../../../../app/src/models/DeletedUser.mjs'
 import { DeletedProject } from '../../../../app/src/models/DeletedProject.mjs'
+import { Project } from '../../../../app/src/models/Project.mjs'
 import AuthenticationManager from '../../../../app/src/Features/Authentication/AuthenticationManager.mjs'
 import HaveIBeenPwned from '../../../../app/src/Features/Authentication/HaveIBeenPwned.mjs'
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
@@ -19,20 +20,25 @@ import EmailHelper from '../../../../app/src/Features/Helpers/EmailHelper.mjs'
 import ProjectDeleter from '../../../../app/src/Features/Project/ProjectDeleter.mjs'
 import ProjectGetter from '../../../../app/src/Features/Project/ProjectGetter.mjs'
 import OneTimeTokenHandler from '../../../../app/src/Features/Security/OneTimeTokenHandler.mjs'
+import TagsHandler from '../../../../app/src/Features/Tags/TagsHandler.mjs'
 import UserDeleter from '../../../../app/src/Features/User/UserDeleter.mjs'
 import UserRegistrationHandler from '../../../../app/src/Features/User/UserRegistrationHandler.mjs'
+import UserSessionsManager from '../../../../app/src/Features/User/UserSessionsManager.mjs'
 import UserUpdater from '../../../../app/src/Features/User/UserUpdater.mjs'
 import {
   getTokenUsage,
   resetTokenUsage,
 } from '../../../workbench/app/src/TokenQuota.mjs'
+import { adminOf, logOnAdmin, logOnUser } from './AdminAuditLog.mjs'
 import { userIdOr404 } from './AdminUserListsController.mjs'
 
 // What an admin does to an account: creating and activating it, editing it,
-// deleting, restoring and purging it, and its AI usage.
+// giving its projects away, deleting, restoring and purging it, and its AI
+// usage. The audit log tells which admin did it.
 
 const ONE_WEEK_IN_SECONDS = 7 * 24 * 60 * 60
 const MAX_COMPILE_TIMEOUT = 600
+const TRANSFER_TAG_COLOR = '#434AF0'
 
 const userIdOf = (req, res) => userIdOr404(req, res)?.toString()
 
@@ -122,6 +128,10 @@ async function createUser(req, res) {
       )
     })
   }
+  await logOnUser(req, user._id, 'create-account', {
+    isAdmin: Boolean(isAdmin),
+    isExternal: Boolean(isExternal),
+  })
   res.json({ user: { id: user._id.toString(), email: user.email } })
 }
 
@@ -134,6 +144,7 @@ async function sendActivationEmail(req, res) {
     logger.warn({ err, userId }, 'failed to send activation email')
     return refuse(req, res, 'Error sending activation email')
   }
+  await logOnUser(req, userId, 'send-activation-email')
   res.sendStatus(200)
 }
 
@@ -266,10 +277,45 @@ async function disableUser(req, userId, actorId) {
   }
 }
 
+// One entry per kind of change; core logs the new email and disabling itself
+async function logChanges(req, userId, requestedFeatures, changes) {
+  const {
+    hashedPassword,
+    first_name: firstName,
+    last_name: lastName,
+    isAdmin,
+    features,
+    aiFeatures,
+    suspended,
+    ...others
+  } = changes
+  if (hashedPassword) await logOnUser(req, userId, 'update-password')
+  if (firstName != null || lastName != null) {
+    await logOnUser(req, userId, 'change-name', { firstName, lastName })
+  }
+  if (isAdmin != null) {
+    await logOnUser(req, userId, 'change-admin-access', { isAdmin })
+  }
+  if (features) {
+    await logOnUser(req, userId, 'change-features', requestedFeatures)
+  }
+  if (aiFeatures) {
+    await logOnUser(req, userId, 'change-ai-features', aiFeatures)
+  }
+  if (suspended === false) {
+    await logOnUser(req, userId, 'account-reactivation')
+  }
+  if (Object.keys(others).length > 0) {
+    await logOnUser(req, userId, 'update-user', {
+      fields: Object.keys(others),
+    })
+  }
+}
+
 async function updateUser(req, res) {
   const userId = userIdOf(req, res)
   if (!userId) return
-  const actorId = SessionManager.getLoggedInUserId(req.session)
+  const actorId = adminOf(req)
   req.logger.addFields({ actorUserId: actorId })
   const isOwnAccount = userId === actorId
 
@@ -318,6 +364,19 @@ async function updateUser(req, res) {
     throw OError.tag(err, 'problem updating user settings', { userId })
   })
   if (disabling) await disableUser(req, userId, actorId)
+  await logChanges(req, userId, features, changes)
+
+  // a new password ends what the old one opened, as when the user changes it
+  if (changes.hashedPassword) {
+    await UserSessionsManager.promises.removeSessionsFromRedis(
+      { _id: userId },
+      isOwnAccount ? req.sessionID : undefined
+    )
+    await OneTimeTokenHandler.promises.expireAllTokensForUser(
+      userId,
+      'password'
+    )
+  }
 
   if (isOwnAccount) {
     SessionManager.setInSessionUser(req.session, {
@@ -338,12 +397,74 @@ async function updateUser(req, res) {
   })
 }
 
+// ---- giving the projects away ----
+
+// Core's transferAllProjectsToUser (a tag "transferred-from-<email>" for the
+// new owner, no emails), which does not tell who did it to each project's log
+async function transferAllProjects(req, fromUserId, toUserId) {
+  const [fromUser, toUser] = await Promise.all([
+    User.findById(fromUserId, { email: 1 }).lean(),
+    User.exists({ _id: toUserId }),
+  ])
+  if (!fromUser || !toUser || fromUserId === toUserId) {
+    throw new OError('invalid transfer of projects', { fromUserId, toUserId })
+  }
+  const projects = await Project.find(
+    { owner_ref: fromUserId },
+    { _id: 1 }
+  ).lean()
+  const tag = await TagsHandler.promises.createTag(
+    toUserId,
+    `transferred-from-${fromUser.email}`,
+    TRANSFER_TAG_COLOR,
+    { truncate: true }
+  )
+  await TagsHandler.promises.addProjectsToTag(
+    toUserId,
+    tag._id,
+    projects.map(project => project._id)
+  )
+  await promiseMapWithLimit(5, projects, project =>
+    OwnershipTransferHandler.promises.transferOwnership(project._id, toUserId, {
+      allowTransferToNonCollaborators: true,
+      skipEmails: true,
+      ipAddress: req.ip,
+      sessionUserId: adminOf(req),
+    })
+  )
+  await logOnUser(req, fromUserId, 'transfer-projects', {
+    toUserId,
+    projectCount: projects.length,
+  })
+  return projects.length
+}
+
+// every project the user owns to another user, without deleting the user
+async function transferProjects(req, res) {
+  const userId = userIdOf(req, res)
+  if (!userId) return
+  const { toUserId } = req.body
+  if (
+    typeof toUserId !== 'string' ||
+    !/^[0-9a-f]{24}$/i.test(toUserId) ||
+    userId === toUserId.toLowerCase()
+  ) {
+    return refuse(req, res, 'invalid toUserId')
+  }
+  const [from, to] = await Promise.all([
+    User.exists({ _id: userId }),
+    User.exists({ _id: toUserId }),
+  ])
+  if (!from || !to) return ErrorController.notFound(req, res)
+  res.json({ projectCount: await transferAllProjects(req, userId, toUserId) })
+}
+
 // ---- deleting, restoring and purging ----
 
 async function deleteUser(req, res) {
   const userId = userIdOf(req, res)
   if (!userId) return
-  const deleterId = SessionManager.getLoggedInUserId(req.session)
+  const deleterId = adminOf(req)
   const { sendEmail, toUserId } = req.body
 
   // The list greys Delete out on the own account, refuse a direct request too
@@ -353,11 +474,7 @@ async function deleteUser(req, res) {
 
   if (toUserId) {
     try {
-      await OwnershipTransferHandler.promises.transferAllProjectsToUser({
-        fromUserId: userId,
-        toUserId,
-        ipAddress: req.ip,
-      })
+      await transferAllProjects(req, userId, toUserId)
     } catch (err) {
       logger.warn({ err, userId, toUserId }, 'failed to transfer the projects')
       return refuse(req, res, 'Failed to transfer projects ownership')
@@ -392,6 +509,10 @@ async function deleteUser(req, res) {
 async function purgeDeletedUser(req, res) {
   const userId = userIdOf(req, res)
   if (!userId) return
+  const deleted = await DeletedUser.findOne(
+    { 'user._id': userId },
+    { 'user.email': 1 }
+  ).lean()
   try {
     await UserDeleter.promises.expireDeletedUser(userId)
   } catch (err) {
@@ -402,6 +523,10 @@ async function purgeDeletedUser(req, res) {
       'Something went wrong. The user is already deleted?'
     )
   }
+  await logOnAdmin(req, 'purge-deleted-user', {
+    userId,
+    email: deleted?.user?.email,
+  })
   res.sendStatus(200)
 }
 
@@ -451,6 +576,7 @@ async function restoreDeletedUser(req, res) {
     logger.warn({ err, userId }, 'failed to restore the projects of the user')
   }
 
+  await logOnUser(req, userId, 'restore-account')
   res.json({ restoredId: userData._id.toString(), email: userData.email })
 }
 
@@ -473,6 +599,7 @@ async function resetAiUsage(req, res) {
     return ErrorController.notFound(req, res)
   }
   await resetTokenUsage(userId)
+  await logOnUser(req, userId, 'reset-ai-usage')
   res.json(await getTokenUsage(userId))
 }
 
@@ -481,6 +608,7 @@ export default {
   sendActivationEmail: expressify(sendActivationEmail),
   activationLink: expressify(activationLink),
   updateUser: expressify(updateUser),
+  transferProjects: expressify(transferProjects),
   deleteUser: expressify(deleteUser),
   purgeDeletedUser: expressify(purgeDeletedUser),
   restoreDeletedUser: expressify(restoreDeletedUser),

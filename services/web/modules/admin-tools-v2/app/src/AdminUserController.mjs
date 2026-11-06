@@ -6,9 +6,6 @@ import { User } from '../../../../app/src/models/User.mjs'
 import { DeletedUser } from '../../../../app/src/models/DeletedUser.mjs'
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
 import UserSessionsManager from '../../../../app/src/Features/User/UserSessionsManager.mjs'
-import UserAuditLogHandler from '../../../../app/src/Features/User/UserAuditLogHandler.mjs'
-import OwnershipTransferHandler from '../../../../app/src/Features/Collaborators/OwnershipTransferHandler.mjs'
-import HttpErrorHandler from '../../../../app/src/Features/Errors/HttpErrorHandler.mjs'
 import ErrorController from '../../../../app/src/Features/Errors/ErrorController.mjs'
 import PersonalAccessTokenManager from '../../../oauth2-server/app/src/OAuthPersonalAccessTokenManager.mjs'
 import { GitHubSyncUserCredentials } from '../../../github-sync/app/models/githubSyncUserCredentials.mjs'
@@ -19,6 +16,7 @@ import {
   getProviderIds,
   getProviderNames,
 } from './AdminUsersController.mjs'
+import { logOnUser } from './AdminAuditLog.mjs'
 import { userIdOr404 } from './AdminUserListsController.mjs'
 
 const __dirname = Path.dirname(fileURLToPath(import.meta.url))
@@ -196,13 +194,7 @@ async function clearSessions(req, res) {
   const sessions = await UserSessionsManager.promises.getAllUserSessions(user, [
     req.sessionID,
   ])
-  await UserAuditLogHandler.promises.addEntry(
-    user._id,
-    'clear-sessions',
-    SessionManager.getLoggedInUserId(req.session),
-    req.ip,
-    { sessions }
-  )
+  await logOnUser(req, user._id, 'clear-sessions', { sessions })
   await UserSessionsManager.promises.removeSessionsFromRedis(
     user,
     req.sessionID
@@ -212,38 +204,7 @@ async function clearSessions(req, res) {
   })
 }
 
-// every project the user owns to another user, without deleting the user:
-// core's bulk transfer, the one the delete endpoint runs before deleting
-// (it tags them "transferred-from-<email>" for the new owner)
-async function transferProjects(req, res) {
-  const userId = userIdOr404(req, res)
-  if (!userId) return
-  const { toUserId } = req.body
-  if (
-    typeof toUserId !== 'string' ||
-    !/^[0-9a-f]{24}$/i.test(toUserId) ||
-    userId.equals(toUserId)
-  ) {
-    return HttpErrorHandler.unprocessableEntity(req, res, 'invalid toUserId')
-  }
-  const [from, to] = await Promise.all([
-    User.exists({ _id: userId }),
-    User.exists({ _id: toUserId }),
-  ])
-  if (!from || !to) {
-    return ErrorController.notFound(req, res)
-  }
-  const { projectCount } =
-    await OwnershipTransferHandler.promises.transferAllProjectsToUser({
-      fromUserId: userId,
-      toUserId,
-      ipAddress: req.ip,
-    })
-  res.json({ projectCount })
-}
-
 export default {
   userPage: expressify(userPage),
   clearSessions: expressify(clearSessions),
-  transferProjects: expressify(transferProjects),
 }

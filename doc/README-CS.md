@@ -58,7 +58,7 @@ Ayakaleaf Pro je rozšířená verze Overleaf s téměř všemi funkcemi a možn
 - Integrace s Mendeley (s podporou Mendeley OAuth)
 - Pokročilé vyhledávání citací (prohledávání všech vašich Bib záznamů)
 - Podpora Git-Bridge (clone, pull a push pomocí Git)
-- Administrační panel (globální správa uživatelů a projektů)
+- Kompletní administrační panel (uživatelé, projekty a šablony, s vyhledáváním, hromadnými akcemi, relacemi a auditními protokoly)
 - SSO přes LDAP a SAML nebo OAuth 2.0
 - Neomezená doba kompilace (nastavitelná v administračním panelu)
 - Samoregistrace (volitelná, lze omezit podle e-mailové domény)

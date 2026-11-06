@@ -13,7 +13,11 @@ import CollaboratorsGetter from '../../../../app/src/Features/Collaborators/Coll
 import CollaboratorsInviteGetter from '../../../../app/src/Features/Collaborators/CollaboratorsInviteGetter.mjs'
 import DocstoreManager from '../../../../app/src/Features/Docstore/DocstoreManager.mjs'
 import HistoryManager from '../../../../app/src/Features/History/HistoryManager.mjs'
+import { DeletedProjectReasons } from '../../../../app/src/Features/Project/DeletedProjectReasons.mjs'
 import ProjectDeleter from '../../../../app/src/Features/Project/ProjectDeleter.mjs'
+import { Template } from '../../../template-gallery/app/src/models/Template.mjs'
+import TemplateGalleryManager from '../../../template-gallery/app/src/TemplateGalleryManager.mjs'
+import { logOnAdmin, logOnProject } from './AdminAuditLog.mjs'
 import { idOr404, projectStatus } from './AdminUserListsController.mjs'
 
 const __dirname = Path.dirname(fileURLToPath(import.meta.url))
@@ -222,6 +226,11 @@ async function restoreDeletedDoc(req, res) {
     deletedDoc.name,
     SessionManager.getLoggedInUserId(req.session)
   )
+  await logOnProject(req, projectId, 'restore-deleted-doc', {
+    docId,
+    name: deletedDoc.name,
+    restoredAs: doc.name,
+  })
   res.json({ id: doc._id.toString(), name: doc.name })
 }
 
@@ -237,6 +246,19 @@ async function projectsPage(req, res) {
   })
 }
 
+// As core's delete, which logs this only in managed groups
+async function deleteProject(req, res) {
+  const projectId = idOr404(req, res, 'projectId')
+  if (!projectId) return
+  await ProjectDeleter.promises.deleteProject(projectId, {
+    deleterUser: SessionManager.getSessionUser(req.session),
+    ipAddress: req.ip,
+    deletedReason: DeletedProjectReasons.USER,
+  })
+  await logOnProject(req, projectId, 'project-deleted')
+  res.sendStatus(200)
+}
+
 // A deleted project back to its owner, out of their trash too. The restored
 // name can have a suffix: another project may have taken it meanwhile.
 async function undeleteProject(req, res) {
@@ -246,13 +268,42 @@ async function undeleteProject(req, res) {
   await ProjectDeleter.promises.undeleteProject(projectId, { userId })
   await ProjectDeleter.promises.untrashProject(projectId, userId)
   const { name } = await Project.findById(projectId, { name: 1 }).lean()
+  await logOnProject(req, projectId, 'project-restored')
   res.json({ name })
 }
 
 async function purgeDeletedProject(req, res) {
   const projectId = idOr404(req, res, 'projectId')
   if (!projectId) return
+  const deleted = await DeletedProject.findOne(
+    { 'deleterData.deletedProjectId': projectId },
+    { 'project.name': 1 }
+  ).lean()
   await ProjectDeleter.promises.expireDeletedProject(projectId)
+  await logOnAdmin(req, 'purge-deleted-project', {
+    projectId,
+    name: deleted?.project?.name,
+  })
+  res.sendStatus(200)
+}
+
+// The gallery's delete, with its version looked up
+async function deleteTemplate(req, res) {
+  const templateId = idOr404(req, res, 'templateId')
+  if (!templateId) return
+  const template = await Template.findById(templateId, {
+    name: 1,
+    version: 1,
+  }).lean()
+  if (!template) return ErrorController.notFound(req, res)
+  await TemplateGalleryManager.deleteTemplate({
+    templateId: templateId.toString(),
+    version: template.version,
+  })
+  await logOnAdmin(req, 'delete-template', {
+    templateId,
+    name: template.name,
+  })
   res.sendStatus(200)
 }
 
@@ -260,6 +311,8 @@ export default {
   projectsPage: expressify(projectsPage),
   projectPage: expressify(projectPage),
   restoreDeletedDoc: expressify(restoreDeletedDoc),
+  deleteProject: expressify(deleteProject),
   undeleteProject: expressify(undeleteProject),
   purgeDeletedProject: expressify(purgeDeletedProject),
+  deleteTemplate: expressify(deleteTemplate),
 }

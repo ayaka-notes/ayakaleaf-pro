@@ -70,7 +70,7 @@ export default {
     webRouter.post(
       '/admin/user/:userId/transfer-projects',
       admin,
-      AdminUserController.transferProjects
+      AdminUserActionsController.transferProjects
     )
     webRouter.post(
       '/admin/user/:userId/delete',
@@ -101,6 +101,11 @@ export default {
       admin,
       AdminUserListsController.templatesJson
     )
+    webRouter.delete(
+      '/admin/templates/:templateId',
+      admin,
+      AdminProjectController.deleteTemplate
+    )
 
     // a project's page
     webRouter.get(
@@ -117,6 +122,11 @@ export default {
       '/admin/project/:projectId/doc/:docId/restore',
       admin,
       AdminProjectController.restoreDeletedDoc
+    )
+    webRouter.delete(
+      '/admin/project/:projectId',
+      admin,
+      AdminProjectController.deleteProject
     )
     webRouter.post(
       '/admin/project/:projectId/undelete',

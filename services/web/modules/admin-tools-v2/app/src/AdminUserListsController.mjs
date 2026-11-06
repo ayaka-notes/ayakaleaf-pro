@@ -476,7 +476,7 @@ async function templatesJson(req, res) {
   const direction = query.order === 'asc' ? 1 : -1
   const total = await Template.countDocuments(match)
   const page = clampPage(query.page, total, query.pageSize)
-  const rows = await Template.find(match, '_id name version author owner lastUpdated')
+  const rows = await Template.find(match, '_id name author owner lastUpdated')
     .sort({ [query.sort]: direction, _id: direction })
     .collation(COLLATION)
     .skip((page - 1) * query.pageSize)
@@ -492,7 +492,6 @@ async function templatesJson(req, res) {
     templates: rows.map(template => ({
       id: template._id.toString(),
       name: template.name,
-      version: String(template.version),
       author: cleanHtml(template.author, 'plainText'),
       owner: owner(template.owner),
       lastUpdated: template.lastUpdated,

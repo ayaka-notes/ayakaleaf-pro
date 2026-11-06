@@ -25,7 +25,6 @@ type TemplatesQuery = {
 type TemplateRow = {
   id: string
   name: string
-  version: string
   author?: string
   owner: { id?: string; email?: string; name?: string }
   lastUpdated?: string
@@ -38,7 +37,7 @@ type TemplatesResult = {
 }
 
 // The templates of the gallery, laid out like the list of projects. A template
-// opens on the gallery's page and is deleted through the gallery's route.
+// opens on the gallery's page.
 function TemplatesList({ active }: { active: boolean }) {
   const { t } = useTranslation()
   const [deleting, setDeleting] = useState<TemplateRow | null>(null)
@@ -78,10 +77,7 @@ function TemplatesList({ active }: { active: boolean }) {
     label: t('delete'),
     danger: true,
     warning: t('this_action_cannot_be_undone'),
-    run: () =>
-      deleteJSON(`/template/${template.id}/delete`, {
-        body: { version: template.version },
-      }),
+    run: () => deleteJSON(`/admin/templates/${template.id}`),
   })
 
   return (

@@ -1,9 +1,27 @@
 import { postWithCsrf } from '../../../helpers/request'
-import { ensureUserExists } from '../../../helpers/users'
+import { ADMIN_EMAIL, ensureUserExists } from '../../../helpers/users'
 
 // The admin panel of the admin-tools-v2 module: the user list (/admin/user),
 // a user's page (/admin/user/:id) and a project's page
 // (/admin/project/:id). The helpers expect to be logged in as an admin.
+
+// The latest entry of this operation on the log of a user's or a project's
+// page (/admin/user/:id, /admin/project/:id), checking who did it
+export function expectLogged(
+  page: string,
+  operation: string,
+  initiator = ADMIN_EMAIL
+) {
+  const query = new URLSearchParams({ operation, pageSize: '200' })
+  return cy
+    .request(`${page}/audit-log/list?${query}`)
+    .its('body.entries')
+    .then((entries: { initiatorEmail?: string }[]) => {
+      expect(entries, operation).to.have.length.at.least(1)
+      expect(entries[0].initiatorEmail, operation).to.equal(initiator)
+      return entries[0]
+    })
+}
 
 export const escapeRegExp = (text: string) =>
   text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')

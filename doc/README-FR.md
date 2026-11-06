@@ -58,7 +58,7 @@ Ayakaleaf Pro est une version améliorée d'Overleaf qui offre presque toutes le
 - Intégration Mendeley (avec prise en charge d'OAuth pour Mendeley)
 - Recherche avancée de références (recherchez dans toutes vos entrées bib)
 - Prise en charge de Git-Bridge (clone, pull et push avec Git)
-- Panneau d'administration (gestion globale des utilisateurs/projets)
+- Panneau d'administration complet (utilisateurs, projets et modèles, avec recherche, actions groupées, sessions et journaux d'audit)
 - SSO avec LDAP et SAML ou OAuth 2.0
 - Temps de compilation illimité (réglable dans le panneau d'administration)
 - Inscription libre (facultative, peut être limitée par domaine de messagerie)
