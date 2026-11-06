@@ -44,7 +44,8 @@ const PersonalAccessTokenController = {
             return res.status(500).json({ message: 'Failed to create personal access token' })
         }
         
-        await UserAuditLogHandler.promises.addEntry(userId, 'create-git-token', userId, req.ip)
+        // in the background: the secret is only ever shown in this answer
+        UserAuditLogHandler.addEntryInBackground(userId, 'create-git-token', userId, req.ip)
 
         return res.json({
             accessToken: accessToken

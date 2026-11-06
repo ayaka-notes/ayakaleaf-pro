@@ -38,11 +38,12 @@ export async function logLoginChanges(user, before, details, auditLog) {
       isAdmin: details.isAdmin,
     })
   }
-  if (
-    details.first_name != null &&
-    (details.first_name !== before.firstName ||
-      details.last_name !== before.lastName)
-  ) {
+  // the IdP may send only one of them
+  const firstNameChanged =
+    details.first_name != null && details.first_name !== before.firstName
+  const lastNameChanged =
+    details.last_name != null && details.last_name !== before.lastName
+  if (firstNameChanged || lastNameChanged) {
     await logLoginEntry(user, 'change-name', auditLog, {
       firstName: details.first_name,
       lastName: details.last_name,
