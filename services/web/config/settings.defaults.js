@@ -43,7 +43,6 @@ const parseTextExtensions = function (extensions) {
 const httpPermissionsPolicy = {
   blocked: [
     'accelerometer',
-    'attribution-reporting',
     'browsing-topics',
     'camera',
     'display-capture',
@@ -816,7 +815,14 @@ module.exports = {
 
     showSubscriptionLink: false,
 
-    header_extras: [],
+    // Library link (bib-editor module; OVERLEAF_BIB_LIBRARY, default on)
+    header_extras: [
+      process.env.OVERLEAF_BIB_LIBRARY !== 'false' && {
+        text: 'Library',
+        url: '/library',
+        class: 'subdued',
+      },
+    ].filter(Boolean),
   },
   // Example:
   //   header_extras: [{text: "Some Page", url: "http://example.com/some/page", class: "subdued"}]
@@ -1006,15 +1012,25 @@ module.exports = {
     createFileModes: [
       Path.resolve(
         __dirname,
-        '../modules/tpr-webmodule/frontend/js/components/create-file-mode-zotero'
+        '../modules/zotero/frontend/js/components/create-file-mode-zotero'
       ),
       Path.resolve(
         __dirname,
-        '../modules/tpr-webmodule/frontend/js/components/create-file-mode-mendeley'
+        '../modules/mendeley/frontend/js/components/create-file-mode-mendeley'
       ),
     ],
     devToolbar: [],
-    dsNavLibraryLink: [],
+    // bib-editor module: dashboard ds-nav Library item (hosted in
+    // sidebar-ds-nav.tsx; renders the /library link with SaaS active state)
+    dsNavLibraryLink:
+      process.env.OVERLEAF_BIB_LIBRARY !== 'false'
+        ? [
+            Path.resolve(
+              __dirname,
+              '../modules/bib-editor/frontend/js/library/ds-nav-library-link'
+            ),
+          ]
+        : [],
     trashPageTabs: [],
     adminUserLibrary: [],
     gitBridge: [],
@@ -1023,25 +1039,25 @@ module.exports = {
     tprFileViewInfo: [
       Path.resolve(
         __dirname,
-        '../modules/tpr-webmodule/frontend/js/components/tpr-file-view-info'
+        '../modules/zotero/frontend/js/components/tpr-file-view-info'
       ),
     ],
     tprFileViewRefreshError: [
       Path.resolve(
         __dirname,
-        '../modules/tpr-webmodule/frontend/js/components/tpr-file-view-refresh-error'
+        '../modules/zotero/frontend/js/components/tpr-file-view-refresh-error'
       ),
     ],
     tprFileViewRefreshButton: [
       Path.resolve(
         __dirname,
-        '../modules/tpr-webmodule/frontend/js/components/tpr-file-view-refresh-button'
+        '../modules/zotero/frontend/js/components/tpr-file-view-refresh-button'
       ),
     ],
     tprFileViewNotOriginalImporter: [
       Path.resolve(
         __dirname,
-        '../modules/tpr-webmodule/frontend/js/components/tpr-file-view-not-original-importer'
+        '../modules/zotero/frontend/js/components/tpr-file-view-not-original-importer'
       ),
     ],
     contactUsModal: [],
@@ -1049,6 +1065,10 @@ module.exports = {
       Path.resolve(
         __dirname,
         '../modules/error-assistant/frontend/js/last-fix-store'
+      ),
+      Path.resolve(
+        __dirname,
+        '../modules/bib-editor/frontend/js/extensions/bib-editor-extension.ts'
       ),
     ],
     sourceEditorVisualExtensions: [],
@@ -1088,6 +1108,10 @@ module.exports = {
       Path.resolve(
         __dirname,
         '../modules/workbench/frontend/js/assistant-dock-context'
+      ),
+      Path.resolve(
+        __dirname,
+        '../modules/bib-editor/frontend/js/context/bib-editor-provider.tsx'
       ),
     ],
     mainEditorLayoutModals: [
@@ -1131,11 +1155,11 @@ module.exports = {
     referenceLinkingWidgets: [
       Path.resolve(
         __dirname,
-        '../modules/tpr-webmodule/frontend/js/components/zotero-widget'
+        '../modules/zotero/frontend/js/components/zotero-widget'
       ),
       Path.resolve(
         __dirname,
-        '../modules/tpr-webmodule/frontend/js/components/mendeley-widget'
+        '../modules/mendeley/frontend/js/components/mendeley-widget'
       ),
     ],
     importProjectFromGithubModalWrapper: [
@@ -1206,7 +1230,12 @@ module.exports = {
     domainVerificationToken: [],
     v1ImportDataScreen: [],
     snapshotUtils: [],
-    visualEditorProviders: [],
+    visualEditorProviders: [
+      Path.resolve(
+        __dirname,
+        '../modules/bib-editor/frontend/js/bib-editor-visual-provider.ts'
+      ),
+    ],
     usGovBanner: [],
     rollingBuildsUpdatedAlert: [],
     offlineModeToolbarButtons: [],
@@ -1277,11 +1306,11 @@ module.exports = {
       ),
       Path.resolve(
         __dirname,
-        '../modules/tpr-webmodule/frontend/js/components/zotero-integration-card.tsx'
+        '../modules/zotero/frontend/js/components/zotero-integration-card.tsx'
       ),
       Path.resolve(
         __dirname,
-        '../modules/tpr-webmodule/frontend/js/components/mendeley-integration-card.tsx'
+        '../modules/mendeley/frontend/js/components/mendeley-integration-card.tsx'
       ),
     ],
     referenceSearchSetting: [],
@@ -1328,11 +1357,13 @@ module.exports = {
     'gitlab-sync',
     'gitea-sync',
     'dropbox',
-    'tpr-webmodule',
+    'zotero',
+    'mendeley',
     'workbench',
     'error-assistant',
     'instance-features',
-    'open-in-overleaf'
+    'open-in-overleaf',
+    'bib-editor', // visual .bib editor + user Library (pages/routes/API + vendored ORCID/Zotero pickers)
   ],
   viewIncludes: {},
 

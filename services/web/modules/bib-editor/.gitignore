@@ -1,0 +1,4 @@
+# The module keeps its deps local (see package.json "devDependencies").
+# `npm install` here for a standalone checkout creates this file — keep it out of git.
+package-lock.json
+node_modules

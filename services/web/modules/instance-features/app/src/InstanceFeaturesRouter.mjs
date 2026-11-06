@@ -13,9 +13,27 @@ import { isConfigured } from '../../../workbench/app/src/WorkbenchAiClient.mjs'
 //    the gitea-sync module sets Settings.giteaSync only when enabled)
 //    dropbox: whether Dropbox sync is enabled (env var DROPBOX_ENABLED;
 //    the dropbox module sets Settings.dropbox only when enabled)
-// 2. zotero / mendeley: whether each reference-manager integration is enabled
-//    (env var ENABLED_LINKED_FILE_TYPES includes the provider name; no Features
-//    case exists for them, so we read the setting directly)
+// 2. zotero / mendeley: whether each reference-manager integration is usable
+//    on this instance. Site requirement: a provider's UI (settings
+//    "Reference managers" section, editor Integrations card, picker menu
+//    entries) is hidden whenever its OAuth client id and/or secret is not
+//    configured — with credentials missing the Link button can never work.
+//    The credentials are therefore THE switch for both providers, keeping
+//    this flag consistent with the bib-editor module's /bib/services gate.
+
+export function referenceManagerFeatureFlags({ zoteroCredentials, mendeleyCredentials }) {
+  return {
+    zotero: Boolean(zoteroCredentials),
+    mendeley: Boolean(mendeleyCredentials),
+  }
+}
+
+function referenceManagerCredentials(id) {
+  const clientId =
+    process.env[`${id.toUpperCase()}_CLIENT_ID`] ||
+    process.env[`${id.toUpperCase()}_CLIENT_KEY`]
+  return Boolean(clientId && process.env[`${id.toUpperCase()}_CLIENT_SECRET`])
+}
 
 export default {
   apply(webRouter) {
@@ -29,10 +47,10 @@ export default {
           gitlabSync: Boolean(Settings.gitlabSync),
           giteaSync: Boolean(Settings.giteaSync),
           dropbox: Boolean(Settings.dropbox),
-          zotero: Boolean(Settings.enabledLinkedFileTypes?.includes('zotero')),
-          mendeley: Boolean(
-            Settings.enabledLinkedFileTypes?.includes('mendeley')
-          ),
+          ...referenceManagerFeatureFlags({
+            zoteroCredentials: referenceManagerCredentials('zotero'),
+            mendeleyCredentials: referenceManagerCredentials('mendeley'),
+          }),
         })
       }
     )
