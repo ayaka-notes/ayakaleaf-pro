@@ -207,6 +207,33 @@ describe('editing the account', function () {
       cy.get('#admin-user-is-admin').should('be.disabled').and('be.checked')
     })
   })
+
+  it('does not let the admin change their own features, or give their projects away', function () {
+    userId(ADMIN_EMAIL).then(id => {
+      visitUser(id, 'features')
+      headerAction('Edit').should('be.disabled')
+      detail('AI usage').findByRole('button', { name: 'Reset' }).should('be.disabled')
+      headerAction('Send reset link').should('be.disabled')
+      headerAction(/Transfer this user/).should('be.disabled')
+
+      const page = `/admin/user/${id}`
+      for (const body of [
+        { features: { collaborators: 3 } },
+        { aiFeatures: { enabled: false } },
+        { suspended: true },
+        { suspended: 'true' },
+        { isAdmin: false },
+        { isAdmin: 0 },
+      ]) {
+        postWithCsrf(`${page}/update`, body).its('status').should('equal', 422)
+      }
+      for (const path of ['transfer-projects', 'ai-usage/reset', 'send-password-reset']) {
+        postWithCsrf(`${page}/${path}`, {}).its('status').should('equal', 422)
+      }
+      // what the settings page lets everybody change stays editable here
+      postWithCsrf(`${page}/update`, { firstName: 'admin' }).its('status').should('equal', 200)
+    })
+  })
 })
 
 describe('features', function () {

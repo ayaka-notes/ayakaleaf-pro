@@ -7,7 +7,13 @@ import OLButtonGroup from '@/shared/components/ol/ol-button-group'
 import OLButtonToolbar from '@/shared/components/ol/ol-button-toolbar'
 import { runEach } from '../../shared/selection'
 import type { AdminUser } from '../types'
-import { ConfirmModal, userSubject, type Action } from './user-actions'
+import {
+  ConfirmModal,
+  userSubject,
+  waitsForActivation,
+  type Action,
+  type SentLink,
+} from './user-actions'
 
 type BulkAction = Omit<Action, 'run'> & {
   each: (
@@ -61,7 +67,10 @@ function UsersBulkActions({
         {
           key: 'resend',
           icon: 'mail',
-          label: t('resend'),
+          label: t('send_activation_email'),
+          // only for ticks that all wait for it: the Pending filter finds them
+          disabled: !users.every(waitsForActivation),
+          linkNote: t('expires_in_days', { days: 7 }),
           each: user => postJSON(`/admin/user/${user.id}/send-activation`),
         },
         {
@@ -140,6 +149,7 @@ function UsersBulkActions({
                   variant="secondary"
                   icon={action.icon}
                   accessibilityLabel={action.label}
+                  disabled={action.disabled}
                   onClick={() => setOpen(action)}
                 />
               </OLTooltip>
@@ -151,9 +161,16 @@ function UsersBulkActions({
           subjects={users.map(userSubject)}
           action={{
             ...open,
-            run: options => {
+            run: async options => {
               ran.current = true
-              return runEach(users, user => user.email, user => open.each(user, options))
+              const links: (SentLink & ReturnType<typeof userSubject>)[] = []
+              await runEach(users, user => user.email, async user => {
+                const sent = await open.each(user, options)
+                if (open.linkNote) {
+                  links.push({ ...userSubject(user), ...(sent as SentLink) })
+                }
+              })
+              return links
             },
           }}
           // what was done stays done when some rows failed: the list reloads

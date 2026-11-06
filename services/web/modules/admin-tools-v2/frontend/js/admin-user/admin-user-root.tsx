@@ -79,6 +79,9 @@ function AdminUserPage() {
             editableTabs.includes(activeTab)
               ? () => setEditingTab(activeTab)
               : undefined
+          }
+          editDisabled={
+            activeTab === 'features' && user.id === getAdminUser().sessionUserId
           } />
       </header>
       <TabContainer activeKey={activeTab} onSelect={setActiveTab}>

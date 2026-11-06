@@ -8,6 +8,7 @@ import OLFormControl from '@/shared/components/ol/ol-form-control'
 import OLFormSwitch from '@/shared/components/ol/ol-form-switch'
 import OLNotification from '@/shared/components/notification'
 import { DetailsTable } from '../details-table'
+import { getAdminUser } from '../meta'
 import type { UserDetails } from '../types'
 import { BoolIcon } from './shared'
 
@@ -253,7 +254,9 @@ function FeaturesTab({
                   size="sm"
                   onClick={resetAiUsage}
                   isLoading={aiReset.isLoading}
-                  disabled={aiUsage.used === 0}
+                  disabled={
+                    aiUsage.used === 0 || user.id === getAdminUser().sessionUserId
+                  }
                 >
                   {t('reset')}
                 </OLButton>

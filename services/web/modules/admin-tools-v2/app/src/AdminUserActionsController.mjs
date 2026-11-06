@@ -17,6 +17,7 @@ import Errors, { OError } from '../../../../app/src/Features/Errors/Errors.js'
 import ErrorController from '../../../../app/src/Features/Errors/ErrorController.mjs'
 import HttpErrorHandler from '../../../../app/src/Features/Errors/HttpErrorHandler.mjs'
 import EmailHelper from '../../../../app/src/Features/Helpers/EmailHelper.mjs'
+import { DeletedProjectReasons } from '../../../../app/src/Features/Project/DeletedProjectReasons.mjs'
 import ProjectDeleter from '../../../../app/src/Features/Project/ProjectDeleter.mjs'
 import ProjectGetter from '../../../../app/src/Features/Project/ProjectGetter.mjs'
 import OneTimeTokenHandler from '../../../../app/src/Features/Security/OneTimeTokenHandler.mjs'
@@ -51,36 +52,54 @@ function activationUrl(token, userId) {
   return `${Settings.siteUrl}/user/activate?token=${token}&user_id=${userId}`
 }
 
-// ---- creating and activating ----
+// core's reset page, as its reset email links it
+function passwordResetUrl(token, email) {
+  return `${Settings.siteUrl}/user/password/set?passwordResetToken=${token}&email=${encodeURIComponent(email)}`
+}
 
-async function emailActivationLink(userId) {
-  const user = await User.findById(userId, { email: 1 }).lean()
-  if (!user) {
-    throw new OError('User does not exist, cannot send activation email', {
-      userId,
-    })
-  }
+// ---- links to set a password ----
+
+// A new link and its email. The admin gets the link either way, to pass it on:
+// a site without email settings sends nothing (core only logs it), and a
+// failed email must not cost the link.
+async function sendPasswordLink(user, template, tokenOptions, urlOf) {
   const token = await OneTimeTokenHandler.promises.getNewToken(
     'password',
-    { user_id: userId, email: user.email },
-    { expiresIn: ONE_WEEK_IN_SECONDS }
+    { user_id: user._id.toString(), email: user.email },
+    tokenOptions
   )
-  await EmailHandler.promises.sendEmail('registered', {
-    to: user.email,
-    setNewPasswordUrl: activationUrl(token, userId),
-  })
+  const link = urlOf(token)
+  if (!Settings.email?.parameters) return { link, emailSent: false }
+  try {
+    await EmailHandler.promises.sendEmail(template, {
+      to: user.email,
+      setNewPasswordUrl: link,
+    })
+    return { link, emailSent: true }
+  } catch (err) {
+    logger.warn({ err, userId: user._id }, 'failed to email a password link')
+    return { link, emailSent: false }
+  }
 }
+
+function sendActivationLink(user) {
+  return sendPasswordLink(
+    user,
+    'registered',
+    { expiresIn: ONE_WEEK_IN_SECONDS },
+    token => activationUrl(token, user._id.toString())
+  )
+}
+
+// ---- creating and activating ----
 
 async function register(req, res, details) {
   try {
     return await UserRegistrationHandler.promises.registerNewUser(details)
   } catch (err) {
     if (err.message === 'EmailAlreadyRegistered') {
-      HttpErrorHandler.conflict(req, res, 'email_already_registered')
-    } else if (err.message === 'InvalidEmailError') {
-      refuse(req, res, 'email_address_is_invalid')
-    } else if (err.message === 'InvalidPasswordError') {
-      refuse(req, res, 'try_again')
+      const message = req.i18n.translate('email_already_registered')
+      HttpErrorHandler.conflict(req, res, message)
     } else {
       throw OError.tag(err, 'error user registration', {
         email: details.email,
@@ -92,8 +111,8 @@ async function register(req, res, details) {
 
 async function createUser(req, res) {
   const { email, first_name, last_name, isAdmin, isExternal } = req.body
-  if (email == null || email === '') {
-    return refuse(req, res, 'Email address is empty')
+  if (!EmailHelper.parseEmail(email)) {
+    return refuse(req, res, req.i18n.translate('email_address_is_invalid'))
   }
 
   const user = await register(req, res, {
@@ -111,23 +130,17 @@ async function createUser(req, res) {
     {
       $set: {
         isAdmin,
-        emails: [{ email, reversedHostname, confirmedAt: Date.now() }],
+        emails: [
+          { email: user.email, reversedHostname, confirmedAt: Date.now() },
+        ],
       },
       // an external account logs in through SSO only
       ...(isExternal && { $unset: { hashedPassword: '' } }),
     }
   ).exec()
 
-  // The account exists by now, a failed email must not fail the request: the
-  // admin can send it again from the user list
-  if (!isExternal) {
-    await emailActivationLink(user._id.toString()).catch(err => {
-      logger.warn(
-        { err, userId: user._id },
-        'failed to send activation email to new user'
-      )
-    })
-  }
+  // the admin can get the link and send it again from the user list
+  if (!isExternal) await sendActivationLink(user)
   await logOnUser(req, user._id, 'create-account', {
     isAdmin: Boolean(isAdmin),
     isExternal: Boolean(isExternal),
@@ -135,17 +148,52 @@ async function createUser(req, res) {
   res.json({ user: { id: user._id.toString(), email: user.email } })
 }
 
+function passwordLinkUser(userId) {
+  return User.findById(userId, {
+    email: 1,
+    loginCount: 1,
+    suspended: 1,
+    hashedPassword: 1,
+  }).lean()
+}
+
 async function sendActivationEmail(req, res) {
   const userId = userIdOf(req, res)
   if (!userId) return
-  try {
-    await emailActivationLink(userId)
-  } catch (err) {
-    logger.warn({ err, userId }, 'failed to send activation email')
-    return refuse(req, res, 'Error sending activation email')
+  // The list greys it out, refuse a direct request too: the link only works
+  // on a local account that never logged in (core's /user/activate sends the
+  // others to the login page, and cannot set a password on an SSO account)
+  const user = await passwordLinkUser(userId)
+  if (!user) return ErrorController.notFound(req, res)
+  if (user.loginCount > 0 || user.suspended || !user.hashedPassword) {
+    return refuse(req, res, 'This account is not waiting for its activation')
   }
+  const sent = await sendActivationLink(user)
   await logOnUser(req, userId, 'send-activation-email')
-  res.sendStatus(200)
+  res.json(sent)
+}
+
+// A password reset for an account that has logged in, as core's own reset: its
+// page, its email, its hour. The admin's own password is changed in place.
+async function sendPasswordReset(req, res) {
+  const userId = userIdOf(req, res)
+  if (!userId) return
+  if (userId === adminOf(req)) {
+    return refuse(req, res, 'You cannot send a reset link to your own account')
+  }
+  const user = await passwordLinkUser(userId)
+  if (!user) return ErrorController.notFound(req, res)
+  if (!user.loginCount || user.suspended || !user.hashedPassword) {
+    return refuse(req, res, 'This account cannot use a password reset link')
+  }
+  const sent = await sendPasswordLink(
+    user,
+    'passwordResetRequested',
+    {},
+    token => passwordResetUrl(token, user.email)
+  )
+  await logOnUser(req, userId, 'send-password-reset-email')
+  res.json(sent)
 }
 
 // The link of the activation still waiting, if there is one
@@ -164,11 +212,14 @@ async function activationLink(req, res) {
 
 // ---- editing ----
 
+// What an admin cannot change on their own account
+const OWN_ACCOUNT_LOCKED = ['suspended', 'isAdmin', 'features', 'aiFeatures']
+
 // Why the request cannot be applied at all, before anything changes
 function updateProblem(updates, isOwnAccount) {
-  const { suspended, isAdmin, aiFeatures, features } = updates
-  if (isOwnAccount && (suspended === true || isAdmin === false)) {
-    return 'You cannot disable your own account or remove your own admin rights'
+  const { aiFeatures, features } = updates
+  if (isOwnAccount && OWN_ACCOUNT_LOCKED.some(key => key in updates)) {
+    return 'You cannot change the access or the features of your own account'
   }
   if (
     'aiFeatures' in updates &&
@@ -249,10 +300,13 @@ function fieldChanges(user, fields) {
   const changes = {}
   for (const [key, value] of Object.entries(fields)) {
     const newValue = typeof value === 'string' ? value.trim() : value
-    // disabling goes through core below, which also ends the sessions
-    if (newValue === user[key] || (key === 'suspended' && newValue === true)) {
-      continue
-    }
+    // disabling goes through core below, which also ends the sessions; only
+    // a disabled account can be enabled (a never disabled one has no field)
+    const unchanged =
+      key === 'suspended'
+        ? !(user.suspended && newValue === false)
+        : newValue === user[key]
+    if (unchanged) continue
     changes[key] = newValue
   }
   return changes
@@ -399,12 +453,15 @@ async function updateUser(req, res) {
 
 // ---- giving the projects away ----
 
+// a new owner can log in: the picker offers no disabled account either
+const activeUser = userId => ({ _id: userId, suspended: { $ne: true } })
+
 // Core's transferAllProjectsToUser (a tag "transferred-from-<email>" for the
 // new owner, no emails), which does not tell who did it to each project's log
 async function transferAllProjects(req, fromUserId, toUserId) {
   const [fromUser, toUser] = await Promise.all([
     User.findById(fromUserId, { email: 1 }).lean(),
-    User.exists({ _id: toUserId }),
+    User.exists(activeUser(toUserId)),
   ])
   if (!fromUser || !toUser || fromUserId === toUserId) {
     throw new OError('invalid transfer of projects', { fromUserId, toUserId })
@@ -413,17 +470,20 @@ async function transferAllProjects(req, fromUserId, toUserId) {
     { owner_ref: fromUserId },
     { _id: 1 }
   ).lean()
-  const tag = await TagsHandler.promises.createTag(
-    toUserId,
-    `transferred-from-${fromUser.email}`,
-    TRANSFER_TAG_COLOR,
-    { truncate: true }
-  )
-  await TagsHandler.promises.addProjectsToTag(
-    toUserId,
-    tag._id,
-    projects.map(project => project._id)
-  )
+  // no tag on the new owner for a user with nothing to give
+  if (projects.length > 0) {
+    const tag = await TagsHandler.promises.createTag(
+      toUserId,
+      `transferred-from-${fromUser.email}`,
+      TRANSFER_TAG_COLOR,
+      { truncate: true }
+    )
+    await TagsHandler.promises.addProjectsToTag(
+      toUserId,
+      tag._id,
+      projects.map(project => project._id)
+    )
+  }
   await promiseMapWithLimit(5, projects, project =>
     OwnershipTransferHandler.promises.transferOwnership(project._id, toUserId, {
       allowTransferToNonCollaborators: true,
@@ -443,6 +503,10 @@ async function transferAllProjects(req, fromUserId, toUserId) {
 async function transferProjects(req, res) {
   const userId = userIdOf(req, res)
   if (!userId) return
+  // The list greys it out on the own account, refuse a direct request too
+  if (userId === adminOf(req)) {
+    return refuse(req, res, 'You cannot give away all your own projects')
+  }
   const { toUserId } = req.body
   if (
     typeof toUserId !== 'string' ||
@@ -453,7 +517,7 @@ async function transferProjects(req, res) {
   }
   const [from, to] = await Promise.all([
     User.exists({ _id: userId }),
-    User.exists({ _id: toUserId }),
+    User.exists(activeUser(toUserId)),
   ])
   if (!from || !to) return ErrorController.notFound(req, res)
   res.json({ projectCount: await transferAllProjects(req, userId, toUserId) })
@@ -547,7 +611,6 @@ async function restoreDeletedUser(req, res) {
   try {
     await User.create({
       ...userData,
-      suspended: false,
       // users deleted before the analyticsId back-fill migration have none
       analyticsId: userData.analyticsId ?? userData._id.toString(),
     })
@@ -561,15 +624,19 @@ async function restoreDeletedUser(req, res) {
     )
   }
 
-  // the account is back; a project that cannot return must not undo that
+  // the account is back; a project that cannot return must not undo that.
+  // Only what went with the account: a project the user deleted stays deleted
+  // (records from before core's reasons have none)
   try {
     const projects = await DeletedProject.find({
       'project.owner_ref': userId,
+      'deleterData.deletedReason': {
+        $in: [DeletedProjectReasons.ACCOUNT_DELETION, null],
+      },
     }).exec()
     await promiseMapWithLimit(5, projects, project =>
       ProjectDeleter.promises.undeleteProject(
-        project.deleterData.deletedProjectId,
-        { suffix: '' }
+        project.deleterData.deletedProjectId
       )
     )
   } catch (err) {
@@ -595,6 +662,10 @@ async function aiUsage(req, res) {
 async function resetAiUsage(req, res) {
   const userId = userIdOf(req, res)
   if (!userId) return
+  // The tab greys it out on the own account, refuse a direct request too
+  if (userId === adminOf(req)) {
+    return refuse(req, res, 'You cannot reset the AI usage of your own account')
+  }
   if (!(await User.exists({ _id: userId }))) {
     return ErrorController.notFound(req, res)
   }
@@ -606,6 +677,7 @@ async function resetAiUsage(req, res) {
 export default {
   createUser: expressify(createUser),
   sendActivationEmail: expressify(sendActivationEmail),
+  sendPasswordReset: expressify(sendPasswordReset),
   activationLink: expressify(activationLink),
   updateUser: expressify(updateUser),
   transferProjects: expressify(transferProjects),

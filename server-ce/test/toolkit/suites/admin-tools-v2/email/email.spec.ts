@@ -1,10 +1,17 @@
 import { v4 as uuid } from 'uuid'
 import { login } from '../../../../helpers/login'
+import { tryLogin } from '../../../../helpers/adminTools'
 import { createProject, projectName } from '../../../../helpers/project'
-import { activationLink, emailsTo } from '../../../../helpers/mailpit'
+import {
+  activationLink,
+  emailsTo,
+  passwordResetLink,
+  refuseEmails,
+} from '../../../../helpers/mailpit'
 import { postWithCsrf } from '../../../../helpers/request'
 import { ADMIN_EMAIL, ensureAdminExists } from '../../../../helpers/users'
 import {
+  closeDialog,
   confirmDialog,
   createUser,
   dialog,
@@ -12,6 +19,7 @@ import {
   interceptSearch,
   pickOwner,
   row,
+  sendLink,
   uniqueAlias,
   userId,
   visitProject,
@@ -75,13 +83,17 @@ describe('activation emails', function () {
     createAccount(address)
     waitForEmails(address, 1)
     searchList(address)
-    row(address).findByRole('button', { name: 'Resend' }).click()
-    confirmDialog('Resend')
-    waitForEmails(address, 2)
-    lastEmailText(address).then(text => {
-      cy.clearAllCookies()
-      cy.visit(activationLink(text))
-      cy.url().should('contain', '/user/activate')
+    row(address).findByRole('button', { name: 'Send activation email' }).click()
+    sendLink('Send activation email').then(shown => {
+      dialog().should('contain.text', 'Email Sent')
+      closeDialog()
+      waitForEmails(address, 2)
+      lastEmailText(address).then(text => {
+        expect(activationLink(text)).to.equal(shown)
+        cy.clearAllCookies()
+        cy.visit(activationLink(text))
+        cy.url().should('contain', '/user/activate')
+      })
     })
   })
 
@@ -91,8 +103,12 @@ describe('activation emails', function () {
     addresses.forEach(address => waitForEmails(address, 1))
     searchList(`mail-${run}-bulk-`)
     cy.get('#admin-users-select-all').check()
-    cy.get('.admin-panel-bulk-actions').findByRole('button', { name: 'Resend' }).click()
-    confirmDialog('Resend')
+    cy.get('.admin-panel-bulk-actions')
+      .findByRole('button', { name: 'Send activation email' })
+      .click()
+    sendLink('Send activation email')
+    dialog().find('.admin-panel-link code').should('have.length', 2)
+    closeDialog()
     addresses.forEach(address => waitForEmails(address, 2))
   })
 
@@ -102,10 +118,51 @@ describe('activation emails', function () {
     waitForEmails(address, 1)
     userId(address).then(id => {
       visitUser(id)
-      headerAction('Resend').click()
-      confirmDialog('Resend')
+      headerAction('Send activation email').click()
+      sendLink('Send activation email')
+      closeDialog()
     })
     waitForEmails(address, 2)
+  })
+
+  it('still gives the link when the email cannot go out', function () {
+    const address = email('refused')
+    createAccount(address)
+    waitForEmails(address, 1)
+    searchList(address)
+    refuseEmails(true)
+    row(address).findByRole('button', { name: 'Send activation email' }).click()
+    sendLink('Send activation email').then(link => {
+      refuseEmails(false)
+      expect(link).to.contain('/user/activate?token=')
+      dialog().should('contain.text', 'No email was sent')
+      closeDialog()
+    })
+  })
+})
+
+describe('password reset emails', function () {
+  it('emails a reset link to an account that has logged in, and it sets a new password', function () {
+    const address = email('reset')
+    const newPassword = `${run}-New-Password-1`
+    createUser(address)
+    login(ADMIN_EMAIL)
+    searchList(address)
+    row(address).findByRole('button', { name: 'Send reset link' }).click()
+    sendLink('Send reset link').then(shown => {
+      dialog().should('contain.text', 'Email Sent')
+      closeDialog()
+      lastEmailText(address).then(text => {
+        expect(passwordResetLink(text)).to.equal(shown)
+      })
+      cy.clearAllCookies()
+      cy.visit(shown)
+      cy.get('input[name="password"]').type(newPassword)
+      cy.findByRole('button', { name: 'Set new password' }).click()
+      // in the page from the start, shown once the password is set
+      cy.contains('Your password has been successfully changed').should('be.visible')
+      tryLogin(address, newPassword).its('body.redir').should('equal', '/project')
+    })
   })
 })
 

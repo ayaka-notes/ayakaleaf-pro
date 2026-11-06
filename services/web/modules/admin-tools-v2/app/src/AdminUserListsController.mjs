@@ -53,6 +53,25 @@ function idMatches(path, term) {
   }
 }
 
+// a user by the name the lists show, "First Last"
+function fullNameMatches(term, prefix = '') {
+  return {
+    $expr: {
+      $regexMatch: {
+        input: {
+          $concat: [
+            { $ifNull: [`$${prefix}first_name`, ''] },
+            ' ',
+            { $ifNull: [`$${prefix}last_name`, ''] },
+          ],
+        },
+        regex: literal(term),
+        options: 'i',
+      },
+    },
+  }
+}
+
 // the :userId or :projectId of the route, or a 404
 function idOr404(req, res, param) {
   const id = req.params[param]
@@ -313,7 +332,14 @@ async function siteScope(query) {
   const regex = { $regex: literal(query.search), $options: 'i' }
   const [owners, searchProjectIds] = await Promise.all([
     User.find(
-      { $or: [{ email: regex }, { first_name: regex }, { last_name: regex }] },
+      {
+        $or: [
+          { email: regex },
+          { first_name: regex },
+          { last_name: regex },
+          fullNameMatches(query.search),
+        ],
+      },
       '_id'
     )
       .limit(1000)
@@ -499,7 +525,7 @@ async function templatesJson(req, res) {
   })
 }
 
-export { idOr404, userIdOr404, projectStatus }
+export { fullNameMatches, idOr404, userIdOr404, projectStatus }
 
 export default {
   projectsJson: expressify(projectsJson),

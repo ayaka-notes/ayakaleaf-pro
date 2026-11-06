@@ -1,5 +1,6 @@
 import { ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import classnames from 'classnames'
 import {
   deleteJSON,
@@ -7,6 +8,7 @@ import {
   postJSON,
 } from '@/infrastructure/fetch-json'
 import useAsync from '@/shared/hooks/use-async'
+import { CopyToClipboard } from '@/shared/components/copy-to-clipboard'
 import OLButton from '@/shared/components/ol/ol-button'
 import OLIconButton from '@/shared/components/ol/ol-icon-button'
 import OLTooltip from '@/shared/components/ol/ol-tooltip'
@@ -40,8 +42,26 @@ export type Action = {
   pickOwner?: 'required' | 'optional'
   // who cannot be picked: the user whose projects move, the current owner
   ownerExcludeIds?: string[]
+  // greyed out: it means nothing here
+  disabled?: boolean
+  // how long the links last: run answers links to hand out, which the modal
+  // then stays open to show
+  linkNote?: string
   run: (options: { sendEmail: boolean; toUserId: string | null }) => Promise<unknown>
 }
+
+// what the endpoints of the links answer
+export type SentLink = { link: string; emailSent: boolean }
+type PasswordLink = SentLink & { title: string; detail?: string }
+
+// A link to set a password takes a local password (an SSO account has none to
+// set) on an account that can log in
+const canSetPassword = (user: AdminUser) =>
+  !user.suspended && user.authMethods.some(method => method.type === 'local')
+
+// core's /user/activate only takes an account that never logged in
+export const waitsForActivation = (user: AdminUser) =>
+  canSetPassword(user) && !user.loginCount
 
 // a user in the confirm modal: the name (or the email) and the email
 export const userSubject = (user: AdminUser) => ({
@@ -49,6 +69,75 @@ export const userSubject = (user: AdminUser) => ({
     [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email,
   detail: user.email,
 })
+
+// An activation for an account that never logged in, a password reset for one
+// that has
+function passwordLinkAction(t: TFunction, user: AdminUser): Action {
+  const send = (path: string) => () =>
+    postJSON<SentLink>(`/admin/user/${user.id}/${path}`).then(sent => [
+      { ...userSubject(user), ...sent },
+    ])
+  return user.loginCount
+    ? {
+        key: 'send-reset',
+        icon: 'lock_reset',
+        label: t('send_reset_link'),
+        disabled: !canSetPassword(user),
+        linkNote: t('expires_in_one_hour'),
+        run: send('send-password-reset'),
+      }
+    : {
+        key: 'resend',
+        icon: 'mail',
+        label: t('send_activation_email'),
+        disabled: !waitsForActivation(user),
+        linkNote: t('expires_in_days', { days: 7 }),
+        run: send('send-activation'),
+      }
+}
+
+// The links in core's copy block (the Git integration's), with whether the
+// emails went out
+function PasswordLinks({
+  links,
+  note,
+}: {
+  links: PasswordLink[]
+  note?: string
+}) {
+  const { t } = useTranslation()
+  return (
+    <>
+      {links.every(link => link.emailSent) ? (
+        <p className="text-success mb-0" aria-live="polite">
+          {t('email_sent')}
+        </p>
+      ) : (
+        <OLNotification type="warning" content={t('no_email_sent_copy_link')} />
+      )}
+      {links.map(({ title, detail, link }, index) => (
+        <div key={index}>
+          {links.length > 1 && (
+            <p className="admin-panel-modal-user mt-3 mb-0">
+              <strong>{title}</strong>
+              <span className="admin-panel-muted"> {detail}</span>
+            </p>
+          )}
+          <div className="git-bridge-copy admin-panel-link justify-content-between align-items-start my-3">
+            <code>{link}</code>
+            <span>
+              <CopyToClipboard
+                content={link}
+                tooltipId={`admin-user-copy-link-${index}`}
+              />
+            </span>
+          </div>
+        </div>
+      ))}
+      <p className="admin-panel-muted mb-0">{note}</p>
+    </>
+  )
+}
 
 // also used by the detail page's tabs (clear sessions, project actions);
 // the subject is what the action is on: a user's name and email, a project
@@ -72,28 +161,37 @@ export function ConfirmModal({
   const [sendEmail, setSendEmail] = useState(false)
   const [transfer, setTransfer] = useState(action.pickOwner === 'required')
   const [newOwner, setNewOwner] = useState<OwnerOption | null>(null)
+  const [links, setLinks] = useState<PasswordLink[] | null>(null)
   const toUserId = transfer ? (newOwner?.id ?? null) : null
 
+  const close = () => {
+    onHide()
+    onDone()
+  }
   const confirm = () => {
     runAsync(action.run({ sendEmail, toUserId }))
-      .then(() => {
-        onHide()
-        onDone()
+      .then(result => {
+        if (action.linkNote) {
+          setLinks(result as PasswordLink[])
+        } else {
+          close()
+        }
       })
       .catch(() => {})
   }
 
   return (
-    <OLModal show onHide={onHide} id={`admin-user-${action.key}-modal`}>
+    <OLModal show onHide={links ? close : onHide} id={`admin-user-${action.key}-modal`}>
       <OLModalHeader>
         <OLModalTitle>{action.label}</OLModalTitle>
       </OLModalHeader>
       <OLModalBody>
         {action.intro && <p>{action.intro}</p>}
-        {items.length > 1 ? (
+        {links && items.length > 1 ? null : items.length > 1 ? (
           <ul className="admin-panel-modal-list">
-            {items.map(item => (
-              <li key={item.title + (item.detail ?? '')}>
+            {/* by place: projects of several owners can share a name */}
+            {items.map((item, index) => (
+              <li key={index}>
                 <strong>{item.title}</strong>
                 {item.detail && <span className="admin-panel-muted"> {item.detail}</span>}
               </li>
@@ -107,6 +205,7 @@ export function ConfirmModal({
             </p>
           ))
         )}
+        {links && <PasswordLinks links={links} note={action.linkNote} />}
         {action.warning && (
           <OLNotification type="warning" content={action.warning} />
         )}
@@ -145,8 +244,8 @@ export function ConfirmModal({
               // a bulk action lists the rows that failed; the others are done
               error instanceof BulkError ? (
                 <ul className="mb-0 ps-3">
-                  {error.failures.map(failure => (
-                    <li key={failure.title}>
+                  {error.failures.map((failure, index) => (
+                    <li key={index}>
                       <strong>{failure.title}</strong>
                       {failure.message && `: ${failure.message}`}
                     </li>
@@ -160,17 +259,25 @@ export function ConfirmModal({
         )}
       </OLModalBody>
       <OLModalFooter>
-        <OLButton variant="secondary" onClick={onHide} disabled={isLoading}>
-          {t('cancel')}
-        </OLButton>
-        <OLButton
-          variant={action.danger ? 'danger' : 'primary'}
-          onClick={confirm}
-          isLoading={isLoading}
-          disabled={transfer && !newOwner}
-        >
-          {action.label}
-        </OLButton>
+        {links ? (
+          <OLButton variant="secondary" onClick={close}>
+            {t('close')}
+          </OLButton>
+        ) : (
+          <>
+            <OLButton variant="secondary" onClick={onHide} disabled={isLoading}>
+              {t('cancel')}
+            </OLButton>
+            <OLButton
+              variant={action.danger ? 'danger' : 'primary'}
+              onClick={confirm}
+              isLoading={isLoading}
+              disabled={transfer && !newOwner}
+            >
+              {action.label}
+            </OLButton>
+          </>
+        )}
       </OLModalFooter>
     </OLModal>
   )
@@ -180,11 +287,14 @@ function UserActions({
   user,
   onDone,
   onEdit,
+  editDisabled,
 }: {
   user: AdminUser
   onDone: () => void
   // the detail page's pencil, which opens the account form
   onEdit?: () => void
+  // greyed out on a form the admin cannot use: their own features
+  editDisabled?: boolean
 }) {
   const { t } = useTranslation()
   const { sessionUserId } = getOptions()
@@ -214,12 +324,7 @@ function UserActions({
     )
   } else {
     actions.push(
-      {
-        key: 'resend',
-        icon: 'mail',
-        label: t('resend'),
-        run: () => postJSON(`${url}/send-activation`),
-      },
+      passwordLinkAction(t, user),
       {
         key: 'transfer',
         icon: 'drive_file_move',
@@ -265,7 +370,8 @@ function UserActions({
 
   return (
     <div className="admin-panel-actions">
-      {/* editing the own account is allowed, so the pencil is never hidden */}
+      {/* the own name, email and password can be edited, so the pencil is
+          never hidden */}
       {onEdit && !user.deleted && (
         <OLTooltip
           id={`admin-user-edit-${user.id}`}
@@ -278,12 +384,13 @@ function UserActions({
             icon="edit"
             accessibilityLabel={t('edit')}
             className="action-btn"
+            disabled={editDisabled}
             onClick={onEdit}
           />
         </OLTooltip>
       )}
       {actions.map(action =>
-        disableActions ? (
+        disableActions || action.disabled ? (
           <OLIconButton
             key={action.key}
             variant="ghost"

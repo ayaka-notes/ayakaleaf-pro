@@ -2,20 +2,25 @@ import { v4 as uuid } from 'uuid'
 import { activateUser, DEFAULT_PASSWORD, login } from '../../../helpers/login'
 import { createProject, projectName } from '../../../helpers/project'
 import { projectAccess, setSuspended, tryLogin } from '../../../helpers/adminTools'
-import { postWithCsrf } from '../../../helpers/request'
+import { postWithCsrf, requestWithCsrf } from '../../../helpers/request'
 import { ADMIN_EMAIL, ensureAdminExists } from '../../../helpers/users'
 import {
+  closeDialog,
   confirmDialog,
   createUser,
   dialog,
   everyRow,
   findUser,
+  headerAction,
   interceptSearch,
+  ownerPicker,
   pickOwner,
   row,
+  sendLink,
   uniqueAlias,
   userId,
   userRow,
+  visitUser,
 } from './panel'
 
 // The user list of the admin panel (/admin/user): finding accounts by name,
@@ -160,6 +165,9 @@ describe('finding accounts', function () {
     search(ada)
     row(ada).should('contain.text', 'Ada Lovelace')
     search('Lovelace')
+    row(ada).should('exist')
+    // the name as a row shows it
+    search('Ada Lovelace')
     row(ada).should('exist')
     userId(ada).then(id => {
       search(id)
@@ -540,10 +548,44 @@ describe('creating accounts', function () {
     dialog().within(() => {
       cy.findByLabelText('Email address').type(ADMIN_EMAIL)
       cy.findByRole('button', { name: 'Create' }).click()
-      cy.get('.notification-type-error').should('exist')
+      cy.get('.notification-type-error').should(
+        'contain.text',
+        'already associated with a different'
+      )
     })
     dialog().findByRole('button', { name: 'Cancel' }).click()
     dialog().should('not.exist')
+  })
+
+  it('refuses something that is no email address, and says so', function () {
+    cy.findAllByRole('button', { name: 'Create account' })
+      .filter(':visible')
+      .first()
+      .click()
+    dialog().within(() => {
+      cy.findByLabelText('Email address').type('not-an-email')
+      cy.findByRole('button', { name: 'Create' }).click()
+      cy.get('.notification-type-error').should(
+        'contain.text',
+        'Email address is invalid'
+      )
+    })
+    dialog().findByRole('button', { name: 'Cancel' }).click()
+    dialog().should('not.exist')
+  })
+
+  it('keeps an address given in capitals as the one email of the account', function () {
+    const address = email('capitals')
+    createAccount(address.toUpperCase())
+    userId(address).then(id => {
+      visitUser(id)
+      cy.get('.tab-pane.active')
+        .should('contain.text', address)
+        .and('contain.text', 'Primary')
+        .and('not.contain.text', address.toUpperCase())
+      headerAction('Edit').click()
+      cy.get('#admin-user-email').should('have.value', address)
+    })
   })
 })
 
@@ -679,6 +721,218 @@ describe('row actions', function () {
     })
     tryLogin(address, DEFAULT_PASSWORD).its('status').should('equal', 401)
   })
+
+  it('offers an activation to a pending account, a reset to one that has logged in', function () {
+    const pending = email('link-pending')
+    const active = email('link-active')
+    createUser(active)
+    login(ADMIN_EMAIL)
+    createAccount(pending)
+    visitList()
+    search(`list-${run}-link-`)
+    row(pending).findByRole('button', { name: 'Send activation email' }).should('be.enabled')
+    row(pending).findByRole('button', { name: 'Send reset link' }).should('not.exist')
+    row(active).findByRole('button', { name: 'Send reset link' }).should('be.enabled')
+    row(active).findByRole('button', { name: 'Send activation email' }).should('not.exist')
+    userId(active).then(id => {
+      visitUser(id)
+      headerAction('Send reset link').should('be.enabled')
+    })
+  })
+
+  it('shows the activation link, which activates the account', function () {
+    const address = email('link-activate')
+    login(ADMIN_EMAIL)
+    createAccount(address)
+    visitList()
+    search(address)
+    rowAction(address, 'Send activation email')
+    dialog().find('.admin-panel-link').should('not.exist')
+    sendLink('Send activation email').then(link => {
+      // this site has no email settings
+      dialog().should('contain.text', 'No email was sent')
+      dialog().should('contain.text', 'Expires in 7 days')
+      dialog().findByRole('button', { name: 'Cancel' }).should('not.exist')
+      closeDialog()
+      activateUser(link)
+      tryLogin(address).its('body.redir').should('equal', '/project')
+    })
+    login(ADMIN_EMAIL)
+    userId(address).then(id => {
+      cy.request(`/admin/user/${id}/audit-log/list?operation=send-activation-email`)
+        .its('body.entries.0.initiatorEmail')
+        .should('equal', ADMIN_EMAIL)
+    })
+  })
+
+  it('shows a reset link, which sets a new password', function () {
+    const address = email('link-reset')
+    const newPassword = `${run}-New-Password-1`
+    createUser(address)
+    login(ADMIN_EMAIL)
+    visitList()
+    search(address)
+    rowAction(address, 'Send reset link')
+    sendLink('Send reset link').then(link => {
+      dialog().should('contain.text', 'Expires in 1 hour')
+      closeDialog()
+      cy.clearAllCookies()
+      cy.visit(link)
+      cy.get('input[name="password"]').type(newPassword)
+      cy.findByRole('button', { name: 'Set new password' }).click()
+      // in the page from the start, shown once the password is set
+      cy.contains('Your password has been successfully changed').should('be.visible')
+      tryLogin(address, newPassword).its('body.redir').should('equal', '/project')
+      tryLogin(address).its('status').should('equal', 401)
+    })
+    login(ADMIN_EMAIL)
+    userId(address).then(id => {
+      cy.request(`/admin/user/${id}/audit-log/list?operation=send-password-reset-email`)
+        .its('body.entries.0.initiatorEmail')
+        .should('equal', ADMIN_EMAIL)
+    })
+  })
+
+  it('greys the links out on accounts that cannot use them, and the endpoints refuse them', function () {
+    const offNever = email('grey-off-never')
+    const offUsed = email('grey-off-used')
+    const sso = email('grey-sso')
+    const active = email('grey-active')
+    const pending = email('grey-pending')
+    createUser(offUsed)
+    createUser(active)
+    login(ADMIN_EMAIL)
+    createAccount(offNever)
+    createAccount(pending)
+    postWithCsrf('/admin/user/create', { email: sso, isExternal: true })
+      .its('status')
+      .should('equal', 200)
+    setSuspended(offNever, true)
+    setSuspended(offUsed, true)
+    visitList()
+    search(`list-${run}-grey-`)
+    row(offNever).findByRole('button', { name: 'Send activation email' }).should('be.disabled')
+    row(offUsed).findByRole('button', { name: 'Send reset link' }).should('be.disabled')
+    row(sso).findByRole('button', { name: 'Send activation email' }).should('be.disabled')
+
+    const refused = (address: string, path: string) =>
+      userId(address).then(id =>
+        postWithCsrf(`/admin/user/${id}/${path}`, {}).its('status').should('equal', 422)
+      )
+    refused(offNever, 'send-activation')
+    refused(offUsed, 'send-password-reset')
+    refused(sso, 'send-activation')
+    refused(sso, 'send-password-reset')
+    refused(active, 'send-activation')
+    refused(pending, 'send-password-reset')
+  })
+
+  it('forgets the picked new owner once the box is edited, and offers nobody disabled', function () {
+    const from = email('picker-from')
+    const to = email('picker-to')
+    const other = email('picker-other')
+    const off = email('picker-off')
+    ;[from, to, other, off].forEach(address => createUser(address))
+    login(ADMIN_EMAIL)
+    setSuspended(off, true)
+    visitList()
+    search(from)
+    rowAction(from, 'Transfer this user’s projects')
+    const confirm = () =>
+      dialog().findByRole('button', { name: 'Transfer this user’s projects' })
+
+    pickOwner(to)
+    confirm().should('be.enabled')
+    // what the box then shows is not who the action would go to
+    ownerPicker().clear()
+    confirm().should('be.disabled')
+    ownerPicker().type(other)
+    confirm().should('be.disabled')
+    dialog().find('.modal-title').click()
+    ownerPicker().should('have.value', '')
+    confirm().should('be.disabled')
+
+    const list = uniqueAlias('list')
+    interceptSearch('/admin/users/list', off).as(list)
+    ownerPicker().type(off)
+    cy.wait(`@${list}`)
+    cy.findByRole('option', { name: new RegExp(off) }).should('not.exist')
+    ownerPicker().clear()
+
+    pickOwner(other)
+    confirm().should('be.enabled')
+    dialog().findByRole('button', { name: 'Cancel' }).click()
+    dialog().should('not.exist')
+
+    // nor directly
+    userId(from).then(fromId =>
+      userId(off).then(offId =>
+        postWithCsrf(`/admin/user/${fromId}/transfer-projects`, { toUserId: offId })
+          .its('status')
+          .should('equal', 404)
+      )
+    )
+  })
+
+  it('leaves no tag on the new owner for a user with no project to give', function () {
+    const from = email('notag-from')
+    const to = email('notag-to')
+    createUser(from)
+    createUser(to)
+    login(ADMIN_EMAIL)
+    visitList()
+    userId(from).then(fromId =>
+      userId(to).then(toId =>
+        postWithCsrf(`/admin/user/${fromId}/transfer-projects`, { toUserId: toId })
+          .its('body.projectCount')
+          .should('equal', 0)
+      )
+    )
+    login(to)
+    cy.request('/tag')
+      .its('body')
+      .then((tags: { name: string }[]) => {
+        expect(tags.map(tag => tag.name)).not.to.include(`transferred-from-${from}`)
+      })
+  })
+
+  it('keeps a disabled account disabled through deleting and restoring it', function () {
+    const address = email('stays-disabled')
+    createUser(address)
+    login(ADMIN_EMAIL)
+    setSuspended(address, true)
+    visitList()
+    userId(address).then(id => {
+      postWithCsrf(`/admin/user/${id}/delete`, {}).its('status').should('equal', 200)
+      postWithCsrf(`/admin/user/${id}/restore`, {}).its('status').should('equal', 200)
+    })
+    findUser(address).its('suspended').should('equal', true)
+    tryLogin(address).its('body.redir').should('equal', '/account-suspended')
+  })
+
+  it('brings back what went with the account, not what the user had deleted', function () {
+    const address = email('restored-projects')
+    createUser(address)
+    login(address)
+    createProject(projectName('Kept')).then(kept => {
+      createProject(projectName('Deleted on purpose')).then(deleted => {
+        cy.visit('/project')
+        requestWithCsrf('DELETE', `/project/${deleted}`)
+          .its('status')
+          .should('be.lessThan', 300)
+        login(ADMIN_EMAIL)
+        visitList()
+        userId(address).then(id => {
+          postWithCsrf(`/admin/user/${id}/delete`, {}).its('status').should('equal', 200)
+          postWithCsrf(`/admin/user/${id}/restore`, {}).its('status').should('equal', 200)
+        })
+        projectAccess(address).then(access => {
+          expect(access[kept]).to.equal('owner')
+          expect(access).not.to.have.property(deleted)
+        })
+      })
+    })
+  })
 })
 
 describe('bulk actions', function () {
@@ -731,6 +985,47 @@ describe('bulk actions', function () {
     cy.get('#admin-users-select-all').check()
     userRow(peer).find('input[type="checkbox"]').should('be.checked')
     userRow(ADMIN_EMAIL).find('input[type="checkbox"]').should('not.be.checked')
+  })
+
+  it('sends activations while every ticked account waits for one, and shows each link', function () {
+    const pending = [email('bulklink-a'), email('bulklink-b')]
+    const active = email('bulklink-active')
+    createUser(active)
+    login(ADMIN_EMAIL)
+    pending.forEach(address => createAccount(address))
+    visitList()
+    search(`list-${run}-bulklink-`)
+    pending.forEach(address => row(address).find('input[type="checkbox"]').check())
+    bulk('Send activation email').should('be.enabled').click()
+    sendLink('Send activation email')
+    dialog().find('.admin-panel-link code').should('have.length', 2)
+    pending.forEach(address => dialog().should('contain.text', address))
+    closeDialog()
+
+    tickAll()
+    bulk('Send activation email').should('be.disabled')
+  })
+
+  it('logs enabling only on an account that was disabled', function () {
+    const never = email('enable-never')
+    const disabled = email('enable-disabled')
+    createUser(never)
+    createUser(disabled)
+    login(ADMIN_EMAIL)
+    setSuspended(disabled, true)
+    visitList()
+    search(`list-${run}-enable-`)
+    tickAll()
+    bulk('Enable').click()
+    confirmDialog('Enable')
+    const entries = (address: string) =>
+      userId(address).then(id =>
+        cy
+          .request(`/admin/user/${id}/audit-log/list?operation=account-reactivation`)
+          .its('body.entries')
+      )
+    entries(never).should('have.length', 0)
+    entries(disabled).should('have.length', 1)
   })
 
   it('disables and enables the ticked users, admins them and back', function () {

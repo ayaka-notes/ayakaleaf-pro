@@ -125,6 +125,20 @@ export function confirmDialog(button: string | RegExp) {
   dialog().should('not.exist')
 }
 
+// Confirms the modal of a password link, which stays open to show it, and
+// answers the first link
+export function sendLink(button: string): Cypress.Chainable<string> {
+  dialog().within(() => {
+    cy.findByRole('button', { name: button }).should('be.enabled').click()
+  })
+  return dialog().find('.admin-panel-link code').first().invoke('text')
+}
+
+export function closeDialog() {
+  dialog().findByRole('button', { name: 'Close' }).click()
+  dialog().should('not.exist')
+}
+
 // The new owner picker of the transfer, delete and change owner modals: it
 // searches every user of the site
 export function ownerPicker() {

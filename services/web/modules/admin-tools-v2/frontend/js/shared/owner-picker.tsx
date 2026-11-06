@@ -14,9 +14,11 @@ export type OwnerOption = {
   email: string
   firstName?: string
   lastName?: string
+  suspended?: boolean
 }
 
 const SEARCH_DELAY_MS = 200
+const OPTIONS_SHOWN = 10
 
 const displayName = (user: OwnerOption) => {
   const name = [user.firstName, user.lastName].filter(Boolean).join(' ')
@@ -48,18 +50,24 @@ function OwnerPicker({
   }, [value])
 
   // the user list's endpoint: users that are not deleted, by name, email or
-  // ID; the picked user's own label is not a search
+  // ID; the picked user's own label is not a search. Nobody disabled: a new
+  // owner has to be able to log in. It asks for more than it shows, so what is
+  // left out does not empty the list
   // compared by value: callers pass a new array on every render
   const excluded = excludeIds.join(',')
   useEffect(() => {
     if (value && inputValue === displayName(value)) return
     const id = window.setTimeout(() => {
       setLoading(true)
-      const params = new URLSearchParams({ search: inputValue.trim(), pageSize: '10' })
+      const params = new URLSearchParams({ search: inputValue.trim(), pageSize: '50' })
       getJSON<{ users: OwnerOption[] }>(`/admin/users/list?${params}`)
         .then(result =>
           setOptions(
-            result.users.filter(user => !excluded.split(',').includes(user.id))
+            result.users
+              .filter(
+                user => !user.suspended && !excluded.split(',').includes(user.id)
+              )
+              .slice(0, OPTIONS_SHOWN)
           )
         )
         .catch(debugConsole.error)
@@ -79,16 +87,23 @@ function OwnerPicker({
     getLabelProps,
   } = useCombobox<OwnerOption>({
     items: options,
-    selectedItem: value,
+    // as core's add-collaborators input: the picked user and the text are kept
+    // here, downshift only runs the menu
+    selectedItem: null,
     inputValue,
     itemToString: item => (item ? displayName(item) : ''),
     defaultHighlightedIndex: 0,
-    onInputValueChange: ({ inputValue }) => setInputValue(inputValue ?? ''),
-    onSelectedItemChange: ({ selectedItem }) => {
-      if (selectedItem) {
-        lastSelectedRef.current = selectedItem
-        onChange(selectedItem)
-        setInputValue(displayName(selectedItem))
+    onStateChange: ({ type, selectedItem }) => {
+      switch (type) {
+        case useCombobox.stateChangeTypes.InputKeyDownEnter:
+        case useCombobox.stateChangeTypes.ItemClick:
+        case useCombobox.stateChangeTypes.InputBlur:
+          if (selectedItem) {
+            lastSelectedRef.current = selectedItem
+            onChange(selectedItem)
+            setInputValue(displayName(selectedItem))
+          }
+          break
       }
     },
   })
@@ -113,6 +128,12 @@ function OwnerPicker({
               size: inputValue.length ? inputValue.length + 5 : 5,
               type: 'email',
               placeholder: t('search_by_name_email_or_id'),
+              onChange: event => {
+                setInputValue((event.target as HTMLInputElement).value)
+                // what is typed replaces the picked user: the action must
+                // not go to a name the box no longer shows
+                if (value) onChange(null)
+              },
               onBlur: () => {
                 const last = lastSelectedRef.current
                 if (last) {

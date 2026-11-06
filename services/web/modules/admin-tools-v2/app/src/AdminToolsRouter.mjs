@@ -63,6 +63,11 @@ export default {
       AdminUserActionsController.sendActivationEmail
     )
     webRouter.post(
+      '/admin/user/:userId/send-password-reset',
+      admin,
+      AdminUserActionsController.sendPasswordReset
+    )
+    webRouter.post(
       '/admin/user/:userId/update',
       admin,
       AdminUserActionsController.updateUser

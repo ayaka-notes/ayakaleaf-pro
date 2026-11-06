@@ -399,6 +399,83 @@ describe('actions on every project', function () {
     )
   })
 
+  it('finds a project by the full name of its owner', function () {
+    const owner = email(`named-${caseName.slice(-8)}`)
+    const surname = `Surname${caseName.slice(-8)}`
+    createUser(owner)
+    setUp(owner, `${caseName}-named`)
+    login(ADMIN_EMAIL)
+    visitList()
+    userId(owner).then(id =>
+      postWithCsrf(`/admin/user/${id}/update`, { firstName: 'Lin', lastName: surname })
+        .its('status')
+        .should('equal', 200)
+    )
+    search(`Lin ${surname}`)
+    rowTexts().then(rows => {
+      expect(rows).to.have.length(1)
+      expect(rows[0]).to.contain(`${caseName}-named`)
+    })
+  })
+
+  it('lists ticked projects of two owners that share a name', function () {
+    const shared = `${caseName}-shared`
+    setUp(ada, shared)
+    setUp(bob, shared)
+    login(ADMIN_EMAIL)
+    visitList()
+    search(shared)
+    rowTexts().should('have.length', 2)
+    tickAll()
+    bulk('Change project owner').click()
+    dialog().find('.admin-panel-modal-list li').should('have.length', 2)
+    dialog().findByRole('button', { name: 'Cancel' }).click()
+    dialog().should('not.exist')
+  })
+
+  it('refuses to restore a project while its owner is deleted, and says why', function () {
+    const owner = email(`gone-${caseName.slice(-8)}`)
+    createUser(owner)
+    setUp(owner, `${caseName}-orphan`).then(projectId => {
+      login(ADMIN_EMAIL)
+      visitList()
+      userId(owner).then(ownerId => {
+        postWithCsrf(`/admin/user/${ownerId}/delete`, {}).its('status').should('equal', 200)
+        search(`${caseName}-orphan`)
+        cy.get('.tab-pane.active').findByRole('button', { name: 'Display deleted projects' }).click()
+        row(`${caseName}-orphan`).findByRole('button', { name: 'Restore' }).click()
+        dialog().within(() => {
+          cy.findByRole('button', { name: 'Restore' }).click()
+          cy.get('.notification-type-error').should('contain.text', 'restore the owner first')
+          cy.findByRole('button', { name: 'Cancel' }).click()
+        })
+        dialog().should('not.exist')
+        // with the owner back it is back too
+        postWithCsrf(`/admin/user/${ownerId}/restore`, {}).its('status').should('equal', 200)
+        projectAccess(owner).then(access => {
+          expect(access[projectId]).to.equal('owner')
+        })
+      })
+    })
+  })
+
+  it('answers 404 to a purge of a project that is not deleted, and logs nothing', function () {
+    visitList()
+    requestWithCsrf('DELETE', `/admin/project/${project.ada}/purge`)
+      .its('status')
+      .should('equal', 404)
+    userId(ADMIN_EMAIL).then(id => {
+      cy.request(`/admin/user/${id}/audit-log/list?operation=purge-deleted-project&search=&pageSize=200`)
+        .its('body.entries')
+        .then((entries: { info?: { projectId?: string } }[]) => {
+          expect(entries.map(entry => entry.info?.projectId)).not.to.include(project.ada)
+        })
+    })
+    projectAccess(ada).then(access => {
+      expect(access[project.ada]).to.equal('owner')
+    })
+  })
+
   it('deletes a project from its row and restores it to its own owner', function () {
     row(`${caseName}-bob`).findByRole('button', { name: 'Delete' }).click()
     confirmDialog('Delete')

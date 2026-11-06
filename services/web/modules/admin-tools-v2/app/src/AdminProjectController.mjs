@@ -7,6 +7,7 @@ import { DeletedProject } from '../../../../app/src/models/DeletedProject.mjs'
 import { User } from '../../../../app/src/models/User.mjs'
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
 import ErrorController from '../../../../app/src/Features/Errors/ErrorController.mjs'
+import HttpErrorHandler from '../../../../app/src/Features/Errors/HttpErrorHandler.mjs'
 import ProjectEntityHandler from '../../../../app/src/Features/Project/ProjectEntityHandler.mjs'
 import ProjectEntityRestoreHandler from '../../../../app/src/Features/Project/ProjectEntityRestoreHandler.mjs'
 import CollaboratorsGetter from '../../../../app/src/Features/Collaborators/CollaboratorsGetter.mjs'
@@ -265,6 +266,21 @@ async function undeleteProject(req, res) {
   const projectId = idOr404(req, res, 'projectId')
   if (!projectId) return
   const { userId } = req.body
+  const deleted = await DeletedProject.findOne(
+    { 'deleterData.deletedProjectId': projectId },
+    { 'deleterData.deletedProjectOwnerId': 1 }
+  ).lean()
+  // core would bring it back owned by nobody
+  if (
+    deleted &&
+    !(await User.exists({ _id: deleted.deleterData.deletedProjectOwnerId }))
+  ) {
+    return HttpErrorHandler.unprocessableEntity(
+      req,
+      res,
+      'The owner of this project is deleted: restore the owner first'
+    )
+  }
   await ProjectDeleter.promises.undeleteProject(projectId, { userId })
   await ProjectDeleter.promises.untrashProject(projectId, userId)
   const { name } = await Project.findById(projectId, { name: 1 }).lean()
@@ -279,6 +295,8 @@ async function purgeDeletedProject(req, res) {
     { 'deleterData.deletedProjectId': projectId },
     { 'project.name': 1 }
   ).lean()
+  // a stale page: somebody restored it meanwhile, nothing to purge or to log
+  if (!deleted) return ErrorController.notFound(req, res)
   await ProjectDeleter.promises.expireDeletedProject(projectId)
   await logOnAdmin(req, 'purge-deleted-project', {
     projectId,

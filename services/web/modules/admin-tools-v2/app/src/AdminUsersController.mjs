@@ -6,6 +6,7 @@ import { expressify } from '@overleaf/promise-utils'
 import { User } from '../../../../app/src/models/User.mjs'
 import { DeletedUser } from '../../../../app/src/models/DeletedUser.mjs'
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
+import { fullNameMatches } from './AdminUserListsController.mjs'
 
 const __dirname = Path.dirname(fileURLToPath(import.meta.url))
 
@@ -111,6 +112,7 @@ function filters(prefix) {
           { [f('email')]: regex },
           { [f('first_name')]: regex },
           { [f('last_name')]: regex },
+          fullNameMatches(term, prefix),
           {
             $expr: {
               $regexMatch: {

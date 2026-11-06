@@ -490,6 +490,13 @@
   width: 220px;
 }
 
+// a long id or email wraps on a phone instead of pushing the table past the
+// screen (bootstrap sets code's own break-word, which does not narrow a table)
+.admin-panel-details td,
+.admin-panel-details td code {
+  overflow-wrap: anywhere;
+}
+
 // Edit, or Cancel and Save, centred under the table
 .admin-panel-form-actions {
   display: flex;
@@ -586,6 +593,17 @@
   &:hover {
     text-decoration: underline;
   }
+}
+
+// a link to hand out, in core's copy block: all of it, from the left, filling
+// each line instead of breaking at its ? - and /. A click selects it all: the
+// copy button is gone where the browser gives no clipboard (a site without
+// https)
+.git-bridge-copy.admin-panel-link code {
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
+  user-select: all;
 }
 
 .admin-panel-copy {
