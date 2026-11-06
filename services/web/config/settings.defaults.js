@@ -1313,7 +1313,7 @@ module.exports = {
     'authentication/ldap',
     'authentication/saml',
     'authentication/oidc',
-    'admin-tools',
+    'admin-tools-v2',
     'user-activate',
     'sandboxed-compiles',
     'symbol-palette',

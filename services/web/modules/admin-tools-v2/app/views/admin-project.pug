@@ -1,0 +1,14 @@
+extends ../../../../app/views/layout-react
+
+block entrypointVar
+	- entrypoint = 'modules/admin-tools-v2/pages/admin-project'
+
+block vars
+	- isWebsiteRedesign = true
+
+block append meta
+	meta(name='ol-adminProject' data-type='json' content=adminProject)
+
+block content
+	main.content.content-alt#main-content
+		#admin-project-root
