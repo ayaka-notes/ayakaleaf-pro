@@ -1,14 +1,19 @@
+import Path from 'node:path'
 import { expressify } from '@overleaf/promise-utils'
 import ProjectGetter from '../../../../app/src/Features/Project/ProjectGetter.mjs'
 import { fetchJson } from '@overleaf/fetch-utils'
 import Settings from '@overleaf/settings'
 import logger from '@overleaf/logger'
 import OError from '@overleaf/o-error'
+import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
+import { User } from '../../../../app/src/models/User.mjs'
+import UserSettingsHelper from '../../../../app/src/Features/Project/UserSettingsHelper.mjs'
 
 const REQUEST_TIMEOUT_MS = 10000
+const __dirname = Path.dirname(new URL(import.meta.url).pathname)
 
 // Helper function to get all active projects from real-time service
-async function getActiveProjectsFromRealTime() {
+export async function getActiveProjectsFromRealTime() {
   const realTimeUrl = Settings.apis.realTime?.url || 'http://127.0.0.1:3026'
   const url = `${realTimeUrl}/clients`
   const user = Settings.apis.realTime?.user || process.env.WEB_API_USER || 'overleaf'
@@ -75,18 +80,39 @@ async function getActiveProjectsFromRealTime() {
   return enrichedProjects.filter(Boolean)
 }
 
-async function activeProjects(req, res) {
+/**
+ * Dedicated /admin/active-projects page (moved out of the classic admin
+ * panel tab). The initial list is prefetched server-side so the page is
+ * useful immediately; the client re-polls /admin/active-projects/list.
+ */
+async function activeProjectsPage(req, res, next) {
+  const userId = SessionManager.getLoggedInUserId(req.session)
+  const user = await User.findById(userId, 'ace')
+  const userSettings = await UserSettingsHelper.buildUserSettings(req, res, user)
+
+  // Prefetch the initial list; on failure the client refetches and shows
+  // an error state instead of a broken page.
+  let activeProjects = []
   try {
-    const projects = await getActiveProjectsFromRealTime()
-    res.json(projects)
+    activeProjects = await getActiveProjectsFromRealTime()
   } catch (err) {
-    const info = OError.getFullInfo(err)
-    logger.error(OError.getFullStack(err))
-    logger.error({ info }, 'Error processing active projects')
-    throw err
+    logger.warn({ err }, 'prefetching active projects failed; the client will retry')
   }
+
+  res.render(Path.resolve(__dirname, '../views/active-projects-react'), {
+    title: 'Active Projects',
+    userSettings,
+    activeProjects,
+  })
+}
+
+/** JSON list endpoint used by the page (POST + CSRF, like other admin JSON). */
+async function listActiveProjects(req, res, next) {
+  const projects = await getActiveProjectsFromRealTime()
+  res.json(projects)
 }
 
 export default {
-  activeProjects: expressify(activeProjects),
+  activeProjectsPage: expressify(activeProjectsPage),
+  listActiveProjects: expressify(listActiveProjects),
 }

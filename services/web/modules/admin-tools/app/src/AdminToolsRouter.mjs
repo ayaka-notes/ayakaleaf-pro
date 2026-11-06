@@ -1,7 +1,7 @@
 import logger from '@overleaf/logger'
 import UserListController from './UserListController.mjs'
 import ProjectListController from './ProjectListController.mjs'
-import AdminToolsController from './AdminToolsController.mjs'
+import ActiveProjectsController from './ActiveProjectsController.mjs'
 import AuthorizationMiddleware from '../../../../app/src/Features/Authorization/AuthorizationMiddleware.mjs'
 import AuthenticationController from '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
 
@@ -93,7 +93,11 @@ export default {
 
     webRouter.get('/admin/active-projects',
       AuthorizationMiddleware.ensureUserIsSiteAdmin,
-      AdminToolsController.activeProjects,
+      ActiveProjectsController.activeProjectsPage,
+    )
+    webRouter.post('/admin/active-projects/list',
+      AuthorizationMiddleware.ensureUserIsSiteAdmin,
+      ActiveProjectsController.listActiveProjects,
     )
   },
 }

@@ -10,11 +10,14 @@ block content
 						.card-body
 							.page-header
 								h1 Admin Panel
+							//- The Active Projects tab moved to its own page
+							.row-spaced
+								a.btn.btn-primary(href='/admin/active-projects')
+									span Active Projects →
 							.ol-tabs(data-ol-bookmarkable-tabset)
 								.nav-tabs-container
 									ul.nav.nav-tabs.align-left(role='tablist')
 										+bookmarkable-tabset-header('system-messages', 'System Messages', true)
-										+bookmarkable-tabset-header('active-projects', 'Active Projects')
 										+bookmarkable-tabset-header('open-sockets', 'Open Sockets')
 										+bookmarkable-tabset-header('open-close-editor', 'Open/Close Editor')
 										if hasFeature('saas')
@@ -42,10 +45,6 @@ block content
 										form(method='post' action='/admin/messages/clear')
 											input(name='_csrf' type='hidden' value=csrfToken)
 											button.btn.btn-danger(type='submit') Clear all messages
-
-									.tab-pane(role='tabpanel' id='active-projects')
-										.row-spaced
-											include ../../../modules/admin-tools/app/views/active-projects.pug
 
 									.tab-pane(role='tabpanel' id='open-sockets')
 										.row-spaced
