@@ -8,6 +8,11 @@ import {
   normalizeProjectPreferences,
   normalizeGlobalPreferences,
 } from './PreferenceNormalizer.mjs'
+import {
+  listChannelTypes,
+  getChannel,
+  maskChannelValues,
+} from './ChannelCatalog.mjs'
 
 /**
  * Notification preference storage.
@@ -128,11 +133,108 @@ async function saveGlobalPreferences(userId, preferences) {
   return normalizedPreferences
 }
 
+/**
+ * Channel configuration storage (same global doc as the other settings).
+ *
+ * `channels`  — { telegram: { botToken, chatId }, gotify: { token }, … }
+ * `activeChannel` — which one is currently used for dispatch
+ *
+ * Saving a field with an EMPTY value (or the '••••…' mask) clears/keeps it:
+ * masked secrets are never written back. Browser-push stores the raw
+ * subscription object (it is not a display secret — the browser owns it).
+ */
+async function saveChannelConfiguration(userId, { channels = {}, activeChannel = null }) {
+  const set = {}
+  for (const [type, values] of Object.entries(channels)) {
+    const channel = getChannel(type)
+    if (!channel) continue
+    if (!values || typeof values !== 'object') continue
+    if (channel.customUrl) {
+      const url = String(values.url || '').trim()
+      if (url) set[`channels.${type}.url`] = url
+      continue
+    }
+    if (channel.browserPush) {
+      if (values.subscription) {
+        set[`channels.${type}.subscription`] = values.subscription
+      }
+      continue
+    }
+    // Per-field $set so unsubmitted fields keep their stored values.
+    for (const field of channel.fields) {
+      const raw = values[field.key]
+      if (raw === undefined || raw === null) continue
+      const str = String(raw).trim()
+      if (!str) continue
+      // The '••••tail' mask means "unchanged" — keep the stored value.
+      if (field.secret && str.startsWith('\u2022\u2022\u2022\u2022')) {
+        continue
+      }
+      set[`channels.${type}.${field.key}`] = str
+    }
+  }
+
+  if (activeChannel) {
+    set.activeChannel = activeChannel
+  }
+
+  await db.notificationsPreferences.updateOne(
+    { user_id: new ObjectId(userId), project_id: null },
+    { $set: set },
+    { upsert: true }
+  )
+
+  return { saved: true }
+}
+
+/**
+ * Read the user's channel configuration for the settings page: masked
+ * secrets, per-type value presence, active channel, and the admin's
+ * enabled/pinned channel types.
+ */
+async function getChannelConfiguration(userId) {
+  const [doc, adminCfg] = await Promise.all([
+    db.notificationsPreferences.findOne({
+      user_id: new ObjectId(userId),
+      project_id: null,
+    }),
+    db.notificationSettings.findOne({ _id: 'global' }).catch(() => null),
+  ])
+
+  const enabledTypes = new Set(
+    adminCfg?.enabledChannelTypes || listChannelTypes()
+  )
+  const pinned = adminCfg?.pinned || {}
+
+  const channels = {}
+  for (const type of listChannelTypes()) {
+    if (!enabledTypes.has(type)) continue
+    const channel = getChannel(type)
+    const values = doc?.channels?.[type] || {}
+    channels[type] = {
+      label: channel.label,
+      browserPush: Boolean(channel.browserPush),
+      customUrl: Boolean(channel.customUrl),
+      configured: Object.values(values).some(v => v !== undefined && v !== null),
+      values: maskChannelValues(type, values),
+      pinned: pinned[type] || {},
+    }
+  }
+
+  const activeChannel = doc?.activeChannel || null
+  return {
+    channels,
+    activeChannel: activeChannel && enabledTypes.has(activeChannel) ? activeChannel : null,
+  }
+}
+
 const NotificationsPreferencesHandler = {
   getProjectPreferences,
   saveProjectPreferences,
   getGlobalPreferences,
   saveGlobalPreferences,
+  saveChannelConfiguration,
+  getChannelConfiguration,
 }
 
 export default {

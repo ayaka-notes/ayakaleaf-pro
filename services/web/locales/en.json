@@ -3473,5 +3473,21 @@
   "notification_channel_label": "Notification channel",
   "notification_channel_description": "Where project-activity notifications are delivered. Any Apprise URL works: mailto://, tg:// (Telegram), discord://, slack://, ntfy://…",
   "notification_channel_default": "Leave empty to use your account email:",
-  "send_test_notification": "Send test notification"
+  "send_test_notification": "Send test notification",
+  "notification_events_title": "Notification events",
+  "notification_event_project_changes": "Notify me about project changes",
+  "notification_event_project_changes_description": "When a project you own or are invited to is edited.",
+  "notification_event_comments": "Notify me about new comments",
+  "notification_event_comments_description": "When someone comments in a project you are a member of (you are not notified for your own comments).",
+  "notification_channels_title": "Delivery channels",
+  "notification_channels_description": "Choose where your notifications go. Leave all unchecked to use your account email.",
+  "notification_channel_active": "active",
+  "notification_browser_push_description": "Get native pop-up notifications in this browser, even when the tab is closed.",
+  "notification_browser_push_enable": "Enable browser notifications",
+  "notification_browser_push_enabled": "Browser notifications are enabled in this browser",
+  "notification_browser_push_disable": "Disable in this browser",
+  "notification_field_pinned": "fixed by your site administrator",
+  "notification_test_channel": "Send test",
+  "notification_custom_url_description": "For advanced users: any Apprise channel URL (tg://, ntfy://, discord://, mailto://, …).",
+  "notification_channel_fallback_hint": "Fallback (account email):"
 }

@@ -1,5 +1,8 @@
 import NotificationsPreferencesRouter from './app/src/NotificationsPreferencesRouter.mjs'
-import { scheduleProjectChangeNotifications } from './app/src/ScheduleProjectChangeNotifications.mjs'
+import {
+  scheduleProjectChangeNotifications,
+  scheduleCommentNotifications,
+} from './app/src/ScheduleProjectChangeNotifications.mjs'
 
 /**
  * Notifications module.
@@ -29,6 +32,7 @@ const NotificationsModule = {
   hooks: {
     promises: {
       projectModified: scheduleProjectChangeNotifications,
+      chatMessageSent: scheduleCommentNotifications,
     },
   },
 }

@@ -166,6 +166,70 @@ function NotificationsAdminPage() {
       }
     )
 
+  const CHANNEL_LABELS: Record<string, string> = {
+    browserPush: 'Browser notifications (Web Push)',
+    telegram: 'Telegram',
+    discord: 'Discord',
+    slack: 'Slack',
+    gotify: 'Gotify',
+    ntfy: 'ntfy',
+    pushover: 'Pushover',
+    nextcloud: 'Nextcloud',
+    nextcloudtalk: 'Nextcloud Talk',
+    signal: 'Signal (signald)',
+    whatsapp: 'WhatsApp Business',
+    wechat: 'WeChat (WeCom)',
+    zoom: 'Zoom Team Chat',
+    zulip: 'Zulip',
+    webhook: 'Generic webhook',
+    customUrl: 'Custom Apprise URL',
+  }
+
+  const PINNABLE = {
+    gotify: ['host'],
+    ntfy: ['host'],
+    nextcloud: ['host'],
+    nextcloudtalk: ['host'],
+    signal: ['host', 'port'],
+  }
+
+  const ALL_CHANNEL_TYPES = [
+    'browserPush',
+    'telegram',
+    'discord',
+    'slack',
+    'gotify',
+    'ntfy',
+    'pushover',
+    'nextcloud',
+    'nextcloudtalk',
+    'signal',
+    'whatsapp',
+    'wechat',
+    'zoom',
+    'zulip',
+    'webhook',
+    'customUrl',
+  ]
+
+  const isChannelEnabled = (type: string) => {
+    if (type in channelDraft.enabled) return channelDraft.enabled[type]
+    return (state.channels?.enabled || []).includes(type)
+  }
+
+  const saveChannels = () => {
+    const finalEnabled = ALL_CHANNEL_TYPES.filter(
+      t =>
+        t in channelDraft.enabled
+          ? channelDraft.enabled[t]
+          : (state.channels?.enabled || []).includes(t),
+    )
+    act('channels', '/admin/notifications/channels', {
+      enabledChannelTypes: finalEnabled,
+      pinned: channelDraft.pinned,
+    })
+  }
+
   return (
     <div className="container na-notifications-admin">
       <div className="na-header">
@@ -189,11 +253,86 @@ function NotificationsAdminPage() {
         </div>
       ) : null}
 
-      {/* 1 — dispatch config */}
+      {/* 1 — channel types */}
       <div className="na-section">
         <div className="na-section-header">
           <span className="na-section-main">
             <span className="na-badge">1</span>
+            Channel types
+          </span>
+          <span className="na-queue-actions">
+            <OLButton
+              variant="secondary"
+              size="sm"
+              disabled={busy === 'channels'}
+              onClick={saveChannels}
+              data-testid="na-channels-save"
+            >
+              Save channels
+            </OLButton>
+          </span>
+        </div>
+        <div className="na-section-desc">
+          Which channels users can set up on their notification-preferences
+          page. Pinned values are fixed for all users (e.g. the Gotify/ntfy
+          server) and shown read-only there.
+        </div>
+        <div className="na-section-body">
+          <div className="na-channels-grid">
+            {ALL_CHANNEL_TYPES.map(type => (
+              <div key={type} className="na-channel-item" data-channel-type={type}>
+                <label className="na-channel-label">
+                  <input
+                    type="checkbox"
+                    checked={isChannelEnabled(type)}
+                    onChange={e =>
+                      setChannelDraft(d => ({
+                        ...d,
+                        enabled: { ...d.enabled, [type]: e.target.checked },
+                      }))
+                    }
+                    data-testid={`na-channel-${type}`}
+                  />
+                  <span>{CHANNEL_LABELS[type]}</span>
+                </label>
+                {PINNABLE[type]?.map(field => (
+                  <div key={field} className="na-channel-pin">
+                    <span className="na-channel-pin-label">{field}</span>
+                    <Form.Control
+                      size="sm"
+                      value={
+                        channelDraft.pinned[type]?.[field] ??
+                        state.channels?.pinned[type]?.[field] ??
+                        ''
+                      }
+                      onChange={e =>
+                        setChannelDraft(d => ({
+                          ...d,
+                          pinned: {
+                            ...d.pinned,
+                            [type]: {
+                              ...(d.pinned[type] || {}),
+                              [field]: e.target.value,
+                            },
+                          },
+                        }))
+                      }
+                      placeholder={field === 'host' ? 'e.g. gotify.example.org' : ''}
+                      data-testid={`na-channel-pin-${type}-${field}`}
+                    />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 2 — dispatch config */}
+      <div className="na-section">
+        <div className="na-section-header">
+          <span className="na-section-main">
+            <span className="na-badge">2</span>
             Dispatch
           </span>
         </div>
@@ -242,11 +381,11 @@ function NotificationsAdminPage() {
         </div>
       </div>
 
-      {/* 2 — recipients */}
+      {/* 3 — recipients */}
       <div className="na-section">
         <div className="na-section-header">
           <span className="na-section-main">
-            <span className="na-badge">2</span>
+            <span className="na-badge">3</span>
             Recipients
             <span className="na-count">{state.recipients.length}</span>
           </span>
@@ -297,11 +436,11 @@ function NotificationsAdminPage() {
         </div>
       </div>
 
-      {/* 3 — queue */}
+      {/* 4 — queue */}
       <div className="na-section">
         <div className="na-section-header">
           <span className="na-section-main">
-            <span className="na-badge">3</span>
+            <span className="na-badge">4</span>
             Queue
           </span>
           <span className="na-queue-actions">

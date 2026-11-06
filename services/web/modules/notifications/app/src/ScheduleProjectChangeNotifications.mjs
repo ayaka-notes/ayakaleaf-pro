@@ -19,6 +19,7 @@ const MIN_DELAY_MS = Number(
 ) || 2 * 60 * 1000
 
 const EMAIL_TYPE = 'trackedChangesNotification'
+const COMMENT_EMAIL_TYPE = 'commentNotification'
 
 function _collectMemberIds(project) {
   const memberIds = new Set()
@@ -153,6 +154,11 @@ export async function scheduleProjectChangeNotifications({
       continue
     }
 
+    // Global event switch: user disabled project-change notifications.
+    if (globalPrefs.events?.projectChanges === false) {
+      continue
+    }
+
     // Never notify the editor who made this change.
     if (userId && String(memberId) === String(userId)) {
       continue
@@ -214,6 +220,129 @@ export async function scheduleProjectChangeNotifications({
   logger.debug(
     { projectId, scheduled, memberCount: memberIds.length },
     'scheduled project-change email notifications'
+  )
+
+  return { scheduled }
+}
+
+/**
+ * Schedule comment notifications for a project (hook: `chatMessageSent`).
+ *
+ * Fired directly by the chat controller when a user posts a comment:
+ * { projectId, userId (sender), messageId }. No debounce key involved —
+ * instead, rapid successive comments coalesce naturally because the
+ * upsert below re-targets the single (recipient, project, emailType) doc
+ * to the latest comment plus the recipient's grace delay.
+ *
+ * The sender is never notified of their own comment (same editor-exclusion
+ * principle as project changes).
+ */
+export async function scheduleCommentNotifications({
+  projectId,
+  userId,
+  senderId,
+}) {
+  await connectionPromise
+
+  const now = Date.now()
+  // chatMessageSent passes the sender as `userId`; accept `senderId` too.
+  const sender = userId || senderId || null
+
+  const project = await db.projects.findOne(
+    { _id: new ObjectId(projectId) },
+    {
+      projection: {
+        owner_ref: 1,
+        collaberator_refs: 1,
+        readOnly_refs: 1,
+        tokenAccessReadAndWrite_refs: 1,
+        tokenAccessReadOnly_refs: 1,
+        name: 1,
+      },
+    }
+  )
+
+  if (!project) {
+    logger.warn({ projectId }, 'project not found for comment notification')
+    return { skipped: 'project-not-found', scheduled: 0 }
+  }
+
+  const memberIds = _collectMemberIds(project)
+  const ownerId = project.owner_ref ? project.owner_ref.toString() : null
+
+  const preferencesMap = await _loadProjectPreferences(projectId, memberIds)
+  const globalPrefsMap = await _loadGlobalPreferences(memberIds)
+
+  const projectName = project.name || 'project'
+  let scheduled = 0
+
+  for (const memberId of memberIds) {
+    const globalPrefs =
+      globalPrefsMap.get(memberId) || normalizeGlobalPreferences({})
+
+    if (globalPrefs.muteAllNotifications === true) {
+      continue
+    }
+
+    // Global event switch: user disabled comment notifications.
+    if (globalPrefs.events?.comments === false) {
+      continue
+    }
+
+    // Never notify the sender of their own comment.
+    if (sender && String(memberId) === String(sender)) {
+      continue
+    }
+
+    const prefs = preferencesMap.get(memberId) || defaultProjectPreferences()
+    const isOwner = memberId === ownerId
+    const wantsNotif = isOwner
+      ? prefs.commentOnOwnProject
+      : prefs.commentOnInvitedProject
+
+    if (!wantsNotif) {
+      continue
+    }
+
+    // Per-user grace delay coalesces comment bursts into one email.
+    const userDelayMs = globalPrefs.notificationDelayMinutes
+      ? globalPrefs.notificationDelayMinutes * 60 * 1000
+      : MIN_DELAY_MS // sensible floor: don't email within 2 minutes
+    const scheduledAt = new Date(Math.max(now, now + userDelayMs))
+
+    const result = await db.emailNotifications.updateOne(
+      {
+        recipient_id: new ObjectId(memberId),
+        project_id: new ObjectId(projectId),
+        emailType: COMMENT_EMAIL_TYPE,
+      },
+      {
+        $set: {
+          recipient_id: new ObjectId(memberId),
+          project_id: new ObjectId(projectId),
+          emailType: COMMENT_EMAIL_TYPE,
+          opts: { projectId, projectName },
+          scheduledAt,
+          updatedAt: new Date(),
+          attempts: 0,
+          processing: false,
+        },
+        $unset: {
+          nextRetryAt: '',
+          processingError: '',
+          processingStartedAt: '',
+          dead: '',
+        },
+      },
+      { upsert: true }
+    )
+
+    scheduled += result.upsertedCount ? 1 : 0
+  }
+
+  logger.debug(
+    { projectId, scheduled, memberCount: memberIds.length },
+    'scheduled comment email notifications'
   )
 
   return { scheduled }

@@ -33,6 +33,12 @@ const REQUEST_TIMEOUT_MS =
 
 /**
  * Resolve the Apprise URL for a recipient.
+ * Precedence:
+ *   1. the user's ACTIVE channel (structured values from
+ *      /user/notification-preferences, built via the ChannelCatalog —
+ *      includes the browser-push subscription),
+ *   2. the legacy raw `notificationUrl` preference, if set,
+ *   3. fallback: mailto://<user email>.
  * @param {string|null} userId
  * @param {string|null} email
  * @returns {Promise<string|null>}
@@ -42,13 +48,30 @@ export async function resolveRecipientUrl(userId, email) {
     try {
       const doc = await db.notificationsPreferences.findOne(
         { user_id: new ObjectId(userId), project_id: null },
-        { projection: { _id: 0, notificationUrl: 1 } }
+        { projection: { _id: 0 } }
       )
+
+      // 1. active channel (structured, built into an Apprise URL)
+      const active = doc?.activeChannel
+      if (active && doc?.channels?.[active]) {
+        try {
+          const { buildChannelUrl } = await import('./ChannelCatalog.mjs')
+          const url = buildChannelUrl(active, doc.channels[active], doc?.pinned || {})
+          if (url) return url
+        } catch (err) {
+          logger.warn(
+            { err, userId, active },
+            'active channel could not be built — falling back'
+          )
+        }
+      }
+
+      // 2. legacy raw URL
       if (doc && typeof doc.notificationUrl === 'string' && doc.notificationUrl.trim()) {
         return doc.notificationUrl.trim()
       }
     } catch (err) {
-      logger.warn({ err, userId }, 'could not load notificationUrl preference')
+      logger.warn({ err, userId }, 'could not load notification channel preferences')
     }
   }
 
@@ -102,7 +125,10 @@ export async function sendAppriseNotification({
     throw new Error(`apprise API responded ${response.status}`)
   }
   if (data.status !== 1) {
-    throw new Error(data.message || 'apprise reported a dispatch failure')
+    // Surface the apprise error (e.g. expired push subscription) for the
+    // admin/queue log.
+    const detail = Array.isArray(data.messages) ? data.messages.join('; ') : data.message
+    throw new Error(detail || 'apprise reported a dispatch failure')
   }
 
   logger.info(

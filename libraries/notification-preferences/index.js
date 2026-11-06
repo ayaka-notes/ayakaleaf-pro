@@ -43,12 +43,28 @@ export function normalizeProjectPreferences(preferences = {}) {
   return normalized
 }
 
+export const GLOBAL_EVENT_KEYS = ['projectChanges', 'comments']
+
+export function normalizeGlobalEvents(events = {}) {
+  const normalized = {}
+  for (const key of GLOBAL_EVENT_KEYS) {
+    normalized[key] =
+      events[key] === undefined ? true : Boolean(events[key])
+  }
+  return normalized
+}
+
 export function normalizeGlobalPreferences(preferences = {}) {
   return {
     muteAllNotifications: Boolean(preferences.muteAllNotifications),
     notificationDelayMinutes: normalizeGlobalDelayMinutes(
       preferences.notificationDelayMinutes
     ),
+    notificationUrl:
+      typeof preferences.notificationUrl === 'string'
+        ? preferences.notificationUrl
+        : null,
+    events: normalizeGlobalEvents(preferences.events),
   }
 }
 

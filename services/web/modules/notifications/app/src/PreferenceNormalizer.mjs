@@ -33,7 +33,25 @@ function normalizeGlobalPreferences(preferences) {
       preferences?.notificationDelayMinutes
     ),
     notificationUrl: normalizeNotificationUrl(preferences?.notificationUrl),
+    events: normalizeGlobalEvents(preferences?.events),
   }
+}
+
+/**
+ * Global event switches: which kinds of events may generate a
+ * notification at all. Per-project granularity (own/invited, comment vs
+ * tracked changes, …) lives in the project preferences; these are the
+ * master switches. All default to ON so existing behaviour is preserved.
+ */
+export const GLOBAL_EVENT_KEYS = ['projectChanges', 'comments']
+
+export function normalizeGlobalEvents(events) {
+  const normalized = {}
+  for (const key of GLOBAL_EVENT_KEYS) {
+    normalized[key] =
+      events?.[key] === undefined ? true : Boolean(events[key])
+  }
+  return normalized
 }
 
 /**

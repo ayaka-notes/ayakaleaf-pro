@@ -31,8 +31,20 @@ function _notificationPayload(notification) {
   const opts = notification.opts || notification.options || notification.data || {}
   const projectName = opts.projectName || 'a project'
   const projectId = notification.project_id?.toString() || opts.projectId || ''
-  const title = 'Overleaf \u2014 project activity'
   const link = projectId ? `${BASE_URL}/project/${projectId}` : null
+  const type = notification.emailType || ''
+
+  // Per-event content. Project-change emails keep the original wording;
+  // comment notifications name the project and where to read the thread.
+  if (type === 'commentNotification') {
+    const title = 'Overleaf \u2014 new comment'
+    const body = link
+      ? `**${projectName}** has a new comment.\n\n[Read the comments](${link})`
+      : `**${projectName}** has a new comment.`
+    return { title, body, projectName, projectId }
+  }
+
+  const title = 'Overleaf \u2014 project activity'
   const body = link
     ? `**${projectName}** has been updated.\n\n[Open the project](${link})`
     : `**${projectName}** has been updated.`

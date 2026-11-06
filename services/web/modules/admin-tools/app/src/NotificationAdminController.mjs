@@ -13,6 +13,7 @@
  */
 
 import * as Path from 'node:path'
+import { CATALOG_ORDER, listChannelTypes } from '../../../notifications/app/src/ChannelCatalog.mjs'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = Path.dirname(fileURLToPath(import.meta.url))
@@ -42,6 +43,8 @@ async function _getSettings() {
   const doc = await db.notificationSettings.findOne({ _id: SETTINGS_ID })
   return {
     dryRun: Boolean(doc?.dryRun),
+    enabledChannelTypes: doc?.enabledChannelTypes || null,
+    pinned: doc?.pinned || null,
   }
 }
 
@@ -98,12 +101,19 @@ export async function buildState() {
     .limit(10)
     .toArray()
 
+  const settings = await _getSettings()
+  const enabledTypes = new Set(settings?.enabledChannelTypes || listChannelTypes())
+
   return {
     dispatch: {
       apiUrl: APPRISDE_API_URL,
-      dryRun: (await _getSettings()).dryRun,
+      dryRun: settings?.dryRun,
       baseDelayMs,
       staleProcessingBefore: staleBefore.toISOString(),
+    },
+    channels: {
+      enabled: CATALOG_ORDER.filter(t => enabledTypes.has(t)),
+      pinned: settings?.pinned || {},
     },
     recipients,
     queue: { pending, processing, dead, recent },
@@ -222,6 +232,81 @@ async function notificationsAdminPage(req, res, next) {
   }
 }
 
+// ─── Channel types (which Apprise channel types the admin enables, and
+//     pinned values like the Gotify/ntfy server host) ─────────────────────
+
+const PINNABLE = {
+  gotify: ['host'],
+  ntfy: ['host'],
+  nextcloud: ['host'],
+  nextcloudtalk: ['host'],
+  signal: ['host', 'port'],
+}
+
+async function channelsState(req, res, next) {
+  const doc = await _getSettings()
+  const enabled = new Set(doc?.enabledChannelTypes || listChannelTypes())
+  const state = {
+    enabledChannelTypes: CATALOG_ORDER.filter(t => enabled.has(t)),
+    pinned: doc?.pinned || {},
+    pinnable: PINNABLE,
+    vapid: await _fetchVapidFromApprise(),
+  }
+  if (!res.headersSent) res.json(state)
+}
+
+let _vapidAdminCache = null
+async function _fetchVapidFromApprise() {
+  if (_vapidAdminCache !== null) return _vapidAdminCache
+  try {
+    const { APPRISDE_API_URL } = await import(
+      '../../../notifications/app/src/AppriseDispatcher.mjs'
+    )
+    const response = await fetch(`${APPRISDE_API_URL}/vapid`, {
+      signal: AbortSignal.timeout(3000),
+    })
+    if (!response.ok) return null
+    const data = await response.json()
+    _vapidAdminCache = { appServerKey: data.app_server_key || null, sub: data.sub || null }
+    return _vapidAdminCache
+  } catch {
+    return null
+  }
+}
+
+const saveChannelsSchema = z.object({
+  body: z.object({
+    enabledChannelTypes: z.array(z.string()).min(1),
+    pinned: z.looseObject({}).optional(),
+  }),
+})
+
+async function saveChannels(req, res, next) {
+  const { body } = parseReq(req, saveChannelsSchema)
+  const validTypes = new Set(listChannelTypes())
+  const enabled = body.enabledChannelTypes.filter(t => validTypes.has(t))
+  if (enabled.length === 0) {
+    return res.status(400).json({ message: 'At least one channel type must stay enabled.' })
+  }
+
+  // Keep only pinnable types/keys, string values.
+  const pinned = {}
+  for (const [type, values] of Object.entries(body.pinned || {})) {
+    if (!PINNABLE[type]) continue
+    const cleaned = {}
+    for (const key of PINNABLE[type]) {
+      const v = values?.[key]
+      if (v !== undefined && v !== null && String(v).trim()) {
+        cleaned[key] = String(v).trim()
+      }
+    }
+    if (Object.keys(cleaned).length > 0) pinned[type] = cleaned
+  }
+
+  await _saveSettings({ enabledChannelTypes: enabled, pinned })
+  if (!res.headersSent) res.json({ saved: true, enabled, pinned })
+}
+
 export default {
   notificationsAdminPage: expressify(notificationsAdminPage),
   state: expressify(state),
@@ -230,4 +315,6 @@ export default {
   testSend: expressify(testSend),
   queueRetry: expressify(queueRetry),
   queueClear: expressify(queueClear),
+  channelsState: expressify(channelsState),
+  saveChannels: expressify(saveChannels),
 }

@@ -46,6 +46,10 @@ export default {
       AuthorizationMiddleware.ensureUserIsSiteAdmin,
       NotificationAdminController.queueClear
     )
+    webRouter.post('/admin/notifications/channels',
+      AuthorizationMiddleware.ensureUserIsSiteAdmin,
+      NotificationAdminController.saveChannels
+    )
 
     webRouter.post(
       '/admin/user/create',

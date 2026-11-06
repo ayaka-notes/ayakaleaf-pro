@@ -3,9 +3,19 @@
 import AuthenticationController from '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
 import NotificationsPreferencesController from './NotificationsPreferencesController.mjs'
 import { startProjectNotificationConsumer } from './ProjectNotificationQueueConsumer.mjs'
+import * as Path from 'node:path'
 
 function apply(webRouter, privateApiRouter, publicApiRouter) {
   const auth = AuthenticationController.requireLogin()
+
+  // Service worker for browser push (scope: site root). Must be reachable
+  // without a session (browsers fetch service workers anonymously).
+  AuthenticationController.addEndpointToLoginWhitelist('/sw.js')
+  webRouter.get('/sw.js', (req, res) => {
+    res.setHeader('Content-Type', 'application/javascript')
+    res.setHeader('Service-Worker-Allowed', '/')
+    res.sendFile(Path.resolve(import.meta.dirname, '../../app/sw.js'))
+  })
 
   // Global ("mute all") preferences — used by /user/notification-preferences
   webRouter.get(
@@ -53,6 +63,26 @@ function apply(webRouter, privateApiRouter, publicApiRouter) {
     '/user/send-test-email',
     auth,
     NotificationsPreferencesController.sendTestEmail
+  )
+
+  // Channel configuration (structured per-channel settings)
+  webRouter.post(
+    '/user/notification-preferences/channels',
+    auth,
+    NotificationsPreferencesController.saveChannelConfiguration
+  )
+
+  webRouter.post(
+    '/user/notification-preferences/test-channel',
+    auth,
+    NotificationsPreferencesController.sendTestChannel
+  )
+
+  // Browser push (Web Push / VAPID)
+  webRouter.post(
+    '/user/notification-preferences/subscribe',
+    auth,
+    NotificationsPreferencesController.savePushSubscription
   )
 
   // CE: the QueueWorkers consumer is saas-gated and never runs in CE

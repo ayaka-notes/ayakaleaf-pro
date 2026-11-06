@@ -212,10 +212,18 @@ describe('NotificationsPreferencesHandler', function () {
       muteAllNotifications: true,
       notificationDelayMinutes: null,
       notificationUrl: null,
+      events: { projectChanges: true, comments: true },
     })
     expect(ctx.notificationsPreferences.updateOne).toHaveBeenCalledWith(
       { user_id: expect.any(FakeObjectId), project_id: null },
-      { $set: { muteAllNotifications: true, notificationDelayMinutes: null, notificationUrl: null } },
+      {
+        $set: {
+          muteAllNotifications: true,
+          notificationDelayMinutes: null,
+          notificationUrl: null,
+          events: { projectChanges: true, comments: true },
+        },
+      },
       { upsert: true }
     )
 
@@ -228,6 +236,7 @@ describe('NotificationsPreferencesHandler', function () {
       muteAllNotifications: true,
       notificationDelayMinutes: 42,
       notificationUrl: null,
+      events: { projectChanges: true, comments: true },
     })
 
     // a per-user Apprise channel URL round-trips (and empty string -> null)

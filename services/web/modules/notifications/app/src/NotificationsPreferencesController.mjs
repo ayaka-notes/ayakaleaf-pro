@@ -9,6 +9,8 @@ import { parseReq, z } from '../../../../app/src/infrastructure/Validation.mjs'
 import NotificationsPreferencesHandler from './NotificationsPreferencesHandler.mjs'
 import { normalizeGlobalDelayMinutes } from './PreferenceNormalizer.mjs'
 import { sendAppriseNotification } from './AppriseDispatcher.mjs'
+import { buildChannelUrl, getChannel, CATALOG_ORDER } from './ChannelCatalog.mjs'
+import { APPRISDE_API_URL } from './AppriseDispatcher.mjs'
 
 // Server default grace delay (same env var as the enqueue script), used to
 // show users what "leave empty" means on the preferences page.
@@ -33,6 +35,13 @@ const globalPreferencesSchema = z.object({
   // Apprise channel URL for this user (mailto://, tg://, discord://, ntfy://, …).
   // null = use the account email (default).
   notificationUrl: z.string().max(2000).nullable().optional(),
+  // Global event switches (which kinds of events may notify at all).
+  events: z
+    .looseObject({
+      projectChanges: z.boolean().optional(),
+      comments: z.boolean().optional(),
+    })
+    .optional(),
 })
 
 const projectPreferencesSchema = z.looseObject({})
@@ -44,6 +53,9 @@ const updateGlobalPreferencesFormSchema = z.object({
     muteAllNotifications: z.string().optional(),
     notificationDelayMinutes: z.string().optional().nullable(),
     notificationUrl: z.string().optional().nullable(),
+    // event checkboxes (present = on, absent = off)
+    eventProjectChanges: z.string().optional(),
+    eventComments: z.string().optional(),
   }),
 })
 
@@ -67,6 +79,15 @@ async function globalPreferencesPage(req, res, next) {
         notificationUrl: preferences.notificationUrl ?? null,
         userEmail: user?.email || '',
         defaultDelayLabel: _formatDelayLabel(DEFAULT_DELAY_MS),
+        // Events + channels for the settings page
+        events: preferences.events || { projectChanges: true, comments: true },
+        channelConfiguration: await NotificationsPreferencesHandler.promises
+          .getChannelConfiguration(userId),
+        channelOrder: CATALOG_ORDER,
+        channelFields: Object.fromEntries(
+          CATALOG_ORDER.map(type => [type, getChannel(type).fields])
+        ),
+        vapidPublicKey: await _fetchVapidPublicKey(),
       }
     )
   } catch (err) {
@@ -132,12 +153,37 @@ async function updateGlobalPreferencesFromForm(req, res, next) {
         body.notificationUrl && String(body.notificationUrl).trim()
           ? String(body.notificationUrl).trim()
           : null,
+      // Event switches: checkbox present => enabled, absent => disabled.
+      events: {
+        projectChanges: body.eventProjectChanges !== undefined,
+        comments: body.eventComments !== undefined,
+      },
     }
 
     await NotificationsPreferencesHandler.promises.saveGlobalPreferences(
       userId,
       preferences
     )
+
+    // Channel card values from the same form: chval_<type>_<key> inputs +
+    // the activeChannel radio. Only non-empty values are sent.
+    const channelValues = {}
+    for (const [key, value] of Object.entries(body)) {
+      if (!key.startsWith('chval_')) continue
+      const [type, ...fieldParts] = key.slice('chval_'.length).split('_')
+      if (!type || fieldParts.length === 0) continue
+      const str = value === null ? '' : String(value).trim()
+      if (!str) continue
+      channelValues[type] = channelValues[type] || {}
+      channelValues[type][fieldParts.join('_')] = str
+    }
+    const activeChannel = body.activeChannel || null
+    if (Object.keys(channelValues).length > 0 || activeChannel) {
+      await NotificationsPreferencesHandler.promises.saveChannelConfiguration(
+        userId,
+        { channels: channelValues, activeChannel }
+      )
+    }
 
     res.json(preferences)
   } catch (err) {
@@ -200,6 +246,156 @@ async function sendTestEmail(req, res, next) {
   }
 }
 
+// VAPID public key for the browser-push settings card (from the apprise
+// container). Cached for the process lifetime — it changes only when the
+// container regenerates its key (rare).
+let _vapidCache = null
+async function _fetchVapidPublicKey() {
+  if (_vapidCache !== null) return _vapidCache
+  try {
+    const response = await fetch(`${APPRISDE_API_URL}/vapid`, {
+      signal: AbortSignal.timeout(3000),
+    })
+    if (!response.ok) return null
+    const data = await response.json()
+    _vapidCache = data.app_server_key || null
+    return _vapidCache
+  } catch {
+    return null
+  }
+}
+
+async function saveChannelConfiguration(req, res, next) {
+  try {
+    const userId = SessionManager.getLoggedInUserId(req.session)
+    const { channels, activeChannel } = req.body || {}
+
+    if (activeChannel && !getChannel(activeChannel)) {
+      throw new Errors.InvalidError('unknown channel type')
+    }
+
+    await NotificationsPreferencesHandler.promises.saveChannelConfiguration(
+      userId,
+      { channels: channels || {}, activeChannel: activeChannel || null }
+    )
+
+    res.json({ saved: true })
+  } catch (err) {
+    next(err)
+  }
+}
+
+/**
+ * Test ONE channel: builds the Apprise URL from the user's saved values for
+ * that type and sends a test message through Apprise. Rate-limited per user
+ * per type (Redis: notif:test:{userId}:{type}, 60s TTL).
+ */
+async function sendTestChannel(req, res, next) {
+  try {
+    const userId = SessionManager.getLoggedInUserId(req.session)
+    const { channel, values: bodyValues } = req.body || {}
+    const ch = getChannel(channel)
+    if (!ch) throw new Errors.InvalidError('unknown channel type')
+
+    const { default: RedisWrapper } = await import(
+      '../../../../app/src/infrastructure/RedisWrapper.mjs'
+    )
+    const redis = RedisWrapper.client('notifications_test_rate')
+    const key = `notif:test:${userId}:${channel}`
+    if (await redis.exists(key)) {
+      res.status(429).json({ message: 'Please wait a minute before the next test.' })
+      return
+    }
+    await redis.set(key, '1', 'EX', 60)
+
+    const { db, ObjectId } = await import('../../../../app/src/infrastructure/mongodb.mjs')
+    const doc = await db.notificationsPreferences.findOne({
+      user_id: new ObjectId(userId),
+      project_id: null,
+    })
+    const adminCfg = await db.notificationSettings
+      .findOne({ _id: 'global' })
+      .catch(() => null)
+    // In-progress values from the form take precedence over the stored ones
+    // (so "test" works before "save"); stored secrets fill in the gaps.
+    // Masked values ('••••…') are echoes of the stored secret — keep the
+    // stored value instead.
+    const storedValues = (doc?.channels?.[channel] || {})
+    const mergedValues = { ...storedValues }
+    for (const [field, value] of Object.entries(bodyValues || {})) {
+      const str = String(value).trim()
+      if (!str) continue
+      if (str.startsWith('\u2022\u2022\u2022\u2022')) continue // unchanged secret — use stored
+      mergedValues[field] = str
+    }
+    const values = mergedValues
+    const pinned = adminCfg?.pinned?.[channel] || {}
+
+    if (ch.browserPush) {
+      if (!values.subscription) {
+        throw new Errors.InvalidError('Browser push is not set up yet — press "Enable browser notifications" first.')
+      }
+    } else if (ch.customUrl) {
+      if (!values.url) {
+        throw new Errors.InvalidError('No custom URL saved yet.')
+      }
+    } else if (!Object.values(values).some(v => v)) {
+      throw new Errors.InvalidError('This channel is not filled in yet.')
+    }
+
+    const url = buildChannelUrl(channel, values, pinned)
+
+    await fetch(`${APPRISDE_API_URL}/notify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url,
+        title: 'Overleaf test notification',
+        body: `Test message for **${ch.label}**. If you can see it, this channel works.`,
+        format: 'markdown',
+      }),
+      signal: AbortSignal.timeout(30000),
+    }).then(async response => {
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok || data.status !== 1) {
+        const detail = Array.isArray(data.messages) ? data.messages.join('; ') : data.message
+        throw new Errors.InvalidError(`Dispatch failed: ${detail || response.status}`)
+      }
+    })
+
+    res.json({ message: `Test notification sent via ${ch.label}.` })
+  } catch (err) {
+    if (err.message?.startsWith('Dispatch failed')) {
+      res.status(502).json({ message: err.message })
+    } else {
+      next(err)
+    }
+  }
+}
+
+/**
+ * Store the browser PushSubscription (from the settings page JS):
+ *   POST /user/notification-preferences/subscribe { subscription }
+ */
+async function savePushSubscription(req, res, next) {
+  try {
+    const userId = SessionManager.getLoggedInUserId(req.session)
+    const { subscription } = req.body || {}
+    if (!subscription || !subscription.endpoint || !subscription.keys?.p256dh || !subscription.keys?.auth) {
+      throw new Errors.InvalidError('invalid push subscription')
+    }
+
+    await NotificationsPreferencesHandler.promises.saveChannelConfiguration(userId, {
+      channels: { browserPush: { subscription } },
+      activeChannel: req.body?.makeActive ? 'browserPush' : null,
+    })
+
+    res.json({ saved: true, message: 'Browser notifications enabled.' })
+  } catch (err) {
+    next(err)
+  }
+}
+
 export default {
   globalPreferencesPage,
   getGlobalPreferences,
@@ -208,4 +404,7 @@ export default {
   getProjectPreferences,
   saveProjectPreferences,
   sendTestEmail,
+  saveChannelConfiguration,
+  sendTestChannel,
+  savePushSubscription,
 }
