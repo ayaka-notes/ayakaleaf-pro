@@ -1195,8 +1195,8 @@ function _finaliseRequest(projectId, options, project, docs, files) {
         timeout: options.timeout,
         imageName: project.imageName,
         draft: Boolean(options.draft),
-        // enable for premium compiles only
-        png2pdf: Boolean(options.png2pdf) && hasPremiumCompiles,
+        // CE: premium-compile (alpha/priority) gate removed
+        png2pdf: Boolean(options.png2pdf),
         // enable for premium compiles on an image that has a checkpointing build
         enableCheckpoint:
           Boolean(options.checkpointing) &&
