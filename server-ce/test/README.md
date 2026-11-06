@@ -23,7 +23,7 @@ from an empty Overleaf.
 
 To run only some cases, add `GREP` to `make test`: it keeps the cases whose
 full title (the `describe` names and the `it` name) contains the text, e.g.
-`make test SUITE=admin-tools-v2 GREP="finds deleted accounts"`.
+`make test SUITE=admin-tools GREP="finds deleted accounts"`.
 
 If port 80 is already in use on your machine, add `OVERLEAF_PORT=8080` to
 `make setup`. To test an image other than the latest ops image, add
@@ -147,7 +147,7 @@ One folder per module in `toolkit/suites/`, named and nested like
   with it: AI assistant, GitHub Sync, Zotero and Mendeley, all off on the
   default instance and all on in the `enabled/` variant, with git-bridge,
   which GitHub Sync needs.
-- `admin-tools-v2/` – the admin panel, `/admin/user` and `/admin/project`:
+- `admin-tools/` – the admin panel, `/admin/user` and `/admin/project`:
   who may open it; the user list (search by name, email and id, every Status, Login and Role
   filter with its counts, sorting, pages and page sizes, the deleted-match
   hint), creating accounts, disabling (which ends the sessions),

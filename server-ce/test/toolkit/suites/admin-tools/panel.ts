@@ -1,7 +1,7 @@
 import { postWithCsrf } from '../../../helpers/request'
 import { ADMIN_EMAIL, ensureUserExists } from '../../../helpers/users'
 
-// The admin panel of the admin-tools-v2 module: the user list (/admin/user),
+// The admin panel of the admin-tools module: the user list (/admin/user),
 // a user's page (/admin/user/:id) and a project's page
 // (/admin/project/:id). The helpers expect to be logged in as an admin.
 
