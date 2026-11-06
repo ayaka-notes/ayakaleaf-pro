@@ -1,10 +1,7 @@
 import logger from '@overleaf/logger'
 import AuthorizationMiddleware from '../../../../app/src/Features/Authorization/AuthorizationMiddleware.mjs'
-import AdminUsersController from './AdminUsersController.mjs'
-import AdminUserController from './AdminUserController.mjs'
-import AdminUserActionsController from './AdminUserActionsController.mjs'
-import AdminUserListsController from './AdminUserListsController.mjs'
 import AdminProjectController from './AdminProjectController.mjs'
+import AdminUserController from './AdminUserController.mjs'
 
 // Every route is for site admins. Loaded before core's user-activate module
 // (moduleImportSequence), whose /admin/user only redirects to its own page.
@@ -15,35 +12,31 @@ export default {
     const admin = AuthorizationMiddleware.ensureUserIsSiteAdmin
 
     // the user list
-    webRouter.get('/admin/user', admin, AdminUsersController.usersPage)
-    webRouter.get('/admin/users/list', admin, AdminUsersController.usersJson)
-    webRouter.post(
-      '/admin/user/create',
-      admin,
-      AdminUserActionsController.createUser
-    )
+    webRouter.get('/admin/user', admin, AdminUserController.usersPage)
+    webRouter.get('/admin/users/list', admin, AdminUserController.usersJson)
+    webRouter.post('/admin/user/create', admin, AdminUserController.createUser)
 
     // a user's page
     webRouter.get('/admin/user/:userId', admin, AdminUserController.userPage)
     webRouter.get(
       '/admin/user/:userId/projects/list',
       admin,
-      AdminUserListsController.projectsJson
+      AdminUserController.projectsJson
     )
     webRouter.get(
       '/admin/user/:userId/audit-log/list',
       admin,
-      AdminUserListsController.auditLogJson
+      AdminUserController.auditLogJson
     )
     webRouter.get(
       '/admin/user/:userId/ai-usage',
       admin,
-      AdminUserActionsController.aiUsage
+      AdminUserController.aiUsage
     )
     webRouter.post(
       '/admin/user/:userId/ai-usage/reset',
       admin,
-      AdminUserActionsController.resetAiUsage
+      AdminUserController.resetAiUsage
     )
     webRouter.post(
       '/admin/user/:userId/clear-sessions',
@@ -55,42 +48,42 @@ export default {
     webRouter.get(
       '/admin/user/:userId/info',
       admin,
-      AdminUserActionsController.activationLink
+      AdminUserController.activationLink
     )
     webRouter.post(
       '/admin/user/:userId/send-activation',
       admin,
-      AdminUserActionsController.sendActivationEmail
+      AdminUserController.sendActivationEmail
     )
     webRouter.post(
       '/admin/user/:userId/send-password-reset',
       admin,
-      AdminUserActionsController.sendPasswordReset
+      AdminUserController.sendPasswordReset
     )
     webRouter.post(
       '/admin/user/:userId/update',
       admin,
-      AdminUserActionsController.updateUser
+      AdminUserController.updateUser
     )
     webRouter.post(
       '/admin/user/:userId/transfer-projects',
       admin,
-      AdminUserActionsController.transferProjects
+      AdminUserController.transferProjects
     )
     webRouter.post(
       '/admin/user/:userId/delete',
       admin,
-      AdminUserActionsController.deleteUser
+      AdminUserController.deleteUser
     )
     webRouter.post(
       '/admin/user/:userId/restore',
       admin,
-      AdminUserActionsController.restoreDeletedUser
+      AdminUserController.restoreDeletedUser
     )
     webRouter.delete(
       '/admin/user/:userId',
       admin,
-      AdminUserActionsController.purgeDeletedUser
+      AdminUserController.purgeDeletedUser
     )
 
     // every project of the site, where the core navbar's "Project/Object
@@ -99,12 +92,12 @@ export default {
     webRouter.get(
       '/admin/projects/list',
       admin,
-      AdminUserListsController.allProjectsJson
+      AdminProjectController.projectsJson
     )
     webRouter.get(
       '/admin/templates/list',
       admin,
-      AdminUserListsController.templatesJson
+      AdminProjectController.templatesJson
     )
     webRouter.delete(
       '/admin/templates/:templateId',
@@ -121,7 +114,7 @@ export default {
     webRouter.get(
       '/admin/project/:projectId/audit-log/list',
       admin,
-      AdminUserListsController.projectAuditLogJson
+      AdminProjectController.auditLogJson
     )
     webRouter.post(
       '/admin/project/:projectId/doc/:docId/restore',

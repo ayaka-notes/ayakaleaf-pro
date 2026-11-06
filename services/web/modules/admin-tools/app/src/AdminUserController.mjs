@@ -1,210 +1,177 @@
 import Path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import Settings from '@overleaf/settings'
-import { expressify } from '@overleaf/promise-utils'
-import { User } from '../../../../app/src/models/User.mjs'
-import { DeletedUser } from '../../../../app/src/models/DeletedUser.mjs'
+import _ from 'lodash'
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
-import UserSessionsManager from '../../../../app/src/Features/User/UserSessionsManager.mjs'
-import ErrorController from '../../../../app/src/Features/Errors/ErrorController.mjs'
-import PersonalAccessTokenManager from '../../../oauth2-server/app/src/OAuthPersonalAccessTokenManager.mjs'
-import { GitHubSyncUserCredentials } from '../../../github-sync/app/models/githubSyncUserCredentials.mjs'
-import { GitLabSyncUserCredentials } from '../../../gitlab-sync/app/models/gitlabSyncUserCredentials.mjs'
-import { GiteaSyncUserCredentials } from '../../../gitea-sync/app/models/giteaSyncUserCredentials.mjs'
+import { listUserEntries } from './AdminAuditLog.mjs'
+import AdminProjectManager from './AdminProjectManager.mjs'
 import {
-  formatUser,
-  getProviderIds,
-  getProviderNames,
-} from './AdminUsersController.mjs'
-import { logOnUser } from './AdminAuditLog.mjs'
-import { userIdOr404 } from './AdminUserListsController.mjs'
+  adminOf,
+  adminRoute,
+  idParam,
+  sendFresh,
+} from './AdminRequestHelper.mjs'
+import AdminUserListManager from './AdminUserListManager.mjs'
+import AdminUserManager from './AdminUserManager.mjs'
+
+// The /admin/user routes: the user list and a user's page.
 
 const __dirname = Path.dirname(fileURLToPath(import.meta.url))
 
-const USER_FIELDS = [
-  '_id',
-  'email',
-  'emails.email',
-  'emails.confirmedAt',
-  'emails.reconfirmedAt',
-  'first_name',
-  'last_name',
-  'isAdmin',
-  'suspended',
-  'signUpDate',
-  'lastLoggedIn',
-  'lastLoginIp',
-  'lastActive',
-  'loginCount',
-  'hashedPassword',
-  'samlIdentifiers.providerId',
-  'samlIdentifiers.externalUserId',
-  'thirdPartyIdentifiers.providerId',
-  'thirdPartyIdentifiers.externalUserId',
-  'features',
-  'aiFeatures.enabled',
-  'refProviders',
-  // what DropboxHandler.isLinked checks; that file needs Settings.dropbox,
-  // which the dropbox module sets only after this module is loaded
-  'dropbox.access_token.uid',
-]
+const USERS_VIEW = Path.resolve(__dirname, '../views/admin-users')
+const USER_VIEW = Path.resolve(__dirname, '../views/admin-user')
 
-// A login method keeps a property in sync when its settings say so; the
-// admin can then not change it
-function lockedOnLogin(authMethods) {
-  const methods = authMethods.map(m => m.type).filter(t => t !== 'pending')
-  const all = test => methods.length > 0 && methods.every(test)
-  return {
-    details: all(m => m !== 'local' && Boolean(Settings[m]?.updateUserDetailsOnLogin)),
-    isAdmin: all(
-      m =>
-        m !== 'local' &&
-        Boolean(Settings[m]?.attAdmin) &&
-        Boolean(Settings[m]?.valAdmin)
-    ),
-  }
+// the id as the session keeps it, to tell the admin's own account
+const userIdOf = req => idParam(req, 'userId').toString()
+
+// ---- the user list ----
+
+async function usersPage(req, res) {
+  const { initialResult, ...options } = await AdminUserListManager.getUsersPage(
+    req.query
+  )
+  res.render(USERS_VIEW, {
+    title: 'user_management',
+    initialResult,
+    adminUsersOptions: { sessionUserId: adminOf(req).id, ...options },
+  })
 }
 
-function formatDetails(user, providerNames) {
-  const summary = formatUser(user, providerNames)
-  return {
-    ...summary,
-    hasPassword:
-      typeof user.hashedPassword === 'string' && user.hashedPassword !== '',
-    lastLoginIp: user.lastLoginIp || undefined,
-    emails: (user.emails ?? []).map(email => ({
-      email: email.email,
-      primary: email.email === user.email,
-      confirmed: Boolean(email.reconfirmedAt || email.confirmedAt),
-    })),
-    identifiers: [
-      ...(user.samlIdentifiers ?? []).map(id => ({
-        type: 'saml',
-        externalUserId: id.externalUserId,
-      })),
-      ...(user.thirdPartyIdentifiers ?? []).map(id => ({
-        type: 'oidc',
-        providerId: id.providerId,
-        name: providerNames[id.providerId] ?? id.providerId,
-        externalUserId: id.externalUserId,
-      })),
-    ],
-    locked: lockedOnLogin(summary.authMethods),
-    features: user.features ?? {},
-    aiEnabled: user.aiFeatures?.enabled !== false,
-  }
+async function usersJson(req, res) {
+  sendFresh(res, await AdminUserListManager.getUserList(req.query))
 }
 
-async function getIntegrations(user) {
-  const userId = user._id
-  const [tokens, github, gitlab, gitea] = await Promise.all([
-    // tokens keep user_id as a string (the session's user id)
-    PersonalAccessTokenManager.listTokens(userId.toString()),
-    GitHubSyncUserCredentials.exists({ userId }),
-    GitLabSyncUserCredentials.exists({ userId }),
-    GiteaSyncUserCredentials.exists({ userId }),
-  ])
-  return {
-    gitTokens: tokens.map(token => ({
-      id: token._id.toString(),
-      prefix: token.accessTokenPartial,
-      createdAt: token.createdAt,
-      expiresAt: token.accessTokenExpiresAt,
-      lastUsedAt: token.lastUsedAt,
-    })),
-    linked: {
-      github: Boolean(github),
-      gitlab: Boolean(gitlab),
-      gitea: Boolean(gitea),
-      dropbox: Boolean(user.dropbox?.access_token?.uid),
-      zotero: Boolean(user.refProviders?.zotero),
-      mendeley: Boolean(user.refProviders?.mendeley),
-    },
-  }
+async function createUser(req, res) {
+  const user = await AdminUserManager.createUser(req.body, adminOf(req))
+  res.json({ user })
 }
+
+// ---- a user's page ----
 
 async function userPage(req, res) {
-  const { userId } = req.params
-  if (!/^[0-9a-f]{24}$/i.test(userId)) {
-    return ErrorController.notFound(req, res)
-  }
-  const providerNames = getProviderNames(await getProviderIds())
-  const sessionUserId = SessionManager.getLoggedInUserId(req.session)
-
-  const user = await User.findById(userId, USER_FIELDS.join(' ')).lean().exec()
-  if (user) {
-    const [integrations, sessions] = await Promise.all([
-      getIntegrations(user),
-      UserSessionsManager.promises.getAllUserSessions(user, []),
-    ])
-    return res.render(Path.resolve(__dirname, '../views/admin-user'), {
-      title: 'user_management',
-      adminUser: {
-        user: formatDetails(user, providerNames),
-        integrations,
-        sessions,
-        sessionUserId,
-      },
-      adminUsersOptions: { sessionUserId },
-    })
-  }
-
-  // a deleted user keeps its document in deletedUsers until it expires
-  const deletedUser = await DeletedUser.findOne({
-    'deleterData.deletedUserId': userId,
-    user: { $type: 'object' },
-  })
-    .lean()
-    .exec()
-  if (!deletedUser) {
-    return ErrorController.notFound(req, res)
-  }
-  const { deleterData } = deletedUser
-  const deleter =
-    deleterData.deleterId &&
-    (await User.findById(deleterData.deleterId, 'email').lean().exec())
-  res.render(Path.resolve(__dirname, '../views/admin-user'), {
+  const adminUser = await AdminUserListManager.getUserPage(
+    idParam(req, 'userId')
+  )
+  const sessionUserId = adminOf(req).id
+  res.render(USER_VIEW, {
     title: 'user_management',
-    adminUser: {
-      user: {
-        ...formatDetails(deletedUser.user, providerNames),
-        deleted: true,
-        deletedAt: deleterData.deletedAt,
-      },
-      deleter: {
-        id: deleterData.deleterId?.toString(),
-        email: deleter?.email,
-        ipAddress: deleterData.deleterIpAddress,
-      },
-      sessionUserId,
-    },
+    adminUser: { ...adminUser, sessionUserId },
     adminUsersOptions: { sessionUserId },
   })
 }
 
-// Same steps as core's own UserController.clearSessions, with the admin as
-// initiator; the admin's current session is kept when it is their own page
-async function clearSessions(req, res) {
-  const userId = userIdOr404(req, res)
-  if (!userId) return
-  const user = await User.findById(userId, '_id').lean().exec()
-  if (!user) {
-    return ErrorController.notFound(req, res)
-  }
-  const sessions = await UserSessionsManager.promises.getAllUserSessions(user, [
-    req.sessionID,
-  ])
-  await logOnUser(req, user._id, 'clear-sessions', { sessions })
-  await UserSessionsManager.promises.removeSessionsFromRedis(
-    user,
-    req.sessionID
+async function projectsJson(req, res) {
+  const list = await AdminProjectManager.getUserProjectList(
+    idParam(req, 'userId'),
+    req.query
   )
-  res.json({
-    sessions: await UserSessionsManager.promises.getAllUserSessions(user, []),
-  })
+  sendFresh(res, list)
+}
+
+async function auditLogJson(req, res) {
+  sendFresh(res, await listUserEntries(idParam(req, 'userId'), req.query))
+}
+
+async function clearSessions(req, res) {
+  const sessions = await AdminUserManager.clearSessions(
+    userIdOf(req),
+    adminOf(req)
+  )
+  res.json({ sessions })
+}
+
+async function aiUsage(req, res) {
+  sendFresh(res, await AdminUserManager.getAiUsage(userIdOf(req)))
+}
+
+async function resetAiUsage(req, res) {
+  res.json(await AdminUserManager.resetAiUsage(userIdOf(req), adminOf(req)))
+}
+
+// ---- what happens to an account ----
+
+async function activationLink(req, res) {
+  const link = await AdminUserManager.getActivationLink(userIdOf(req))
+  res.json({ activationLink: link })
+}
+
+async function sendActivationEmail(req, res) {
+  res.json(
+    await AdminUserManager.sendActivationEmail(userIdOf(req), adminOf(req))
+  )
+}
+
+async function sendPasswordReset(req, res) {
+  res.json(
+    await AdminUserManager.sendPasswordReset(userIdOf(req), adminOf(req))
+  )
+}
+
+async function updateUser(req, res) {
+  const userId = userIdOf(req)
+  const admin = adminOf(req)
+  req.logger.addFields({ actorUserId: admin.id })
+
+  const changed = await AdminUserManager.updateUser(userId, req.body, admin)
+
+  // the session keeps a copy of the own email and name, as on the settings page
+  if (userId === admin.id) {
+    const { email, firstName, lastName } = changed
+    SessionManager.setInSessionUser(
+      req.session,
+      _.omitBy(
+        { email, first_name: firstName, last_name: lastName },
+        _.isUndefined
+      )
+    )
+  }
+  res.json(changed)
+}
+
+async function transferProjects(req, res) {
+  const projectCount = await AdminUserManager.transferProjects(
+    userIdOf(req),
+    req.body.toUserId,
+    adminOf(req)
+  )
+  res.json({ projectCount })
+}
+
+async function deleteUser(req, res) {
+  const deletedAt = await AdminUserManager.deleteUser(
+    userIdOf(req),
+    req.body,
+    adminOf(req)
+  )
+  res.json({ deletedAt })
+}
+
+async function restoreDeletedUser(req, res) {
+  res.json(
+    await AdminUserManager.restoreDeletedUser(userIdOf(req), adminOf(req))
+  )
+}
+
+async function purgeDeletedUser(req, res) {
+  await AdminUserManager.purgeDeletedUser(userIdOf(req), adminOf(req))
+  res.sendStatus(200)
 }
 
 export default {
-  userPage: expressify(userPage),
-  clearSessions: expressify(clearSessions),
+  usersPage: adminRoute(usersPage),
+  usersJson: adminRoute(usersJson),
+  createUser: adminRoute(createUser),
+  userPage: adminRoute(userPage),
+  projectsJson: adminRoute(projectsJson),
+  auditLogJson: adminRoute(auditLogJson),
+  clearSessions: adminRoute(clearSessions),
+  aiUsage: adminRoute(aiUsage),
+  resetAiUsage: adminRoute(resetAiUsage),
+  activationLink: adminRoute(activationLink),
+  sendActivationEmail: adminRoute(sendActivationEmail),
+  sendPasswordReset: adminRoute(sendPasswordReset),
+  updateUser: adminRoute(updateUser),
+  transferProjects: adminRoute(transferProjects),
+  deleteUser: adminRoute(deleteUser),
+  restoreDeletedUser: adminRoute(restoreDeletedUser),
+  purgeDeletedUser: adminRoute(purgeDeletedUser),
 }

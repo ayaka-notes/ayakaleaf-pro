@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import logger from '@overleaf/logger'
 import Settings from '@overleaf/settings'
-import { expressify, promiseMapWithLimit } from '@overleaf/promise-utils'
+import { promiseMapWithLimit } from '@overleaf/promise-utils'
 import { db } from '../../../../app/src/infrastructure/mongodb.mjs'
 import { User } from '../../../../app/src/models/User.mjs'
 import { DeletedUser } from '../../../../app/src/models/DeletedUser.mjs'
@@ -9,13 +9,10 @@ import { DeletedProject } from '../../../../app/src/models/DeletedProject.mjs'
 import { Project } from '../../../../app/src/models/Project.mjs'
 import AuthenticationManager from '../../../../app/src/Features/Authentication/AuthenticationManager.mjs'
 import HaveIBeenPwned from '../../../../app/src/Features/Authentication/HaveIBeenPwned.mjs'
-import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
 import OwnershipTransferHandler from '../../../../app/src/Features/Collaborators/OwnershipTransferHandler.mjs'
 import EditorRealTimeController from '../../../../app/src/Features/Editor/EditorRealTimeController.mjs'
 import EmailHandler from '../../../../app/src/Features/Email/EmailHandler.mjs'
 import Errors, { OError } from '../../../../app/src/Features/Errors/Errors.js'
-import ErrorController from '../../../../app/src/Features/Errors/ErrorController.mjs'
-import HttpErrorHandler from '../../../../app/src/Features/Errors/HttpErrorHandler.mjs'
 import EmailHelper from '../../../../app/src/Features/Helpers/EmailHelper.mjs'
 import { DeletedProjectReasons } from '../../../../app/src/Features/Project/DeletedProjectReasons.mjs'
 import ProjectDeleter from '../../../../app/src/Features/Project/ProjectDeleter.mjs'
@@ -30,21 +27,25 @@ import {
   getTokenUsage,
   resetTokenUsage,
 } from '../../../workbench/app/src/TokenQuota.mjs'
-import { adminOf, logOnAdmin, logOnUser } from './AdminAuditLog.mjs'
-import { userIdOr404 } from './AdminUserListsController.mjs'
+import { logOnAdmin, logOnUser } from './AdminAuditLog.mjs'
+import { FailedError, InvalidEmailError, RefusedError } from './AdminErrors.mjs'
+import { isObjectId } from './AdminQueryHelper.mjs'
 
 // What an admin does to an account: creating and activating it, editing it,
-// giving its projects away, deleting, restoring and purging it, and its AI
-// usage. The audit log tells which admin did it.
+// giving its projects away, deleting, restoring and purging it, its sessions
+// and its AI usage. The audit log tells which admin did it.
 
 const ONE_WEEK_IN_SECONDS = 7 * 24 * 60 * 60
 const MAX_COMPILE_TIMEOUT = 600
 const TRANSFER_TAG_COLOR = '#434AF0'
 
-const userIdOf = (req, res) => userIdOr404(req, res)?.toString()
+async function assertUserExists(userId) {
+  if (!(await User.exists({ _id: userId }))) {
+    throw new Errors.NotFoundError('user not found')
+  }
+}
 
-const refuse = (req, res, message) =>
-  HttpErrorHandler.unprocessableEntity(req, res, message)
+// ---- links to set a password ----
 
 // The page is core's user-activate module: an activation is a password reset
 // on an account that was given a random password.
@@ -56,8 +57,6 @@ function activationUrl(token, userId) {
 function passwordResetUrl(token, email) {
   return `${Settings.siteUrl}/user/password/set?passwordResetToken=${token}&email=${encodeURIComponent(email)}`
 }
-
-// ---- links to set a password ----
 
 // A new link and its email. The admin gets the link either way, to pass it on:
 // a site without email settings sends nothing (core only logs it), and a
@@ -91,38 +90,43 @@ function sendActivationLink(user) {
   )
 }
 
+function getPasswordLinkUser(userId) {
+  return User.findById(userId, {
+    email: 1,
+    loginCount: 1,
+    suspended: 1,
+    hashedPassword: 1,
+  }).lean()
+}
+
 // ---- creating and activating ----
 
-async function register(req, res, details) {
+async function registerUser(details) {
   try {
     return await UserRegistrationHandler.promises.registerNewUser(details)
   } catch (err) {
     if (err.message === 'EmailAlreadyRegistered') {
-      const message = req.i18n.translate('email_already_registered')
-      HttpErrorHandler.conflict(req, res, message)
-    } else {
-      throw OError.tag(err, 'error user registration', {
-        email: details.email,
-      })
+      throw new Errors.EmailExistsError()
     }
-    return null
+    throw OError.tag(err, 'error user registration', { email: details.email })
   }
 }
 
-async function createUser(req, res) {
-  const { email, first_name, last_name, isAdmin, isExternal } = req.body
+async function createUser(
+  { email, first_name, last_name, isAdmin, isExternal },
+  admin
+) {
   if (!EmailHelper.parseEmail(email)) {
-    return refuse(req, res, req.i18n.translate('email_address_is_invalid'))
+    throw new InvalidEmailError('invalid email')
   }
 
-  const user = await register(req, res, {
+  const user = await registerUser({
     email,
     first_name,
     last_name,
     password: crypto.randomBytes(32).toString('hex'),
     analyticsId: crypto.randomUUID(),
   })
-  if (!user) return
 
   const reversedHostname = user.email.split('@')[1].split('').reverse().join('')
   await User.updateOne(
@@ -141,50 +145,37 @@ async function createUser(req, res) {
 
   // the admin can get the link and send it again from the user list
   if (!isExternal) await sendActivationLink(user)
-  await logOnUser(req, user._id, 'create-account', {
+  await logOnUser(admin, user._id, 'create-account', {
     isAdmin: Boolean(isAdmin),
     isExternal: Boolean(isExternal),
   })
-  res.json({ user: { id: user._id.toString(), email: user.email } })
+  return { id: user._id.toString(), email: user.email }
 }
 
-function passwordLinkUser(userId) {
-  return User.findById(userId, {
-    email: 1,
-    loginCount: 1,
-    suspended: 1,
-    hashedPassword: 1,
-  }).lean()
-}
-
-async function sendActivationEmail(req, res) {
-  const userId = userIdOf(req, res)
-  if (!userId) return
+async function sendActivationEmail(userId, admin) {
   // The list greys it out, refuse a direct request too: the link only works
   // on a local account that never logged in (core's /user/activate sends the
   // others to the login page, and cannot set a password on an SSO account)
-  const user = await passwordLinkUser(userId)
-  if (!user) return ErrorController.notFound(req, res)
+  const user = await getPasswordLinkUser(userId)
+  if (!user) throw new Errors.NotFoundError('user not found')
   if (user.loginCount > 0 || user.suspended || !user.hashedPassword) {
-    return refuse(req, res, 'This account is not waiting for its activation')
+    throw new RefusedError('This account is not waiting for its activation')
   }
   const sent = await sendActivationLink(user)
-  await logOnUser(req, userId, 'send-activation-email')
-  res.json(sent)
+  await logOnUser(admin, userId, 'send-activation-email')
+  return sent
 }
 
 // A password reset for an account that has logged in, as core's own reset: its
 // page, its email, its hour. The admin's own password is changed in place.
-async function sendPasswordReset(req, res) {
-  const userId = userIdOf(req, res)
-  if (!userId) return
-  if (userId === adminOf(req)) {
-    return refuse(req, res, 'You cannot send a reset link to your own account')
+async function sendPasswordReset(userId, admin) {
+  if (userId === admin.id) {
+    throw new RefusedError('You cannot send a reset link to your own account')
   }
-  const user = await passwordLinkUser(userId)
-  if (!user) return ErrorController.notFound(req, res)
+  const user = await getPasswordLinkUser(userId)
+  if (!user) throw new Errors.NotFoundError('user not found')
   if (!user.loginCount || user.suspended || !user.hashedPassword) {
-    return refuse(req, res, 'This account cannot use a password reset link')
+    throw new RefusedError('This account cannot use a password reset link')
   }
   const sent = await sendPasswordLink(
     user,
@@ -192,14 +183,12 @@ async function sendPasswordReset(req, res) {
     {},
     token => passwordResetUrl(token, user.email)
   )
-  await logOnUser(req, userId, 'send-password-reset-email')
-  res.json(sent)
+  await logOnUser(admin, userId, 'send-password-reset-email')
+  return sent
 }
 
 // The link of the activation still waiting, if there is one
-async function activationLink(req, res) {
-  const userId = userIdOf(req, res)
-  if (!userId) return
+async function getActivationLink(userId) {
   const token = await db.tokens.findOne({
     use: 'password',
     'data.user_id': userId,
@@ -207,7 +196,7 @@ async function activationLink(req, res) {
     usedAt: { $exists: false },
     peekCount: { $not: { $gte: OneTimeTokenHandler.MAX_PEEKS } },
   })
-  res.json({ activationLink: token && activationUrl(token.token, userId) })
+  return token && activationUrl(token.token, userId)
 }
 
 // ---- editing ----
@@ -215,18 +204,20 @@ async function activationLink(req, res) {
 // What an admin cannot change on their own account
 const OWN_ACCOUNT_LOCKED = ['suspended', 'isAdmin', 'features', 'aiFeatures']
 
-// Why the request cannot be applied at all, before anything changes
-function updateProblem(updates, isOwnAccount) {
+// Refuses what cannot be applied at all, before anything changes
+function assertUpdateAllowed(updates, isOwnAccount) {
   const { aiFeatures, features } = updates
   if (isOwnAccount && OWN_ACCOUNT_LOCKED.some(key => key in updates)) {
-    return 'You cannot change the access or the features of your own account'
+    throw new RefusedError(
+      'You cannot change the access or the features of your own account'
+    )
   }
   if (
     'aiFeatures' in updates &&
     (typeof aiFeatures?.enabled !== 'boolean' ||
       Object.keys(aiFeatures).some(key => key !== 'enabled'))
   ) {
-    return 'invalid_ai_features'
+    throw new RefusedError('invalid_ai_features')
   }
   if (features && typeof features === 'object') {
     const { collaborators, compileTimeout } = features
@@ -234,7 +225,7 @@ function updateProblem(updates, isOwnAccount) {
       'collaborators' in features &&
       (!Number.isInteger(collaborators) || collaborators < -1)
     ) {
-      return 'invalid_collaborators'
+      throw new RefusedError('invalid_collaborators')
     }
     if (
       'compileTimeout' in features &&
@@ -242,19 +233,20 @@ function updateProblem(updates, isOwnAccount) {
         compileTimeout <= 0 ||
         compileTimeout > MAX_COMPILE_TIMEOUT)
     ) {
-      return 'invalid_compile_timeout'
+      throw new RefusedError('invalid_compile_timeout')
     }
   }
-  return null
 }
 
-async function passwordProblem(user, password) {
+async function assertPasswordAllowed(user, password) {
   // an account without a local password logs in through SSO only
   if (!user.hashedPassword) {
-    return 'This account logs in through SSO and cannot have a password'
+    throw new RefusedError(
+      'This account logs in through SSO and cannot have a password'
+    )
   }
   if (typeof password !== 'string' || password.length < 8) {
-    return 'Password must be at least 8 characters long'
+    throw new RefusedError('Password must be at least 8 characters long')
   }
   const isReused = await HaveIBeenPwned.promises
     .checkPasswordForReuse(password)
@@ -262,37 +254,29 @@ async function passwordProblem(user, password) {
       logger.warn({ err }, 'Failed to check password against HaveIBeenPwned')
       return false
     })
-  return isReused
-    ? 'Password is too common, please choose a different one'
-    : null
+  if (isReused) {
+    throw new RefusedError(
+      'Password is too common, please choose a different one'
+    )
+  }
 }
 
-// Changes the email, or answers why not: true when the request has an answer
-async function changeEmailOrAnswer(req, res, userId, newEmail, actorId) {
+async function changeEmail(userId, newEmail, admin) {
   if (!EmailHelper.parseEmail(newEmail)) {
-    refuse(req, res, req.i18n.translate('email_address_is_invalid'))
-    return true
+    throw new InvalidEmailError('invalid email')
   }
   try {
     await UserUpdater.promises.changeEmailAddress(userId, newEmail, {
-      initiatorId: actorId,
-      ipAddress: req.ip,
+      initiatorId: admin.id,
+      ipAddress: admin.ip,
     })
   } catch (err) {
-    if (err instanceof Errors.EmailExistsError) {
-      const message = req.i18n.translate('email_already_registered')
-      HttpErrorHandler.conflict(req, res, message)
-    } else {
-      HttpErrorHandler.legacyInternal(
-        req,
-        res,
-        req.i18n.translate('problem_changing_email_address'),
-        OError.tag(err, 'problem changing email address', { userId, newEmail })
-      )
-    }
-    return true
+    if (err instanceof Errors.EmailExistsError) throw err
+    throw new FailedError(
+      'problem_changing_email_address',
+      OError.tag(err, 'problem changing email address', { userId, newEmail })
+    )
   }
-  return false
 }
 
 // The document changes of the plain fields
@@ -312,10 +296,10 @@ function fieldChanges(user, fields) {
   return changes
 }
 
-async function disableUser(req, userId, actorId) {
+async function disableUser(userId, admin) {
   await UserUpdater.promises.suspendUser(userId, {
-    initiatorId: actorId,
-    ip: req.ip,
+    initiatorId: admin.id,
+    ip: admin.ip,
   })
   // Close the editors the user has open, as when removed from a project
   const projects = await ProjectGetter.promises.findAllUsersProjects(
@@ -332,7 +316,7 @@ async function disableUser(req, userId, actorId) {
 }
 
 // One entry per kind of change; core logs the new email and disabling itself
-async function logChanges(req, userId, requestedFeatures, changes) {
+async function logChanges(admin, userId, requestedFeatures, changes) {
   const {
     hashedPassword,
     first_name: firstName,
@@ -343,49 +327,46 @@ async function logChanges(req, userId, requestedFeatures, changes) {
     suspended,
     ...others
   } = changes
-  if (hashedPassword) await logOnUser(req, userId, 'update-password')
+  if (hashedPassword) await logOnUser(admin, userId, 'update-password')
   if (firstName != null || lastName != null) {
-    await logOnUser(req, userId, 'change-name', { firstName, lastName })
+    await logOnUser(admin, userId, 'change-name', { firstName, lastName })
   }
   if (isAdmin != null) {
-    await logOnUser(req, userId, 'change-admin-access', { isAdmin })
+    await logOnUser(admin, userId, 'change-admin-access', { isAdmin })
   }
   if (features) {
-    await logOnUser(req, userId, 'change-features', requestedFeatures)
+    await logOnUser(admin, userId, 'change-features', requestedFeatures)
   }
   if (aiFeatures) {
-    await logOnUser(req, userId, 'change-ai-features', aiFeatures)
+    await logOnUser(admin, userId, 'change-ai-features', aiFeatures)
   }
   if (suspended === false) {
-    await logOnUser(req, userId, 'account-reactivation')
+    await logOnUser(admin, userId, 'account-reactivation')
   }
   if (Object.keys(others).length > 0) {
-    await logOnUser(req, userId, 'update-user', {
+    await logOnUser(admin, userId, 'update-user', {
       fields: Object.keys(others),
     })
   }
 }
 
-async function updateUser(req, res) {
-  const userId = userIdOf(req, res)
-  if (!userId) return
-  const actorId = adminOf(req)
-  req.logger.addFields({ actorUserId: actorId })
-  const isOwnAccount = userId === actorId
+// Applies what the panel's edit forms send, and returns the fields that
+// changed under the names the panel uses
+async function updateUser(userId, body, admin) {
+  const isOwnAccount = userId === admin.id
 
-  const { firstName, lastName, ...updates } = req.body
-  if ('firstName' in req.body) updates.first_name = firstName
-  if ('lastName' in req.body) updates.last_name = lastName
+  const { firstName, lastName, ...updates } = body
+  if ('firstName' in body) updates.first_name = firstName
+  if ('lastName' in body) updates.last_name = lastName
 
-  const problem = updateProblem(updates, isOwnAccount)
-  if (problem) return refuse(req, res, problem)
+  assertUpdateAllowed(updates, isOwnAccount)
 
   const { email, password, features, ...fields } = updates
   const user = await User.findById(userId, {
     ...Object.fromEntries(Object.keys(updates).map(key => [key, 1])),
     ...(password != null && { hashedPassword: 1 }),
   }).exec()
-  if (!user) return ErrorController.notFound(req, res)
+  if (!user) throw new Errors.NotFoundError('user not found')
 
   const changes = fieldChanges(user, fields)
   if (features && typeof features === 'object') {
@@ -393,38 +374,28 @@ async function updateUser(req, res) {
   }
   // an empty password field leaves the password as it is
   if (password != null && password !== '') {
-    const refusal = await passwordProblem(user, password)
-    if (refusal) return refuse(req, res, refusal)
+    await assertPasswordAllowed(user, password)
     changes.hashedPassword =
       await AuthenticationManager.promises.hashPassword(password)
   }
 
   const newEmail = email?.trim().toLowerCase()
   const emailChanges = newEmail != null && newEmail !== user.email
-  if (emailChanges) {
-    const answered = await changeEmailOrAnswer(
-      req,
-      res,
-      userId,
-      newEmail,
-      actorId
-    )
-    if (answered) return
-  }
+  if (emailChanges) await changeEmail(userId, newEmail, admin)
 
   const disabling = fields.suspended === true && user.suspended !== true
   Object.assign(user, changes)
   await user.save().catch(err => {
     throw OError.tag(err, 'problem updating user settings', { userId })
   })
-  if (disabling) await disableUser(req, userId, actorId)
-  await logChanges(req, userId, features, changes)
+  if (disabling) await disableUser(userId, admin)
+  await logChanges(admin, userId, features, changes)
 
   // a new password ends what the old one opened, as when the user changes it
   if (changes.hashedPassword) {
     await UserSessionsManager.promises.removeSessionsFromRedis(
       { _id: userId },
-      isOwnAccount ? req.sessionID : undefined
+      isOwnAccount ? admin.sessionId : undefined
     )
     await OneTimeTokenHandler.promises.expireAllTokensForUser(
       userId,
@@ -432,23 +403,32 @@ async function updateUser(req, res) {
     )
   }
 
-  if (isOwnAccount) {
-    SessionManager.setInSessionUser(req.session, {
-      ...(emailChanges && { email: newEmail }),
-      ...(changes.first_name != null && { first_name: changes.first_name }),
-      ...(changes.last_name != null && { last_name: changes.last_name }),
-    })
-  }
-
-  // the fields that changed, under the names the panel uses
-  const { hashedPassword, first_name, last_name, ...answer } = changes
-  res.json({
-    ...answer,
+  const { hashedPassword, first_name, last_name, ...changed } = changes
+  return {
+    ...changed,
     ...(first_name != null && { firstName: first_name }),
     ...(last_name != null && { lastName: last_name }),
     ...(emailChanges && { email: newEmail }),
     ...(disabling && { suspended: true }),
-  })
+  }
+}
+
+// ---- sessions ----
+
+// Same steps as core's own UserController.clearSessions, with the admin as
+// initiator; the admin's current session is kept when it is their own page
+async function clearSessions(userId, admin) {
+  const user = await User.findById(userId, '_id').lean().exec()
+  if (!user) throw new Errors.NotFoundError('user not found')
+  const sessions = await UserSessionsManager.promises.getAllUserSessions(user, [
+    admin.sessionId,
+  ])
+  await logOnUser(admin, user._id, 'clear-sessions', { sessions })
+  await UserSessionsManager.promises.removeSessionsFromRedis(
+    user,
+    admin.sessionId
+  )
+  return UserSessionsManager.promises.getAllUserSessions(user, [])
 }
 
 // ---- giving the projects away ----
@@ -458,7 +438,7 @@ const activeUser = userId => ({ _id: userId, suspended: { $ne: true } })
 
 // Core's transferAllProjectsToUser (a tag "transferred-from-<email>" for the
 // new owner, no emails), which does not tell who did it to each project's log
-async function transferAllProjects(req, fromUserId, toUserId) {
+async function transferAllProjects(fromUserId, toUserId, admin) {
   const [fromUser, toUser] = await Promise.all([
     User.findById(fromUserId, { email: 1 }).lean(),
     User.exists(activeUser(toUserId)),
@@ -488,11 +468,11 @@ async function transferAllProjects(req, fromUserId, toUserId) {
     OwnershipTransferHandler.promises.transferOwnership(project._id, toUserId, {
       allowTransferToNonCollaborators: true,
       skipEmails: true,
-      ipAddress: req.ip,
-      sessionUserId: adminOf(req),
+      ipAddress: admin.ip,
+      sessionUserId: admin.id,
     })
   )
-  await logOnUser(req, fromUserId, 'transfer-projects', {
+  await logOnUser(admin, fromUserId, 'transfer-projects', {
     toUserId,
     projectCount: projects.length,
   })
@@ -500,65 +480,54 @@ async function transferAllProjects(req, fromUserId, toUserId) {
 }
 
 // every project the user owns to another user, without deleting the user
-async function transferProjects(req, res) {
-  const userId = userIdOf(req, res)
-  if (!userId) return
+async function transferProjects(userId, toUserId, admin) {
   // The list greys it out on the own account, refuse a direct request too
-  if (userId === adminOf(req)) {
-    return refuse(req, res, 'You cannot give away all your own projects')
+  if (userId === admin.id) {
+    throw new RefusedError('You cannot give away all your own projects')
   }
-  const { toUserId } = req.body
-  if (
-    typeof toUserId !== 'string' ||
-    !/^[0-9a-f]{24}$/i.test(toUserId) ||
-    userId === toUserId.toLowerCase()
-  ) {
-    return refuse(req, res, 'invalid toUserId')
+  if (!isObjectId(toUserId) || userId === toUserId.toLowerCase()) {
+    throw new RefusedError('invalid toUserId')
   }
   const [from, to] = await Promise.all([
     User.exists({ _id: userId }),
     User.exists(activeUser(toUserId)),
   ])
-  if (!from || !to) return ErrorController.notFound(req, res)
-  res.json({ projectCount: await transferAllProjects(req, userId, toUserId) })
+  if (!from || !to) throw new Errors.NotFoundError('user not found')
+  return transferAllProjects(userId, toUserId, admin)
 }
 
 // ---- deleting, restoring and purging ----
 
-async function deleteUser(req, res) {
-  const userId = userIdOf(req, res)
-  if (!userId) return
-  const deleterId = adminOf(req)
-  const { sendEmail, toUserId } = req.body
-
+async function deleteUser(userId, { sendEmail, toUserId }, admin) {
   // The list greys Delete out on the own account, refuse a direct request too
-  if (userId === deleterId) {
-    return refuse(req, res, 'You cannot delete your own account')
+  if (userId === admin.id) {
+    throw new RefusedError('You cannot delete your own account')
   }
 
   if (toUserId) {
     try {
-      await transferAllProjects(req, userId, toUserId)
+      await transferAllProjects(userId, toUserId, admin)
     } catch (err) {
       logger.warn({ err, userId, toUserId }, 'failed to transfer the projects')
-      return refuse(req, res, 'Failed to transfer projects ownership')
+      throw new RefusedError('Failed to transfer projects ownership')
     }
   }
 
   try {
     await UserDeleter.promises.deleteUser(userId, {
-      deleterUser: { _id: deleterId },
-      ipAddress: req.ip,
+      deleterUser: { _id: admin.id },
+      ipAddress: admin.ip,
       skipEmail: !sendEmail,
       // a failed email must not stop the deletion halfway: by then the user's
       // projects are already deleted
       force: true,
     })
   } catch (err) {
-    logger.warn({ err, deleterId, userId }, 'failed to delete the user')
-    return refuse(
-      req,
-      res,
+    logger.warn(
+      { err, deleterId: admin.id, userId },
+      'failed to delete the user'
+    )
+    throw new RefusedError(
       'Something went wrong. Does the account still exist?'
     )
   }
@@ -567,12 +536,10 @@ async function deleteUser(req, res) {
     { 'user._id': userId },
     { 'deleterData.deletedAt': 1 }
   ).lean()
-  res.json({ deletedAt: deletedUser.deleterData.deletedAt })
+  return deletedUser.deleterData.deletedAt
 }
 
-async function purgeDeletedUser(req, res) {
-  const userId = userIdOf(req, res)
-  if (!userId) return
+async function purgeDeletedUser(userId, admin) {
   const deleted = await DeletedUser.findOne(
     { 'user._id': userId },
     { 'user.email': 1 }
@@ -581,31 +548,22 @@ async function purgeDeletedUser(req, res) {
     await UserDeleter.promises.expireDeletedUser(userId)
   } catch (err) {
     logger.warn({ err, userId }, 'failed to purge the deleted user')
-    return refuse(
-      req,
-      res,
-      'Something went wrong. The user is already deleted?'
-    )
+    throw new RefusedError('Something went wrong. The user is already deleted?')
   }
-  await logOnAdmin(req, 'purge-deleted-user', {
+  await logOnAdmin(admin, 'purge-deleted-user', {
     userId,
     email: deleted?.user?.email,
   })
-  res.sendStatus(200)
 }
 
-async function restoreDeletedUser(req, res) {
-  const userId = userIdOf(req, res)
-  if (!userId) return
-
+async function restoreDeletedUser(userId, admin) {
   const deleted = await DeletedUser.findOne({ 'user._id': userId }).lean()
   const userData = deleted?.user
   if (!userData) {
-    return refuse(req, res, 'Something went wrong. The user is purged?')
+    throw new RefusedError('Something went wrong. The user is purged?')
   }
   if (await User.exists({ email: userData.email })) {
-    const message = req.i18n.translate('email_already_registered')
-    return HttpErrorHandler.conflict(req, res, message)
+    throw new Errors.EmailExistsError()
   }
 
   try {
@@ -616,10 +574,8 @@ async function restoreDeletedUser(req, res) {
     })
     await DeletedUser.deleteOne({ 'user._id': userId })
   } catch (err) {
-    return HttpErrorHandler.legacyInternal(
-      req,
-      res,
-      req.i18n.translate('generic_something_went_wrong'),
+    throw new FailedError(
+      'generic_something_went_wrong',
       OError.tag(err, 'problem restoring deleted user', { userId })
     )
   }
@@ -643,47 +599,39 @@ async function restoreDeletedUser(req, res) {
     logger.warn({ err, userId }, 'failed to restore the projects of the user')
   }
 
-  await logOnUser(req, userId, 'restore-account')
-  res.json({ restoredId: userData._id.toString(), email: userData.email })
+  await logOnUser(admin, userId, 'restore-account')
+  return { restoredId: userData._id.toString(), email: userData.email }
 }
 
 // ---- AI usage ----
 
-async function aiUsage(req, res) {
-  const userId = userIdOf(req, res)
-  if (!userId) return
-  if (!(await User.exists({ _id: userId }))) {
-    return ErrorController.notFound(req, res)
-  }
-  res.set('Cache-Control', 'no-store')
-  res.json(await getTokenUsage(userId))
+async function getAiUsage(userId) {
+  await assertUserExists(userId)
+  return getTokenUsage(userId)
 }
 
-async function resetAiUsage(req, res) {
-  const userId = userIdOf(req, res)
-  if (!userId) return
+async function resetAiUsage(userId, admin) {
   // The tab greys it out on the own account, refuse a direct request too
-  if (userId === adminOf(req)) {
-    return refuse(req, res, 'You cannot reset the AI usage of your own account')
+  if (userId === admin.id) {
+    throw new RefusedError('You cannot reset the AI usage of your own account')
   }
-  if (!(await User.exists({ _id: userId }))) {
-    return ErrorController.notFound(req, res)
-  }
+  await assertUserExists(userId)
   await resetTokenUsage(userId)
-  await logOnUser(req, userId, 'reset-ai-usage')
-  res.json(await getTokenUsage(userId))
+  await logOnUser(admin, userId, 'reset-ai-usage')
+  return getTokenUsage(userId)
 }
 
 export default {
-  createUser: expressify(createUser),
-  sendActivationEmail: expressify(sendActivationEmail),
-  sendPasswordReset: expressify(sendPasswordReset),
-  activationLink: expressify(activationLink),
-  updateUser: expressify(updateUser),
-  transferProjects: expressify(transferProjects),
-  deleteUser: expressify(deleteUser),
-  purgeDeletedUser: expressify(purgeDeletedUser),
-  restoreDeletedUser: expressify(restoreDeletedUser),
-  aiUsage: expressify(aiUsage),
-  resetAiUsage: expressify(resetAiUsage),
+  createUser,
+  sendActivationEmail,
+  sendPasswordReset,
+  getActivationLink,
+  updateUser,
+  clearSessions,
+  transferProjects,
+  deleteUser,
+  purgeDeletedUser,
+  restoreDeletedUser,
+  getAiUsage,
+  resetAiUsage,
 }
