@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import logger from '@overleaf/logger'
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
+import UserAuditLogHandler from '../../../../app/src/Features/User/UserAuditLogHandler.mjs'
 import MendeleyApiClient from './MendeleyApiClient.mjs'
 import {
   MendeleyAccountNotLinkedError,
@@ -73,6 +74,13 @@ async function oauthCallback(req, res) {
   try {
     const tokens = await MendeleyApiClient.exchangeCodeForToken(code)
     await MendeleyApiClient.storeCredentials(userId, tokens)
+    await UserAuditLogHandler.promises.addEntry(
+      userId,
+      'integration-account-linked',
+      userId,
+      req.ip,
+      { integration: 'mendeley' }
+    )
     res.redirect('/user/settings?oauth-complete=mendeley#references')
   } catch (err) {
     logger.err({ err, userId }, 'error completing Mendeley OAuth flow')
@@ -88,6 +96,13 @@ async function unlink(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
   try {
     await MendeleyApiClient.unlinkAccount(userId)
+    await UserAuditLogHandler.promises.addEntry(
+      userId,
+      'integration-account-unlinked',
+      userId,
+      req.ip,
+      { integration: 'mendeley' }
+    )
     res.sendStatus(200)
   } catch (err) {
     logger.err({ err, userId }, 'error unlinking Mendeley')
