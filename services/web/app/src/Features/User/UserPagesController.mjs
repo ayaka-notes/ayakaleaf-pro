@@ -11,6 +11,7 @@ import { expressify } from '@overleaf/promise-utils'
 import Features from '../../infrastructure/Features.mjs'
 import Modules from '../../infrastructure/Modules.mjs'
 import SplitTestHandler from '../SplitTests/SplitTestHandler.mjs'
+import SystemMessageManager from '../SystemMessages/SystemMessageManager.mjs'
 import {
   z,
   parseReq,
@@ -266,51 +267,64 @@ const loginPageSchema = z.object({
   }),
 })
 
+async function registerPage(req, res) {
+  const sharedProjectData = req.session.sharedProjectData || {}
+
+  const newTemplateData = {}
+  if (req.session.templateData != null) {
+    newTemplateData.templateName = req.session.templateData.templateName
+  }
+
+  res.render('user/register', {
+    title: 'register',
+    sharedProjectData,
+    newTemplateData,
+    samlBeta: req.session.samlBeta,
+    // #17b: auth-surface system messages (login & register pages are
+    // classic, server-rendered -- the React banner cannot mount here,
+    // and /system/messages returns [] for anonymous users).
+    systemMessages:
+      (await SystemMessageManager.promises.getMessagesForSurface('auth')) ||
+      [],
+  })
+}
+
+async function loginPage(req, res) {
+  const { query } = parseReq(req, loginPageSchema, { logOnly: true })
+
+  // if user is being sent to /login with explicit redirect (redir=/foo),
+  // such as being sent from the editor to /login, then set the redirect explicitly
+  if (
+    query.redir != null &&
+    AuthenticationController.getRedirectFromSession(req) == null
+  ) {
+    AuthenticationController.setRedirectInSession(req, query.redir)
+  }
+  const metadata = { robotsNoindexNofollow: false }
+  // any query param at all (not just `redir`) marks this page as noindex
+  // -- e.g. error/SSO-flow flags added by other callers -- read the raw
+  // query here rather than by name (case 1: verbatim forwarding)
+  if (Object.keys(getRawReqInput(req).query).length !== 0) {
+    metadata.robotsNoindexNofollow = true
+  }
+  res.render('user/login', {
+    title: Settings.nav?.login_support_title || 'login',
+    login_support_title: Settings.nav?.login_support_title,
+    login_support_text: Settings.nav?.login_support_text,
+    metadata,
+    // #17b: auth-surface system messages -- see registerPage.
+    systemMessages:
+      (await SystemMessageManager.promises.getMessagesForSurface('auth')) ||
+      [],
+  })
+}
+
 const UserPagesController = {
   accountSuspended: expressify(accountSuspended),
   logout: expressify(logout),
 
-  registerPage(req, res) {
-    const sharedProjectData = req.session.sharedProjectData || {}
-
-    const newTemplateData = {}
-    if (req.session.templateData != null) {
-      newTemplateData.templateName = req.session.templateData.templateName
-    }
-
-    res.render('user/register', {
-      title: 'register',
-      sharedProjectData,
-      newTemplateData,
-      samlBeta: req.session.samlBeta,
-    })
-  },
-
-  loginPage(req, res) {
-    const { query } = parseReq(req, loginPageSchema, { logOnly: true })
-
-    // if user is being sent to /login with explicit redirect (redir=/foo),
-    // such as being sent from the editor to /login, then set the redirect explicitly
-    if (
-      query.redir != null &&
-      AuthenticationController.getRedirectFromSession(req) == null
-    ) {
-      AuthenticationController.setRedirectInSession(req, query.redir)
-    }
-    const metadata = { robotsNoindexNofollow: false }
-    // any query param at all (not just `redir`) marks this page as noindex
-    // -- e.g. error/SSO-flow flags added by other callers -- read the raw
-    // query here rather than by name (case 1: verbatim forwarding)
-    if (Object.keys(getRawReqInput(req).query).length !== 0) {
-      metadata.robotsNoindexNofollow = true
-    }
-    res.render('user/login', {
-      title: Settings.nav?.login_support_title || 'login',
-      login_support_title: Settings.nav?.login_support_title,
-      login_support_text: Settings.nav?.login_support_text,
-      metadata,
-    })
-  },
+  registerPage: expressify(registerPage),
+  loginPage: expressify(loginPage),
 
   /**
    * Landing page for users who may have received one-time login

@@ -14,9 +14,13 @@ describe('AdminController', function () {
     ctx.EditorRealTimeController = { emitToAll: sinon.stub() }
     ctx.SystemMessageManager = {
       createMessage: sinon.stub(),
+      updateMessagePlacements: sinon.stub(),
+      deleteMessage: sinon.stub(),
       clearMessages: sinon.stub(),
       promises: {
         getMessagesFromDB: sinon.stub().resolves([]),
+        updateMessagePlacements: sinon.stub().resolves(),
+        setMessageUnremovable: sinon.stub().resolves(),
       },
     }
     ctx.ProjectGetter = {
@@ -60,6 +64,7 @@ describe('AdminController', function () {
     ctx.res.redirect = sinon.stub()
     ctx.res.sendStatus = sinon.stub()
     ctx.res.render = sinon.stub()
+    ctx.res.json = sinon.stub()
     ctx.next = sinon.stub()
   })
 
@@ -156,22 +161,107 @@ describe('AdminController', function () {
   })
 
   describe('createMessage', function () {
-    it('should create the message and redirect', function (ctx) {
+    it('should create the message and respond 200 to the fetch client', function (ctx) {
       ctx.req.body = { content: 'a system message' }
-      ctx.SystemMessageManager.createMessage.callsFake((content, cb) => cb())
+      ctx.SystemMessageManager.createMessage.callsFake(
+        (content, placements, unremovable, cb) => cb()
+      )
       ctx.controller.createMessage(ctx.req, ctx.res, ctx.next)
       ctx.SystemMessageManager.createMessage
-        .calledWith('a system message')
+        .calledWith('a system message', undefined, false)
         .should.equal(true)
-      ctx.res.redirect.calledWith('/admin#system-messages').should.equal(true)
+      ctx.res.sendStatus.calledWith(200).should.equal(true)
+    })
+
+    it('should pass the placements and unremovable flag through', function (ctx) {
+      ctx.req.body = {
+        content: 'a system message',
+        placements: ['editor'],
+        unremovable: true,
+      }
+      ctx.SystemMessageManager.createMessage.callsFake(
+        (content, placements, unremovable, cb) => cb()
+      )
+      ctx.controller.createMessage(ctx.req, ctx.res, ctx.next)
+      ctx.SystemMessageManager.createMessage
+        .calledWith('a system message', ['editor'], true)
+        .should.equal(true)
+    })
+  })
+
+  describe('updateMessage', function () {
+    it('should update the placements when sent', async function (ctx) {
+      const messageId = '507f191e810c19729de860ea'
+      ctx.req.params = { id: messageId }
+      ctx.req.body = { placements: ['hub', 'auth'] }
+      await ctx.controller.updateMessage(ctx.req, ctx.res, ctx.next)
+      ctx.SystemMessageManager.promises.updateMessagePlacements
+        .calledWith(messageId, ['hub', 'auth'])
+        .should.equal(true)
+      ctx.SystemMessageManager.promises.setMessageUnremovable.called
+        .should.equal(false)
+      ctx.res.sendStatus.calledWith(200).should.equal(true)
+    })
+
+    it('should toggle unremovable when sent (#17d)', async function (ctx) {
+      const messageId = '507f191e810c19729de860ea'
+      ctx.req.params = { id: messageId }
+      ctx.req.body = { unremovable: true }
+      await ctx.controller.updateMessage(ctx.req, ctx.res, ctx.next)
+      ctx.SystemMessageManager.promises.setMessageUnremovable
+        .calledWith(messageId, true)
+        .should.equal(true)
+      ctx.SystemMessageManager.promises.updateMessagePlacements.called
+        .should.equal(false)
+      ctx.res.sendStatus.calledWith(200).should.equal(true)
+    })
+
+    it('should apply both fields when both are sent', async function (ctx) {
+      const messageId = '507f191e810c19729de860ea'
+      ctx.req.params = { id: messageId }
+      ctx.req.body = { placements: [], unremovable: false }
+      await ctx.controller.updateMessage(ctx.req, ctx.res, ctx.next)
+      ctx.SystemMessageManager.promises.updateMessagePlacements
+        .calledWith(messageId, [])
+        .should.equal(true)
+      ctx.SystemMessageManager.promises.setMessageUnremovable
+        .calledWith(messageId, false)
+        .should.equal(true)
+    })
+  })
+
+  describe('deleteMessage', function () {
+    it('should delete the message and redirect', function (ctx) {
+      const messageId = '507f191e810c19729de860eb'
+      ctx.req.params = { id: messageId }
+      ctx.req.body = {}
+      ctx.SystemMessageManager.deleteMessage.callsFake((id, cb) => cb())
+      ctx.controller.deleteMessage(ctx.req, ctx.res, ctx.next)
+      ctx.SystemMessageManager.deleteMessage
+        .calledWith(messageId)
+        .should.equal(true)
+      ctx.res.sendStatus.calledWith(200).should.equal(true)
+    })
+  })
+
+  describe('getMessagesJSON', function () {
+    it('should respond with the DB messages', function (ctx) {
+      ctx.req.body = {}
+      ctx.SystemMessageManager.getMessagesFromDB.callsFake((cb) =>
+        cb(null, [{ content: 'one' }, { content: 'two' }])
+      )
+      ctx.controller.getMessagesJSON(ctx.req, ctx.res, ctx.next)
+      ctx.res.json
+        .calledWithMatch([{ content: 'one' }, { content: 'two' }])
+        .should.equal(true)
     })
   })
 
   describe('clearMessages', function () {
-    it('should clear messages and redirect', function (ctx) {
+    it('should clear messages and redirect to the new page', function (ctx) {
       ctx.SystemMessageManager.clearMessages.callsFake(cb => cb())
       ctx.controller.clearMessages(ctx.req, ctx.res, ctx.next)
-      ctx.res.redirect.calledWith('/admin#system-messages').should.equal(true)
+      ctx.res.sendStatus.calledWith(200).should.equal(true)
     })
   })
 })

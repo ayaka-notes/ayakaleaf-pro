@@ -1,6 +1,7 @@
 import logger from '@overleaf/logger'
 import UserListController from './UserListController.mjs'
 import ProjectListController from './ProjectListController.mjs'
+import SystemMessagesController from './SystemMessagesController.mjs'
 import AuthorizationMiddleware from '../../../../app/src/Features/Authorization/AuthorizationMiddleware.mjs'
 import AuthenticationController from '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
 
@@ -10,6 +11,13 @@ export default {
 
     webRouter.get('/user/activate', UserListController.activateAccountPage)
     AuthenticationController.addEndpointToLoginWhitelist('/user/activate')
+
+    // "System Messages" pane of the classic /admin page, moved to its own
+    // React page (the CRUD endpoints live in app/src/router.mjs).
+    webRouter.get('/admin/messages',
+      AuthorizationMiddleware.ensureUserIsSiteAdmin,
+      SystemMessagesController.manageMessagesPage
+    )
 
     webRouter.get('/admin/user',
       AuthorizationMiddleware.ensureUserIsSiteAdmin,

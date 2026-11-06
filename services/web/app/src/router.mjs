@@ -1151,6 +1151,25 @@ async function initialize(webRouter, privateApiRouter, publicApiRouter) {
     AuthorizationMiddleware.ensureUserIsSiteAdmin,
     AdminController.createMessage
   )
+  // #17b: where a message is shown (placements)
+  webRouter.patch(
+    '/admin/messages/:id',
+    AuthorizationMiddleware.ensureUserIsSiteAdmin,
+    AdminController.updateMessage
+  )
+  // #17c: delete a single message
+  webRouter.delete(
+    '/admin/messages/:id',
+    AuthorizationMiddleware.ensureUserIsSiteAdmin,
+    AdminController.deleteMessage
+  )
+  // JSON list of the real DB messages for the React admin page (GET
+  // /admin/messages is the page itself, served by the admin-tools module)
+  webRouter.post(
+    '/admin/messages/list',
+    AuthorizationMiddleware.ensureUserIsSiteAdmin,
+    AdminController.getMessagesJSON
+  )
   webRouter.post(
     '/admin/messages/clear',
     AuthorizationMiddleware.ensureUserIsSiteAdmin,

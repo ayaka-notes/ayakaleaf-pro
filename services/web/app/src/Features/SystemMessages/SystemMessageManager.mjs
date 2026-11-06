@@ -5,6 +5,7 @@ import logger from '@overleaf/logger'
 import RedisWrapper from '../../infrastructure/RedisWrapper.mjs'
 import Settings from '@overleaf/settings'
 import redis from '@overleaf/redis-wrapper'
+import OError from '@overleaf/o-error'
 
 const PUB_SUB_CHANNEL_TRIGGER_REFRESH = 'refresh-system-messages'
 
@@ -19,15 +20,96 @@ const SystemMessageManager = {
     return await SystemMessage.find({}).exec()
   },
 
+  // #17b: server-side surface filtering for classic (non-React) pages such
+  // as /login and /register. Mirrors the frontend pure helper
+  // (frontend/js/shared/components/system-message-surface.ts,
+  // messageVisibleForSurface): a legacy message (no placements) is visible
+  // everywhere; a scoped message is only visible on its listed surfaces.
+  // `surface === 'auth'` also surfaces the site-closed "protected" notice,
+  // so admins see it where they would log in (the /system/messages endpoint
+  // adds it only for logged-in users).
+  async getMessagesForSurface(surface) {
+    const cached = this.getMessages()
+    let messages =
+      cached && cached.length > 0
+        ? cached
+        : ((await SystemMessage.find({}).exec()) || [])
+
+    if (surface === 'auth' && !Settings.siteIsOpen) {
+      messages = [
+        {
+          _id: 'protected',
+          content:
+            'SITE IS CLOSED TO PUBLIC. OPEN ONLY FOR SITE ADMINS. DO NOT EDIT PROJECTS.',
+        },
+        ...messages,
+      ]
+    }
+
+    return messages.filter(message => {
+      const placements = message.placements
+      if (!placements || placements.length === 0) return true
+      if (surface === 'app') return false
+      return placements.includes(surface)
+    })
+  },
+
   async clearMessages() {
     await SystemMessage.deleteMany({}).exec()
     await SystemMessageManager.notifyOtherPods()
     await this.refreshCache()
   },
 
-  async createMessage(content) {
-    const message = new SystemMessage({ content })
+  // #17b (port from go experimental branch): messages may carry
+  // per-surface placements; an empty list means "visible everywhere".
+  // #17d: `unremovable` hides the banner's dismiss (X) button.
+  async createMessage(content, placements, unremovable = false) {
+    const message = new SystemMessage({
+      content,
+      placements: placements ?? [],
+      unremovable: !!unremovable,
+    })
     await message.save()
+    await SystemMessageManager.notifyOtherPods()
+    await this.refreshCache()
+  },
+
+  // #17b: update where an existing message is shown.
+  async updateMessagePlacements(messageId, placements) {
+    const message = await SystemMessage.findByIdAndUpdate(
+      messageId,
+      { placements: placements ?? [] },
+      { new: true }
+    ).exec()
+    if (!message) {
+      throw new OError('System message not found', { statusCode: 404 })
+    }
+    await SystemMessageManager.notifyOtherPods()
+    await this.refreshCache()
+    return message
+  },
+
+  // #17d: toggle whether users may dismiss the banner (hide the X).
+  async setMessageUnremovable(messageId, unremovable) {
+    const message = await SystemMessage.findByIdAndUpdate(
+      messageId,
+      { unremovable: !!unremovable },
+      { new: true }
+    ).exec()
+    if (!message) {
+      throw new OError('System message not found', { statusCode: 404 })
+    }
+    await SystemMessageManager.notifyOtherPods()
+    await this.refreshCache()
+    return message
+  },
+
+  // #17c: delete a single message (beyond "clear all").
+  async deleteMessage(messageId) {
+    const message = await SystemMessage.findByIdAndDelete(messageId).exec()
+    if (!message) {
+      throw new OError('System message not found', { statusCode: 404 })
+    }
     await SystemMessageManager.notifyOtherPods()
     await this.refreshCache()
   },
