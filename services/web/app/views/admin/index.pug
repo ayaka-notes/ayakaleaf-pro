@@ -10,11 +10,16 @@ block content
 						.card-body
 							.page-header
 								h1 Admin Panel
+							.p.text-secondary
+								| Instance-wide banner messages (shown to users) are managed on the
+								a System messages page
+							.row-spaced
+								a.btn.btn-primary(href='/admin/messages')
+									span System messages →
 							.ol-tabs(data-ol-bookmarkable-tabset)
 								.nav-tabs-container
 									ul.nav.nav-tabs.align-left(role='tablist')
-										+bookmarkable-tabset-header('system-messages', 'System Messages', true)
-										+bookmarkable-tabset-header('open-sockets', 'Open Sockets')
+										+bookmarkable-tabset-header('open-sockets', 'Open Sockets', true)
 										+bookmarkable-tabset-header('open-close-editor', 'Open/Close Editor')
 										if hasFeature('saas')
 											+bookmarkable-tabset-header('privileges-matrix', 'Privileges Matrix')
@@ -22,27 +27,7 @@ block content
 											+bookmarkable-tabset-header('debug-projects', 'Debug Projects')
 
 								.tab-content
-									.tab-pane.active(role='tabpanel' id='system-messages')
-										each message in systemMessages
-											ul.system-messages
-												li.system-message.row-spaced #{message.content}
-										hr
-										form(method='post' action='/admin/messages')
-											input(name='_csrf' type='hidden' value=csrfToken)
-											.form-group
-												label.form-label(for='system-message') Message
-												input#system-message.form-control(
-													name='content'
-													type='text'
-													required
-												)
-											button.btn.btn-primary(type='submit') Post Message
-										hr
-										form(method='post' action='/admin/messages/clear')
-											input(name='_csrf' type='hidden' value=csrfToken)
-											button.btn.btn-danger(type='submit') Clear all messages
-
-									.tab-pane(role='tabpanel' id='open-sockets')
+									.tab-pane.active(role='tabpanel' id='open-sockets')
 										.row-spaced
 											ul
 												each agents, url in openSockets

@@ -28,6 +28,13 @@ block content
 				.col-md-8.col-lg-6.col-xl-5.mx-auto
 					.card.rounded-4.border-0.shadow.bg-white
 						.card-body.ciam-enabled.p-4.p-sm-5
+							//- #17b: system messages placed on the auth surface
+							//- ('Login & register') or legacy messages (no
+							//- placement) are shown above the login form.
+							if systemMessages && systemMessages.length
+								ul.system-messages.mb-4
+									each message in systemMessages
+										li.system-message(data-message-id=message._id)= message.content
 							if login_support_title
 								h1.pb-3 !{login_support_title}
 							else

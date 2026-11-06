@@ -29,6 +29,11 @@ block content
 				.col-md-8.col-lg-6.col-xl-5.mx-auto
 					.card.rounded-4.border-0.shadow.bg-white
 						.card-body.ciam-enabled.p-4.p-sm-5
+							//- #17b: auth-surface system messages above the form
+							if systemMessages && systemMessages.length
+								ul.system-messages.mb-4
+									each message in systemMessages
+										li.system-message(data-message-id=message._id)= message.content
 							h1.pb-3 #{translate("register")}
 							form(
 								data-ol-async-form

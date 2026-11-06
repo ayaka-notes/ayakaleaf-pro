@@ -41,6 +41,9 @@ export default function AdminMenu({
           <NavDropdownLinkItem href="/admin/user">
             Manage Users
           </NavDropdownLinkItem>
+          <NavDropdownLinkItem href="/admin/messages">
+            System Messages
+          </NavDropdownLinkItem>
         </>
       ) : null}
       {canDisplayProjectUrlLookup ? (

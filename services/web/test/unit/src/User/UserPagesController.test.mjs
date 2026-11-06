@@ -84,6 +84,18 @@ describe('UserPagesController', function () {
       },
     }
 
+    ctx.SystemMessageManager = {
+      promises: {
+        getMessagesForSurface: sinon
+          .stub()
+          .resolves([{
+            _id: 'auth-msg',
+            content: 'auth surface message',
+            placements: ['auth'],
+          }]),
+      },
+    }
+
     vi.doMock('@overleaf/settings', () => ({
       default: ctx.settings,
     }))
@@ -142,6 +154,13 @@ describe('UserPagesController', function () {
     vi.doMock('../../../../app/src/infrastructure/Modules', () => ({
       default: ctx.Modules,
     }))
+
+    vi.doMock(
+      '../../../../app/src/Features/SystemMessages/SystemMessageManager',
+      () => ({
+        default: ctx.SystemMessageManager,
+      })
+    )
     ctx.request = sinon.stub()
     vi.doMock('request', () => ({
       default: ctx.request,

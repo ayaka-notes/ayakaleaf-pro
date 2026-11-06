@@ -4,6 +4,7 @@ import UserRegistrationHandler from '../../../../app/src/Features/User/UserRegis
 import AuthenticationManager from '../../../../app/src/Features/Authentication/AuthenticationManager.mjs'
 import EmailHelper from '../../../../app/src/Features/Helpers/EmailHelper.mjs'
 import HaveIBeenPwned from '../../../../app/src/Features/Authentication/HaveIBeenPwned.mjs'
+import SystemMessageManager from '../../../../app/src/Features/SystemMessages/SystemMessageManager.mjs'
 
 // OVERLEAF_ALLOW_PUBLIC_REGISTRATION starting with '@' lists the domains that
 // can sign up with an activation email, separated by commas:
@@ -34,6 +35,11 @@ export default {
     res.render(Path.resolve(__dirname, '../views/user/register'), {
       showPasswordField,
       csrfToken: req.csrfToken(),
+      // #17b: auth-surface system messages for the login/register pages,
+      // plus legacy messages; emitted server-side (classic page).
+      systemMessages:
+        (await SystemMessageManager.promises.getMessagesForSurface('auth')) ||
+        [],
     })
   },
 
