@@ -113,6 +113,15 @@ export const ToolbarMenuBar = () => {
         id: 'settings',
         children: ['open-settings'],
       },
+      // overleaf-lab (owner request 2026-08-26): File → "Select LLM Model"
+      // (smart_toy leading icon, contributed by modules/llm via the
+      // llm_select_model command in llm-file-menu-commands) — the ONE and
+      // ONLY model selection entry point. The section is filtered out
+      // automatically when the command is not registered (non-LLM deploys).
+      {
+        id: 'file-llm-model',
+        children: ['llm_select_model'],
+      },
     ],
     [t]
   )

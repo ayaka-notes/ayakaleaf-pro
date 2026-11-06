@@ -24,6 +24,8 @@ export type ExposedSettings = {
   ieeeBrandId: number
   isOverleaf: boolean
   env: 'saas' | 'server-pro' | 'server-ce'
+  llmAllowUserSettings: boolean
+  llmEnabled: boolean
   maxEntitiesPerProject: number
   mixpanelLabsToken?: string
   projectUploadTimeout: number

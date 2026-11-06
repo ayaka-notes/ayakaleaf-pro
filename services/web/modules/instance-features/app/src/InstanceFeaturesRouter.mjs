@@ -1,7 +1,9 @@
 import Settings from '@overleaf/settings'
 import Features from '../../../../app/src/infrastructure/Features.mjs'
 import AuthenticationController from '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
+import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
 import { isConfigured } from '../../../workbench/app/src/WorkbenchAiClient.mjs'
+import { resolveWorkbenchLane } from '../../../workbench/app/src/LlmBridge.mjs'
 
 // Reports instance features independently of user permissions.
 // (Need login to avoid abuse)
@@ -22,9 +24,26 @@ export default {
     webRouter.get(
       '/system/features',
       AuthenticationController.requireLogin(),
-      (req, res) => {
+      async (req, res) => {
+        // overleaf-lab (2026-11, BYO phase 1): `ai` is USER-SCOPED — true when
+        // the operator gateway is configured OR this user can resolve an LLM
+        // lane (BYO row / site provider). The workbench UI gates its composer
+        // on this flag (useInstanceFeatures -> useAiAccess), so without this
+        // change BYO users get an inert (disabled) composer even though
+        // /workbench/chat itself works.
+        let ai = isConfigured()
+        if (!ai) {
+          try {
+            const userId = SessionManager.getLoggedInUserId(req.session)
+            if (userId) {
+              ai = Boolean(await resolveWorkbenchLane(userId))
+            }
+          } catch {
+            ai = false
+          }
+        }
         res.json({
-          ai: isConfigured(),
+          ai,
           githubSync: Features.hasFeature('github-sync'),
           gitlabSync: Boolean(Settings.gitlabSync),
           giteaSync: Boolean(Settings.giteaSync),

@@ -1048,18 +1048,35 @@ module.exports = {
     sourceEditorExtensions: [
       Path.resolve(
         __dirname,
+        '../modules/llm/frontend/js/extensions/llm-inline-completion'
+      ),
+      Path.resolve(
+        __dirname,
         '../modules/error-assistant/frontend/js/last-fix-store'
       ),
     ],
     sourceEditorVisualExtensions: [],
-    sourceEditorComponents: [],
+    sourceEditorComponents: [
+      Path.resolve(
+        __dirname,
+        '../modules/llm/frontend/js/components/llm-source-editor-component'
+      ),
+    ],
     pdfLogEntryHeaderActionComponents: [
+      Path.resolve(
+        __dirname,
+        '../modules/llm/frontend/js/components/pdf-log-entry-ask-ai-button'
+      ),
       Path.resolve(
         __dirname,
         '../modules/error-assistant/frontend/js/fix-button'
       ),
     ],
     pdfLogEntryComponents: [
+      Path.resolve(
+        __dirname,
+        '../modules/llm/frontend/js/components/pdf-llm-compile-fix-card'
+      ),
       Path.resolve(
         __dirname,
         '../modules/error-assistant/frontend/js/fix-panel'
@@ -1080,7 +1097,12 @@ module.exports = {
         '../modules/symbol-palette/frontend/js/components/symbol-palette'
       ),
     ],
-    sourceEditorToolbarStartButtons: [],
+    sourceEditorToolbarStartButtons: [
+      Path.resolve(
+        __dirname,
+        '../modules/llm/frontend/js/extensions/llm-editor-toolbar-ask-ai'
+      ),
+    ],
     sourceEditorToolbarButtonGroups: [],
     sourceEditorToolbarComponents: [],
     sourceEditorToolbarEndButtons: [],
@@ -1191,8 +1213,18 @@ module.exports = {
         __dirname,
         '../modules/template-gallery/frontend/js/components/menubar-manage-template.tsx'
       ),
+      // whole-document generators (title/abstract/keywords) + generate group
+      Path.resolve(
+        __dirname,
+        '../modules/llm/frontend/js/extensions/llm-file-menu-commands'
+      ),
     ],
-    insertMenuSections: [],
+    insertMenuSections: [
+      Path.resolve(
+        __dirname,
+        '../modules/llm/frontend/js/extensions/llm-insert-menu-section'
+      ),
+    ],
     oauth2Server: [
       Path.resolve(
         __dirname,
@@ -1287,7 +1319,12 @@ module.exports = {
     referenceSearchSetting: [],
     settingsModalEditorTabSections: [],
     settingsModalSpellcheckSections: [],
-    editorFloatingMenuActions: [],
+    editorFloatingMenuActions: [
+      Path.resolve(
+        __dirname,
+        '../modules/llm/frontend/js/extensions/llm-fm-ask-ai.tsx'
+      ),
+    ],
     referenceIndices: [
       Path.resolve(
         __dirname,
@@ -1298,6 +1335,10 @@ module.exports = {
       Path.resolve(
         __dirname,
         '../modules/workbench/frontend/js/assistant-rail-entry'
+      ),
+      Path.resolve(
+        __dirname,
+        '../modules/llm/frontend/js/components/llm-rail-pane'
       ),
     ],
     railPopovers: [],
@@ -1330,6 +1371,7 @@ module.exports = {
     'dropbox',
     'tpr-webmodule',
     'workbench',
+    'llm',
     'error-assistant',
     'instance-features',
     'open-in-overleaf'

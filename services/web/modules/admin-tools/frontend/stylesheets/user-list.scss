@@ -646,3 +646,43 @@ form.user-search {
     }
   }
 }
+
+// overleaf-lab (owner request 2026-11-05): usage graph on the admin per-user
+// card — pure-CSS daily bars (no chart dependency), last 14 days.
+.llm-admin-usage-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0 2px;
+
+  .llm-admin-usage-chart-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 56px;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+  }
+
+  .llm-admin-usage-chart-bar {
+    flex: 1 1 0;
+    min-width: 6px;
+    background: rgba(128, 128, 128, 0.18);
+    border-radius: 2px 2px 0 0;
+    transition: background 0.15s ease;
+  }
+
+  .llm-admin-usage-chart-bar-active {
+    background: var(--content-primary, #2453a5);
+
+    &:hover {
+      background: var(--brand, #1876bc);
+    }
+  }
+
+  .llm-admin-usage-chart-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75em;
+    color: var(--content-secondary, #666);
+  }
+}

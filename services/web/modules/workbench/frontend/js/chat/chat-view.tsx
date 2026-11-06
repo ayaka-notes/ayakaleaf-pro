@@ -21,7 +21,7 @@ import { useFileTreePathContext } from '@/features/file-tree/contexts/file-tree-
 import useAiConsent from '@/shared/hooks/use-ai-consent'
 import useAbortController from '@/shared/hooks/use-abort-controller'
 import AiPaywallNotification from '@/shared/components/ai-paywall-notification'
-import useAiAccess from '../hooks/use-ai-access'
+import useAiAccess, { useTextExtract } from '../hooks/use-ai-access'
 import { useProjectActions } from '../hooks/use-project-actions'
 import { TOOLS, type Respond } from '../agent/tools'
 import { AiUnavailableError, QuotaExceededError, ToolBudgetError, ToolRefusal } from '../errors'
@@ -76,7 +76,19 @@ function useFollowBottom(trigger: unknown) {
   return { box, onScroll }
 }
 
-export default function ChatView({ chatId, view }: { chatId: string; view: EditorView }) {
+export default function ChatView({
+  chatId,
+  view,
+  initialMessages,
+  onMessages,
+}: {
+  chatId: string
+  view: EditorView
+  /** overleaf-lab (merge phase 2): seeded turns when a stored conversation is opened. */
+  initialMessages?: UIMessage[]
+  /** overleaf-lab (merge phase 2): live message report for history persistence. */
+  onMessages?: (messages: UIMessage[]) => void
+}) {
   const {
     hasSuggestionsLeft,
     premiumSuggestionResetDate,
@@ -89,6 +101,9 @@ export default function ChatView({ chatId, view }: { chatId: string; view: Edito
   } = useEditorContext()
   const { hasGivenAiConsent } = useAiConsent()
   const hasAccess = useAiAccess()
+  // overleaf-lab (2026-11): the user’s text-extraction mode — render_pdf_page
+  // returns page text instead of a page image so text-only lanes can read it.
+  const textExtract = useTextExtract()
   const aiOffHere = getMeta('ol-showAiFeaturesDisabled')
   const { signal } = useAbortController()
   const actions = useProjectActions()
@@ -154,6 +169,9 @@ export default function ChatView({ chatId, view }: { chatId: string; view: Edito
               messages: messages.slice(from),
               summary: kept?.summary,
               enabledTools: SERVER_TOOLS,
+              // overleaf-lab (merge phase 3): let the shared usage ledger group
+              // workbench calls per project (same scoping as the llm endpoint).
+              projectId: getMeta('ol-project_id'),
             },
           }
         },
@@ -169,9 +187,18 @@ export default function ChatView({ chatId, view }: { chatId: string; view: Edito
     []
   )
 
-  const { messages, setMessages, sendMessage, addToolOutput, stop, status } = useChat({
+  const {
+    messages,
+    setMessages,
+    sendMessage,
+    addToolOutput,
+    stop,
+    status,
+  } = useChat({
     id: chatId,
     transport,
+    // overleaf-lab (merge phase 2): seeded from the stored conversation on open.
+    ...(initialMessages ? { messages: initialMessages } : {}),
     // A tool that ends after Stop must not start the next step
     sendAutomaticallyWhen: options =>
       !stopped.current && lastAssistantMessageIsCompleteWithToolCalls(options),
@@ -187,9 +214,48 @@ export default function ChatView({ chatId, view }: { chatId: string; view: Edito
       } else if (error instanceof ToolBudgetError) {
         setProblem(error.message)
       } else if (error.message === 'ai_pdf_not_supported') {
-        // Set by the server when the model refused a chat with a PDF file
+        // overleaf-lab (2026-11): legacy code path (pre split) — keep handling
+        setProblem('The current model cannot read PDF files. Choose a vision-capable model for Chat in LLM settings.')
+      } else if (error.message === 'ai_pdf_not_supported_site') {
+        // overleaf-lab (ayakaleaf #122 follow-up, 2026-10-28): operator gateway
+        // refused the PDF-bearing request — gateway file handling or the
+        // AI_PDF_MODEL configuration; the status alone cannot tell which.
         setProblem(
-          'The AI model cannot read PDF files. Ask your administrator to set AI_PDF_MODEL to a model that can.'
+          "The AI service rejected this request containing a PDF. Ask the administrator to check the gateway's PDF file support and the PDF model configuration."
+        )
+      } else if (error.message === 'ai_pdf_not_supported_byo') {
+        // BYO/site lane: the user's model choice (or a text-only model) is the
+        // cause — point at the two levers that work for them.
+        setProblem(
+          'The model for this chat rejected the PDF. Choose a PDF-capable model for Chat in LLM settings, or enable “Read images & PDF attachments as text (OCR)” in your LLM settings.'
+        )
+      } else if (error.message === 'ai_pdf_unreadable') {
+        // overleaf-lab (bug hunt 2026-11): OCR text mode was ON but the server
+        // could not extract readable text from this PDF (scanned pages the
+        // OCR did not read, or a format it cannot open). Saying "enable OCR" 
+        // would be wrong — it was already on.
+        setProblem(
+          'The "read as text" mode was on, but the server could not extract usable text from this PDF (it may be a blurry scan or an unsupported format). If the text is important, re-save the PDF with a text layer, or pick a PDF-capable model for Chat in your LLM settings.'
+        )
+      } else if (error.message === 'ai_image_not_supported_byo') {
+        // overleaf-lab (2026-11, owner report): the attached image was routed
+        // to a text-only model and the provider rejected it ("not a
+        // multimodal model"). BYO lane: the user holds the fix — pick an
+        // image-capable model for the chat slot or use the OCR text mode.
+        setProblem(
+          'Your model cannot see images. Pick an image-capable model for Chat in your LLM settings (File → LLM settings) — or enable “Read images & PDF attachments as text (OCR)” in your LLM settings and the image will be read as text instead.'
+        )
+      } else if (error.message === 'ai_image_unreadable') {
+        // overleaf-lab (bug hunt 2026-11): OCR text mode was ON but Tesseract 
+        // could not read this image. Distinct from "mode is off" — the user
+        // already enabled it, so the remedy is about the image or the model.
+        setProblem(
+          'The "read as text" mode was on, but the server could not read text from this image (it may be too blurry, or a format the OCR cannot open). Try a clearer image, or pick an image-capable model for Chat in your LLM settings (File → LLM settings).'
+        )
+      } else if (error.message === 'ai_image_not_supported_site') {
+        // Site/operator lane: no vision model is enabled server-side.
+        setProblem(
+          'No image-capable model is enabled for this chat. Ask your administrator to enable a vision model, or enable “Read images & PDF attachments as text (OCR)” in your LLM settings.'
         )
       } else {
         debugConsole.error(error)
@@ -215,6 +281,7 @@ export default function ChatView({ chatId, view }: { chatId: string; view: Edito
               openPath: path,
               actions: actionsRef.current,
               signal: controller.signal,
+              textExtract,
             })
           ),
           controller.signal
@@ -240,6 +307,15 @@ export default function ChatView({ chatId, view }: { chatId: string; view: Edito
       }
     },
   })
+
+  // overleaf-lab (merge phase 2): report the live messages upward so the panel
+  // can persist them (debounced there). The initial report covers seeded turns.
+  const onMessagesRef = useRef(onMessages)
+  onMessagesRef.current = onMessages
+  useEffect(() => {
+    onMessagesRef.current?.(messages)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages])
 
   // A new chat must not keep running when the panel goes away
   const stopRef = useRef(stop)

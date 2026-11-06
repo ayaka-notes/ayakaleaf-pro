@@ -10,14 +10,19 @@ import {
   wrapLanguageModel,
 } from 'ai'
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
+import UserGetter from '../../../../app/src/Features/User/UserGetter.mjs'
 import {
   isConfigured,
   getProvider,
   resolveModel,
   hasPdf,
+  hasImage,
   getMaxSteps,
   SYSTEM_PROMPT,
 } from './WorkbenchAiClient.mjs'
+import { resolveWorkbenchLane } from './LlmBridge.mjs'
+import { probeLane } from './LaneCapability.mjs'
+import { toTextMessages } from './PdfExtract.mjs'
 import { CLIENT_TOOLS, convertWorkbenchMessages } from './WorkbenchTools.mjs'
 import { WEB_SEARCH_TOOL, isWebSearchConfigured } from './WebSearchTool.mjs'
 import { DOCS_SEARCH_TOOL, isDocsSearchConfigured } from './DocsSearchTool.mjs'
@@ -30,6 +35,17 @@ import {
   secondsUntilReset,
   recordTokenUsage,
 } from './TokenQuota.mjs'
+// overleaf-lab (2026-11, merge phases 3+4): ONE governance plane and ONE usage
+// ledger shared with every llm-module surface — the admin feature flags (the
+// chat toggle now governs this endpoint), the per-user budget guard, and the
+// LLMUsage ledger that feeds the admin/user usage meters. The workbench prompt
+// comes from the same admin-editable prompt store.
+import {
+  getLLMFeatureFlags,
+  getLLMPrompts,
+} from '../../../llm/app/src/LLMAdminController.mjs'
+import { guardLLMCall } from '../../../llm/app/src/LLMBudget.mjs'
+import { recordUsage } from '../../../llm/app/src/LLMUsage.mjs'
 
 function hasValidAttachments(messages) {
   return messages.every(message =>
@@ -66,25 +82,135 @@ function hasValidAttachments(messages) {
 async function chat(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
 
-  if (!isConfigured()) {
+  // overleaf-lab (2026-11, BYO phase 1): the request may run on the operator
+  // gateway (legacy) or on this user's resolved LLM lane (BYO row / site
+  // provider) when the operator gateway is not set. Both paths below use the
+  // same provider/model plumbing.
+  // overleaf-lab (2026-11-05, owner request): messages that carry attachments
+  // resolve the dedicated 'vision' task slot (Select Model → Attachments),
+  // falling back to the chat slot, then the shared default — so "text with
+  // Qwen-3.8, PDFs/PNGs with the vision model" is expressible explicitly.
+  const lane = await resolveWorkbenchLane(userId, Array.isArray(req.body?.messages) && hasValidAttachments(req.body.messages) ? 'vision' : 'chat').catch(() => null)
+
+  if (!isConfigured() && !lane) {
     logger.warn(
       { userId },
-      'workbench AI chat requested but no AI gateway is configured (set AI_BASE_URL / AI_API_KEY / AI_MODEL)'
+      'workbench AI chat requested but no AI gateway is configured (set AI_BASE_URL / AI_API_KEY / AI_MODEL) and no user LLM lane resolved'
     )
     // The client uses 403 responses to display the AI-unavailable notice.
     return res.status(403).json({ error: 'ai_not_configured' })
   }
 
+  // overleaf-lab (merge phase 3): the admin "chat" feature flag governs this
+  // endpoint like it governed the old chat pane — one switch, every surface.
+  // (A failed flag read fails open, matching the llm module's own behavior.)
+  try {
+    const flags = await getLLMFeatureFlags()
+    if (flags && flags.chatEnabled === false) {
+      return res.status(403).json({ error: 'feature_disabled', message: 'The chat feature is disabled' })
+    }
+  } catch {
+    // fail open; the flags are enforced by the llm endpoint the same way
+  }
+
+  // overleaf-lab (merge phase 3): the SAME per-user budget guard as every llm
+  // lane, applied to site-paid paths (operator gateway or site provider row).
+  // User-paid BYO rows are exempt: that budget is the user's own API spend,
+  // capped elsewhere by the tool-call limit and the workbench token quota.
+  let sitePaidBudget = null
+  const sitePaid = !lane || lane.lane === 'site'
+  if (sitePaid) {
+    try {
+      sitePaidBudget = await guardLLMCall(userId)
+    } catch (err) {
+      logger.warn({ err, userId, code: err?.code }, 'workbench chat budget guard rejected')
+      res.status(err?.code === 'llm-rate-limited' || err?.code === 'llm-budget' ? 429 : 503)
+      return res.json({ error: err?.code || 'llm-error', message: err?.message || 'LLM budget guard' })
+    }
+  }
+
   // summary: the earlier turns, summarized by a previous request
-  const { messages, summary } = req.body || {}
+  const { messages: rawMessages, summary } = req.body || {}
   if (
-    !Array.isArray(messages) ||
+    !Array.isArray(rawMessages) ||
     (summary !== undefined && typeof summary !== 'string')
   ) {
     return res.status(400).json({ error: 'invalid_request' })
   }
+  let messages = rawMessages
   if (!hasValidAttachments(messages)) {
     return res.status(400).json({ error: 'invalid_attachments' })
+  }
+  // overleaf-lab (2026-11, owner request): per-user text-extraction mode.
+  // Image/PDF attachments are converted to text on this server (pdftotext,
+  // Tesseract/Ocrmypdf for scans) BEFORE the model sees them, so text-only
+  // lanes can read them. Opt-in in the user's LLM settings; failed parts
+  // keep the raw attachment and the normal refusal path explains it.
+  // overleaf-lab (2026-11, bug hunt): the FAILED count matters to the refusal
+  // message — "enable OCR text mode" is wrong advice when the mode was ON
+  // and the extraction could not read the attachment.
+  let extraction = null
+  try {
+    const prof = await UserGetter.promises.getUser(userId, { llmTextExtract: 1 })
+    if (prof && prof.llmTextExtract === true) {
+      const { messages: extracted, report } = await toTextMessages(messages)
+      if (report.length) {
+        messages = extracted
+        const failed = report.filter(x => x.mode === 'failed')
+        if (failed.length) {
+          extraction = {
+            anyFailed: true,
+            kinds: [...new Set(failed.map(x => x.kind))],
+            reasons: [...new Set(failed.map(x => x.reason))],
+          }
+        }
+      }
+    }
+  } catch (err) {
+    logger.warn({ err, userId }, 'workbench chat: text-extraction mode failed, raw attachments kept')
+    extraction = { anyFailed: true, kinds: ['pdf', 'image'], reasons: ['service'] }
+  }
+  // overleaf-lab (2026-11-05, owner report: "image works with qwen3.8:latest
+  // but not the pdf"): a BYO lane is its own capability boundary. OpenAI-
+  // compatible relays (Ollama/vLLM) accept image parts but reject OpenAI
+  // `file` PDF parts; text-only models reject images. Instead of refusing
+  // AFTER the provider rejects, probe the lane once (1h in-process cache)
+  // and auto-convert the shape(s) it does not accept — the same
+  // pdftotext/Tesseract pipeline as the user's text-extraction mode, no
+  // user action. Unknown capability (null) keeps the native part and the
+  // existing refusal path still explains it.
+  if (lane?.baseURL && lane?.model && (hasPdf(messages) || hasImage(messages))) {
+    let caps = null
+    try {
+      caps = await probeLane(lane.baseURL, lane.apiKey, lane.model)
+    } catch (err) {
+      logger.warn({ err, userId }, 'workbench chat: capability probe failed, native attachments kept')
+    }
+    const kinds = []
+    if (hasPdf(messages) && caps?.pdf === false) kinds.push('pdf')
+    if (hasImage(messages) && caps?.images === false) kinds.push('image')
+    if (kinds.length) {
+      try {
+        const { messages: converted, report } = await toTextMessages(messages, kinds)
+        if (report.length) {
+          messages = converted
+          const failed = report.filter(x => x.mode === 'failed')
+          extraction = failed.length
+            ? {
+                anyFailed: true,
+                kinds: [...new Set(failed.map(x => x.kind))],
+                reasons: [...new Set(failed.map(x => x.reason))],
+              }
+            : { anyFailed: false, automatic: true, kinds }
+          logger.info(
+            { userId, model: lane.model, kinds, report },
+            'workbench chat: auto text-conversion for lane capabilities'
+          )
+        }
+      } catch (err) {
+        logger.warn({ err, userId }, 'workbench chat: auto text-conversion failed, raw attachments kept')
+      }
+    }
   }
   const toolCallLimit = createToolCallLimit(messages, getMaxSteps())
   if (toolCallLimit.exhausted()) {
@@ -125,7 +251,15 @@ async function chat(req, res) {
   if (webFetch) tools.web_fetch = WEB_FETCH_TOOL
 
   // Include instructions for the server tools available in this request.
-  let system = SYSTEM_PROMPT
+  // overleaf-lab (merge phase 4): the system prompt is the admin-effective
+  // value from the shared prompt store (override when set, else the shipped
+  // default); the tool instructions below are appended exactly as before.
+  let system
+  try {
+    system = (await getLLMPrompts()).workbenchSystemPrompt
+  } catch {
+    system = SYSTEM_PROMPT
+  }
   if (webSearch || webFetch) {
     // The model would otherwise take its training cutoff for today
     system += `\n\nToday is ${new Date().toISOString().slice(0, 10)}.`
@@ -168,12 +302,14 @@ async function chat(req, res) {
     system += `\n\nThe earlier part of this conversation was summarized:\n\n${historySummary}`
   }
 
-  const resolvedModel = resolveModel(history)
+  const resolvedModel = resolveModel(history, lane)
 
   try {
     const result = streamText({
       model: wrapLanguageModel({
-        model: getProvider()(resolvedModel),
+        model: getProvider(
+          lane ? { baseURL: lane.baseURL, apiKey: lane.apiKey } : undefined
+        )(resolvedModel),
         middleware: toolCallLimit.middleware,
       }),
       system,
@@ -185,18 +321,63 @@ async function chat(req, res) {
         if (userId) {
           await recordTokenUsage(userId, usage?.totalTokens)
         }
+        // overleaf-lab (merge phase 3): feed the ONE shared usage ledger — the
+        // admin and user meters (LLMUsage) cover the workbench now, by action
+        // 'workbench-chat' with the resolved lane and model for transparency.
+        recordUsage(
+          {
+            userId,
+            // The client sends the project id so the ledger can group per project.
+            projectId: req.body?.projectId,
+            action: 'workbench-chat',
+            lane: lane?.lane === 'user' ? 'user:byo' : lane?.lane === 'site' ? 'site' : 'operator',
+            model: resolvedModel || '',
+          },
+          {
+            inputTokens: usage?.inputTokens,
+            outputTokens: usage?.outputTokens,
+            totalTokens: usage?.totalTokens,
+          }
+        )
+        if (sitePaidBudget) sitePaidBudget.record(usage?.outputTokens)
       },
     })
 
     const onError = err => {
       logger.err({ err, userId }, 'workbench chat stream error')
-      // Gateways that take images but not PDF files refuse the request
+      // A rejected PDF request may be a gateway, a model or a request
+      // validation error — the status alone cannot identify the cause
+      // (ayakaleaf #122 follow-up, 2026-10-28). Route the notice by lane:
+      // BYO/site rows are the user's own choice, operator gateways are admin's.
       if (
         hasPdf(history) &&
         APICallError.isInstance(err) &&
         [400, 415, 422].includes(err.statusCode)
       ) {
-        return 'ai_pdf_not_supported'
+        // overleaf-lab (bug hunt): extraction was attempted and could not
+        // read the PDF → the lane-remedy below (pick a PDF-capable model)
+        // is the only actionable part; don't imply the user must toggle
+        // anything when text mode was already on.
+        if (extraction?.anyFailed) return 'ai_pdf_unreadable'
+        return lane ? 'ai_pdf_not_supported_byo' : 'ai_pdf_not_supported_site'
+      }
+      // overleaf-lab (2026-11, owner report): an image attachment was routed
+      // to a TEXT-ONLY model (no image task slot selected) and the provider
+      // rejects it — e.g. AcademicCloud: "not a multimodal model". Same
+      // lane-aware remedy as the PDF refusal: the user can pick an
+      // image-capable model (File → Select LLM Task → Image task... the
+      // modal offers the per-task slots) or the admin enables one.
+      if (
+        hasImage(history) &&
+        APICallError.isInstance(err) &&
+        /multimodal|modality|image|vision/i.test(String(err?.message || ''))
+      ) {
+        // overleaf-lab (bug hunt): OCR text mode was ON but tesseract could
+        // not read this image (blurry scan, unsupported format) — a different
+        // message than "mode is off", so the user is not told to enable a
+        // setting they already enabled.
+        if (extraction?.anyFailed) return 'ai_image_unreadable'
+        return lane ? 'ai_image_not_supported_byo' : 'ai_image_not_supported_site'
       }
       return 'The AI service returned an error. Please try again.'
     }
@@ -255,7 +436,19 @@ export default {
   getAccess: expressify(async (req, res) => {
     res.set('Cache-Control', 'no-store')
     const access = await getAiAccess(SessionManager.getLoggedInUserId(req.session))
-    res.json({ allowed: access.chat, errorAssistant: access.errorAssistant })
+    res.json({
+      allowed: access.chat,
+      errorAssistant: access.errorAssistant,
+      // overleaf-lab (2026-11): tells the client whether render_pdf_page should
+      // hand the model page TEXT (text-extraction mode) instead of a page image.
+      // true when the user opted in OR the resolved lane's model is text-only
+      // (capability probe): a text-only model cannot read a page image, so the
+      // agent switches to text mode automatically — no user setting required.
+      textExtract: access.textExtract === true || access.textOnly === true,
+      // overleaf-lab (2026-11-05): the raw capability-derived flag — lets the
+      // per-call re-check distinguish "user setting" from "lane text-only".
+      textOnly: access.textOnly === true,
+    })
   }),
   chat,
 }

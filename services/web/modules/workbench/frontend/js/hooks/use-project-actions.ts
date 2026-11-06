@@ -48,7 +48,7 @@ export type ProjectActions = {
   lastCompile: () => CompileReport
   compile: (signal: AbortSignal) => Promise<CompileReport>
   setCompiler: ReturnType<typeof useProjectSettingsContext>['setCompiler']
-  renderPage: (page: number, signal: AbortSignal) => Promise<string>
+  renderPage: (page: number, signal: AbortSignal, opts?: { textMode?: boolean }) => Promise<string>
   pdfOutline: (signal: AbortSignal) => Promise<unknown>
 }
 
@@ -170,13 +170,30 @@ export function useProjectActions(): ProjectActions {
   }, [])
 
   const renderPage = useCallback(
-    async (page: number, signal: AbortSignal) => {
+    async (page: number, signal: AbortSignal, opts?: { textMode?: boolean }) => {
       const pdf = await loadPdf()
       if (page > pdf.numPages) {
         throw new ToolRefusal(`The PDF has ${pdf.numPages} pages.`)
       }
       const pdfPage = await pdf.getPage(page)
       signal.throwIfAborted()
+      // overleaf-lab (2026-11, owner request): text-extraction mode — a
+      // text-only model cannot read a page image, so hand it the page's
+      // text. Scanned pages (no text layer) fall back to the image, same as
+      // before.
+      if (opts?.textMode) {
+        const content = await pdfPage.getTextContent()
+        // pdf.js items: TextItem { str } | TextMarkedContent
+        const text = (content.items as Array<{ str?: string }>)
+            .map(item => item?.str ?? '')
+            .join(' ')
+        if (text.trim().length >= 60) {
+          return (
+            `Rendered PDF page ${page} — text extracted in the browser ` +
+            `(text-extraction mode; the model has no image view):\n\n` + text.trim()
+          )
+        }
+      }
       const viewport = pdfPage.getViewport({ scale: 1 })
       const canvas = document.createElement('canvas')
       canvas.width = viewport.width

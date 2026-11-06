@@ -53,6 +53,12 @@ export function buildProjectTools({ userId, projectId }) {
           mainDocument: docPath(project.rootDoc_id),
           mainBibliography: docPath(project.mainBibliographyDoc_id),
           spellCheckLanguage: project.spellCheckLanguage,
+          // overleaf-lab (2026-11-05, MCP plan): the settings the user can
+          // actually pick (spell check language), as the settings page lists
+          availableLanguages: (Settings.languages || []).map(lang => ({
+            code: lang.code,
+            name: lang.name,
+          })),
           availableTexLiveImages: (Settings.allowedImageNames || []).map(
             ({ imageName, imageDesc }) => ({ imageName, imageDesc })
           ),
@@ -77,8 +83,12 @@ export function buildProjectTools({ userId, projectId }) {
         const labels = await fetchJson(
           `${Settings.apis.project_history.url}/project/${projectId}/labels`
         )
+        // overleaf-lab (issue #126, identity layer): include the label id —
+        // delete_version_label needs it ("the label id from list_versions")
+        // and an agent otherwise cannot address its own labels.
         return text(
-          labels.map(({ version, comment, created_at: createdAt }) => ({
+          labels.map(({ _id, id, version, comment, created_at: createdAt }) => ({
+            id: _id || id,
             version,
             comment,
             createdAt,
@@ -91,13 +101,16 @@ export function buildProjectTools({ userId, projectId }) {
       rateLimiter: rateLimiters.updateSettings,
       description:
         'Change the compiler, the TeX Live image (one of ' +
-        'availableTexLiveImages of get_settings) or the main document.',
+        'availableTexLiveImages of get_settings), the main document or ' +
+        'the spell check language (one code of availableLanguages of ' +
+        'get_settings).',
       inputSchema: {
         compiler: z.enum(['pdflatex', 'xelatex', 'lualatex', 'latex']).optional(),
         texLiveImage: z.string().optional(),
         mainDocument: filePath.optional(),
+        spellCheckLanguage: z.string().optional(),
       },
-      handler: async ({ compiler, texLiveImage, mainDocument }) => {
+      handler: async ({ compiler, texLiveImage, mainDocument, spellCheckLanguage }) => {
         await checkAccess(
           AuthorizationManager.promises.canUserWriteProjectSettings,
           userId,
@@ -122,6 +135,14 @@ export function buildProjectTools({ userId, projectId }) {
         }
         if (rootDoc) {
           await EditorController.promises.setRootDoc(projectId, rootDoc._id)
+        }
+        if (spellCheckLanguage) {
+          // ProjectOptionsHandler validates the code against the instance's
+          // language list and throws otherwise, like the settings page
+          await EditorController.promises.setSpellCheckLanguage(
+            projectId,
+            spellCheckLanguage
+          )
         }
         return text('Settings updated.')
       },

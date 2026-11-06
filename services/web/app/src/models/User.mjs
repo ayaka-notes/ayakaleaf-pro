@@ -241,6 +241,41 @@ export const UserSchema = new Schema(
     splitTests: Schema.Types.Mixed,
     analyticsId: { type: String, required: true },
     completedTutorials: Schema.Types.Mixed,
+
+    // LLM BYO (modules/llm): per-user LLM provider rows, legacy single-provider
+    // fields, compliance rubrics and shared model selection. Stored as Mixed so
+    // the module controls the exact row shape (mongoose strict mode would drop
+    // undefined paths, and arrays of objects need _id: false semantics).
+    useOwnLLMSettings: { type: Boolean, default: false },
+    llmApiKey: { type: String },
+    llmApiUrl: { type: String },
+    llmApiType: { type: String },
+    llmModelName: { type: String },
+    llmModels: Schema.Types.Mixed,
+    llmModelNames: Schema.Types.Mixed,
+    llmCompletionModel: { type: String },
+    llmCompletionModels: Schema.Types.Mixed,
+    llmProviders: Schema.Types.Mixed,
+    llmComplianceRubrics: Schema.Types.Mixed,
+    llmSelectedModel: { type: String },
+    // overleaf-lab (2026-11): per-task model overrides {chat,completion,review,error}
+    // and the per-user inline-completion toggle. Mongoose strict mode silently
+    // drops $set fields that are not in the schema — both writes previously
+    // returned success while persisting nothing (caught by the 2026-11-03
+    // E2E: POST /user/llm/prefs ok:true then GET still true).
+    llmTaskModels: Schema.Types.Mixed,
+    completionEnabled: { type: Boolean },
+    // overleaf-lab (2026-11, owner request): when true, image/PDF chat
+    // attachments are converted to text on the server (pdftotext +
+    // Tesseract/Ocrmypdf for scans) instead of being sent as pixels, so
+    // text-only models can read them. Same strict-mode landmine as above:
+    // it MUST be declared here or $set silently persists nothing.
+    llmTextExtract: { type: Boolean },
+    // overleaf-lab (owner request 2026-11-05): per-user MCP override. Tri-state:
+    // undefined/null = follow the site switch, true = force allow, false = deny
+    // (MCP endpoint returns 403 for this user). Managed from the admin account
+    // card; enforced in McpRouter.
+    llmMcpEnabled: { type: Boolean },
     suspended: { type: Boolean },
     dsMobileApp: {
       subscribed: { type: Boolean },

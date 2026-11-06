@@ -15,6 +15,7 @@ block append meta
 	- const canDisplaySplitTestMenu = hasFeature('saas') && hasNonAdminDomainCapability('view-split-test')
 	- const canDisplaySurveyMenu = hasFeature('saas') && canDisplayAdminMenu && hasAdminCapability('manage-survey', false)
 	- const canDisplayScriptLogMenu = hasFeature('saas') && hasAdminCapability('view-script-log', false) && canDisplayAdminMenu
+	- const canDisplayLlmAdminMenu = canDisplayAdminMenu && !!(settings.llm && settings.llm.enabled)
 	- const enableUpgradeButton = projectDashboardReact && usersBestSubscription && (usersBestSubscription.type === 'free' || usersBestSubscription.type === 'standalone-ai-add-on')
 	- const showSignUpLink = hasFeature('registration-page')
 
@@ -31,6 +32,7 @@ block append meta
 			canDisplaySplitTestMenu,
 			canDisplaySurveyMenu,
 			canDisplayScriptLogMenu,
+			canDisplayLlmAdminMenu,
 			enableUpgradeButton,
 			suppressNavbarRight: !!suppressNavbarRight,
 			suppressNavContentLinks: !!suppressNavContentLinks,
