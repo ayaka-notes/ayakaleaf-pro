@@ -1310,6 +1310,7 @@ module.exports = {
     'launchpad',
     'learn',
     'server-ce-scripts',
+    'notifications',
     'authentication/ldap',
     'authentication/saml',
     'authentication/oidc',

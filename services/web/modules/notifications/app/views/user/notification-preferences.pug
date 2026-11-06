@@ -1,0 +1,82 @@
+extends ../../../../../app/views/layout-website-redesign
+
+block vars
+	- isWebsiteRedesign = true
+
+block content
+	main#main-content.content
+		.container
+			.col-lg-10.offset-lg-1.col-xl-8.offset-xl-2
+				.page-header
+					h1 #{translate("email_preferences")}
+
+				form.notification-settings-container(
+					name='notificationsForm'
+					action='/user/notification-preferences'
+					method='POST'
+					data-ol-async-form
+					data-ol-reload-on-success
+				)
+					input(name='_csrf' type='hidden' value=csrfToken)
+
+					.setting-container
+						input(name='muteAllNotifications' id='muteAllNotifications' type='checkbox' value='notificationsOn' checked=notificationsEnabled)
+						div
+							label.checkbox-label(for='muteAllNotifications')
+								h2.h4.mb-0 #{translate("notifications_on_project_activity")}
+							p #{translate("notifications_on_project_activity_description")}
+
+					.setting-container
+						input(name='notificationDelayMinutes' id='notificationDelayMinutes' type='number' min='1' max='10080' step='1' value=(notificationDelayMinutes != null ? notificationDelayMinutes : ''))
+						div
+							label.checkbox-label(for='notificationDelayMinutes')
+								h2.h4.mb-0 #{translate("notifications_delay_minutes_label")}
+							p #{translate("notifications_delay_description")}
+							p.text-muted #{translate("notifications_delay_server_default")} #{defaultDelayLabel}
+
+					.setting-container
+						input(name='notificationUrl' id='notificationUrl' type='text' placeholder='mailto://you@example.com' value=(notificationUrl != null ? notificationUrl : ''))
+						div
+							label.checkbox-label(for='notificationUrl')
+								h2.h4.mb-0 #{translate("notification_channel_label")}
+							p #{translate("notification_channel_description")}
+							p.text-muted #{translate("notification_channel_default")} #{userEmail}
+
+					p #{translate("note_still_receives_important_emails")}
+
+					.d-flex.justify-content-between.mt-4.gap-3.flex-wrap
+						button.btn.btn-secondary.test-notification(type='button' data-csrf=csrfToken)
+							span #{translate("send_test_notification")}
+						button.btn-primary.btn(type='submit' data-ol-disabled-inflight)
+							span #{translate("save")}
+
+					script.
+						(function () {
+							const btn = document.querySelector('.test-notification')
+							if (!btn) return
+							btn.addEventListener('click', async () => {
+								btn.disabled = true
+								const span = btn.querySelector('span')
+								const original = span.textContent
+								span.textContent = 'Sending...'
+								try {
+									const res = await fetch('/user/send-test-email', {
+										method: 'POST',
+										headers: { 'X-CSRF-Token': btn.dataset.csrf },
+									})
+									const data = await res.json().catch(() => ({}))
+									const ok = res.ok
+									alert(ok ? (data.message || 'Test notification sent.') : ('Test notification failed: ' + (data.message || res.status)))
+								} catch (err) {
+									alert('Test notification failed: ' + err.message)
+								} finally {
+									span.textContent = original
+									btn.disabled = false
+								}
+							})
+						})()
+
+				.page-separator
+				.d-flex.gap-3
+					a.btn.btn-secondary(href='/user/settings') #{translate("back_to_account_settings")}
+					a.btn.btn-secondary(href='/project') #{translate("back_to_your_projects")}

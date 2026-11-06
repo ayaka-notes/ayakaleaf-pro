@@ -1,6 +1,7 @@
 import logger from '@overleaf/logger'
 import UserListController from './UserListController.mjs'
 import ProjectListController from './ProjectListController.mjs'
+import NotificationAdminController from './NotificationAdminController.mjs'
 import AuthorizationMiddleware from '../../../../app/src/Features/Authorization/AuthorizationMiddleware.mjs'
 import AuthenticationController from '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
 
@@ -15,6 +16,37 @@ export default {
       AuthorizationMiddleware.ensureUserIsSiteAdmin,
       UserListController.manageUsersPage
     )
+
+    // Notification dispatch management (Apprise)
+    webRouter.get('/admin/notifications',
+      AuthorizationMiddleware.ensureUserIsSiteAdmin,
+      NotificationAdminController.notificationsAdminPage
+    )
+    webRouter.post('/admin/notifications/state',
+      AuthorizationMiddleware.ensureUserIsSiteAdmin,
+      NotificationAdminController.state
+    )
+    webRouter.post('/admin/notifications/dry-run',
+      AuthorizationMiddleware.ensureUserIsSiteAdmin,
+      NotificationAdminController.setDryRun
+    )
+    webRouter.post('/admin/notifications/user-url',
+      AuthorizationMiddleware.ensureUserIsSiteAdmin,
+      NotificationAdminController.setUserUrl
+    )
+    webRouter.post('/admin/notifications/test',
+      AuthorizationMiddleware.ensureUserIsSiteAdmin,
+      NotificationAdminController.testSend
+    )
+    webRouter.post('/admin/notifications/queue/retry',
+      AuthorizationMiddleware.ensureUserIsSiteAdmin,
+      NotificationAdminController.queueRetry
+    )
+    webRouter.post('/admin/notifications/queue/clear',
+      AuthorizationMiddleware.ensureUserIsSiteAdmin,
+      NotificationAdminController.queueClear
+    )
+
     webRouter.post(
       '/admin/user/create',
       AuthorizationMiddleware.ensureUserIsSiteAdmin,
