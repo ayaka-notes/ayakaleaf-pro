@@ -1,0 +1,32 @@
+services:
+  seaweedfs-master:
+    extends:
+      file: ./seaweedfs-master/compose.yaml
+      service: seaweedfs-master
+
+  seaweedfs-volume:
+    extends:
+      file: ./seaweedfs-volume/compose.yaml
+      service: seaweedfs-volume
+    depends_on:
+      seaweedfs-master:
+        condition: service_healthy
+
+  seaweedfs-filer:
+    extends:
+      file: ./seaweedfs-filer/compose.yaml
+      service: seaweedfs-filer
+    depends_on:
+      seaweedfs-master:
+        condition: service_healthy
+      seaweedfs-volume:
+        condition: service_healthy
+
+  seaweedfs-s3:
+    extends:
+      file: ./seaweedfs-s3/compose.yaml
+      service: seaweedfs-s3
+    depends_on:
+      seaweedfs-filer:
+        condition: service_healthy
+

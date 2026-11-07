@@ -1,0 +1,26 @@
+services:
+  seaweedfs-s3:
+    image: chrislusf/seaweedfs:latest
+    container_name: seaweedfs-s3
+    hostname: seaweedfs-s3
+    ports:
+      - "8333:8333"   # S3 API
+    command: 's3 -filer="filer:8888" -ip.bind=0.0.0.0'
+
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+
+    networks:
+      default:
+        aliases:
+          - s3
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -S -o- http://localhost:8333/ 2>&1 | grep -q 'HTTP/'"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+

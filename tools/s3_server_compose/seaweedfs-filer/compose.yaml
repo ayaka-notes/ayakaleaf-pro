@@ -1,0 +1,24 @@
+services:
+  seaweedfs-filer:
+    image: chrislusf/seaweedfs:latest
+    container_name: seaweedfs-filer
+    hostname: seaweedfs-filer
+    ports:
+      - "8888:8888"   # filer HTTP
+      - "18888:18888" # filer gRPC
+    command: 'filer -master="master:9333" -ip=filer -ip.bind=0.0.0.0'
+    volumes:
+      - ./data:/data
+    networks:
+      default:
+        aliases:
+          - filer
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8888/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
