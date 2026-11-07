@@ -10,6 +10,11 @@
 # .github/scripts/triage.py of anthropics/oss-scanner at cbcb039e5f85
 # (Apache-2.0). Compare with that file now and then, it can change.
 #
+# That script searches for is:issue, or for no type, but its workflow token
+# has pull-requests: read and no issues: read, and the counts it then writes
+# are those of pull requests alone. So the searches below ask for is:pr, to
+# give the numbers it really writes whatever this token may read.
+#
 # See:
 #     https://github.com/anthropics/oss-scanner
 #     https://github.com/ossf/criticality_score
@@ -150,7 +155,7 @@ jobs:
               recent_releases = round(count(f"repos/{slug}/tags") / max((NOW - created).days, 1) * 365)
 
           window = NOW - timedelta(days=ISSUE_WINDOW_DAYS)
-          updated_threads = total("issues", f"repo:{slug} updated:>={window:%Y-%m-%d}")
+          updated_threads = total("issues", f"repo:{slug} is:pr updated:>={window:%Y-%m-%d}")
           comments = count(f"repos/{slug}/issues/comments", since=iso(window))
 
           signals = {
@@ -160,8 +165,8 @@ jobs:
               "org_count": len(organisations),
               "commit_frequency": round(count(commits, since=iso(YEAR_AGO)) / 52, 1),
               "recent_releases_count": recent_releases,
-              "closed_issues_count": total("issues", f"repo:{slug} is:issue is:closed updated:>={window:%Y-%m-%d}"),
-              "updated_issues_count": total("issues", f"repo:{slug} is:issue updated:>={window:%Y-%m-%d}"),
+              "closed_issues_count": total("issues", f"repo:{slug} is:pr is:closed updated:>={window:%Y-%m-%d}"),
+              "updated_issues_count": total("issues", f"repo:{slug} is:pr updated:>={window:%Y-%m-%d}"),
               "comment_frequency": round(comments / updated_threads, 1) if updated_threads else 0,
               # Mentions of owner/repo in commit messages anywhere on GitHub
               "dependents_count": total("commits", f'"{slug}"'),
@@ -237,5 +242,6 @@ jobs:
             ($c.legacy | to_entries[] | "| \(.key) | \(.value) |"),
             "",
             "`created_since` and `contributor_count` include the Overleaf history this repository carries.",
+            "`closed_issues_count`, `updated_issues_count` and `comment_frequency` count pull requests, as the scanner does.",
             "", "</details>"
           ' >> "$GITHUB_STEP_SUMMARY"
