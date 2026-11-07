@@ -2,6 +2,9 @@
 
 MONOREPO_ROOT := ../
 HERE=$(shell pwd)
+# git-bridge is a self-contained multi-stage build living in its service dir;
+# its build context (and .dockerignore) is there, not the monorepo root.
+GITBRIDGE_DIR := $(MONOREPO_ROOT)services/git-bridge
 export MONOREPO_REVISION := $(shell git rev-parse HEAD)
 export BRANCH_NAME ?= $(shell git rev-parse --abbrev-ref HEAD)
 export BRANCH_NAME_TAG_SAFE ?= $(subst /,--,$(BRANCH_NAME))
@@ -11,11 +14,13 @@ export OVERLEAF_BASE_TAG ?= sharelatex/sharelatex-base:$(BRANCH_NAME_TAG_SAFE)-$
 export OVERLEAF_BRANCH ?= sharelatex/sharelatex:$(BRANCH_NAME_TAG_SAFE)
 export OVERLEAF_LATEST ?= sharelatex/sharelatex
 export OVERLEAF_TAG ?= sharelatex/sharelatex:$(BRANCH_NAME_TAG_SAFE)-$(MONOREPO_REVISION)
+export OVERLEAF_PANDOC_TAG ?= sharelatex/sharelatex-pandoc:local
+export OVERLEAF_GITBRIDGE_TAG ?= sharelatex/git-bridge:latest
 
-all: build-base build-community
+all: build-base build-community build-pandoc build-git-bridge
 
 clean:
-	-docker rmi --force $(OVERLEAF_BASE_TAG) $(OVERLEAF_TAG)
+	-docker rmi --force $(OVERLEAF_BASE_TAG) $(OVERLEAF_TAG) $(OVERLEAF_PANDOC_TAG) $(OVERLEAF_GITBRIDGE_TAG)
 
 refresh-cache: refresh-cache-branch
 refresh-cache-branch:
@@ -54,11 +59,40 @@ build-community:
 	  --tag $(OVERLEAF_BRANCH) \
 	  $(MONOREPO_ROOT)
 
+# Self-contained image (from the public pandoc/core base; no repo content),
+# so the context is only needed so .dockerignore is resolved consistently.
+# Tag must match PANDOC_IMAGE in develop/dev.env (consumed by clsi).
+build-pandoc:
+	cp .dockerignore $(MONOREPO_ROOT)
+	docker build \
+	  --build-arg BUILDKIT_INLINE_CACHE=1 \
+	  --progress=plain \
+	  --pull \
+	  --label "com.overleaf.ce.revision=$(MONOREPO_REVISION)" \
+	  --file Dockerfile-pandoc \
+	  --tag $(OVERLEAF_PANDOC_TAG) \
+	  $(MONOREPO_ROOT)
+
+# Builds the git-bridge jar inside the image (mvn stage), then the runtime.
+# Context is services/git-bridge (carries its own .dockerignore + pom.xml/src).
+# Tag matches the image consumed by develop/docker-compose.yml.
+build-git-bridge:
+	docker build \
+	  --build-arg BUILDKIT_INLINE_CACHE=1 \
+	  --progress=plain \
+	  --pull \
+	  --label "com.overleaf.ce.revision=$(MONOREPO_REVISION)" \
+	  --file $(GITBRIDGE_DIR)/Dockerfile \
+	  --tag $(OVERLEAF_GITBRIDGE_TAG) \
+	  $(GITBRIDGE_DIR)
+
 push:
 	docker push $(OVERLEAF_BASE_TAG)
 	docker push $(OVERLEAF_BASE_BRANCH)
 	docker push $(OVERLEAF_TAG)
 	docker push $(OVERLEAF_BRANCH)
+	docker push $(OVERLEAF_PANDOC_TAG)
+	docker push $(OVERLEAF_GITBRIDGE_TAG)
 
 SHELLCHECK_OPTS = \
 	--shell=bash \
@@ -80,5 +114,5 @@ shellcheck_fix:
 	done
 
 .PHONY: all \
-	build-base build-community \
+	build-base build-community build-pandoc build-git-bridge \
 	shellcheck shellcheck_fix
