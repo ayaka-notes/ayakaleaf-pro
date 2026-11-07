@@ -185,6 +185,7 @@ async function unlinkUser(userId) {
   if (encrypted) {
     revokeToken(encrypted).catch(() => {})
   }
+  return Boolean(user)
 }
 
 // A Dropbox folder of no project finds its project by name, so the projects

@@ -1,5 +1,6 @@
 import { v4 as uuid } from 'uuid'
 import { login } from '../../../helpers/login'
+import { expectOwnAuditEntry, expectProjectAuditEntry } from '../../../helpers/auditLog'
 import {
   compileProject,
   createProject,
@@ -92,6 +93,12 @@ describe('publishing a template', function () {
       'have.attr',
       'href',
       'https://example.com'
+    )
+    expectOwnAuditEntry(ADMIN_EMAIL, 'publish-template')
+      .its('info.name')
+      .should('equal', name)
+    cy.then(() =>
+      expectProjectAuditEntry(projectId, 'publish-template', ADMIN_EMAIL)
     )
   })
 
@@ -606,6 +613,7 @@ describe('managing templates', function () {
         license: 'other',
       })
     })
+    expectOwnAuditEntry(ADMIN_EMAIL, 'edit-template')
   })
 
   it('refuses to rename to the title of another template', function () {
@@ -679,6 +687,7 @@ describe('managing templates', function () {
       expect(template).to.equal(null)
     })
     waitUntilGone(`/template/${templateId}/zip?version=2`)
+    expectOwnAuditEntry(ADMIN_EMAIL, 'delete-template')
   })
 })
 

@@ -1,5 +1,6 @@
 import OAuthPersonalAccessTokenManager from './OAuthPersonalAccessTokenManager.mjs'
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
+import UserAuditLogHandler from '../../../../app/src/Features/User/UserAuditLogHandler.mjs'
 import logger from '@overleaf/logger'
 import { expressify } from '@overleaf/promise-utils'
 
@@ -43,6 +44,9 @@ const PersonalAccessTokenController = {
             return res.status(500).json({ message: 'Failed to create personal access token' })
         }
         
+        // in the background: the secret is only ever shown in this answer
+        UserAuditLogHandler.addEntryInBackground(userId, 'create-git-token', userId, req.ip)
+
         return res.json({
             accessToken: accessToken
         })
@@ -66,6 +70,14 @@ const PersonalAccessTokenController = {
         if (!result || result.deletedCount !== 1) {
             return res.status(404).json({ message: 'Token not found' })
         }
+
+        await UserAuditLogHandler.promises.addEntry(
+            user._id,
+            'delete-git-token',
+            user._id,
+            req.ip,
+            { tokenId }
+        )
 
         return res.json({ 
             message: 'Token deleted',

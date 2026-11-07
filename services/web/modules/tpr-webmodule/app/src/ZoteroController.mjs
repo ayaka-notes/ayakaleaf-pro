@@ -1,5 +1,6 @@
 import logger from '@overleaf/logger'
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
+import UserAuditLogHandler from '../../../../app/src/Features/User/UserAuditLogHandler.mjs'
 import ZoteroApiClient from './ZoteroApiClient.mjs'
 import {
   ZoteroAccountNotLinkedError,
@@ -73,6 +74,13 @@ async function oauthCallback(req, res) {
         verifier
       )
     await ZoteroApiClient.storeCredentials(userId, apiKey, zoteroUserId)
+    await UserAuditLogHandler.promises.addEntry(
+      userId,
+      'integration-account-linked',
+      userId,
+      req.ip,
+      { integration: 'zotero' }
+    )
     res.redirect('/user/settings?oauth-complete=zotero#references')
   } catch (err) {
     logger.err({ err, userId }, 'error completing Zotero OAuth flow')
@@ -88,6 +96,13 @@ async function unlink(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
   try {
     await ZoteroApiClient.unlinkAccount(userId)
+    await UserAuditLogHandler.promises.addEntry(
+      userId,
+      'integration-account-unlinked',
+      userId,
+      req.ip,
+      { integration: 'zotero' }
+    )
     res.sendStatus(200)
   } catch (err) {
     logger.err({ err, userId }, 'error unlinking Zotero')

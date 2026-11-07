@@ -1,5 +1,6 @@
 import { setSuspended } from '../../../helpers/adminTools'
 import { login } from '../../../helpers/login'
+import { expectOwnAuditEntry } from '../../../helpers/auditLog'
 import {
   createProject,
   openProject,
@@ -218,7 +219,7 @@ beforeEach(function () {
 
 describe('linking the Dropbox account', function () {
   it('links through the OAuth flow and unlinks again', function () {
-    newUser('dropbox-link')
+    const email = newUser('dropbox-link')
     cy.visit('/user/settings')
     dropboxWidget()
       .findByRole('link', { name: 'Link' })
@@ -240,6 +241,9 @@ describe('linking the Dropbox account', function () {
     connectionStatus().should('equal', false)
     // revoked in the background
     waitForRevoked()
+    login(ADMIN_EMAIL)
+    expectOwnAuditEntry(email, 'link-dropbox')
+    expectOwnAuditEntry(email, 'unlink-dropbox')
   })
 
   it('shows the sync state on the settings page once linked', function () {
@@ -1418,6 +1422,9 @@ describe('a disabled account', function () {
     login(ADMIN_EMAIL)
     setSuspended(email, true)
     waitForRevoked()
+    expectOwnAuditEntry(email, 'unlink-dropbox')
+      .its('info.reason')
+      .should('equal', 'account-suspension')
 
     // Enabled again, the user has to link Dropbox anew
     setSuspended(email, false)

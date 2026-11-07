@@ -1,4 +1,5 @@
 import { login } from '../../../helpers/login'
+import { expectOwnAuditEntry, expectProjectAuditEntry } from '../../../helpers/auditLog'
 import {
   createProject,
   openProject,
@@ -174,6 +175,12 @@ describe('linking the GitLab account', function () {
     gitlabWidget().findByRole('link', { name: 'Link' }).should('exist')
     connectionStatus().should('equal', false)
     expectTokensRevoked()
+    expectOwnAuditEntry(ADMIN_EMAIL, 'integration-account-linked')
+      .its('info.integration')
+      .should('equal', 'gitlab')
+    expectOwnAuditEntry(ADMIN_EMAIL, 'integration-account-unlinked')
+      .its('info.integration')
+      .should('equal', 'gitlab')
   })
 
   it('sends the application id, callback, scope and a state to GitLab', function () {
@@ -315,6 +322,9 @@ describe('linking a project to a repository', function () {
         ])
         expect(Object.keys(repo.branches)).to.deep.equal(['main'])
       })
+      expectProjectAuditEntry(projectId, 'integration-repo-linked', ADMIN_EMAIL)
+        .its('info.integration')
+        .should('equal', 'gitlab')
     })
   })
 
@@ -380,6 +390,7 @@ describe('linking a project to a repository', function () {
       mockRepo(`${GITLAB_USER}/${name.toLowerCase()}`)
         .its('files')
         .should('have.property', 'main.tex')
+      expectProjectAuditEntry(projectId, 'integration-repo-unlinked', ADMIN_EMAIL)
     })
   })
 })

@@ -3,6 +3,7 @@ import passport from 'passport'
 import { handleAuthenticateErrors } from '../../../../../app/src/Features/Authentication/AuthenticationErrors.mjs'
 import AuthenticationController from '../../../../../app/src/Features/Authentication/AuthenticationController.mjs'
 import LDAPAuthenticationManager from './LDAPAuthenticationManager.mjs'
+import { logFailedLdapLogin } from '../../../auditLog.mjs'
 
 
 const LDAPAuthenticationController = {
@@ -35,6 +36,8 @@ const LDAPAuthenticationController = {
           logger.debug({ info, status }, 'LDAP authentication failed')
           if (status != 401) {
             logger.warn(status, 'LDAP: ' + info.message)
+          } else {
+            await logFailedLdapLogin(req)
           }
           if (info.redir != null) {
             return res.json({ redir: info.redir })

@@ -16,6 +16,7 @@ import {
   setSuspended,
   setUserPassword,
 } from '../../../../helpers/adminTools'
+import { expectOwnAuditEntry } from '../../../../helpers/auditLog'
 import { login } from '../../../../helpers/login'
 import { postWithCsrf } from '../../../../helpers/request'
 
@@ -227,5 +228,48 @@ describe('LDAP login of a disabled account', function () {
     setSuspended(idpEmail('dave'), false)
     loginAs('dave')
     currentUser().its('email').should('equal', idpEmail('dave'))
+  })
+})
+
+describe('LDAP audit log', function () {
+  it('tells about the account a first login creates', function () {
+    loginAs('dave')
+    loginAs('carol')
+    expectOwnAuditEntry(idpEmail('dave'), 'create-account')
+      .its('info.method')
+      .should('equal', 'LDAP password login')
+  })
+
+  it('tells when a login removes the password of a local account', function () {
+    loginAs('carol')
+    createLocalAccount(idpEmail('frank'))
+    loginAs('frank')
+    loginAs('carol')
+    expectOwnAuditEntry(idpEmail('frank'), 'remove-password')
+  })
+
+  it('tells when a login changes the admin flag and the name', function () {
+    setAuthentikGroup('alice', 'Admins', false)
+    setAuthentikName('alice', 'Alicia Renamed')
+    loginAs('alice')
+    setAuthentikGroup('alice', 'Admins', true)
+    setAuthentikName('alice', 'Alice Admin')
+    loginAs('alice')
+    expectOwnAuditEntry(idpEmail('alice'), 'change-admin-access')
+      .its('info.isAdmin')
+      .should('equal', true)
+    expectOwnAuditEntry(idpEmail('alice'), 'change-name')
+      .its('info.method')
+      .should('equal', 'LDAP password login')
+  })
+
+  it('tells about a wrong password given with an email', function () {
+    loginAs('bob')
+    ldapLogin(idpEmail('bob'), 'not-the-password')
+    cy.contains('[role="alert"]:visible', 'email or password is incorrect')
+    loginAs('carol')
+    expectOwnAuditEntry(idpEmail('bob'), 'failed-password-match')
+      .its('info.method')
+      .should('equal', 'LDAP password login')
   })
 })

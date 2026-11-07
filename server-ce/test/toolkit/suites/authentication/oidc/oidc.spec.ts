@@ -13,6 +13,7 @@ import {
   ssoLogin,
   updatePassword,
 } from '../../../../helpers/auth'
+import { expectOwnAuditEntry } from '../../../../helpers/auditLog'
 import { login } from '../../../../helpers/login'
 import {
   deleteEmails,
@@ -311,6 +312,8 @@ describe('OIDC logout', function () {
     cy.get('a[href="/oidc/login"]').click()
     authentikLogin('alice')
     cy.url({ timeout: 30_000 }).should('contain', '/project')
+    // alice is an admin
+    expectOwnAuditEntry(idpEmail('alice'), 'logout')
   })
 })
 
@@ -327,5 +330,31 @@ describe('OIDC login of a disabled account', function () {
     setSuspended(idpEmail('dave'), false)
     oidcLogin('dave')
     currentUser().its('email').should('equal', idpEmail('dave'))
+  })
+})
+
+describe('OIDC audit log', function () {
+  it('tells about the account a first login creates and links', function () {
+    oidcLogin('dave')
+    oidcLogin('alice')
+    expectOwnAuditEntry(idpEmail('dave'), 'create-account')
+      .its('info.method')
+      .should('equal', 'OIDC login')
+    expectOwnAuditEntry(idpEmail('dave'), 'link-sso')
+  })
+
+  it('tells when a login changes the admin flag and the name', function () {
+    setAuthentikGroup('alice', 'Admins', false)
+    setAuthentikName('alice', 'Alicia Renamed')
+    oidcLogin('alice')
+    setAuthentikGroup('alice', 'Admins', true)
+    setAuthentikName('alice', 'Alice Admin')
+    oidcLogin('alice')
+    expectOwnAuditEntry(idpEmail('alice'), 'change-admin-access')
+      .its('info.isAdmin')
+      .should('equal', true)
+    expectOwnAuditEntry(idpEmail('alice'), 'change-name')
+      .its('info.method')
+      .should('equal', 'OIDC login')
   })
 })
