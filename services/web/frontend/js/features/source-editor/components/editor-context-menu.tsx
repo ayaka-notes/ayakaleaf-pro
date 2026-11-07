@@ -1,22 +1,27 @@
-import { FC, Fragment, memo } from 'react'
+import { FC, Fragment, memo, useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom'
-import { useTranslation } from 'react-i18next'
 import { getTooltip } from '@codemirror/view'
+import {
+  OLDropdown,
+  OLDropdownMenu,
+  OLDropdownItem,
+  OLDropdownDivider,
+} from '@/shared/components/ol/ol-dropdown-menu'
 import {
   useCodeMirrorStateContext,
   useCodeMirrorViewContext,
 } from './codemirror-context'
 import { contextMenuStateField } from '../extensions/context-menu'
-import { useFeatureFlag } from '@/shared/context/split-test-context'
 import { useContextMenuItems } from '../hooks/use-context-menu-items'
+import DropdownListItem from '@/shared/components/dropdown/dropdown-list-item'
+import { sendContextMenuEvent } from '../utils/context-menu-analytics'
 
 const EditorContextMenu: FC = () => {
   const state = useCodeMirrorStateContext()
   const view = useCodeMirrorViewContext()
-  const editorContextMenuEnabled = useFeatureFlag('editor-context-menu')
 
   const menuState = state.field(contextMenuStateField, false)
-  if (!editorContextMenuEnabled || !menuState?.tooltip) {
+  if (!menuState?.tooltip) {
     return null
   }
 
@@ -29,52 +34,57 @@ const EditorContextMenu: FC = () => {
 }
 
 const EditorContextMenuContent: FC = memo(function EditorContextMenuContent() {
-  const { t } = useTranslation()
+  const { menuItems, closeMenu, onToggle } = useContextMenuItems()
+  const menuRef = useRef<any>(null)
 
-  const menuItems = useContextMenuItems()
+  useEffect(() => {
+    sendContextMenuEvent('menu-expand', {
+      location: 'editor-context-menu',
+    })
+    menuRef.current?.focus()
+  }, [])
 
   return (
-    <div className="editor-context-menu" role="menu" aria-label={t('menu')}>
-      {menuItems.map((menuItem, index) => (
-        <Fragment key={index}>
-          {menuItem.separatorAbove && (
-            <div className="editor-context-menu-separator" />
-          )}
-          <ContextMenuItem
-            label={menuItem.label}
-            onClick={() => menuItem.handler()}
-            disabled={menuItem.disabled}
-            shortcut={menuItem.shortcut}
-          />
-        </Fragment>
-      ))}
-    </div>
+    <OLDropdown show onToggle={onToggle}>
+      <div onContextMenu={event => event.preventDefault()}>
+        <OLDropdownMenu
+          ref={menuRef}
+          show
+          tabIndex={0}
+          className="dropdown-menu-unpositioned"
+          onKeyDown={event => {
+            switch (event.key) {
+              case 'Escape':
+              case 'Tab':
+                event.preventDefault()
+                closeMenu()
+                break
+            }
+          }}
+        >
+          {menuItems.map((menuItem, index) => (
+            <Fragment key={index}>
+              {menuItem.separatorAbove && <OLDropdownDivider />}
+              <DropdownListItem>
+                <OLDropdownItem
+                  as="button"
+                  onClick={() => menuItem.handler()}
+                  disabled={menuItem.disabled}
+                  trailingIcon={
+                    menuItem.shortcut ? (
+                      <span>{menuItem.shortcut}</span>
+                    ) : undefined
+                  }
+                >
+                  {menuItem.label}
+                </OLDropdownItem>
+              </DropdownListItem>
+            </Fragment>
+          ))}
+        </OLDropdownMenu>
+      </div>
+    </OLDropdown>
   )
 })
-
-type ContextMenuItemProps = {
-  label: string
-  onClick: () => void
-  disabled?: boolean
-  shortcut?: string
-}
-
-const ContextMenuItem: FC<ContextMenuItemProps> = ({
-  label,
-  shortcut,
-  onClick,
-  disabled,
-}) => (
-  <button
-    type="button"
-    role="menuitem"
-    className="editor-context-menu-item"
-    onClick={onClick}
-    disabled={disabled}
-  >
-    <span className="editor-context-menu-item-label">{label}</span>
-    <span className="editor-context-menu-item-shortcut">{shortcut ?? ''}</span>
-  </button>
-)
 
 export default EditorContextMenu

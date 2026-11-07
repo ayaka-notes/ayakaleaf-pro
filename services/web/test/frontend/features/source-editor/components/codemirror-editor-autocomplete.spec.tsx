@@ -8,6 +8,7 @@ import { TestContainer } from '../helpers/test-container'
 import { FC } from 'react'
 import { MetadataContext } from '@/features/ide-react/context/metadata-context'
 import { ReferencesContext } from '@/features/ide-react/context/references-context'
+import { UserId } from '@ol-types/user'
 
 describe('autocomplete', { scrollBehavior: false }, function () {
   beforeEach(function () {
@@ -75,7 +76,7 @@ describe('autocomplete', { scrollBehavior: false }, function () {
 
     cy.get('.cm-editor').as('editor')
 
-    cy.contains('\\section{Results}')
+    cy.get('.tok-keyword') // wait for parsing and syntax highlighting
 
     // no autocomplete
     cy.findAllByRole('listbox').should('have.length', 0)
@@ -222,7 +223,7 @@ describe('autocomplete', { scrollBehavior: false }, function () {
 
     cy.get('.cm-editor').as('editor')
 
-    cy.contains('\\section{Results}')
+    cy.get('.tok-keyword') // wait for parsing and syntax highlighting
 
     // put the cursor on a blank line to type in
     cy.get('.cm-line').eq(16).as('line')
@@ -461,7 +462,7 @@ describe('autocomplete', { scrollBehavior: false }, function () {
 
     cy.get('.cm-editor').as('editor')
 
-    cy.contains('\\section{Results}')
+    cy.get('.tok-keyword') // wait for parsing and syntax highlighting
 
     // no autocomplete
     cy.findAllByRole('listbox').should('have.length', 0)
@@ -764,7 +765,7 @@ describe('autocomplete', { scrollBehavior: false }, function () {
 
     window.metaAttributesCache.set('ol-showSymbolPalette', true)
     const user = {
-      id: '123abd',
+      id: '123abd' as UserId,
       email: 'testuser@example.com',
     }
     cy.mount(
@@ -794,7 +795,7 @@ describe('autocomplete', { scrollBehavior: false }, function () {
 
     window.metaAttributesCache.set('ol-showSymbolPalette', false)
     const user = {
-      id: '123abd',
+      id: '123abd' as UserId,
       email: 'testuser@example.com',
     }
     cy.mount(

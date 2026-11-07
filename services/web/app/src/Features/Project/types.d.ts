@@ -1,18 +1,20 @@
 import express from 'express'
+import { ParamsDictionary, Query } from 'express-serve-static-core'
 import {
   GetProjectsRequestBody,
   GetProjectsResponseBody,
   ProjectAccessLevel,
   UserRef,
 } from '../../../../types/project/dashboard/api'
+import { Folder } from '../../../../types/folder'
 import { ObjectId } from 'mongodb-legacy'
 import { Source } from '../Authorization/types'
 
 export type GetProjectsRequest = express.Request<
-  unknown,
-  unknown,
+  ParamsDictionary,
+  GetProjectsResponseBody,
   GetProjectsRequestBody,
-  unknown
+  Query
 >
 
 export type GetProjectsResponse = express.Response<GetProjectsResponseBody>
@@ -23,6 +25,7 @@ export type MongoProject = {
   lastUpdated: Date
   lastUpdatedBy: string
   publicAccesLevel: string
+  readOnly: boolean
   archived: ObjectId[]
   trashed: ObjectId[]
   owner_ref: string
@@ -60,4 +63,20 @@ export type FormattedProject = {
   trashed: boolean
   accessLevel: ProjectAccessLevel
   source: Source
+}
+
+export type ProjectDoc = {
+  _id: ObjectId
+  name: string
+  lines: string[]
+  rev: number
+  folder: Folder
+}
+
+export type ProjectFile = {
+  _id: ObjectId
+  name: string
+  hash: string
+  rev: number
+  folder: Folder
 }

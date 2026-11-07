@@ -46,7 +46,7 @@ http {
 	gzip_disable "msie6";
 	gzip_proxied any; # allow upstream server to compress.
 
-	client_max_body_size 50m;
+	client_max_body_size ${MAX_UPLOAD_SIZE_NGINX};
 
 	# gzip_vary on;
 	# gzip_proxied any;

@@ -1,19 +1,22 @@
-const Client = require('./helpers/Client')
-const fetch = require('node-fetch')
-const Stream = require('node:stream')
-const fs = require('node:fs')
-const fsPromises = require('node:fs/promises')
-const ChildProcess = require('node:child_process')
-const { promisify } = require('node:util')
-const ClsiApp = require('./helpers/ClsiApp')
-const Path = require('node:path')
+import Client from './helpers/Client.js'
+import fetch from 'node-fetch'
+import Stream from 'node:stream'
+import fs from 'node:fs'
+import fsPromises from 'node:fs/promises'
+import ChildProcess from 'node:child_process'
+import { promisify } from 'node:util'
+import ClsiApp from './helpers/ClsiApp.js'
+import Path from 'node:path'
+import process from 'node:process'
+import ResourceWriter from '../../../app/js/ResourceWriter.js'
+import { expect } from 'chai'
+
 const fixturePath = path => {
   if (path.slice(0, 3) === 'tmp') {
     return '/tmp/clsi_acceptance_tests' + path.slice(3)
   }
-  return Path.join(__dirname, '../fixtures/', path)
+  return Path.join(import.meta.dirname, '../fixtures/', path)
 }
-const process = require('node:process')
 const pipeline = promisify(Stream.pipeline)
 console.log(
   process.pid,
@@ -38,6 +41,13 @@ const convertToPng = function (pdfPath, pngPath) {
   })
 }
 
+// ImageMagick reports the mean absolute error as "<absolute> (<normalised>)".
+// Identical images do not always yield an exact zero: aarch64 builds leave
+// floating point residue behind, so comparing an image against a byte-identical
+// copy of itself measures around 2e-20. A single differing pixel measures around
+// 7e-07, so anything below this threshold is the same image.
+const MAX_NORMALISED_MAE = 1e-12
+
 const compare = function (originalPath, generatedPath) {
   return new Promise((resolve, reject) => {
     const diffFile = `${fixturePath(generatedPath)}-diff.png`
@@ -49,7 +59,12 @@ const compare = function (originalPath, generatedPath) {
     let stderr = ''
     proc.stderr.on('data', chunk => (stderr += chunk))
     proc.on('exit', () => {
-      if (stderr.trim() === '0 (0)') {
+      // take the parenthesised value: "1.55242e-15 (2.36884e-20)" -> "2.36884e-20".
+      // a failed comparison (mismatched dimensions, missing file) does not match
+      // the metric format, leaving NaN, which fails the threshold check below
+      const match = stderr.trim().match(/\((?<normalised>[^)]+)\)$/)
+      const normalisedMae = match ? parseFloat(match.groups.normalised) : NaN
+      if (normalisedMae <= MAX_NORMALISED_MAE) {
         // remove output diff if test matches expected image
         fs.unlink(diffFile, err => {
           if (err) {
@@ -153,10 +168,27 @@ describe('Example Documents', function () {
     (exampleDir =>
       describe(exampleDir, function () {
         before(function () {
-          this.project_id = Client.randomId() + '_' + exampleDir
+          this.project_id = Client.randomId()
+          this.outputFiles = []
+          // Allow each test to provide a configuration file
+          const checksJsonPath = fixturePath(
+            Path.join('examples', exampleDir, 'checks.json')
+          )
+          this.checks = {}
+          const stats = fs.statSync(checksJsonPath, { throwIfNoEntry: false })
+          if (stats && stats.isFile()) {
+            const rawChecks = fs.readFileSync(checksJsonPath, 'utf8')
+            try {
+              this.checks = JSON.parse(rawChecks)
+            } catch (err) {
+              throw new Error(
+                `Failed to parse checks.json for example "${exampleDir}" at path "${checksJsonPath}": ${err.message}`
+              )
+            }
+          }
         })
 
-        it('should generate the correct pdf', async function () {
+        it('should generate the correct pdf and output files', async function () {
           this.timeout(MOCHA_LATEX_TIMEOUT)
           const body = await Client.compileDirectory(
             this.project_id,
@@ -169,6 +201,27 @@ describe('Example Documents', function () {
           }
           const pdf = Client.getOutputFile(body, 'pdf')
           await downloadAndComparePdf(this.project_id, exampleDir, pdf.url)
+
+          // pass the output files on to subsequent tests
+          this.outputFiles = body.compile.outputFiles
+
+          if (this.checks.mustNotDeleteRegex) {
+            const mustNotDeleteRegex = new RegExp(
+              this.checks.mustNotDeleteRegex
+            )
+            // On subsequent compiles the isExtraneousFile method is used
+            // to remove unwanted files - this check ensures that we don't
+            // remove any files that should be kept (e.g. cache files)
+            const filesToBeRemoved = this.outputFiles.filter(file =>
+              ResourceWriter.isExtraneousFile(file.path)
+            )
+            for (const file of filesToBeRemoved) {
+              expect(
+                file.path,
+                'should not remove any files that must be cached'
+              ).to.not.match(mustNotDeleteRegex)
+            }
+          }
         })
 
         it('should generate the correct pdf on the second run as well', async function () {

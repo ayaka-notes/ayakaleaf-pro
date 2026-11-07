@@ -1,0 +1,381 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 46231ae..fb0f9aa 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -592,6 +592,7 @@ class SearchQuery {
+         this.valid = !!this.search && (!this.regexp || validRegExp(this.search));
+         this.unquoted = this.unquote(this.search);
+         this.wholeWord = !!config.wholeWord;
++        this.scope = config.scope;
+     }
+     /**
+     @internal
+@@ -606,7 +607,7 @@ class SearchQuery {
+     eq(other) {
+         return this.search == other.search && this.replace == other.replace &&
+             this.caseSensitive == other.caseSensitive && this.regexp == other.regexp &&
+-            this.wholeWord == other.wholeWord;
++            this.wholeWord == other.wholeWord && this.scope == other.scope;
+     }
+     /**
+     @internal
+@@ -631,7 +632,12 @@ class QueryType {
+     }
+ }
+ function stringCursor(spec, state, from, to) {
+-    return new SearchCursor(state.doc, spec.unquoted, from, to, spec.caseSensitive ? undefined : x => x.toLowerCase(), spec.wholeWord ? stringWordTest(state.doc, state.charCategorizer(state.selection.main.head)) : undefined);
++    const test = spec.wholeWord ? stringWordTest(state.doc, state.charCategorizer(state.selection.main.head)) : undefined;
++    const testWithinScope = (from, to, buffer, bufferPos) => {
++        return (!test || test(from, to, buffer, bufferPos))
++            && (!spec.scope || spec.scope.some(range => from >= range.from && from <= range.to && to >= range.from && to <= range.to));
++    };
++    return new SearchCursor(state.doc, spec.unquoted, from, to, spec.caseSensitive ? undefined : x => x.toLowerCase(), testWithinScope);
+ }
+ function stringWordTest(doc, categorizer) {
+     return (from, to, buf, bufPos) => {
+@@ -695,9 +701,14 @@ class StringQuery extends QueryType {
+     }
+ }
+ function regexpCursor(spec, state, from, to) {
++    const test = spec.wholeWord ? regexpWordTest(state.charCategorizer(state.selection.main.head)) : undefined;
++    const testWithinScope = (from, to, match) => {
++        return (!test || test(from, to, match))
++            && (!spec.scope || spec.scope.some(range => from >= range.from && from <= range.to && to >= range.from && to <= range.to));
++    };
+     return new RegExpCursor(state.doc, spec.search, {
+         ignoreCase: !spec.caseSensitive,
+-        test: spec.wholeWord ? regexpWordTest(state.charCategorizer(state.selection.main.head)) : undefined
++        test: testWithinScope,
+     }, from, to);
+ }
+ function charBefore(str, index) {
+@@ -737,10 +748,18 @@ class RegExpQuery extends QueryType {
+             this.prevMatchInRange(state, curTo, state.doc.length);
+     }
+     getReplacement(result) {
+-        return this.spec.unquote(this.spec.replace).replace(/\$([$&\d+])/g, (m, i) => i == "$" ? "$"
+-            : i == "&" ? result.match[0]
+-                : i != "0" && +i < result.match.length ? result.match[i]
+-                    : m);
++        return this.spec.unquote(this.spec.replace).replace(/\$([$&]|\d+)/g, (m, i) => {
++            if (i == "&")
++                return result.match[0];
++            if (i == "$")
++                return "$";
++            for (let l = i.length; l > 0; l--) {
++                let n = +i.slice(0, l);
++                if (n > 0 && n < result.match.length)
++                    return result.match[n] + i.slice(l);
++            }
++            return m;
++        });
+     }
+     matchAll(state, limit) {
+         let cursor = regexpCursor(this.spec, state, 0, state.doc.length), ranges = [];
+@@ -1227,7 +1246,9 @@ const searchExtensions = [
+ exports.RegExpCursor = RegExpCursor;
+ exports.SearchCursor = SearchCursor;
+ exports.SearchQuery = SearchQuery;
++exports.StringQuery = StringQuery;
+ exports.closeSearchPanel = closeSearchPanel;
++exports.createSearchPanel = createSearchPanel;
+ exports.findNext = findNext;
+ exports.findPrevious = findPrevious;
+ exports.getSearchQuery = getSearchQuery;
+@@ -1242,4 +1263,6 @@ exports.searchPanelOpen = searchPanelOpen;
+ exports.selectMatches = selectMatches;
+ exports.selectNextOccurrence = selectNextOccurrence;
+ exports.selectSelectionMatches = selectSelectionMatches;
++exports.selectWord = selectWord;
+ exports.setSearchQuery = setSearchQuery;
++exports.togglePanel = togglePanel;
+diff --git a/dist/index.d.cts b/dist/index.d.cts
+index 08f5696..663d192 100644
+--- a/dist/index.d.cts
++++ b/dist/index.d.cts
+@@ -1,6 +1,6 @@
+ import * as _codemirror_state from '@codemirror/state';
+ import { Text, Extension, StateCommand, EditorState, SelectionRange, StateEffect } from '@codemirror/state';
+-import { Command, KeyBinding, EditorView, Panel } from '@codemirror/view';
++import { Command, EditorView, Panel, KeyBinding } from '@codemirror/view';
+ 
+ /**
+ A search cursor provides an iterator over text matches in a
+@@ -161,6 +161,7 @@ the `"cm-selectionMatch"` class for the highlighting. When
+ itself will be highlighted with `"cm-selectionMatch-main"`.
+ */
+ declare function highlightSelectionMatches(options?: HighlightOptions): Extension;
++declare const selectWord: StateCommand;
+ /**
+ Select next occurrence of the current selection. Expand selection
+ to the surrounding word when the selection is empty.
+@@ -264,6 +265,13 @@ declare class SearchQuery {
+     */
+     readonly wholeWord: boolean;
+     /**
++    When set, only include search matches within these ranges
++    */
++    readonly scope?: Readonly<{
++        from: number;
++        to: number;
++    }[]>;
++    /**
+     Create a query object.
+     */
+     constructor(config: {
+@@ -293,6 +301,13 @@ declare class SearchQuery {
+         Enable whole-word matching.
+         */
+         wholeWord?: boolean;
++        /**
++        The ranges to match within
++        */
++        scope?: Readonly<{
++            from: number;
++            to: number;
++        }[]>;
+     });
+     /**
+     Compare this query to another query.
+@@ -307,6 +322,34 @@ declare class SearchQuery {
+         to: number;
+     }>;
+ }
++type SearchResult = typeof SearchCursor.prototype.value;
++declare abstract class QueryType<Result extends SearchResult = SearchResult> {
++    readonly spec: SearchQuery;
++    constructor(spec: SearchQuery);
++    abstract nextMatch(state: EditorState, curFrom: number, curTo: number): Result | null;
++    abstract prevMatch(state: EditorState, curFrom: number, curTo: number): Result | null;
++    abstract getReplacement(result: Result): string;
++    abstract matchAll(state: EditorState, limit: number): readonly Result[] | null;
++    abstract highlight(state: EditorState, from: number, to: number, add: (from: number, to: number) => void): void;
++}
++declare class StringQuery extends QueryType<SearchResult> {
++    constructor(spec: SearchQuery);
++    nextMatch(state: EditorState, curFrom: number, curTo: number): {
++        from: number;
++        to: number;
++    } | null;
++    private prevMatchInRange;
++    prevMatch(state: EditorState, curFrom: number, curTo: number): {
++        from: number;
++        to: number;
++    } | null;
++    getReplacement(_result: SearchResult): string;
++    matchAll(state: EditorState, limit: number): {
++        from: number;
++        to: number;
++    }[] | null;
++    highlight(state: EditorState, from: number, to: number, add: (from: number, to: number) => void): void;
++}
+ /**
+ A state effect that updates the current search query. Note that
+ this only has an effect if the search state has been initialized
+@@ -315,6 +358,7 @@ by running [`openSearchPanel`](https://codemirror.net/6/docs/ref/#search.openSea
+ once).
+ */
+ declare const setSearchQuery: _codemirror_state.StateEffectType<SearchQuery>;
++declare const togglePanel: _codemirror_state.StateEffectType<boolean>;
+ /**
+ Get the current search query from an editor state.
+ */
+@@ -353,6 +397,7 @@ Replace all instances of the search query with the given
+ replacement.
+ */
+ declare const replaceAll: Command;
++declare function createSearchPanel(view: EditorView): Panel;
+ /**
+ Make sure the search panel is open and focused.
+ */
+@@ -372,4 +417,4 @@ Default search-related key bindings.
+ */
+ declare const searchKeymap: readonly KeyBinding[];
+ 
+-export { RegExpCursor, SearchCursor, SearchQuery, closeSearchPanel, findNext, findPrevious, getSearchQuery, gotoLine, highlightSelectionMatches, openSearchPanel, replaceAll, replaceNext, search, searchKeymap, searchPanelOpen, selectMatches, selectNextOccurrence, selectSelectionMatches, setSearchQuery };
++export { RegExpCursor, SearchCursor, SearchQuery, StringQuery, closeSearchPanel, createSearchPanel, findNext, findPrevious, getSearchQuery, gotoLine, highlightSelectionMatches, openSearchPanel, replaceAll, replaceNext, search, searchKeymap, searchPanelOpen, selectMatches, selectNextOccurrence, selectSelectionMatches, selectWord, setSearchQuery, togglePanel };
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 08f5696..663d192 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -1,6 +1,6 @@
+ import * as _codemirror_state from '@codemirror/state';
+ import { Text, Extension, StateCommand, EditorState, SelectionRange, StateEffect } from '@codemirror/state';
+-import { Command, KeyBinding, EditorView, Panel } from '@codemirror/view';
++import { Command, EditorView, Panel, KeyBinding } from '@codemirror/view';
+ 
+ /**
+ A search cursor provides an iterator over text matches in a
+@@ -161,6 +161,7 @@ the `"cm-selectionMatch"` class for the highlighting. When
+ itself will be highlighted with `"cm-selectionMatch-main"`.
+ */
+ declare function highlightSelectionMatches(options?: HighlightOptions): Extension;
++declare const selectWord: StateCommand;
+ /**
+ Select next occurrence of the current selection. Expand selection
+ to the surrounding word when the selection is empty.
+@@ -264,6 +265,13 @@ declare class SearchQuery {
+     */
+     readonly wholeWord: boolean;
+     /**
++    When set, only include search matches within these ranges
++    */
++    readonly scope?: Readonly<{
++        from: number;
++        to: number;
++    }[]>;
++    /**
+     Create a query object.
+     */
+     constructor(config: {
+@@ -293,6 +301,13 @@ declare class SearchQuery {
+         Enable whole-word matching.
+         */
+         wholeWord?: boolean;
++        /**
++        The ranges to match within
++        */
++        scope?: Readonly<{
++            from: number;
++            to: number;
++        }[]>;
+     });
+     /**
+     Compare this query to another query.
+@@ -307,6 +322,34 @@ declare class SearchQuery {
+         to: number;
+     }>;
+ }
++type SearchResult = typeof SearchCursor.prototype.value;
++declare abstract class QueryType<Result extends SearchResult = SearchResult> {
++    readonly spec: SearchQuery;
++    constructor(spec: SearchQuery);
++    abstract nextMatch(state: EditorState, curFrom: number, curTo: number): Result | null;
++    abstract prevMatch(state: EditorState, curFrom: number, curTo: number): Result | null;
++    abstract getReplacement(result: Result): string;
++    abstract matchAll(state: EditorState, limit: number): readonly Result[] | null;
++    abstract highlight(state: EditorState, from: number, to: number, add: (from: number, to: number) => void): void;
++}
++declare class StringQuery extends QueryType<SearchResult> {
++    constructor(spec: SearchQuery);
++    nextMatch(state: EditorState, curFrom: number, curTo: number): {
++        from: number;
++        to: number;
++    } | null;
++    private prevMatchInRange;
++    prevMatch(state: EditorState, curFrom: number, curTo: number): {
++        from: number;
++        to: number;
++    } | null;
++    getReplacement(_result: SearchResult): string;
++    matchAll(state: EditorState, limit: number): {
++        from: number;
++        to: number;
++    }[] | null;
++    highlight(state: EditorState, from: number, to: number, add: (from: number, to: number) => void): void;
++}
+ /**
+ A state effect that updates the current search query. Note that
+ this only has an effect if the search state has been initialized
+@@ -315,6 +358,7 @@ by running [`openSearchPanel`](https://codemirror.net/6/docs/ref/#search.openSea
+ once).
+ */
+ declare const setSearchQuery: _codemirror_state.StateEffectType<SearchQuery>;
++declare const togglePanel: _codemirror_state.StateEffectType<boolean>;
+ /**
+ Get the current search query from an editor state.
+ */
+@@ -353,6 +397,7 @@ Replace all instances of the search query with the given
+ replacement.
+ */
+ declare const replaceAll: Command;
++declare function createSearchPanel(view: EditorView): Panel;
+ /**
+ Make sure the search panel is open and focused.
+ */
+@@ -372,4 +417,4 @@ Default search-related key bindings.
+ */
+ declare const searchKeymap: readonly KeyBinding[];
+ 
+-export { RegExpCursor, SearchCursor, SearchQuery, closeSearchPanel, findNext, findPrevious, getSearchQuery, gotoLine, highlightSelectionMatches, openSearchPanel, replaceAll, replaceNext, search, searchKeymap, searchPanelOpen, selectMatches, selectNextOccurrence, selectSelectionMatches, setSearchQuery };
++export { RegExpCursor, SearchCursor, SearchQuery, StringQuery, closeSearchPanel, createSearchPanel, findNext, findPrevious, getSearchQuery, gotoLine, highlightSelectionMatches, openSearchPanel, replaceAll, replaceNext, search, searchKeymap, searchPanelOpen, selectMatches, selectNextOccurrence, selectSelectionMatches, selectWord, setSearchQuery, togglePanel };
+diff --git a/dist/index.js b/dist/index.js
+index 22172ef..08a9974 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -590,6 +590,7 @@ class SearchQuery {
+         this.valid = !!this.search && (!this.regexp || validRegExp(this.search));
+         this.unquoted = this.unquote(this.search);
+         this.wholeWord = !!config.wholeWord;
++        this.scope = config.scope;
+     }
+     /**
+     @internal
+@@ -604,7 +605,7 @@ class SearchQuery {
+     eq(other) {
+         return this.search == other.search && this.replace == other.replace &&
+             this.caseSensitive == other.caseSensitive && this.regexp == other.regexp &&
+-            this.wholeWord == other.wholeWord;
++            this.wholeWord == other.wholeWord && this.scope == other.scope;
+     }
+     /**
+     @internal
+@@ -629,7 +630,12 @@ class QueryType {
+     }
+ }
+ function stringCursor(spec, state, from, to) {
+-    return new SearchCursor(state.doc, spec.unquoted, from, to, spec.caseSensitive ? undefined : x => x.toLowerCase(), spec.wholeWord ? stringWordTest(state.doc, state.charCategorizer(state.selection.main.head)) : undefined);
++    const test = spec.wholeWord ? stringWordTest(state.doc, state.charCategorizer(state.selection.main.head)) : undefined;
++    const testWithinScope = (from, to, buffer, bufferPos) => {
++        return (!test || test(from, to, buffer, bufferPos))
++            && (!spec.scope || spec.scope.some(range => from >= range.from && from <= range.to && to >= range.from && to <= range.to));
++    };
++    return new SearchCursor(state.doc, spec.unquoted, from, to, spec.caseSensitive ? undefined : x => x.toLowerCase(), testWithinScope);
+ }
+ function stringWordTest(doc, categorizer) {
+     return (from, to, buf, bufPos) => {
+@@ -693,9 +699,14 @@ class StringQuery extends QueryType {
+     }
+ }
+ function regexpCursor(spec, state, from, to) {
++    const test = spec.wholeWord ? regexpWordTest(state.charCategorizer(state.selection.main.head)) : undefined;
++    const testWithinScope = (from, to, match) => {
++        return (!test || test(from, to, match))
++            && (!spec.scope || spec.scope.some(range => from >= range.from && from <= range.to && to >= range.from && to <= range.to));
++    };
+     return new RegExpCursor(state.doc, spec.search, {
+         ignoreCase: !spec.caseSensitive,
+-        test: spec.wholeWord ? regexpWordTest(state.charCategorizer(state.selection.main.head)) : undefined
++        test: testWithinScope,
+     }, from, to);
+ }
+ function charBefore(str, index) {
+@@ -735,10 +746,18 @@ class RegExpQuery extends QueryType {
+             this.prevMatchInRange(state, curTo, state.doc.length);
+     }
+     getReplacement(result) {
+-        return this.spec.unquote(this.spec.replace).replace(/\$([$&\d+])/g, (m, i) => i == "$" ? "$"
+-            : i == "&" ? result.match[0]
+-                : i != "0" && +i < result.match.length ? result.match[i]
+-                    : m);
++        return this.spec.unquote(this.spec.replace).replace(/\$([$&]|\d+)/g, (m, i) => {
++            if (i == "&")
++                return result.match[0];
++            if (i == "$")
++                return "$";
++            for (let l = i.length; l > 0; l--) {
++                let n = +i.slice(0, l);
++                if (n > 0 && n < result.match.length)
++                    return result.match[n] + i.slice(l);
++            }
++            return m;
++        });
+     }
+     matchAll(state, limit) {
+         let cursor = regexpCursor(this.spec, state, 0, state.doc.length), ranges = [];
+@@ -1222,4 +1241,4 @@ const searchExtensions = [
+     baseTheme
+ ];
+ 
+-export { RegExpCursor, SearchCursor, SearchQuery, closeSearchPanel, findNext, findPrevious, getSearchQuery, gotoLine, highlightSelectionMatches, openSearchPanel, replaceAll, replaceNext, search, searchKeymap, searchPanelOpen, selectMatches, selectNextOccurrence, selectSelectionMatches, setSearchQuery };
++export { RegExpCursor, SearchCursor, SearchQuery, StringQuery, closeSearchPanel, createSearchPanel, findNext, findPrevious, getSearchQuery, gotoLine, highlightSelectionMatches, openSearchPanel, replaceAll, replaceNext, search, searchKeymap, searchPanelOpen, selectMatches, selectNextOccurrence, selectSelectionMatches, selectWord, setSearchQuery, togglePanel };

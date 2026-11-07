@@ -67,7 +67,7 @@ describe('BackFillDocNameForDeletedDocs', function () {
     let result
     try {
       result = await promisify(exec)(
-        'cd ../../tools/migrations && east migrate -t saas --force 20210727150530_ce_sp_backfill_deleted_docs'
+        'cd ../../tools/migrations && yarn run migrations migrate -t saas --force 20210727150530_ce_sp_backfill_deleted_docs'
       )
     } catch (error) {
       // dump details like exit code, stdErr and stdOut

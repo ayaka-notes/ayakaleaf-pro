@@ -1,6 +1,8 @@
-import { vi, expect } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import sinon from 'sinon'
 import mongodb from 'mongodb-legacy'
+import OError from '@overleaf/o-error'
+import Settings from '@overleaf/settings'
 
 const { ObjectId } = mongodb
 
@@ -340,7 +342,8 @@ describe('ProjectDuplicator', function () {
         ctx.HistoryManager.promises.copyBlob.should.have.been.calledWith(
           ctx.project.overleaf.history.id,
           ctx.newProject.overleaf.history.id,
-          file.hash
+          file.hash,
+          Settings.maxUploadSize
         )
       }
     })
@@ -447,6 +450,20 @@ describe('ProjectDuplicator', function () {
         )
       ).to.be.rejectedWith('copy blob error')
     })
+
+    it('should tag the error with the file path', async function (ctx) {
+      ctx.file0.hash = '500'
+      await expect(
+        ctx.ProjectDuplicator.promises.duplicate(
+          ctx.owner,
+          ctx.project._id,
+          'name'
+        )
+      ).to.be.rejected.then(err => {
+        // path is tagged without the leading slash
+        expect(OError.getFullInfo(err).path).to.equal('file0')
+      })
+    })
   })
 
   describe('when there is an error', function () {
@@ -459,7 +476,8 @@ describe('ProjectDuplicator', function () {
 
     it('should delete the broken cloned project', function (ctx) {
       ctx.ProjectDeleter.promises.deleteProject.should.have.been.calledWith(
-        ctx.newBlankProject._id
+        ctx.newBlankProject._id,
+        { deletedReason: 'clone-failure' }
       )
     })
 

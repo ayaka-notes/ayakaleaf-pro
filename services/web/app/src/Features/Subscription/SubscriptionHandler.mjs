@@ -2,71 +2,23 @@
 
 import RecurlyWrapper from './RecurlyWrapper.mjs'
 
-import RecurlyClient from './RecurlyClient.mjs'
 import { User } from '../../models/User.mjs'
 import logger from '@overleaf/logger'
 import SubscriptionHelper from './SubscriptionHelper.mjs'
 import SubscriptionUpdater from './SubscriptionUpdater.mjs'
-import SubscriptionLocator from './SubscriptionLocator.mjs'
 import LimitationsManager from './LimitationsManager.mjs'
 import EmailHandler from '../Email/EmailHandler.mjs'
 import { callbackify } from '@overleaf/promise-utils'
-import UserUpdater from '../User/UserUpdater.mjs'
-import { IndeterminateInvoiceError } from '../Errors/Errors.js'
 import Modules from '../../infrastructure/Modules.mjs'
-import SplitTestHandler from '../SplitTests/SplitTestHandler.mjs'
+import SubscriptionErrors from './Errors.mjs'
 import { AI_ADD_ON_CODE } from './AiHelper.mjs'
+import CustomerIoPlanHelpers from './CustomerIoPlanHelpers.mjs'
+import WorkbenchRateLimiter from '../../infrastructure/rate-limiters/WorkbenchRateLimiter.mjs'
+import AiFeatureUsageRateLimiter from '../../infrastructure/rate-limiters/AiFeatureUsageRateLimiter.mjs'
 
 /**
  * @import { PaymentProviderSubscriptionChange } from './PaymentProviderEntities.mjs'
  */
-
-async function validateNoSubscriptionInRecurly(userId) {
-  let subscriptions =
-    await RecurlyWrapper.promises.listAccountActiveSubscriptions(userId)
-
-  if (!subscriptions) {
-    subscriptions = []
-  }
-
-  if (subscriptions.length > 0) {
-    await SubscriptionUpdater.promises.syncSubscription(
-      subscriptions[0],
-      userId
-    )
-
-    return false
-  }
-
-  return true
-}
-
-async function createSubscription(user, subscriptionDetails, recurlyTokenIds) {
-  const valid = await validateNoSubscriptionInRecurly(user._id)
-
-  if (!valid) {
-    throw new Error('user already has subscription in recurly')
-  }
-
-  const recurlySubscription = await RecurlyWrapper.promises.createSubscription(
-    user,
-    subscriptionDetails,
-    recurlyTokenIds
-  )
-
-  if (recurlySubscription.trial_started_at) {
-    const trialStartedAt = new Date(recurlySubscription.trial_started_at)
-    await UserUpdater.promises.updateUser(
-      { _id: user._id, lastTrial: { $not: { $gt: trialStartedAt } } },
-      { $set: { lastTrial: trialStartedAt } }
-    )
-  }
-
-  await SubscriptionUpdater.promises.syncSubscription(
-    recurlySubscription,
-    user._id
-  )
-}
 
 /**
  * Preview the effect of changing the subscription plan
@@ -86,7 +38,8 @@ async function previewSubscriptionChange(userId, planCode) {
 
 /**
  * @param user
- * @param planCode
+ * @param {any} user
+ * @param {any} planCode
  */
 async function updateSubscription(user, planCode) {
   let hasSubscription = false
@@ -110,39 +63,83 @@ async function updateSubscription(user, planCode) {
     return
   }
 
+  const previousPlanType = CustomerIoPlanHelpers.normalizePlanType({
+    plan: {
+      planCode: subscription.planCode,
+      groupPlan: subscription.groupPlan,
+    },
+  })
+
   await Modules.promises.hooks.fire(
     'updatePaidSubscription',
     subscription,
     planCode,
     user._id
   )
+
+  try {
+    await WorkbenchRateLimiter.resetTokenUsage(user._id)
+    await AiFeatureUsageRateLimiter.resetFeatureUsage(user._id)
+  } catch (err) {
+    logger.error({ err, userId: user._id }, 'failed to reset AI usage limits')
+  }
+
+  const newPlanType =
+    CustomerIoPlanHelpers.normalizePlanTypeFromPlanCode(planCode)
+  if (previousPlanType && previousPlanType !== newPlanType) {
+    Modules.promises.hooks
+      .fire('setUserProperties', user._id, {
+        previous_plan_type: previousPlanType,
+      })
+      .catch(err => {
+        logger.warn(
+          { err, userId: user._id },
+          'Failed to set previous_plan_type in customer.io'
+        )
+      })
+  }
 }
 
 /**
- * @param user
+ * @param {any} user
  */
 async function cancelPendingSubscriptionChange(user) {
   const { hasSubscription, subscription } =
     await LimitationsManager.promises.userHasSubscription(user)
 
   if (hasSubscription && subscription != null) {
-    await Modules.promises.hooks.fire(
-      'cancelPendingPaidSubscriptionChange',
+    const [paymentRecord] = await Modules.promises.hooks.fire(
+      'getPaymentFromRecord',
       subscription
     )
+
+    if (paymentRecord != null) {
+      const changeRequest =
+        paymentRecord.subscription.getRequestForPlanChangeCancellation()
+
+      if (changeRequest) {
+        // There are pending add-on changes to preserve, apply the change request
+        await Modules.promises.hooks.fire(
+          'applySubscriptionChangeRequestAndSync',
+          changeRequest,
+          user._id.toString()
+        )
+      } else if (paymentRecord.subscription.pendingChange != null) {
+        // No add-on changes to preserve, just remove the pending change
+        await Modules.promises.hooks.fire(
+          'cancelPendingPaidSubscriptionChange',
+          subscription
+        )
+      }
+    }
   }
 }
 
 /**
  * Send cancellation email to user with split test for AI Assist addon
- * @param user
+ * @param {any} user
  */
 async function _sendCancellationEmail(user) {
-  const { variant } = await SplitTestHandler.promises.getAssignmentForUser(
-    user._id,
-    'cancellation-survey-ai-assist'
-  )
-
   const emailOpts = {
     to: user.email,
     first_name: user.first_name,
@@ -150,30 +147,20 @@ async function _sendCancellationEmail(user) {
 
   const ONE_HOUR_IN_MS = 1000 * 60 * 60
 
-  if (variant === 'enabled') {
-    logger.debug(
-      { userId: user._id },
-      'deferred email: canceledSubscriptionOrAddOn'
-    )
+  logger.debug(
+    { userId: user._id },
+    'deferred email: canceledSubscriptionOrAddOn'
+  )
 
-    EmailHandler.sendDeferredEmail(
-      'canceledSubscriptionOrAddOn',
-      emailOpts,
-      ONE_HOUR_IN_MS
-    )
-  } else {
-    logger.debug({ userId: user._id }, 'deferred email: canceledSubscription')
-
-    EmailHandler.sendDeferredEmail(
-      'canceledSubscription',
-      emailOpts,
-      ONE_HOUR_IN_MS
-    )
-  }
+  EmailHandler.sendDeferredEmail(
+    'canceledSubscriptionOrAddOn',
+    emailOpts,
+    ONE_HOUR_IN_MS
+  )
 }
 
 /**
- * @param user
+ * @param {any} user
  */
 async function cancelSubscription(user) {
   const { hasSubscription, subscription } =
@@ -186,7 +173,7 @@ async function cancelSubscription(user) {
 }
 
 /**
- * @param user
+ * @param {any} user
  */
 async function reactivateSubscription(user) {
   try {
@@ -211,6 +198,9 @@ async function reactivateSubscription(user) {
       )
     }
   } catch (err) {
+    if (err instanceof SubscriptionErrors.AddressPendingReactivationError) {
+      throw err
+    }
     logger.warn(
       { err, userId: user._id },
       'there was an error checking user v2 subscription'
@@ -219,8 +209,8 @@ async function reactivateSubscription(user) {
 }
 
 /**
- * @param recurlySubscription
- * @param requesterData
+ * @param {any} recurlySubscription
+ * @param {any} requesterData
  */
 async function syncSubscription(recurlySubscription, requesterData) {
   const storedSubscription = await RecurlyWrapper.promises.getSubscription(
@@ -246,10 +236,10 @@ async function syncSubscription(recurlySubscription, requesterData) {
 /**
  * attempt to collect past due invoice for customer. Only do that when a) the
  * customer is using Paypal and b) there is only one past due invoice.
- * This is used because Recurly doesn't always attempt collection of paast due
+ * This is used because Recurly doesn't always attempt collection of past due
  * invoices after Paypal billing info were updated.
  *
- * @param recurlyAccountCode
+ * @param {any} recurlyAccountCode
  */
 async function attemptPaypalInvoiceCollection(recurlyAccountCode) {
   const billingInfo =
@@ -273,6 +263,10 @@ async function attemptPaypalInvoiceCollection(recurlyAccountCode) {
   )
 }
 
+/**
+ * @param {any} subscription
+ * @param {any} daysToExtend
+ */
 async function extendTrial(subscription, daysToExtend) {
   await Modules.promises.hooks.fire('extendTrial', subscription, daysToExtend)
 }
@@ -312,7 +306,7 @@ async function purchaseAddon(userId, addOnCode, quantity) {
 /**
  * Cancels an add-on for a user
  *
- * @param user
+ * @param {any} user
  * @param {string} addOnCode
  */
 async function removeAddon(user, addOnCode) {
@@ -333,6 +327,10 @@ async function reactivateAddon(userId, addOnCode) {
   await Modules.promises.hooks.fire('reactivateAddOn', userId, addOnCode)
 }
 
+/**
+ * @param {any} user
+ * @param {any} pauseCycles
+ */
 async function pauseSubscription(user, pauseCycles) {
   // only allow pausing on monthly plans not in a trial
   const { subscription } =
@@ -366,8 +364,9 @@ async function pauseSubscription(user, pauseCycles) {
     pauseCycles
   )
 }
-
-async function resumeSubscription(user) {
+/**
+ * @param {any} user
+ */ async function resumeSubscription(user) {
   const { subscription } =
     await LimitationsManager.promises.userHasSubscription(user)
   if (
@@ -379,83 +378,7 @@ async function resumeSubscription(user) {
   await Modules.promises.hooks.fire('resumePaidSubscription', subscription)
 }
 
-/**
- * @param recurlySubscriptionId
- */
-async function getSubscriptionRestorePoint(recurlySubscriptionId) {
-  const lastSubscription =
-    await SubscriptionLocator.promises.getLastSuccessfulSubscription(
-      recurlySubscriptionId
-    )
-  return lastSubscription
-}
-
-/**
- * @param recurlySubscriptionId
- * @param subscriptionRestorePoint
- */
-async function revertPlanChange(
-  recurlySubscriptionId,
-  subscriptionRestorePoint
-) {
-  const subscription = await RecurlyClient.promises.getSubscription(
-    recurlySubscriptionId
-  )
-
-  const changeRequest = subscription.getRequestForPlanRevert(
-    subscriptionRestorePoint.planCode,
-    subscriptionRestorePoint.addOns
-  )
-
-  const pastDue = await RecurlyClient.promises.getPastDueInvoices(
-    recurlySubscriptionId
-  )
-
-  // only process revert requests within the past 24 hours, as we dont want to restore plans at the end of their dunning cycle
-  const yesterday = new Date()
-  yesterday.setDate(yesterday.getDate() - 1)
-  if (
-    pastDue.length !== 1 ||
-    !pastDue[0].id ||
-    !pastDue[0].dueAt ||
-    pastDue[0].dueAt < yesterday ||
-    pastDue[0].collectionMethod !== 'automatic'
-  ) {
-    throw new IndeterminateInvoiceError(
-      'cant determine invoice to fail for plan revert',
-      {
-        recurlySubscriptionId,
-      }
-    )
-  }
-
-  await RecurlyClient.promises.failInvoice(pastDue[0].id)
-  await SubscriptionUpdater.promises.setSubscriptionWasReverted(
-    subscriptionRestorePoint._id
-  )
-  await RecurlyClient.promises.applySubscriptionChangeRequest(changeRequest)
-  await syncSubscription({ uuid: recurlySubscriptionId }, {})
-}
-
-async function setSubscriptionRestorePoint(userId) {
-  const subscription =
-    await SubscriptionLocator.promises.getUsersSubscription(userId)
-  // if the subscription is not a recurly one, we can return early as we dont allow for failed payments on other payment providers
-  //  we need to deal with it for recurly, because we cant verify payment in advance
-  if (!subscription?.recurlySubscription_id || !subscription.planCode) {
-    return
-  }
-  await SubscriptionUpdater.promises.setRestorePoint(
-    subscription.id,
-    subscription.planCode,
-    subscription.addOns,
-    false
-  )
-}
-
 export default {
-  validateNoSubscriptionInRecurly: callbackify(validateNoSubscriptionInRecurly),
-  createSubscription: callbackify(createSubscription),
   previewSubscriptionChange: callbackify(previewSubscriptionChange),
   updateSubscription: callbackify(updateSubscription),
   cancelPendingSubscriptionChange: callbackify(cancelPendingSubscriptionChange),
@@ -470,12 +393,7 @@ export default {
   reactivateAddon: callbackify(reactivateAddon),
   pauseSubscription: callbackify(pauseSubscription),
   resumeSubscription: callbackify(resumeSubscription),
-  revertPlanChange: callbackify(revertPlanChange),
-  setSubscriptionRestorePoint: callbackify(setSubscriptionRestorePoint),
-  getSubscriptionRestorePoint: callbackify(getSubscriptionRestorePoint),
   promises: {
-    validateNoSubscriptionInRecurly,
-    createSubscription,
     previewSubscriptionChange,
     updateSubscription,
     cancelPendingSubscriptionChange,
@@ -490,8 +408,5 @@ export default {
     reactivateAddon,
     pauseSubscription,
     resumeSubscription,
-    revertPlanChange,
-    setSubscriptionRestorePoint,
-    getSubscriptionRestorePoint,
   },
 }

@@ -1,12 +1,14 @@
 import ChatApiHandler from '../../../../app/src/Features/Chat/ChatApiHandler.mjs'
 import ChatManager from '../../../../app/src/Features/Chat/ChatManager.mjs'
+import AuthorizationManager from '../../../../app/src/Features/Authorization/AuthorizationManager.mjs'
+import TokenAccessHandler from '../../../../app/src/Features/TokenAccess/TokenAccessHandler.mjs'
+import HttpErrorHandler from '../../../../app/src/Features/Errors/HttpErrorHandler.mjs'
 import EditorRealTimeController from '../../../../app/src/Features/Editor/EditorRealTimeController.mjs'
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
 import UserInfoManager from '../../../../app/src/Features/User/UserInfoManager.mjs'
 import UserInfoController from '../../../../app/src/Features/User/UserInfoController.mjs'
 import DocstoreManager from '../../../../app/src/Features/Docstore/DocstoreManager.mjs'
 import DocumentUpdaterHandler from '../../../../app/src/Features/DocumentUpdater/DocumentUpdaterHandler.mjs'
-import CollaboratorsGetter from '../../../../app/src/Features/Collaborators/CollaboratorsGetter.mjs'
 import { Project } from '../../../../app/src/models/Project.mjs'
 import pLimit from 'p-limit'
 
@@ -14,8 +16,12 @@ const TrackChangesController = {
   async trackChanges(req, res, next) {
     try {
       const { project_id } = req.params
-      let state = req.body.on || req.body.on_for
-      if (req.body.on_for_guests && !req.body.on) state.__guests__ = true
+      // merge into the stored state: on_for replaces the members, on_for_guests only toggles __guests__
+      const project = await Project.findById(project_id, { track_changes: 1 }).lean()
+      const { __guests__, ...members } = project?.track_changes instanceof Object ? project.track_changes : {}
+      const state = { ...(req.body.on_for || members) }
+      const guests = req.body.on_for_guests ?? __guests__
+      if (guests) state.__guests__ = true
       await Project.updateOne({_id: project_id}, {track_changes: state}).exec()  //do not wait?
       EditorRealTimeController.emitToRoom(project_id, 'toggle-track-changes', state)
       res.sendStatus(204)
@@ -37,8 +43,11 @@ const TrackChangesController = {
   async getAllRanges(req, res, next) {
     try {
       const { project_id } = req.params
-      const ranges = await DocumentUpdaterHandler.promises.getProjectRanges(project_id)
-      res.json(ranges)
+      // document-updater only knows the docs loaded in Redis. Flush them to
+      // docstore (without unloading) and read every non-deleted doc from there.
+      await DocumentUpdaterHandler.promises.flushProjectToMongo(project_id)
+      const docs = await DocstoreManager.promises.getAllRanges(project_id)
+      res.json(docs.map(doc => ({ id: doc._id, ranges: doc.ranges ?? {} })))
     } catch (err) {
       next(err)
     }
@@ -50,6 +59,8 @@ const TrackChangesController = {
 // provided here to assign names to authors who have left the project but still have unaccepted changes.
     try {
       const { project_id } = req.params
+      // docstore misses the changes still in the document updater
+      await DocumentUpdaterHandler.promises.flushProjectToMongo(project_id)
       const memberIds = await DocstoreManager.promises.getTrackedChangesUserIds(project_id)
       const limit = pLimit(3)
       const users = await Promise.all(
@@ -106,6 +117,15 @@ const TrackChangesController = {
   async deleteMessage(req, res, next) {
     try {
       const { project_id, thread_id, message_id } = req.params
+      const user_id = SessionManager.getLoggedInUserId(req.session)
+      const token = TokenAccessHandler.getRequestToken(req, project_id)
+      // Reviewers may only delete their own messages, like the review panel
+      if (!(await AuthorizationManager.promises.canUserWriteProjectContent(user_id, project_id, token))) {
+        const message = await ChatApiHandler.promises.getThreadMessage(project_id, thread_id, message_id)
+        if (message.user_id !== user_id) {
+          return HttpErrorHandler.forbidden(req, res)
+        }
+      }
       await ChatApiHandler.promises.deleteMessage(project_id, thread_id, message_id)
       EditorRealTimeController.emitToRoom(project_id, 'delete-message', thread_id, message_id)
       res.sendStatus(204)
@@ -117,7 +137,7 @@ const TrackChangesController = {
     try {
       const { project_id, doc_id, thread_id } = req.params
       const user_id = SessionManager.getLoggedInUserId(req.session)
-      if (!user_id) throw new Error('no logged-in user')
+      if (!user_id) return HttpErrorHandler.forbidden(req, res)
       const user = await UserInfoManager.promises.getPersonalInfo(user_id)
       await ChatApiHandler.promises.resolveThread(project_id, thread_id, user_id)
       EditorRealTimeController.emitToRoom(
@@ -136,7 +156,7 @@ const TrackChangesController = {
     try {
       const { project_id, doc_id, thread_id } = req.params
       const user_id = SessionManager.getLoggedInUserId(req.session)
-      if (!user_id) throw new Error('no logged-in user')
+      if (!user_id) return HttpErrorHandler.forbidden(req, res)
       await ChatApiHandler.promises.reopenThread(project_id, thread_id)
       EditorRealTimeController.emitToRoom(project_id, 'reopen-thread', thread_id)
       await DocumentUpdaterHandler.promises.reopenThread(project_id, doc_id, thread_id, user_id)
@@ -148,8 +168,8 @@ const TrackChangesController = {
   async deleteThread(req, res, next) {
     try {
       const { project_id, doc_id, thread_id } = req.params
-      const user_id = SessionManager.getLoggedInUserId(req.session)
-      if (!user_id) throw new Error('no logged-in user')
+      // signed-out editors (link sharing) have no id; document-updater rejects null
+      const user_id = SessionManager.getLoggedInUserId(req.session) ?? undefined
       await ChatApiHandler.promises.deleteThread(project_id, thread_id)
       EditorRealTimeController.emitToRoom(project_id, 'delete-thread', thread_id)
       await DocumentUpdaterHandler.promises.deleteThread(project_id, doc_id, thread_id, user_id)

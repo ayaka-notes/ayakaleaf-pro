@@ -1,0 +1,14 @@
+{
+  "imageSize": 64,
+  "coordinateSpace": 1000,
+  "margin": 0.08,
+  "supersample": 4,
+  "lineWidthDivisor": 32,
+  "antialias": "lanczos",
+  "background": 255,
+  "foreground": 0,
+  "normalization": {
+    "scale": 0.00392156862745098,
+    "invert": true
+  }
+}

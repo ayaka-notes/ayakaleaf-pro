@@ -3,15 +3,28 @@ import { placeSelectionInsideBlock } from '../selection'
 import { isEqual } from 'lodash'
 import { FigureData } from '../../figure-modal'
 import { debugConsole } from '@/utils/debugging'
-import { PreviewPath } from '../../../../../../../types/preview-path'
+import type { PDFDocumentProxy } from 'pdfjs-dist/types/src/display/api'
+import { previewByPathFacet } from '../../file-preview'
+import { PdfDestroyLock } from '../utils/pdf-destroy-lock'
+
+// Module level to synchronize across all GraphicsWidgets
+const pdfDestroyLock = new PdfDestroyLock()
+
+function schedulePdfDestroy(pdf: PDFDocumentProxy) {
+  pdfDestroyLock.schedule(() =>
+    pdf.destroy().catch(() => {
+      debugConsole.warn('Failed to destroy PDFjs instance')
+    })
+  )
+}
 
 export class GraphicsWidget extends WidgetType {
   destroyed = false
   height = 300 // for estimatedHeight, updated when the image is loaded
+  pdfInstance: PDFDocumentProxy | null = null
 
   constructor(
     public filePath: string,
-    public previewByPath: (path: string) => PreviewPath | null,
     public centered: boolean,
     public figureData: FigureData | null
   ) {
@@ -54,6 +67,10 @@ export class GraphicsWidget extends WidgetType {
     ) {
       return true
     }
+    if (this.pdfInstance) {
+      schedulePdfDestroy(this.pdfInstance)
+      this.pdfInstance = null
+    }
     this.renderGraphic(element, view)
     view.requestMeasure()
     return true
@@ -72,6 +89,10 @@ export class GraphicsWidget extends WidgetType {
 
   destroy() {
     this.destroyed = true
+    if (this.pdfInstance) {
+      schedulePdfDestroy(this.pdfInstance)
+      this.pdfInstance = null
+    }
   }
 
   coordsAt(element: HTMLElement) {
@@ -85,7 +106,7 @@ export class GraphicsWidget extends WidgetType {
   renderGraphic(element: HTMLElement, view: EditorView) {
     element.textContent = '' // ensure the element is empty
 
-    const preview = this.previewByPath(this.filePath)
+    const preview = view.state.facet(previewByPathFacet)(this.filePath)
     element.dataset.filepath = this.filePath
     element.dataset.width = this.figureData?.width?.toString()
 
@@ -104,7 +125,11 @@ export class GraphicsWidget extends WidgetType {
         {
           const canvas = document.createElement('canvas')
           canvas.classList.add('ol-cm-graphics')
-          this.renderPDF(view, canvas, preview.url).catch(debugConsole.error)
+          this.renderPDF(view, canvas, preview.url).catch(err => {
+            if (!this.destroyed) {
+              debugConsole.error('Failed to render PDF graphics widget', err)
+            }
+          })
           element.append(canvas)
         }
         break
@@ -249,10 +274,23 @@ export class GraphicsWidget extends WidgetType {
       return
     }
 
+    await pdfDestroyLock.waitForPending()
+    if (this.destroyed) {
+      return
+    }
+
     const pdf = await loadPdfDocumentFromUrl(url).promise
-    const page = await pdf.getPage(1)
+    this.pdfInstance = pdf
 
     // bail out if loading the PDF took too long
+    if (this.destroyed) {
+      schedulePdfDestroy(pdf)
+      this.pdfInstance = null
+      return
+    }
+
+    const page = await pdf.getPage(1)
+
     if (this.destroyed) {
       return
     }

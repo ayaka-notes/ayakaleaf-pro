@@ -1,8 +1,0 @@
-project-history
---dependencies=mongo,redis
---env-add=
---env-pass-through=
---esmock-loader=True
---node-version=22.18.0
---pipeline-owner=🥑 Core
---public-repo=False

@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Usage: services/mailpit/bin/prepare
+# Nothing to do, a suite variant points Overleaf's SMTP settings at mailpit.

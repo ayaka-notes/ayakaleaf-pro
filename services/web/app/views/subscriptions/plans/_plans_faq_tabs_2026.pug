@@ -1,0 +1,131 @@
+include ../../_mixins/material_symbol
+
+mixin accordionItem(id, question)
+	.custom-accordion-item
+		button.custom-accordion-header.collapsed(
+			type='button'
+			data-bs-toggle='collapse'
+			data-bs-target='#' + id
+			aria-expanded='false'
+			aria-controls=id
+		)
+			| #{question}
+			span.custom-accordion-icon
+				+material-symbol('keyboard_arrow_down')
+		.collapse(id=id)
+			.custom-accordion-body
+				block
+
+mixin faqContactLink(href)
+	a.inline-green-link(
+		target='_blank'
+		href=href
+		event-tracking='plans-page-click'
+		event-tracking-mb='true'
+		event-tracking-trigger='click'
+		event-segmentation={button: 'contact', location: 'faq'}
+	)
+		block
+
+mixin managingYourSubscription
+	.ol-accordions-container
+		+accordionItem('managingYourSubscriptionQ1', 'Can I change plans or cancel later?')
+			span Yes, you can do this at any time by going to
+			| !{' '}
+			a.inline-green-link(target='_blank' href='/user/subscription')
+				span Account&nbsp;&gt;&nbsp;Subscription
+			| !{' '}
+			span when logged in to Overleaf. You can change plans, switch between monthly and annual billing options, or cancel to downgrade to the free plan. When canceling, your subscription will continue until the end of the billing period.
+		+accordionItem('managingYourSubscriptionQ2', 'If I change or cancel my Overleaf plan, will I lose my projects?')
+			| No. Changing or canceling your plan won’t affect your projects, the only change will be to the features available to you. You can see which features are available only on paid plans in the comparison table.
+		+accordionItem('managingYourSubscriptionQ3', 'Can I pay by invoice or purchase order?')
+			| This is possible when you’re purchasing a group subscription for five or more people, or a site license. For individual subscriptions, we can only accept payment online via credit card, debit card, or PayPal.
+		+accordionItem('managingYourSubscriptionQ4', 'How do I view/update the card being charged for my subscription?')
+			span You can view and update the card on file by going to
+			| !{' '}
+			a.inline-green-link(target='_blank' href='/user/subscription')
+				span Account&nbsp;&gt;&nbsp;Subscription
+			| .
+
+mixin overleafIndividualPlans
+	.ol-accordions-container
+		+accordionItem('overleafIndividualPlansQ1', 'How does the free trial work?')
+			span You get full access to your chosen plan during your 7-day free trial, and there’s no obligation to continue beyond the trial. Your card will be charged at the end of your trial unless you cancel before then. To cancel, go to
+			| !{' '}
+			a.inline-green-link(target='_blank' href='/user/subscription')
+				span Account&nbsp;&gt;&nbsp;Subscription
+			| !{' '}
+			span when logged in to Overleaf (the trial will continue for the full 7 days).
+		+accordionItem('overleafIndividualPlansQ2', 'What’s a collaborator on an Overleaf individual subscription?')
+			| A collaborator is an Editor or Reviewer that you invite to work with you on a project. So, for example, on our Standard plan you can have up to 10 people collaborating with you on any given project.
+		+accordionItem('overleafIndividualPlansQ3', 'The individual Standard plan has 10 project collaborators, does it mean that 10 people will be upgraded?')
+			| No. Only the subscriber’s account will be upgraded. An individual Standard subscription allows you to invite 10 people per project to edit the project with you. Your collaborators can access features such as the full document history and extended compile time, but only for the project(s) they’re working on with you. If your collaborators want access to those features on their own projects, they will need to purchase their own subscription. (If you work with the same people regularly, you might find a group subscription more cost effective.)
+		+accordionItem('overleafIndividualPlansQ4', 'Do collaborators also have access to the editing and collaboration features I’ve paid for?')
+			| If you have an Overleaf subscription, then your project collaborators will have access to features like real-time track changes and document history, but only for the project(s) they’re working on with you. If your collaborators want access to those features on their own projects, they will need to purchase their own subscription. (If you work with the same people regularly, you might find a group subscription more cost effective.)
+		+accordionItem('overleafIndividualPlansQ5', 'Can I purchase an individual plan on behalf of someone else?')
+			| Individual subscriptions must be purchased by the account that will be the end user. If you want to purchase a plan for someone else, you’ll need to provide them with relevant payment details to enable them to make the purchase.
+		+accordionItem('overleafIndividualPlansQ6', 'Who is eligible for the student discount?')
+			| As the name suggests, the student discount is only for students at educational institutions. This includes graduate students.
+		+accordionItem('overleafIndividualPlansQ7', 'Can I transfer an individual subscription to someone else?')
+			| No. Individual plans can’t be transferred.
+
+mixin overleafGroupPlans
+	.ol-accordions-container
+		+accordionItem('overleafGroupPlansQ1', 'What’s the difference between licenses and collaborators on a group plan?')
+			div On any of our group plans, the number of licenses refers to the number of people you can invite to join your group subscription. All of these people will have access to the plan’s paid-for features across all their projects, such as real-time track changes and document history.
+			.mt-2 Collaborators are people that your group members may invite to work with them on their projects. So, for example, if you have a Standard group plan, the members of your group can invite up to 10 people to work with them on each of their projects. And if you have a Pro group plan, group members can invite as many people to work with them on their projects as they want.
+		+accordionItem('overleafGroupPlansQ2', 'What is the benefit of purchasing an Overleaf group plan?')
+			span Our group subscriptions allow you to purchase access to our premium features for multiple people. They’re easy to manage, help save on paperwork, and allow groups of 5 or more to purchase via purchase order (PO). We also offer discounts on purchases of group subscriptions for more than 20 users; just get in touch with our
+			| !{' '}
+			+faqContactLink('/for/contact-sales')
+				span Sales team
+			| .
+		+accordionItem('overleafGroupPlansQ3', 'Who is eligible for the educational group discount?')
+			| The educational discount for group subscriptions is for students or faculty who are using Overleaf primarily for teaching.
+		+accordionItem('overleafGroupPlansNonprofitDiscount', 'Do you offer discounts for nonprofits?')
+			span We offer discounts to qualified nonprofits for purchases of 20 licenses or more. Please
+			| !{' '}
+			+faqContactLink('/for/contact-sales')
+				span contact sales
+			| .
+		+accordionItem('overleafGroupPlansQ4', 'How do I add more licenses to my group subscription, and what will it cost?')
+			div
+				span You can add up to 20 licenses by going to
+				| !{' '}
+				a.inline-green-link(target='_blank' href='/user/subscription')
+					span Account&nbsp;&gt;&nbsp;Subscription
+				| !{' '}
+				span when logged into Overleaf. The cost per license will be prorated at the current per license rate, and will end with your existing renewal date.
+			.mt-2
+				span If you need more than 20 licenses added to your subscription, please
+				| !{' '}
+				+faqContactLink('/for/contact-sales')
+					span contact the Sales team
+				| .
+		+accordionItem('overleafGroupPlansQ5', 'How do I upgrade my plan from a Standard group to a Pro group plan?')
+			span You can upgrade your plan from a Standard group to a Pro group plan by going to
+			| !{' '}
+			a.inline-green-link(target='_blank' href='/user/subscription')
+				span Account&nbsp;&gt;&nbsp;Subscription
+			| .
+		+accordionItem('overleafGroupPlansQ6', 'I’d like to turn off/on AI features on my subscription. How do I do that?')
+			span If you have a group or organization subscription and you want to disable AI for all your users, you’ll need to
+			| !{' '}
+			+faqContactLink('/contact')
+				span submit a request to our Support team
+			| .
+			.mt-2
+				span Individual users
+				| !{' '}
+				a.inline-green-link(
+					target='_blank'
+					rel='noopener noreferrer'
+					href='https://docs.overleaf.com/integrations-and-add-ons/ai-features'
+				)
+					span can disable AI features
+				| !{' '}
+				span in their
+				| !{' '}
+				a.inline-green-link(target='_blank' href='/user/settings')
+					span Account Settings
+				| .

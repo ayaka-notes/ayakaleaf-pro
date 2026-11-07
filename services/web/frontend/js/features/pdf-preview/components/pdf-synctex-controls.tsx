@@ -10,6 +10,8 @@ import { Placement } from 'react-bootstrap/types'
 import useSynctex from '../hooks/use-synctex'
 import { useFeatureFlag } from '@/shared/context/split-test-context'
 import OLSpinner from '@/shared/components/ol/ol-spinner'
+import { sendMB } from '@/infrastructure/event-tracking'
+import { useCommandProvider } from '@/features/ide-react/hooks/use-command-provider'
 
 const GoToCodeButton = memo(function GoToCodeButton({
   syncToCode,
@@ -21,6 +23,24 @@ const GoToCodeButton = memo(function GoToCodeButton({
   isDetachLayout?: boolean
 }) {
   const { t } = useTranslation()
+  useCommandProvider(
+    () => [
+      {
+        id: 'synctex-sync-to-code',
+        handler: () => {
+          sendMB('jump-to-location', {
+            method: 'command',
+            direction: 'pdf-location-in-code',
+          })
+          syncToCode({ visualOffset: 72 })
+        },
+        disabled: syncToCodeInFlight,
+        label: t('go_to_pdf_location_in_code_action'),
+      },
+    ],
+    [t, syncToCode, syncToCodeInFlight]
+  )
+
   const buttonClasses = classNames('synctex-control', {
     'detach-synctex-control': !!isDetachLayout,
   })
@@ -35,6 +55,10 @@ const GoToCodeButton = memo(function GoToCodeButton({
   }
 
   const syncToCodeWithButton = useCallback(() => {
+    sendMB('jump-to-location', {
+      method: 'arrow',
+      direction: 'pdf-location-in-code',
+    })
     syncToCode({ visualOffset: 72 })
   }, [syncToCode])
 
@@ -85,6 +109,32 @@ const GoToPdfButton = memo(function GoToPdfButton({
     'detach-synctex-control': !!isDetachLayout,
   })
 
+  const handleSyncToPdf = useCallback(() => {
+    sendMB('jump-to-location', {
+      method: 'arrow',
+      direction: 'code-location-in-pdf',
+    })
+    syncToPdf()
+  }, [syncToPdf])
+
+  useCommandProvider(
+    () => [
+      {
+        id: 'synctex-sync-to-pdf',
+        handler: () => {
+          sendMB('jump-to-location', {
+            method: 'command',
+            direction: 'code-location-in-pdf',
+          })
+          syncToPdf()
+        },
+        label: t('go_to_code_location_in_pdf'),
+        disabled: syncToPdfInFlight || !canSyncToPdf,
+      },
+    ],
+    [t, syncToPdf, syncToPdfInFlight, canSyncToPdf]
+  )
+
   let buttonIcon = null
   if (syncToPdfInFlight) {
     buttonIcon = <OLSpinner size="sm" />
@@ -104,7 +154,7 @@ const GoToPdfButton = memo(function GoToPdfButton({
         <OLButton
           variant="secondary"
           size="sm"
-          onClick={syncToPdf}
+          onClick={handleSyncToPdf}
           disabled={syncToPdfInFlight || !canSyncToPdf}
           className={buttonClasses}
           aria-label={t('go_to_code_location_in_pdf')}

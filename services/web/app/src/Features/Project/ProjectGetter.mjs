@@ -11,25 +11,6 @@ import CollaboratorsGetter from '../Collaborators/CollaboratorsGetter.mjs'
 const { normalizeQuery } = Mongo
 
 const ProjectGetter = {
-  EXCLUDE_DEPTH: 8,
-
-  async getProjectWithoutDocLines(projectId) {
-    const excludes = {}
-    for (let i = 1; i <= ProjectGetter.EXCLUDE_DEPTH; i++) {
-      excludes[`rootFolder${Array(i).join('.folders')}.docs.lines`] = 0
-    }
-    return await ProjectGetter.getProject(projectId, excludes)
-  },
-
-  async getProjectWithOnlyFolders(projectId) {
-    const excludes = {}
-    for (let i = 1; i <= ProjectGetter.EXCLUDE_DEPTH; i++) {
-      excludes[`rootFolder${Array(i).join('.folders')}.docs`] = 0
-      excludes[`rootFolder${Array(i).join('.folders')}.fileRefs`] = 0
-    }
-    return await ProjectGetter.getProject(projectId, excludes)
-  },
-
   async getProject(projectId, projection = {}) {
     if (projectId == null) {
       throw new Error('no project id provided')
@@ -132,24 +113,58 @@ const ProjectGetter = {
     return filteredProjects
   },
 
+  async existUsersDebugProjectsOlderThan(userId, days) {
+    const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+
+    const exists = await Project.exists({
+      owner_ref: userId,
+      'overleaf.isDebugCopyOf': { $type: 'objectId' },
+      lastUpdated: { $lt: cutoffDate },
+    })
+
+    return Boolean(exists)
+  },
+
+  async findAllDebugProjects(fields) {
+    return Project.find(
+      {
+        'overleaf.isDebugCopyOf': { $type: 'objectId' },
+      },
+      fields
+    )
+      .limit(500)
+      .populate('owner_ref', ['email', 'name'])
+      .exec()
+  },
+
   /**
    * Return all projects with the given name that belong to the given user.
    *
    * Projects include the user's own projects as well as collaborations with
-   * read/write access.
+   * read/write access. Read-only, review and token-access collaborations are
+   * not considered.
    */
   async findUsersProjectsByName(userId, projectName) {
-    const allProjects = await ProjectGetter.findAllUsersProjects(
-      userId,
-      'name archived trashed'
-    )
+    const fields = 'name archived trashed overleaf'
+    const [ownedProjects, readAndWriteProjects] = await Promise.all([
+      Project.find({ owner_ref: userId }, fields).exec(),
+      Project.find({ collaberator_refs: userId }, fields).exec(),
+    ])
 
-    const { owned, readAndWrite } = allProjects
-    const projects = owned.concat(readAndWrite)
     const lowerCasedProjectName = projectName.toLowerCase()
-    return projects.filter(
-      project => project.name.toLowerCase() === lowerCasedProjectName
-    )
+    const seenProjectIds = new Set()
+    const matches = []
+    for (const project of ownedProjects.concat(readAndWriteProjects)) {
+      const projectId = project._id.toString()
+      if (seenProjectIds.has(projectId)) {
+        continue
+      }
+      seenProjectIds.add(projectId)
+      if (project.name.toLowerCase() === lowerCasedProjectName) {
+        matches.push(project)
+      }
+    }
+    return matches
   },
 
   async getUsersDeletedProjects(userId) {

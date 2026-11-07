@@ -2,9 +2,9 @@
 import Settings from '@overleaf/settings'
 
 import PlansLocator from './PlansLocator.mjs'
+import { getLocalizedPlanPricing, getRoundedTwelfth } from './PriceVersions.mjs'
 import { isStandaloneAiAddOnPlanCode } from './AiHelper.mjs'
 import PaymentProviderEntities from './PaymentProviderEntities.mjs'
-import SubscriptionFormatters from './SubscriptionFormatters.mjs'
 import SubscriptionLocator from './SubscriptionLocator.mjs'
 import InstitutionsGetter from '../Institutions/InstitutionsGetter.mjs'
 import InstitutionsManager from '../Institutions/InstitutionsManager.mjs'
@@ -25,6 +25,7 @@ const { MEMBERS_LIMIT_ADD_ON_CODE } = PaymentProviderEntities
 /**
  * @import { Subscription } from "../../../../types/project/dashboard/subscription"
  * @import { Subscription as DBSubscription } from "../../models/Subscription"
+ * @import { Institution } from "../../../../types/institution"
  */
 
 function buildHostedLink(type) {
@@ -81,7 +82,11 @@ async function buildUsersSubscriptionViewModel(user, locale = 'en') {
       SubscriptionLocator.getMemberSubscriptions(user, cb)
     },
     managedGroupSubscriptions(cb) {
-      SubscriptionLocator.getManagedGroupSubscriptions(user, cb)
+      SubscriptionLocator.getManagedGroupSubscriptions(
+        user,
+        ['groupPolicy'],
+        cb
+      )
     },
     currentInstitutionsWithLicence(cb) {
       InstitutionsGetter.getCurrentInstitutionsWithLicence(
@@ -138,6 +143,14 @@ async function buildUsersSubscriptionViewModel(user, locale = 'en') {
         id => id.toString() === user._id.toString()
       )
 
+      const groupPolicy = group.groupPolicy
+        ? {
+            userCannotUseChat: group.groupPolicy.userCannotUseChat,
+            userCannotUseDropbox: group.groupPolicy.userCannotUseDropbox,
+            userCannotUseAIFeatures: group.groupPolicy.userCannotUseAIFeatures,
+          }
+        : undefined
+
       const groupDataForView = {
         _id: group._id,
         planCode: group.planCode,
@@ -145,6 +158,8 @@ async function buildUsersSubscriptionViewModel(user, locale = 'en') {
         teamName: group.teamName,
         admin_id: { _id: group.admin_id._id, email: group.admin_id.email },
         features: group.features,
+        managedUsersEnabled: !!group.managedUsersEnabled,
+        groupPolicy,
         userIsGroupMember,
       }
 
@@ -241,9 +256,9 @@ async function buildUsersSubscriptionViewModel(user, locale = 'en') {
       }
     })
     const totalLicenses = (plan.membersLimit || 0) + additionalLicenses
-    const isInTrial =
-      paymentRecord.subscription.trialPeriodEnd &&
-      paymentRecord.subscription.trialPeriodEnd.getTime() > Date.now()
+    const isInTrial = SubscriptionHelper.isInTrial(
+      paymentRecord.subscription.trialPeriodEnd
+    )
 
     let isEligibleForPause = false
     const commonPauseConditions =
@@ -270,6 +285,12 @@ async function buildUsersSubscriptionViewModel(user, locale = 'en') {
       isEligibleForPause = stripePauseAssignment.variant === 'enabled'
     }
 
+    let activeCoupons = paymentRecord.coupons
+    if (paymentRecord.subscription.service.includes('stripe')) {
+      // TODO: consider using discount.coupon.valid after removing Recurly
+      activeCoupons = activeCoupons.filter(ac => !ac.isSingleUse)
+    }
+
     personalSubscription.payment = {
       taxRate,
       billingDetailsLink:
@@ -280,25 +301,20 @@ async function buildUsersSubscriptionViewModel(user, locale = 'en') {
       additionalLicenses,
       addOns,
       totalLicenses,
-      nextPaymentDueAt: SubscriptionFormatters.formatDateTime(
-        paymentRecord.subscription.periodEnd
-      ),
-      nextPaymentDueDate: SubscriptionFormatters.formatDate(
-        paymentRecord.subscription.periodEnd
-      ),
+      periodEnd: paymentRecord.subscription.periodEnd,
       currency: paymentRecord.subscription.currency,
+      planPrice: paymentRecord.subscription.planPrice,
       state: paymentRecord.subscription.state,
-      trialEndsAtFormatted: SubscriptionFormatters.formatDateTime(
-        paymentRecord.subscription.trialPeriodEnd
-      ),
       trialEndsAt: paymentRecord.subscription.trialPeriodEnd,
-      activeCoupons: paymentRecord.coupons,
+      activeCoupons,
       accountEmail: paymentRecord.account.email,
       hasPastDueInvoice: paymentRecord.account.hasPastDueInvoice,
       pausedAt: paymentRecord.subscription.pausePeriodStart,
       remainingPauseCycles: paymentRecord.subscription.remainingPauseCycles,
       isEligibleForPause,
       isEligibleForGroupPlan: !isInTrial,
+      isMigratedFromRecurly:
+        paymentRecord.subscription.isMigratedFromRecurly ?? false,
     }
 
     const isMonthlyCollaboratorPlan =
@@ -320,30 +336,19 @@ async function buildUsersSubscriptionViewModel(user, locale = 'en') {
         throw new Error(`No plan found for planCode '${pendingPlanCode}'`)
       }
       let pendingAdditionalLicenses = 0
-      let pendingAddOnTax = 0
-      let pendingAddOnPrice = 0
+
       if (paymentRecord.subscription.pendingChange.nextAddOns) {
         const pendingAddOns =
           paymentRecord.subscription.pendingChange.nextAddOns
         pendingAddOns.forEach(addOn => {
-          pendingAddOnPrice += addOn.quantity * addOn.unitPrice
           if (addOn.code === pendingPlan.membersLimitAddOn) {
             pendingAdditionalLicenses += addOn.quantity
           }
         })
-        // Need to calculate tax ourselves as we don't get tax amounts for pending subs
-        pendingAddOnTax =
-          personalSubscription.payment.taxRate * pendingAddOnPrice
         pendingPlan.addOns = pendingAddOns
       }
-      const pendingSubscriptionTax =
-        personalSubscription.payment.taxRate *
-        paymentRecord.subscription.pendingChange.nextPlanPrice
-      const totalPrice =
-        paymentRecord.subscription.pendingChange.nextPlanPrice +
-        pendingAddOnPrice +
-        pendingAddOnTax +
-        pendingSubscriptionTax
+
+      const totalPrice = paymentRecord.subscription.planPrice + addOnPrice + tax
 
       personalSubscription.payment.displayPrice = formatCurrency(
         totalPrice,
@@ -393,16 +398,18 @@ async function buildUsersSubscriptionViewModel(user, locale = 'en') {
 
 /**
  * @param {{_id: string}} user
- * @returns {Promise<{bestSubscription:Subscription,individualSubscription:DBSubscription|null,memberGroupSubscriptions:DBSubscription[]}>}
+ * @returns {Promise<{bestSubscription:Subscription,individualSubscription:DBSubscription|null,memberGroupSubscriptions:DBSubscription[],managedGroupSubscriptions:DBSubscription[],currentInstitutionsWithLicence:Institution[]}>}
  */
 async function getUsersSubscriptionDetails(user) {
   let [
     individualSubscription,
     memberGroupSubscriptions,
+    managedGroupSubscriptions,
     currentInstitutionsWithLicence,
   ] = await Promise.all([
     SubscriptionLocator.promises.getUsersSubscription(user),
     SubscriptionLocator.promises.getMemberSubscriptions(user),
+    SubscriptionLocator.promises.getManagedGroupSubscriptions(user),
     InstitutionsGetter.promises.getCurrentInstitutionsWithLicence(user._id),
   ])
   if (
@@ -483,7 +490,13 @@ async function getUsersSubscriptionDetails(user) {
       }
     }
   }
-  return { bestSubscription, individualSubscription, memberGroupSubscriptions }
+  return {
+    bestSubscription,
+    individualSubscription,
+    memberGroupSubscriptions,
+    managedGroupSubscriptions,
+    currentInstitutionsWithLicence: currentInstitutionsWithLicence ?? [],
+  }
 }
 
 function buildPlansList(currentPlan, isInTrial) {
@@ -511,37 +524,33 @@ function buildPlansList(currentPlan, isInTrial) {
     )
   }
 
-  result.studentAccounts = _.filter(
-    plans,
-    plan => plan.planCode.indexOf('student') !== -1
-  )
-
-  result.groupMonthlyPlans = _.filter(
-    plans,
-    plan => plan.groupPlan && !plan.annual
-  )
-
-  result.groupAnnualPlans = _.filter(
-    plans,
-    plan => plan.groupPlan && plan.annual
-  )
-
-  result.individualMonthlyPlans = _.filter(
-    plans,
-    plan =>
-      !plan.groupPlan &&
-      !plan.annual &&
-      plan.planCode !== 'personal' && // Prevent the personal plan from appearing on the change-plans page
-      plan.planCode.indexOf('student') === -1
-  )
-
-  result.individualAnnualPlans = _.filter(
-    plans,
-    plan =>
-      !plan.groupPlan && plan.annual && plan.planCode.indexOf('student') === -1
-  )
-
   return result
+}
+
+// Plan codes shown in the subscription dashboard "Change plan" modal,
+const CHANGE_PLAN_MODAL_PLAN_CODES = [
+  'student',
+  'student-annual',
+  'collaborator',
+  'collaborator-annual',
+  'professional',
+  'professional-annual',
+]
+
+/**
+ * The list price of a "Change plan" modal plan, in the given currency and at the
+ * given price version.
+ *
+ * @param {string} planCode
+ * @param {string} currency
+ * @param {import('../../../../types/subscription/plan').StripeLookupKeyVersion} priceVersion
+ * @returns {number|undefined} the price excluding tax
+ */
+function _getListPriceForPlanChange(planCode, currency, priceVersion) {
+  const isAnnual = planCode.endsWith('-annual')
+  const pricingKey = isAnnual ? planCode.replace(/-annual$/, '') : planCode
+  const pricing = getLocalizedPlanPricing(priceVersion)
+  return pricing[currency]?.[pricingKey]?.[isAnnual ? 'annual' : 'monthly']
 }
 
 function _isPlanEqualOrBetter(planA, planB) {
@@ -566,7 +575,7 @@ function buildGroupSubscriptionForView(groupSubscription) {
   // most group plans in Recurly should be in form "group_plancode_size_usage"
   const planLevelFromGroupPlanCode = groupSubscription.planCode.substr(6, 12)
   if (planLevelFromGroupPlanCode === 'professional') {
-    groupSubscription.planLevelName = 'Professional'
+    groupSubscription.planLevelName = 'Pro'
   } else if (planLevelFromGroupPlanCode === 'collaborator') {
     groupSubscription.planLevelName = 'Standard'
   }
@@ -574,7 +583,7 @@ function buildGroupSubscriptionForView(groupSubscription) {
   // this fallback tries to still show the right thing in these cases:
   if (!groupSubscription.planLevelName) {
     if (groupSubscription.planCode.startsWith('professional')) {
-      groupSubscription.planLevelName = 'Professional'
+      groupSubscription.planLevelName = 'Pro'
     } else if (groupSubscription.planCode.startsWith('collaborator')) {
       groupSubscription.planLevelName = 'Standard'
     } else {
@@ -589,29 +598,51 @@ function buildGroupSubscriptionForView(groupSubscription) {
   }
 }
 
-function buildPlansListForSubscriptionDash(currentPlan, isInTrial) {
-  const allPlansData = buildPlansList(currentPlan, isInTrial)
-  const plans = []
-  // only list individual and visible plans for "change plans" UI
-  if (allPlansData.studentAccounts) {
-    plans.push(
-      ...allPlansData.studentAccounts.filter(plan => !plan.hideFromUsers)
-    )
-  }
-  if (allPlansData.individualMonthlyPlans) {
-    plans.push(
-      ...allPlansData.individualMonthlyPlans.filter(plan => !plan.hideFromUsers)
-    )
-  }
-  if (allPlansData.individualAnnualPlans) {
-    plans.push(
-      ...allPlansData.individualAnnualPlans.filter(plan => !plan.hideFromUsers)
-    )
-  }
+/**
+ * @param {any} currentPlan
+ * @param {boolean} isInTrial
+ * @param {object} options
+ * @param {string} [options.currency] - the subscription's currency
+ * @param {import('../../../../types/subscription/plan').StripeLookupKeyVersion} [options.priceVersion]
+ * @param {string} [options.subscriptionPlanCode] - the plan code of the user's
+ * current subscription
+ * @param {number} [options.subscriptionPlanPrice] - the plan price the user's
+ * subscription is actually charged at, which may differ from the price at
+ * `priceVersion` (e.g. a subscription predating the version's split test)
+ */
+function buildPlansListForSubscriptionDash(
+  currentPlan,
+  isInTrial,
+  { currency, priceVersion, subscriptionPlanCode, subscriptionPlanPrice }
+) {
+  const { allPlans, planCodesChangingAtTermEnd } = buildPlansList(
+    currentPlan,
+    isInTrial
+  )
+  const currentPlanCode = subscriptionPlanCode?.split('_')[0]
+  const roundedTwelfth = getRoundedTwelfth(priceVersion)
+  const plans = CHANGE_PLAN_MODAL_PLAN_CODES.map(code => allPlans[code])
+    .filter(Boolean)
+    // shallow copy: these are the shared Settings.plans objects
+    .map(plan => {
+      const listPrice =
+        plan.planCode === currentPlanCode && subscriptionPlanPrice != null
+          ? subscriptionPlanPrice
+          : currency && priceVersion
+            ? _getListPriceForPlanChange(plan.planCode, currency, priceVersion)
+            : undefined
+      const monthlyEquivalentListPrice =
+        plan.annual && listPrice ? roundedTwelfth(listPrice) : undefined
 
+      return {
+        ...plan,
+        listPrice,
+        monthlyEquivalentListPrice,
+      }
+    })
   return {
     plans,
-    planCodesChangingAtTermEnd: allPlansData.planCodesChangingAtTermEnd,
+    planCodesChangingAtTermEnd,
   }
 }
 

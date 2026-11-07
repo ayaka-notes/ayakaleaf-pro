@@ -25,6 +25,7 @@ import {
 } from './Errors.mjs'
 import RecurlyMetrics from './RecurlyMetrics.mjs'
 import { isStandaloneAiAddOnPlanCode, AI_ADD_ON_CODE } from './AiHelper.mjs'
+import _ from 'lodash'
 
 /**
  * @import { PaymentProviderSubscriptionChangeRequest } from './PaymentProviderEntities.mjs'
@@ -35,7 +36,7 @@ import { isStandaloneAiAddOnPlanCode, AI_ADD_ON_CODE } from './AiHelper.mjs'
 
 class RecurlyClientWithErrorHandling extends recurly.Client {
   /**
-   * @param {import('recurly/lib/recurly/Http').Response} response
+   * @param {any} response
    * @return {Error | null}
    * @private
    */
@@ -77,6 +78,9 @@ async function getAccountForUserId(userId) {
   }
 }
 
+/**
+ * @param {any} userId
+ */
 async function createAccountForUserId(userId) {
   const user = await UserGetter.promises.getUser(userId, {
     _id: 1,
@@ -240,6 +244,24 @@ async function updateSubscriptionDetails(updateRequest) {
 async function applySubscriptionChangeRequest(changeRequest) {
   const body = subscriptionChangeRequestToApi(changeRequest)
 
+  // capture pending change before immediate update, as it will be removed by Recurly
+  const pendingChange =
+    changeRequest.timeframe === 'now'
+      ? changeRequest.subscription.pendingChange
+      : null
+
+  if (pendingChange != null) {
+    logger.warn(
+      {
+        subscriptionId: changeRequest.subscription.id,
+        timeframe: changeRequest.timeframe,
+        pendingPlanCode: pendingChange.nextPlanCode,
+        pendingAddOnCodes: pendingChange.nextAddOns.map(a => a.code),
+      },
+      'Applying immediate change to subscription with pending term_end change - will attempt to re-apply'
+    )
+  }
+
   try {
     const change = await client.createSubscriptionChange(
       `uuid-${changeRequest.subscription.id}`,
@@ -249,6 +271,13 @@ async function applySubscriptionChangeRequest(changeRequest) {
       { subscriptionId: changeRequest.subscription.id, changeId: change.id },
       'created subscription change'
     )
+
+    if (pendingChange != null) {
+      await _reapplyPendingChangeAfterImmediateUpdate(
+        changeRequest.subscription.id,
+        pendingChange
+      )
+    }
   } catch (err) {
     if (err instanceof recurly.errors.ValidationError) {
       /**
@@ -270,6 +299,113 @@ async function applySubscriptionChangeRequest(changeRequest) {
     }
     throw err
   }
+}
+
+/**
+ * Re-apply a pending term_end change after an immediate update.
+ *
+ * When an immediate change is applied to a subscription that has a pending
+ * term_end change (e.g., scheduled add-on removal or plan downgrade), we need
+ * to re-create the pending change with the correct items based on what the
+ * pending change was trying to achieve and what happened in the immediate change.
+ *
+ * @param {string} subscriptionId
+ * @param {PaymentProviderSubscriptionChange} pendingChange
+ */
+async function _reapplyPendingChangeAfterImmediateUpdate(
+  subscriptionId,
+  pendingChange
+) {
+  const updatedSubscription = await getSubscription(subscriptionId)
+
+  const planCodeDiffers =
+    pendingChange.nextPlanCode !== updatedSubscription.planCode
+
+  const immediateChangeIncludedPlanChange =
+    pendingChange.subscription.planCode !== updatedSubscription.planCode
+
+  // Build add-on objects for comparison: { code: { quantity, unitPrice } }
+  const preUpdateAddOns = pendingChange.subscription.addOns.reduce(
+    (acc, addOn) => ({
+      ...acc,
+      [addOn.code]: { quantity: addOn.quantity, unitPrice: addOn.unitPrice },
+    }),
+    {}
+  )
+  const preUpdatePendingAddOns = pendingChange.nextAddOns.reduce(
+    (acc, addOn) => ({
+      ...acc,
+      [addOn.code]: { quantity: addOn.quantity, unitPrice: addOn.unitPrice },
+    }),
+    {}
+  )
+  const postUpdateAddOns = updatedSubscription.addOns.reduce(
+    (acc, addOn) => ({
+      ...acc,
+      [addOn.code]: { quantity: addOn.quantity, unitPrice: addOn.unitPrice },
+    }),
+    {}
+  )
+
+  // Merge: start with pending add-ons, add any new add-ons from immediate update
+  /** @type {Record<string, any>} */
+  const mergedAddOns = { ...preUpdatePendingAddOns }
+  for (const [code, details] of Object.entries(postUpdateAddOns)) {
+    // include any add-ons that were added via immediate update just now
+    if (!(code in preUpdateAddOns) && !(code in mergedAddOns)) {
+      mergedAddOns[code] = details
+    }
+  }
+
+  const addOnsDiffer = !_.isEqual(mergedAddOns, postUpdateAddOns)
+
+  if (!planCodeDiffers && !addOnsDiffer) {
+    logger.debug(
+      { subscriptionId },
+      'No pending changes to re-apply after immediate update'
+    )
+    return
+  }
+
+  // only re-apply the pending plan change if:
+  // 1. immediate change didn't include a plan change (was add-on only)
+  // 2. pending plan actually differs from the current plan
+  // If the immediate change was a plan change, the user's new plan choice supersedes the old pending plan.
+  const shouldReapplyPlanCode =
+    !immediateChangeIncludedPlanChange && planCodeDiffers
+
+  logger.debug(
+    {
+      subscriptionId,
+      shouldReapplyPlanCode,
+      shouldReapplyAddOns: addOnsDiffer,
+    },
+    're-applying pending term_end change after immediate update'
+  )
+
+  /** @type {recurly.SubscriptionChangeCreate} */
+  const requestBody = {
+    timeframe: 'term_end',
+    addOns: Object.entries(mergedAddOns).map(([code, details]) => ({
+      code,
+      quantity: details.quantity,
+      unitAmount: details.unitPrice,
+    })),
+  }
+
+  if (shouldReapplyPlanCode) {
+    requestBody.planCode = pendingChange.nextPlanCode
+  }
+
+  const change = await client.createSubscriptionChange(
+    `uuid-${subscriptionId}`,
+    requestBody
+  )
+
+  logger.debug(
+    { subscriptionId, changeId: change.id },
+    're-applied pending term_end change'
+  )
 }
 
 /**
@@ -314,20 +450,32 @@ async function previewSubscriptionChange(changeRequest) {
   }
 }
 
+/**
+ * @param {any} subscriptionId
+ */
 async function removeSubscriptionChange(subscriptionId) {
   const removed = await client.removeSubscriptionChange(subscriptionId)
   logger.debug({ subscriptionId }, 'removed pending subscription change')
   return removed
 }
 
+/**
+ * @param {any} subscriptionUuid
+ */
 async function removeSubscriptionChangeByUuid(subscriptionUuid) {
   return await removeSubscriptionChange('uuid-' + subscriptionUuid)
 }
 
+/**
+ * @param {any} subscriptionUuid
+ */
 async function reactivateSubscriptionByUuid(subscriptionUuid) {
   return await client.reactivateSubscription('uuid-' + subscriptionUuid)
 }
 
+/**
+ * @param {any} subscriptionUuid
+ */
 async function cancelSubscriptionByUuid(subscriptionUuid) {
   try {
     return await client.cancelSubscription('uuid-' + subscriptionUuid)
@@ -361,12 +509,19 @@ async function cancelSubscriptionByUuid(subscriptionUuid) {
   }
 }
 
+/**
+ * @param {any} subscriptionUuid
+ * @param {any} pauseCycles
+ */
 async function pauseSubscriptionByUuid(subscriptionUuid, pauseCycles) {
   return await client.pauseSubscription('uuid-' + subscriptionUuid, {
     remainingPauseCycles: pauseCycles,
   })
 }
 
+/**
+ * @param {any} subscriptionUuid
+ */
 async function resumeSubscriptionByUuid(subscriptionUuid) {
   return await client.resumeSubscription('uuid-' + subscriptionUuid)
 }
@@ -420,6 +575,9 @@ async function getPlan(planCode) {
   return planFromApi(plan)
 }
 
+/**
+ * @param {any} subscription
+ */
 function subscriptionIsCanceledOrExpired(subscription) {
   const state = subscription?.recurlyStatus?.state
   return state === 'canceled' || state === 'expired'
@@ -753,37 +911,8 @@ function subscriptionUpdateRequestToApi(updateRequest) {
 }
 
 /**
- * Retrieves a list of failed invoices for a given Recurly subscription ID.
- *
- * @async
- * @function
- * @param {string} subscriptionId - The ID of the Recurly subscription to fetch failed invoices for.
- * @returns {Promise<Array<recurly.Invoice>>} A promise that resolves to an array of failed invoice objects.
+ * @param {any} subscriptionUuid
  */
-async function getPastDueInvoices(subscriptionId) {
-  const failed = []
-  const invoices = client.listSubscriptionInvoices(`uuid-${subscriptionId}`, {
-    params: { state: 'past_due' },
-  })
-
-  for await (const invoice of invoices.each()) {
-    failed.push(invoice)
-  }
-  return failed
-}
-
-/**
- * Marks an invoice as failed using the Recurly client.
- *
- * @async
- * @function failInvoice
- * @param {string} invoiceId - The ID of the invoice to be marked as failed.
- * @returns {Promise<void>} Resolves when the invoice has been successfully marked as failed.
- */
-async function failInvoice(invoiceId) {
-  await client.markInvoiceFailed(invoiceId)
-}
-
 async function terminateSubscriptionByUuid(subscriptionUuid) {
   const subscription = await client.terminateSubscription(
     'uuid-' + subscriptionUuid,
@@ -820,8 +949,6 @@ export default {
   subscriptionIsCanceledOrExpired,
   pauseSubscriptionByUuid: callbackify(pauseSubscriptionByUuid),
   resumeSubscriptionByUuid: callbackify(resumeSubscriptionByUuid),
-  getPastDueInvoices: callbackify(getPastDueInvoices),
-  failInvoice: callbackify(failInvoice),
   terminateSubscriptionByUuid: callbackify(terminateSubscriptionByUuid),
 
   promises: {
@@ -843,8 +970,6 @@ export default {
     getPaymentMethod,
     getAddOn,
     getPlan,
-    getPastDueInvoices,
-    failInvoice,
     terminateSubscriptionByUuid,
   },
 }

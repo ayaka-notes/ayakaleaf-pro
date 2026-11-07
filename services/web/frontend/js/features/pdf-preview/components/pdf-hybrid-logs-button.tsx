@@ -25,6 +25,20 @@ const PdfHybridLogsButton = forwardRef<HTMLButtonElement>((_, ref) => {
   const warningCount = Number(logEntries?.warnings?.length)
   const totalCount = errorCount + warningCount
 
+  if (showLogs) {
+    return (
+      <OLButton
+        ref={ref}
+        variant="secondary"
+        size="sm"
+        disabled={Boolean(error || stoppedOnFirstError)}
+        onClick={handleClick}
+      >
+        {t('back_to_pdf')}
+      </OLButton>
+    )
+  }
+
   return (
     <OLTooltip
       id="logs-toggle"
@@ -35,15 +49,14 @@ const PdfHybridLogsButton = forwardRef<HTMLButtonElement>((_, ref) => {
         ref={ref}
         variant="link"
         disabled={Boolean(error || stoppedOnFirstError)}
-        active={showLogs}
         className="pdf-toolbar-btn toolbar-item log-btn"
         onClick={handleClick}
         style={{ position: 'relative' }}
-        aria-label={showLogs ? t('view_pdf') : t('view_logs')}
+        aria-label={t('view_logs')}
       >
         <MaterialIcon type="description" />
 
-        {!showLogs && totalCount > 0 && (
+        {totalCount > 0 && (
           <OLBadge bg={errorCount === 0 ? 'warning' : 'danger'}>
             {totalCount}
           </OLBadge>

@@ -6,6 +6,7 @@ import {
   annualActiveSubscription,
   annualActiveSubscriptionEuro,
   annualActiveSubscriptionPro,
+  pendingAddOnChange,
   pendingSubscriptionChange,
 } from '../../../../../fixtures/subscriptions'
 import { ActiveSubscription } from '../../../../../../../../../frontend/js/features/subscription/components/dashboard/states/active/active'
@@ -26,6 +27,7 @@ describe('<ChangePlanModal />', function () {
   beforeEach(function () {
     this.locationWrapperSandbox = sinon.createSandbox()
     this.locationWrapperStub = this.locationWrapperSandbox.stub(location)
+    this.locationWrapperStub.toString.returns('https://www.test-overleaf.com/')
   })
 
   afterEach(function () {
@@ -59,6 +61,37 @@ describe('<ChangePlanModal />', function () {
     expect(screen.queryByText('loading', { exact: false })).to.be.null
   })
 
+  it('shows the price of the assigned price version for Stripe subscriptions', async function () {
+    const stripeSubscription = {
+      ...annualActiveSubscription,
+      service: 'stripe-us' as const,
+    }
+    // the backend resolves listPrice from the user's assigned price version;
+    // the Recurly stub prices this plan at $23.00
+    const plansWithListPrice = plans.map(plan => ({
+      ...plan,
+      displayPrice: undefined,
+      ...(plan.planCode === 'collaborator' ? { listPrice: 25 } : {}),
+    }))
+    renderWithSubscriptionDashContext(
+      <ActiveSubscription subscription={stripeSubscription} />,
+      {
+        metaTags: [
+          { name: 'ol-plans', value: plansWithListPrice },
+          { name: 'ol-groupPlans', value: groupPlans },
+          { name: 'ol-subscription', value: stripeSubscription },
+          { name: 'ol-recommendedCurrency', value: 'USD' },
+        ],
+      }
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change plan' }))
+
+    const priceCell = await screen.findByText('$25.00 / month')
+    const row = priceCell.closest('tr') as HTMLTableRowElement
+    within(row).getByText('Standard monthly')
+  })
+
   it('renders "Your new plan" and "Keep current plan" when there is a pending plan change', async function () {
     renderActiveSubscription(pendingSubscriptionChange)
 
@@ -67,6 +100,17 @@ describe('<ChangePlanModal />', function () {
 
     await screen.findByText('Your new plan')
     screen.getByRole('button', { name: 'Keep my current plan' })
+  })
+
+  it('renders "Your plan" when there is a pending add-on change but no plan change', async function () {
+    renderActiveSubscription(pendingAddOnChange)
+
+    const button = screen.getByRole('button', { name: 'Change plan' })
+    fireEvent.click(button)
+
+    await screen.findByText('Your plan')
+    expect(screen.queryByRole('button', { name: 'Keep my current plan' })).to.be
+      .null
   })
 
   it('does not render when Recurly did not load', function () {
@@ -202,9 +246,9 @@ describe('<ChangePlanModal />', function () {
       screen.getByRole('button', { name: 'Processing…' })
 
       // page is reloaded on success
-      const reloadStub = this.locationWrapperStub.reload
+      const replaceStub = this.locationWrapperStub.replace
       await waitFor(() => {
-        expect(reloadStub).to.have.been.called
+        expect(replaceStub).to.have.been.called
       })
     })
 
@@ -292,9 +336,9 @@ describe('<ChangePlanModal />', function () {
       screen.getByRole('button', { name: 'Processing…' })
 
       // page is reloaded on success
-      const reloadStub = this.locationWrapperStub.reload
+      const replaceStub = this.locationWrapperStub.replace
       await waitFor(() => {
-        expect(reloadStub).to.have.been.called
+        expect(replaceStub).to.have.been.called
       })
     })
 
@@ -398,8 +442,7 @@ describe('<ChangePlanModal />', function () {
       renderActiveSubscription(annualActiveSubscription)
       await openModal()
 
-      const professionalPlanOption =
-        within(modal).getByLabelText('Professional')
+      const professionalPlanOption = within(modal).getByLabelText('Pro')
       fireEvent.click(professionalPlanOption)
 
       await within(modal).findByText(professionalPlanCollaboratorText)
@@ -449,7 +492,7 @@ describe('<ChangePlanModal />', function () {
       ) as HTMLInputElement
       expect(standardPlanRadioInput.checked).to.be.true
       let professionalPlanRadioInput = within(modal).getByLabelText(
-        'Professional'
+        'Pro'
       ) as HTMLInputElement
       expect(professionalPlanRadioInput.checked).to.be.false
 
@@ -460,7 +503,7 @@ describe('<ChangePlanModal />', function () {
       ) as HTMLInputElement
       expect(standardPlanRadioInput.checked).to.be.false
       professionalPlanRadioInput = within(modal).getByLabelText(
-        'Professional'
+        'Pro'
       ) as HTMLInputElement
       expect(professionalPlanRadioInput.checked).to.be.true
 
@@ -504,7 +547,7 @@ describe('<ChangePlanModal />', function () {
       await openModal()
 
       const standardPlanRadioInput = within(modal).getByLabelText(
-        'Professional'
+        'Pro'
       ) as HTMLInputElement
       expect(standardPlanRadioInput.checked).to.be.true
     })
@@ -525,9 +568,9 @@ describe('<ChangePlanModal />', function () {
       screen.getByRole('button', { name: 'Processing…' })
 
       // page is reloaded on success
-      const reloadStub = this.locationWrapperStub.reload
+      const replaceStub = this.locationWrapperStub.replace
       await waitFor(() => {
-        expect(reloadStub).to.have.been.called
+        expect(replaceStub).to.have.been.called
       })
     })
 

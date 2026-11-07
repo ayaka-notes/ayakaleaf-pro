@@ -4,6 +4,7 @@
 const _ = require('lodash')
 const { expect } = require('chai')
 const sinon = require('sinon')
+const OError = require('@overleaf/o-error')
 
 const ot = require('../..')
 const File = ot.File
@@ -201,5 +202,86 @@ describe('LazyStringFileData', function () {
     const stored = await fileData.store(this.blobStore)
     expect(fileData.hash).to.equal(stored.hash)
     expect(fileData.operations).to.deep.equal([])
+  })
+
+  describe('error annotation', function () {
+    it('annotates errors in toEager with blob and operation metadata', async function () {
+      const testHash = this.fileHash
+      // Create a file with content length 19 ('the quick brown fox')
+      // then queue an operation that expects a different base length
+      const fileData = new LazyStringFileData(testHash, undefined, 19)
+      // This operation expects base length 999, which won't match the blob
+      const badOp = new TextOperation()
+      badOp.retain(999)
+      fileData.operations.push(badOp)
+      // Manually set stringLength to match the op's baseLength: pushing directly
+      // to operations bypasses edit(), which is what normally updates stringLength
+      fileData.stringLength = 999
+
+      try {
+        await fileData.toEager(this.blobStore)
+        expect.fail('should have thrown')
+      } catch (err) {
+        const info = OError.getFullInfo(err)
+        expect(info).to.have.property('blobHash', testHash)
+        expect(info).to.have.property('blobContentLength', 19)
+        expect(info).to.have.property('metadataStringLength', 999)
+        expect(info).to.have.property('totalOperations', 1)
+        expect(info).to.have.property('operationIndex', 0)
+        expect(info).to.have.property('currentContentLength', 19)
+        expect(info).to.have.property('firstOpBaseLength', 999)
+        expect(info).to.have.property('contentMatchesMetadata', false)
+        expect(info).to.have.property('contentMatchesFirstOp', false)
+      }
+    })
+
+    it('annotates errors in edit with operation and metadata context', function () {
+      const testHash = this.fileHash
+      const fileData = new LazyStringFileData(testHash, undefined, 19)
+      // Queue one valid operation first so totalExistingOperations > 0
+      fileData.edit(new TextOperation().retain(19).insert('!'))
+      // This operation expects base length 999, mismatching stringLength of 20
+      const badOp = new TextOperation()
+      badOp.retain(999)
+      try {
+        fileData.edit(badOp)
+        expect.fail('should have thrown')
+      } catch (err) {
+        const info = OError.getFullInfo(err)
+        expect(info).to.have.property('blobHash', testHash)
+        expect(info).to.have.property('metadataStringLength', 20)
+        expect(info).to.have.property('operationBaseLength', 999)
+        expect(info).to.have.property('totalExistingOperations', 1)
+      }
+    })
+
+    it('annotates errors in applyOperations with the failing operation index', async function () {
+      const testHash = this.fileHash
+      // Content is 'the quick brown fox' (length 19)
+      const fileData = new LazyStringFileData(testHash, undefined, 19)
+      // First op is valid: insert at end
+      const goodOp = new TextOperation().retain(19).insert('!')
+      // Second op expects length 999 — will fail
+      const badOp = new TextOperation()
+      badOp.retain(999)
+      fileData.operations.push(goodOp)
+      fileData.operations.push(badOp)
+      fileData.stringLength = 999
+
+      try {
+        await fileData.toEager(this.blobStore)
+        expect.fail('should have thrown')
+      } catch (err) {
+        const info = OError.getFullInfo(err)
+        // The second operation (index 1) should be the one that fails
+        expect(info).to.have.property('operationIndex', 1)
+        expect(info).to.have.property('totalOperations', 2)
+        expect(info).to.have.property('currentContentLength', 20)
+        // toEager also tags with blob metadata
+        expect(info).to.have.property('blobHash', testHash)
+        expect(info).to.have.property('blobContentLength', 19)
+        expect(info).to.have.property('metadataStringLength', 999)
+      }
+    })
   })
 })

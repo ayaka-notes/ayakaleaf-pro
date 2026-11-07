@@ -37,7 +37,7 @@ export default function SettingsLanguage({
       value={value}
       options={[{ value: '', label: t('off') }]}
       optgroup={optgroup}
-      label={t('spell_check')}
+      label={t('spellcheck_language')}
       name="spellCheckLanguage"
       disabled={disabled}
     />

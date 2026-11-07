@@ -1,14 +1,17 @@
 {
   "extends": "../../tsconfig.backend.json",
+  "compilerOptions": {
+    "noImplicitAny": true
+  },
   "include": [
     "app/src/**/*",
     "modules/*/app/src/**/*",
+    "modules/*/shared/**/*",
     "modules/*/test/acceptance/**/*",
-    "modules/*/test/smoke/**/*",
     "modules/*/test/unit/**/*",
     "scripts/**/*",
+    "shared/**/*",
     "test/acceptance/**/*",
-    "test/smoke/**/*",
     "test/unit/**/*",
     "types/backend/**/*"
   ]

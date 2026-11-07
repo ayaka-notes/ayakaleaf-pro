@@ -2,7 +2,8 @@ import UserGetter from '../User/UserGetter.mjs'
 import request from 'requestretry'
 import settings from '@overleaf/settings'
 import { V1ConnectionError, NotFoundError } from '../Errors/Errors.js'
-import { promisifyAll } from '@overleaf/promise-utils'
+import { promisify } from '@overleaf/promise-utils'
+import OError from '@overleaf/o-error'
 
 const V1SubscriptionManager = {
   cancelV1Subscription(userId, callback) {
@@ -104,11 +105,11 @@ const V1SubscriptionManager = {
             return callback(new NotFoundError(`v1 user not found: ${userId}`))
           } else {
             return callback(
-              new Error(
-                `non-success code from v1: ${response.statusCode} ${
-                  options.method
-                } ${options.url(v1Id)}`
-              )
+              new OError('non-success code from v1', {
+                url: options.url(v1Id),
+                method: options.method,
+                statusCode: response.statusCode,
+              })
             )
           }
         }
@@ -117,8 +118,9 @@ const V1SubscriptionManager = {
   },
 }
 
-V1SubscriptionManager.promises = promisifyAll(V1SubscriptionManager, {
-  without: ['getGrandfatheredFeaturesForV1User'],
-})
+V1SubscriptionManager.promises = {
+  cancelV1Subscription: promisify(V1SubscriptionManager.cancelV1Subscription),
+  v1IdForUser: promisify(V1SubscriptionManager.v1IdForUser),
+}
 
 export default V1SubscriptionManager

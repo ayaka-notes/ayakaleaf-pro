@@ -4,6 +4,7 @@ import UserGetter from '../User/UserGetter.mjs'
 import CollaboratorsGetter from './CollaboratorsGetter.mjs'
 import CollaboratorsInviteHandler from './CollaboratorsInviteHandler.mjs'
 import CollaboratorsInviteGetter from './CollaboratorsInviteGetter.mjs'
+import CollaboratorsInviteHelper from './CollaboratorsInviteHelper.mjs'
 import logger from '@overleaf/logger'
 import Settings from '@overleaf/settings'
 import EmailHelper from '../Helpers/EmailHelper.mjs'
@@ -16,7 +17,13 @@ import { expressify } from '@overleaf/promise-utils'
 import ProjectAuditLogHandler from '../Project/ProjectAuditLogHandler.mjs'
 import Errors from '../Errors/Errors.js'
 import AuthenticationController from '../Authentication/AuthenticationController.mjs'
-import PrivilegeLevels from '../Authorization/PrivilegeLevels.mjs'
+import PrivilegeLevels, {
+  isPrivilegeUpgrade,
+} from '../Authorization/PrivilegeLevels.mjs'
+import SplitTestHandler from '../SplitTests/SplitTestHandler.mjs'
+import SubscriptionGroupHandler from '../Subscription/SubscriptionGroupHandler.mjs'
+import SubscriptionLocator from '../Subscription/SubscriptionLocator.mjs'
+import TokenAccessHandler from '../TokenAccess/TokenAccessHandler.mjs'
 
 // This rate limiter allows a different number of requests depending on the
 // number of callaborators a user is allowed. This is implemented by providing
@@ -33,8 +40,15 @@ const rateLimiter = new RateLimiter('invite-to-project-by-user-id', {
   duration: 60 * 30,
 })
 
+const getAllInvitesSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+  }),
+})
+
 async function getAllInvites(req, res) {
-  const projectId = req.params.Project_id
+  const { params } = parseReq(req, getAllInvitesSchema, { logOnly: true })
+  const projectId = params.Project_id
   logger.debug({ projectId }, 'getting all active invites for project')
   const invites =
     await CollaboratorsInviteGetter.promises.getAllInvites(projectId)
@@ -82,6 +96,21 @@ async function _checkRateLimit(userId) {
 }
 
 const inviteToProjectSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+  }),
+  body: z.strictObject({
+    email: z.string(),
+    privileges: z.enum([
+      PrivilegeLevels.READ_ONLY,
+      PrivilegeLevels.READ_AND_WRITE,
+      PrivilegeLevels.REVIEW,
+    ]),
+  }),
+})
+// Rollout-temporary fallback (pre-refinement schema from main); delete
+// when this route's REQ_VALIDATION_MODE instrumentation is removed.
+const inviteToProjectFallbackSchema = z.object({
   params: z.object({
     Project_id: zz.objectId(),
   }),
@@ -96,7 +125,9 @@ const inviteToProjectSchema = z.object({
 })
 
 async function inviteToProject(req, res) {
-  const { params, body } = parseReq(req, inviteToProjectSchema)
+  const { params, body } = parseReq(req, inviteToProjectSchema, {
+    fallbackSchema: inviteToProjectFallbackSchema,
+  })
   const projectId = params.Project_id
   let { email, privileges } = body
   const sendingUser = SessionManager.getSessionUser(req.session)
@@ -171,7 +202,7 @@ async function inviteToProject(req, res) {
     req.ip,
     {
       inviteId: invite._id,
-      privileges,
+      role: CollaboratorsInviteHelper.privilegeLevelToRole(invite.privileges),
     }
   )
 
@@ -182,9 +213,17 @@ async function inviteToProject(req, res) {
   })
   res.json({ invite })
 }
+const revokeInviteSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+    invite_id: zz.objectId(),
+  }),
+})
+
 async function revokeInvite(req, res) {
-  const projectId = req.params.Project_id
-  const inviteId = req.params.invite_id
+  const { params } = parseReq(req, revokeInviteSchema, { logOnly: true })
+  const projectId = params.Project_id
+  const inviteId = params.invite_id
   const user = SessionManager.getSessionUser(req.session)
 
   logger.debug({ projectId, inviteId }, 'revoking invite')
@@ -202,7 +241,8 @@ async function revokeInvite(req, res) {
       req.ip,
       {
         inviteId: invite._id,
-        privileges: invite.privileges,
+        collaboratorEmail: invite.email,
+        role: CollaboratorsInviteHelper.privilegeLevelToRole(invite.privileges),
       }
     )
     EditorRealTimeController.emitToRoom(
@@ -215,9 +255,19 @@ async function revokeInvite(req, res) {
   res.sendStatus(204)
 }
 
+const generateNewInviteSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+    invite_id: zz.objectId(),
+  }),
+})
+
 async function generateNewInvite(req, res) {
-  const projectId = req.params.Project_id
-  const inviteId = req.params.invite_id
+  const { params } = parseReq(req, generateNewInviteSchema, {
+    logOnly: true,
+  })
+  const projectId = params.Project_id
+  const inviteId = params.invite_id
   const user = SessionManager.getSessionUser(req.session)
 
   logger.debug({ projectId, inviteId }, 'resending invite')
@@ -257,15 +307,30 @@ async function generateNewInvite(req, res) {
   }
 }
 
-async function viewInvite(req, res) {
-  const projectId = req.params.Project_id
-  const { token } = req.params
-
-  const _renderInvalidPage = function () {
-    res.status(404)
-    logger.debug({ projectId }, 'invite not valid, rendering not-valid page')
+const _renderInvalidPage = function (res, projectId, sharingUpdates) {
+  res.status(404)
+  logger.debug({ projectId }, 'invite not valid, rendering not-valid page')
+  if (sharingUpdates === 'enabled') {
     res.render('project/invite/not-valid', { title: 'Invalid Invite' })
+  } else {
+    res.render('project/invite/not-valid-legacy', { title: 'Invalid Invite' })
   }
+}
+
+const viewInviteSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+    token: z.string(),
+  }),
+})
+
+async function viewInvite(req, res) {
+  const { params } = parseReq(req, viewInviteSchema, { logOnly: true })
+  const projectId = params.Project_id
+  const { token } = params
+
+  const { variant: sharingUpdates } =
+    await SplitTestHandler.promises.getAssignment(req, res, 'sharing-updates')
 
   // check if the user is already a member of the project
   const currentUser = SessionManager.getSessionUser(req.session)
@@ -293,7 +358,7 @@ async function viewInvite(req, res) {
   // check if invite is gone, or otherwise non-existent
   if (invite == null) {
     logger.debug({ projectId }, 'no invite found for this token')
-    return _renderInvalidPage()
+    return _renderInvalidPage(res, projectId, sharingUpdates)
   }
 
   // check the user who sent the invite exists
@@ -303,7 +368,7 @@ async function viewInvite(req, res) {
   )
   if (owner == null) {
     logger.debug({ projectId }, 'no project owner found')
-    return _renderInvalidPage()
+    return _renderInvalidPage(res, projectId, sharingUpdates)
   }
 
   // fetch the project name
@@ -312,7 +377,7 @@ async function viewInvite(req, res) {
   })
   if (project == null) {
     logger.debug({ projectId }, 'no project found')
-    return _renderInvalidPage()
+    return _renderInvalidPage(res, projectId, sharingUpdates)
   }
 
   if (!currentUser) {
@@ -328,22 +393,90 @@ async function viewInvite(req, res) {
   delete req.session.sharedProjectData
 
   // finally render the invite
+  if (sharingUpdates === 'enabled') {
+    res.render('project/invite/show', {
+      token,
+      projectName: project.name,
+      projectId: invite.projectId,
+      title: 'Project Invite',
+    })
+  } else {
+    res.render('project/invite/show-legacy', {
+      invite,
+      token,
+      project,
+      owner,
+      title: 'Project Invite',
+    })
+  }
+}
+
+const viewSharingLinkSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+  }),
+})
+
+async function viewSharingLink(req, res) {
+  const { params } = parseReq(req, viewSharingLinkSchema, { logOnly: true })
+  const projectId = params.Project_id
+
+  // ensure the project exists
+  const project = await ProjectGetter.promises.getProject(projectId, {
+    name: 1,
+  })
+  if (project == null) {
+    logger.debug({ projectId }, 'no project found')
+    return _renderInvalidPage(res, projectId, 'enabled')
+  }
+
+  const currentUser = SessionManager.getSessionUser(req.session)
+  if (!currentUser) {
+    const invite =
+      await CollaboratorsInviteGetter.promises.getSharingLinkInvite(projectId)
+    const isPublicSharingLink =
+      invite != null &&
+      invite.privileges !== PrivilegeLevels.NONE &&
+      !invite.subscriptionId
+
+    if (!isPublicSharingLink) {
+      AuthenticationController.setRedirectInSession(req)
+      return res.redirect('/register')
+    }
+  }
+
+  // cleanup if set for register page
+  delete req.session.sharedProjectData
+
   res.render('project/invite/show', {
-    invite,
-    token,
-    project,
-    owner,
+    projectId,
     title: 'Project Invite',
   })
 }
 
+const acceptInviteSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+    token: z.string().optional(),
+  }),
+  body: z.strictObject({
+    token: z.string().optional(),
+  }),
+})
+
 async function acceptInvite(req, res) {
-  const { Project_id: projectId, token } = req.params
+  const { params, body } = parseReq(req, acceptInviteSchema, {
+    logOnly: true,
+  })
+  const { Project_id: projectId, token: urlToken } = params
+  const { token: bodyToken } = body
   const currentUser = SessionManager.getSessionUser(req.session)
   logger.debug(
     { projectId, userId: currentUser._id },
     'got request to accept invite'
   )
+
+  const token = urlToken || bodyToken
 
   const invite = await CollaboratorsInviteGetter.promises.getInviteByToken(
     projectId,
@@ -354,6 +487,54 @@ async function acceptInvite(req, res) {
     throw new Errors.NotFoundError('no matching invite found')
   }
 
+  if (invite.subscriptionId) {
+    const isGroupMember =
+      await SubscriptionGroupHandler.promises.isUserPartOfGroup(
+        currentUser._id,
+        invite.subscriptionId
+      )
+    if (!isGroupMember) {
+      throw new Errors.ForbiddenError(
+        'user is not part of subscription group required to accept invite'
+      )
+    }
+  }
+
+  // check if the user is already a member of the project and upgrade privileges if possible
+  if (currentUser) {
+    const currentPrivilegeLevel =
+      await CollaboratorsGetter.promises.getMemberIdPrivilegeLevel(
+        currentUser._id,
+        projectId
+      )
+
+    if (currentPrivilegeLevel !== PrivilegeLevels.NONE) {
+      if (isPrivilegeUpgrade(currentPrivilegeLevel, invite.privileges)) {
+        logger.debug(
+          {
+            projectId,
+            userId: currentUser._id,
+            currentPrivilegeLevel,
+            invitePrivilegeLevel: invite.privileges,
+          },
+          'existing member of project can be upgraded'
+        )
+        await CollaboratorsInviteHandler.promises.upgradeUserPrivileges(
+          invite,
+          projectId,
+          currentUser
+        )
+      }
+      return res.redirect(`/project/${projectId}`)
+    }
+  }
+
+  if (invite.privileges === PrivilegeLevels.NONE) {
+    throw new Errors.NotFoundError(
+      'invite has been disabled and user is not an existing member of the project'
+    )
+  }
+
   await ProjectAuditLogHandler.promises.addEntry(
     projectId,
     'accept-invite',
@@ -361,6 +542,7 @@ async function acceptInvite(req, res) {
     req.ip,
     {
       inviteId: invite._id,
+      collaboratorEmail: invite.email,
       privileges: invite.privileges,
     }
   )
@@ -369,6 +551,15 @@ async function acceptInvite(req, res) {
     invite,
     projectId,
     currentUser
+  )
+
+  // remove any other pending invites for user
+  const userEmails = await UserGetter.promises.getUserConfirmedEmails(
+    currentUser._id
+  )
+  await CollaboratorsInviteHandler.promises.revokeInviteForUser(
+    projectId,
+    userEmails
   )
 
   await EditorRealTimeController.emitToRoom(
@@ -383,23 +574,274 @@ async function acceptInvite(req, res) {
   } else if (invite.privileges === PrivilegeLevels.READ_ONLY) {
     editMode = 'view'
   }
-  AnalyticsManager.recordEventForUserInBackground(
-    currentUser._id,
-    'project-joined',
-    {
-      projectId,
-      ownerId: invite.sendingUserId, // only owner can invite others
-      mode: editMode,
-      role: invite.privileges,
-      source: 'email-invite',
-    }
-  )
+  AnalyticsManager.recordEventForSession(req.session, 'project-joined', {
+    projectId,
+    ownerId: invite.sendingUserId, // only owner can invite others
+    mode: editMode,
+    role: invite.privileges,
+    source: urlToken ? 'email-invite' : 'sharing-link',
+  })
 
   if (req.xhr) {
     res.sendStatus(204) //  Done async via project page notification
   } else {
     res.redirect(`/project/${projectId}`)
   }
+}
+
+const getSharingLinkSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+  }),
+})
+
+async function getSharingLink(req, res) {
+  const { Project_id: projectId } = parseReq(req, getSharingLinkSchema, {
+    logOnly: true,
+  }).params
+
+  const invite =
+    await CollaboratorsInviteGetter.promises.getSharingLinkInvite(projectId)
+
+  if (invite === null || !invite.encryptedToken) {
+    res.sendStatus(404)
+  } else {
+    const token = await CollaboratorsInviteHelper.decryptToken(
+      invite.encryptedToken
+    )
+    res.json({
+      _id: invite._id,
+      token,
+      privileges: invite.privileges,
+      subscriptionId: invite.subscriptionId,
+    })
+  }
+}
+
+const updateSharingLinkSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+  }),
+  body: z.strictObject({
+    // We have to use a union here, as Zod enums must be strings,
+    // but NONE is defined as boolean false
+    privileges: z.union([
+      z.literal(PrivilegeLevels.NONE),
+      z.enum([
+        PrivilegeLevels.READ_ONLY,
+        PrivilegeLevels.READ_AND_WRITE,
+        PrivilegeLevels.REVIEW,
+      ]),
+    ]),
+    subscriptionId: zz.objectId().optional(),
+  }),
+})
+// Rollout-temporary fallback (pre-refinement schema from main); delete
+// when this route's REQ_VALIDATION_MODE instrumentation is removed.
+const updateSharingLinkFallbackSchema = z.object({
+  params: z.object({
+    Project_id: zz.objectId(),
+  }),
+  body: z.object({
+    // We have to use a union here, as Zod enums must be strings,
+    // but NONE is defined as boolean false
+    privileges: z.union([
+      z.literal(PrivilegeLevels.NONE),
+      z.enum([
+        PrivilegeLevels.READ_ONLY,
+        PrivilegeLevels.READ_AND_WRITE,
+        PrivilegeLevels.REVIEW,
+      ]),
+    ]),
+    subscriptionId: zz.objectId().optional(),
+  }),
+})
+
+async function updateSharingLink(req, res) {
+  const { params, body } = parseReq(req, updateSharingLinkSchema, {
+    fallbackSchema: updateSharingLinkFallbackSchema,
+  })
+  const projectId = params.Project_id
+  const privileges = body.privileges
+  const subscriptionId = body.subscriptionId
+
+  const currentUser = SessionManager.getSessionUser(req.session)
+
+  if (subscriptionId) {
+    const subscriptions =
+      await SubscriptionLocator.promises.getUserActiveProfessionalGroupSubscriptions(
+        currentUser._id,
+        { _id: 1 }
+      )
+    const canShareWithSubscription = subscriptions.some(
+      subscription => subscription._id.toString() === subscriptionId.toString()
+    )
+
+    if (!canShareWithSubscription) {
+      logger.debug(
+        { projectId, subscriptionId, userId: currentUser._id },
+        'cannot create a group sharing link for a non-professional or non-member subscription'
+      )
+      return res.status(403).json({ errorReason: 'subscription_not_eligible' })
+    }
+  }
+
+  let invite =
+    await CollaboratorsInviteGetter.promises.getSharingLinkInvite(projectId)
+
+  if (invite === null) {
+    invite = await CollaboratorsInviteHandler.promises.createSharingLinkInvite(
+      projectId,
+      privileges,
+      subscriptionId
+    )
+    await ProjectAuditLogHandler.promises.addEntry(
+      projectId,
+      'sharing-link-created',
+      currentUser._id,
+      req.ip,
+      {
+        inviteId: invite._id,
+        privileges: invite.privileges,
+        subscriptionId: invite.subscriptionId,
+      }
+    )
+  } else {
+    invite.privileges = privileges
+    invite.subscriptionId = subscriptionId
+    await invite.save()
+    await ProjectAuditLogHandler.promises.addEntry(
+      projectId,
+      'sharing-link-updated',
+      currentUser._id,
+      req.ip,
+      {
+        inviteId: invite._id,
+        privileges: invite.privileges,
+        subscriptionId: invite.subscriptionId,
+      }
+    )
+  }
+
+  const token = await CollaboratorsInviteHelper.decryptToken(
+    invite.encryptedToken
+  )
+  res.json({
+    _id: invite._id,
+    token,
+    privileges: invite.privileges,
+    subscriptionId: invite.subscriptionId,
+  })
+}
+
+const validateSharingLinkSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+  }),
+  body: z.strictObject({
+    token: z.string(),
+  }),
+})
+// Rollout-temporary fallback (pre-refinement schema from main); delete
+// when this route's REQ_VALIDATION_MODE instrumentation is removed.
+const validateSharingLinkFallbackSchema = z.object({
+  params: z.object({
+    Project_id: zz.objectId(),
+  }),
+  body: z.object({
+    token: z.string(),
+  }),
+})
+
+async function validateSharingLink(req, res) {
+  const { params, body } = parseReq(req, validateSharingLinkSchema, {
+    fallbackSchema: validateSharingLinkFallbackSchema,
+  })
+  const projectId = params.Project_id
+  const { token } = body
+
+  const invite = await CollaboratorsInviteGetter.promises.getInviteByToken(
+    projectId,
+    token
+  )
+
+  const currentUser = SessionManager.getSessionUser(req.session)
+
+  if (invite == null) {
+    return res.json({ valid: false })
+  }
+
+  if (!currentUser) {
+    if (
+      invite.reusable &&
+      invite.privileges !== PrivilegeLevels.NONE &&
+      !invite.subscriptionId
+    ) {
+      TokenAccessHandler.grantSessionTokenAccess(req, projectId, token)
+      return res.json({ valid: true, redirect: true })
+    }
+    return res.json({ valid: false })
+  }
+
+  const currentPrivilegeLevel =
+    await CollaboratorsGetter.promises.getMemberIdPrivilegeLevel(
+      currentUser._id,
+      projectId
+    )
+
+  // fetch the project name
+  const project = await ProjectGetter.promises.getProject(projectId, {
+    name: 1,
+  })
+
+  // If the user is already a member, check if they should be redirected to the project page
+  // or shown the sharing link page based on whether the invite would upgrade their privileges
+  if (currentPrivilegeLevel !== PrivilegeLevels.NONE) {
+    if (
+      // User can't be upgraded any further
+      [PrivilegeLevels.OWNER, PrivilegeLevels.READ_AND_WRITE].includes(
+        currentPrivilegeLevel
+      ) ||
+      // Invite is either disabled or read-only, so can't be an upgrade
+      [PrivilegeLevels.READ_ONLY, PrivilegeLevels.NONE].includes(
+        invite.privileges
+      ) ||
+      // User already has the privileges of the invite
+      currentPrivilegeLevel === invite.privileges
+    ) {
+      return res.json({ valid: true, redirect: true })
+    } else {
+      return res.json({
+        valid: true,
+        projectName: project.name,
+        redirect: false,
+      })
+    }
+  }
+
+  if (invite.privileges === PrivilegeLevels.NONE) {
+    return res.json({ valid: false })
+  }
+
+  if (invite.subscriptionId) {
+    const isGroupMember =
+      await SubscriptionGroupHandler.promises.isUserPartOfGroup(
+        currentUser._id,
+        invite.subscriptionId
+      )
+    if (!isGroupMember) {
+      logger.debug(
+        {
+          projectId,
+          userId: currentUser._id,
+          subscriptionId: invite.subscriptionId,
+        },
+        'user is not part of subscription group required to use sharing link'
+      )
+      return res.json({ valid: false })
+    }
+  }
+  return res.json({ valid: true, projectName: project.name })
 }
 
 const CollaboratorsInviteController = {
@@ -409,6 +851,10 @@ const CollaboratorsInviteController = {
   generateNewInvite: expressify(generateNewInvite),
   viewInvite: expressify(viewInvite),
   acceptInvite: expressify(acceptInvite),
+  viewSharingLink: expressify(viewSharingLink),
+  getSharingLink: expressify(getSharingLink),
+  updateSharingLink: expressify(updateSharingLink),
+  validateSharingLink: expressify(validateSharingLink),
   _checkShouldInviteEmail,
   _checkRateLimit,
 }

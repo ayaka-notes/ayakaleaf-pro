@@ -1,6 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import sinon from 'sinon'
 import OError from '@overleaf/o-error'
+import {
+  InvalidParamsError,
+  InvalidRequestError,
+  setReqValidationModeForTests,
+} from '@overleaf/validation-tools'
 import Errors from '../../../../app/src/Features/Errors/Errors.js'
 const modulePath = '../../../../app/src/Features/User/UserController.mjs'
 
@@ -42,7 +47,12 @@ describe('UserController', function () {
       },
     }
 
-    ctx.UserDeleter = { promises: { deleteUser: sinon.stub().resolves() } }
+    ctx.UserDeleter = {
+      promises: {
+        deleteUser: sinon.stub().resolves(),
+        expireDeletedUser: sinon.stub().resolves(),
+      },
+    }
 
     ctx.UserGetter = {
       promises: { getUser: sinon.stub().resolves(ctx.user) },
@@ -52,11 +62,8 @@ describe('UserController', function () {
       findById: sinon.stub().returns({ exec: sinon.stub().resolves(ctx.user) }),
     }
 
-    ctx.NewsLetterManager = {
-      promises: {
-        subscribe: sinon.stub().resolves(),
-        unsubscribe: sinon.stub().resolves(),
-      },
+    ctx.AnalyticsManager = {
+      recordEventForUserInBackground: sinon.stub(),
     }
 
     ctx.SessionManager = {
@@ -143,6 +150,13 @@ describe('UserController', function () {
       },
     }
 
+    vi.doMock(
+      '../../../../app/src/Features/Analytics/AnalyticsManager',
+      () => ({
+        default: ctx.AnalyticsManager,
+      })
+    )
+
     vi.doMock('../../../../app/src/Features/Helpers/UrlHelper', () => ({
       default: ctx.UrlHelper,
     }))
@@ -162,13 +176,6 @@ describe('UserController', function () {
     vi.doMock('../../../../app/src/models/User', () => ({
       User: ctx.User,
     }))
-
-    vi.doMock(
-      '../../../../app/src/Features/Newsletter/NewsletterManager',
-      () => ({
-        default: ctx.NewsLetterManager,
-      })
-    )
 
     vi.doMock(
       '../../../../app/src/Features/Authentication/AuthenticationController',
@@ -246,10 +253,15 @@ describe('UserController', function () {
       status: sinon.stub(),
       sendStatus: sinon.stub(),
       json: sinon.stub(),
+      set: sinon.stub(),
     }
     ctx.res.status.returns(ctx.res)
     ctx.next = sinon.stub()
     ctx.callback = sinon.stub()
+  })
+
+  afterEach(function () {
+    setReqValidationModeForTests(null)
   })
 
   describe('tryDeleteUser', function () {
@@ -267,6 +279,16 @@ describe('UserController', function () {
       return new Promise(resolve => {
         ctx.res.sendStatus = code => {
           code.should.equal(200)
+          resolve()
+        }
+        ctx.UserController.tryDeleteUser(ctx.req, ctx.res, ctx.next)
+      })
+    })
+
+    it('should set the Clear-Site-Data header', function (ctx) {
+      return new Promise(resolve => {
+        ctx.res.sendStatus = code => {
+          expect(ctx.res.set).to.have.been.calledWith('Clear-Site-Data', '"*"')
           resolve()
         }
         ctx.UserController.tryDeleteUser(ctx.req, ctx.res, ctx.next)
@@ -427,34 +449,20 @@ describe('UserController', function () {
         })
       })
     })
-  })
 
-  describe('subscribe', function () {
-    it('should send the user to subscribe', function (ctx) {
-      return new Promise(resolve => {
-        ctx.res.json = data => {
-          expect(data.message).to.equal('thanks_settings_updated')
-          ctx.NewsLetterManager.promises.subscribe.should.have.been.calledWith(
-            ctx.user
-          )
-          resolve()
-        }
-        ctx.UserController.subscribe(ctx.req, ctx.res)
+    describe('request validation', function () {
+      beforeEach(function () {
+        setReqValidationModeForTests('enforce')
       })
-    })
-  })
 
-  describe('unsubscribe', function () {
-    it('should send the user to unsubscribe', function (ctx) {
-      return new Promise(resolve => {
-        ctx.res.json = data => {
-          expect(data.message).to.equal('thanks_settings_updated')
-          ctx.NewsLetterManager.promises.unsubscribe.should.have.been.calledWith(
-            ctx.user
-          )
-          resolve()
-        }
-        ctx.UserController.unsubscribe(ctx.req, ctx.res, ctx.next)
+      it('rejects an unrecognized body field', async function (ctx) {
+        ctx.req.body.extraField = 'nope'
+        await ctx.UserController.tryDeleteUser(
+          ctx.req,
+          ctx.res
+        ).should.be.rejectedWith(InvalidRequestError)
+        expect(ctx.AuthenticationManager.promises.authenticate).to.not.have.been
+          .called
       })
     })
   })
@@ -565,39 +573,6 @@ describe('UserController', function () {
       })
     })
 
-    it('should set enableNewEditorStageFour to true', function (ctx) {
-      return new Promise(resolve => {
-        ctx.req.body = { enableNewEditor: true }
-        ctx.res.sendStatus = code => {
-          ctx.user.ace.enableNewEditorStageFour.should.equal(true)
-          resolve()
-        }
-        ctx.UserController.updateUserSettings(ctx.req, ctx.res)
-      })
-    })
-
-    it('should set enableNewEditorStageFour to false', function (ctx) {
-      return new Promise(resolve => {
-        ctx.req.body = { enableNewEditor: false }
-        ctx.res.sendStatus = code => {
-          ctx.user.ace.enableNewEditorStageFour.should.equal(false)
-          resolve()
-        }
-        ctx.UserController.updateUserSettings(ctx.req, ctx.res)
-      })
-    })
-
-    it('should keep enableNewEditorStageFour a boolean', function (ctx) {
-      return new Promise(resolve => {
-        ctx.req.body = { enableNewEditor: 'foobar' }
-        ctx.res.sendStatus = code => {
-          ctx.user.ace.enableNewEditorStageFour.should.equal(true)
-          resolve()
-        }
-        ctx.UserController.updateUserSettings(ctx.req, ctx.res)
-      })
-    })
-
     it('should set darkModePdf to true', function (ctx) {
       return new Promise(resolve => {
         ctx.req.body = { darkModePdf: true }
@@ -625,6 +600,141 @@ describe('UserController', function () {
         ctx.req.body = { darkModePdf: 'foobar' }
         ctx.res.sendStatus = code => {
           ctx.user.ace.darkModePdf.should.equal(true)
+          resolve()
+        }
+        ctx.UserController.updateUserSettings(ctx.req, ctx.res)
+      })
+    })
+
+    it('should set zotero settings object', function (ctx) {
+      return new Promise(resolve => {
+        ctx.req.body = {
+          zotero: {
+            enabled: false,
+            groups: [{ id: '123' }],
+            disablePersonalLibrary: true,
+          },
+        }
+        ctx.res.sendStatus = code => {
+          ctx.user.ace.zotero.enabled.should.equal(false)
+          ctx.user.ace.zotero.groups.should.deep.equal([{ id: '123' }])
+          ctx.user.ace.zotero.disablePersonalLibrary.should.equal(true)
+          resolve()
+        }
+        ctx.UserController.updateUserSettings(ctx.req, ctx.res)
+      })
+    })
+
+    it('should drop the _id from zotero groups', function (ctx) {
+      return new Promise(resolve => {
+        ctx.req.body = {
+          zotero: {
+            groups: [{ _id: 'abc123', id: '123' }],
+          },
+        }
+        ctx.res.sendStatus = code => {
+          ctx.user.ace.zotero.groups.should.deep.equal([{ id: '123' }])
+          resolve()
+        }
+        ctx.UserController.updateUserSettings(ctx.req, ctx.res)
+      })
+    })
+
+    it('should set zotero settings with partial update', function (ctx) {
+      return new Promise(resolve => {
+        ctx.user.ace.zotero = {
+          enabled: true,
+          groups: [{ id: 'existing' }],
+          disablePersonalLibrary: false,
+        }
+        ctx.req.body = {
+          zotero: { enabled: false },
+        }
+        ctx.res.sendStatus = code => {
+          ctx.user.ace.zotero.enabled.should.equal(false)
+          resolve()
+        }
+        ctx.UserController.updateUserSettings(ctx.req, ctx.res)
+      })
+    })
+
+    it('should set mendeley settings object', function (ctx) {
+      return new Promise(resolve => {
+        ctx.req.body = {
+          mendeley: {
+            enabled: false,
+            groups: [{ id: 'group-456' }],
+            disablePersonalLibrary: true,
+          },
+        }
+        ctx.res.sendStatus = code => {
+          ctx.user.ace.mendeley.enabled.should.equal(false)
+          ctx.user.ace.mendeley.groups.should.deep.equal([{ id: 'group-456' }])
+          ctx.user.ace.mendeley.disablePersonalLibrary.should.equal(true)
+          resolve()
+        }
+        ctx.UserController.updateUserSettings(ctx.req, ctx.res)
+      })
+    })
+
+    it('should set mendeley with multiple groups', function (ctx) {
+      return new Promise(resolve => {
+        ctx.req.body = {
+          mendeley: {
+            enabled: true,
+            groups: [{ id: 'group-1' }, { id: 'group-2' }, { id: 'group-3' }],
+            disablePersonalLibrary: false,
+          },
+        }
+        ctx.res.sendStatus = code => {
+          ctx.user.ace.mendeley.groups.should.have.length(3)
+          ctx.user.ace.mendeley.groups[0].id.should.equal('group-1')
+          ctx.user.ace.mendeley.groups[1].id.should.equal('group-2')
+          ctx.user.ace.mendeley.groups[2].id.should.equal('group-3')
+          resolve()
+        }
+        ctx.UserController.updateUserSettings(ctx.req, ctx.res)
+      })
+    })
+
+    it('should set papers settings object', function (ctx) {
+      return new Promise(resolve => {
+        ctx.req.body = {
+          papers: {
+            enabled: true,
+            groups: [],
+            disablePersonalLibrary: false,
+          },
+        }
+        ctx.res.sendStatus = code => {
+          ctx.user.ace.papers.enabled.should.equal(true)
+          ctx.user.ace.papers.groups.should.deep.equal([])
+          ctx.user.ace.papers.disablePersonalLibrary.should.equal(false)
+          resolve()
+        }
+        ctx.UserController.updateUserSettings(ctx.req, ctx.res)
+      })
+    })
+
+    it('should allow setting only papers disablePersonalLibrary', function (ctx) {
+      return new Promise(resolve => {
+        ctx.req.body = {
+          papers: { disablePersonalLibrary: true },
+        }
+        ctx.res.sendStatus = code => {
+          ctx.user.ace.papers.disablePersonalLibrary.should.equal(true)
+          resolve()
+        }
+        ctx.UserController.updateUserSettings(ctx.req, ctx.res)
+      })
+    })
+
+    it('should handle undefined mendeley by not setting it', function (ctx) {
+      return new Promise(resolve => {
+        ctx.user.ace.mendeley = { enabled: true, groups: [] }
+        ctx.req.body = { mendeley: undefined }
+        ctx.res.sendStatus = code => {
+          ctx.user.ace.mendeley.enabled.should.equal(true)
           resolve()
         }
         ctx.UserController.updateUserSettings(ctx.req, ctx.res)
@@ -765,6 +875,29 @@ describe('UserController', function () {
         })
       })
     })
+
+    describe('request validation', function () {
+      it('rejects a non-string first_name', async function (ctx) {
+        ctx.req.body = { first_name: 12345 }
+        await ctx.UserController.updateUserSettings(
+          ctx.req,
+          ctx.res
+        ).should.be.rejectedWith(InvalidRequestError)
+        expect(ctx.user.save).to.not.have.been.called
+      })
+
+      it('tolerates an unrecognized body field via the fallback schema', function (ctx) {
+        setReqValidationModeForTests('log')
+        return new Promise(resolve => {
+          ctx.req.body = { someNewSetting: 'x' }
+          ctx.res.sendStatus = code => {
+            code.should.equal(200)
+            resolve()
+          }
+          ctx.UserController.updateUserSettings(ctx.req, ctx.res)
+        })
+      })
+    })
   })
 
   describe('logout', function () {
@@ -851,6 +984,20 @@ describe('UserController', function () {
           resolve()
         }
         ctx.UserController.logout(ctx.req, ctx.res)
+      })
+    })
+
+    describe('request validation', function () {
+      beforeEach(function () {
+        setReqValidationModeForTests('enforce')
+      })
+
+      it('rejects an unrecognized body field', async function (ctx) {
+        ctx.req.body.extraField = 'nope'
+        await ctx.UserController.logout(
+          ctx.req,
+          ctx.res
+        ).should.be.rejectedWith(InvalidRequestError)
       })
     })
   })
@@ -1179,6 +1326,26 @@ describe('UserController', function () {
         })
       })
     })
+
+    describe('request validation', function () {
+      beforeEach(function () {
+        setReqValidationModeForTests('enforce')
+      })
+
+      it('rejects an unrecognized body field', async function (ctx) {
+        ctx.req.body = {
+          newPassword1: 'newpass',
+          newPassword2: 'newpass',
+          extraField: 'nope',
+        }
+        await ctx.UserController.changePassword(
+          ctx.req,
+          ctx.res
+        ).should.be.rejectedWith(InvalidRequestError)
+        expect(ctx.AuthenticationManager.promises.authenticate).to.not.have.been
+          .called
+      })
+    })
   })
 
   describe('ensureAffiliationMiddleware', function () {
@@ -1389,6 +1556,60 @@ describe('UserController', function () {
 
       it('should return the error', function (ctx) {
         expect(ctx.next).to.be.calledWith(sinon.match.instanceOf(Error))
+      })
+    })
+
+    describe('request validation', function () {
+      beforeEach(function (ctx) {
+        ctx.user.emails = []
+        ctx.Features.hasFeature.withArgs('affiliations').returns(true)
+        ctx.req.query = { ensureAffiliation: true, extraField: 'nope' }
+      })
+
+      it('tolerates an unrecognized query field via the fallback schema', async function (ctx) {
+        setReqValidationModeForTests('log')
+        await ctx.UserController.ensureAffiliationMiddleware(
+          ctx.req,
+          ctx.res,
+          ctx.next
+        )
+        expect(ctx.next).to.have.been.calledWith()
+        expect(ctx.UserGetter.promises.getUser).to.have.been.called
+      })
+    })
+  })
+
+  describe('expireDeletedUser', function () {
+    beforeEach(function (ctx) {
+      ctx.req.params = { userId: '507f191e810c19729de860ea' }
+    })
+
+    it('should expire the deleted user and return 204', function (ctx) {
+      return new Promise(resolve => {
+        ctx.res.sendStatus = code => {
+          expect(code).to.equal(204)
+          expect(
+            ctx.UserDeleter.promises.expireDeletedUser
+          ).to.have.been.calledWith('507f191e810c19729de860ea')
+          resolve()
+        }
+        ctx.UserController.expireDeletedUser(ctx.req, ctx.res, ctx.next)
+      })
+    })
+
+    describe('request validation', function () {
+      beforeEach(function () {
+        setReqValidationModeForTests('enforce')
+      })
+
+      it('rejects a malformed userId', async function (ctx) {
+        ctx.req.params = { userId: 'not-an-object-id' }
+        await ctx.UserController.expireDeletedUser(
+          ctx.req,
+          ctx.res
+        ).should.be.rejectedWith(InvalidParamsError)
+        expect(ctx.UserDeleter.promises.expireDeletedUser).to.not.have.been
+          .called
       })
     })
   })

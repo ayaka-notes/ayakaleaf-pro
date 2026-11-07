@@ -1,67 +1,106 @@
-const { Gauge, Summary } = require('prom-client')
+const { Gauge, Summary, Counter } = require('prom-client')
 
-function monitor(mongoClient) {
-  const labelNames = ['mongo_server']
+/** @type {poolSize: Gauge<string>, availableConnections: Gauge<string>, waitQueueSize: Gauge<string>, maxPoolSize: Gauge<string>, mongoCommandStarted: Counter<string>, mongoCommandTimer: Summary<string>} */
+let metrics
+const collectPoolMetrics = []
+
+/**
+ * @param clientLabel
+ */
+function initMetricsOnce(clientLabel) {
+  if (metrics) return
+  const poolLabelNames = ['mongo_server']
+  if (clientLabel) poolLabelNames.push('client')
   const poolSize = new Gauge({
     name: 'mongo_connection_pool_size',
     help: 'number of connections in the connection pool',
-    labelNames,
+    labelNames: poolLabelNames,
     // Use this one metric's collect() to set all metrics' values.
-    collect,
+    collect() {
+      // Reset all gauges in case they contain values for servers that
+      // disappeared
+      metrics.poolSize.reset()
+      metrics.availableConnections.reset()
+      metrics.waitQueueSize.reset()
+      metrics.maxPoolSize.reset()
+      collectPoolMetrics.forEach(fn => fn())
+    },
   })
   const availableConnections = new Gauge({
     name: 'mongo_connection_pool_available',
     help: 'number of connections that are not busy',
-    labelNames,
+    labelNames: poolLabelNames,
   })
   const waitQueueSize = new Gauge({
     name: 'mongo_connection_pool_waiting',
     help: 'number of operations waiting for an available connection',
-    labelNames,
+    labelNames: poolLabelNames,
   })
   const maxPoolSize = new Gauge({
     name: 'mongo_connection_pool_max',
     help: 'max size for the connection pool',
-    labelNames,
+    labelNames: poolLabelNames,
   })
 
+  const mongoCommandStarted = new Counter({
+    name: 'mongo_command_started',
+    help: 'mongo command started',
+    labelNames: ['method', 'collection'],
+  })
   const mongoCommandTimer = new Summary({
     name: 'mongo_command_time',
     help: 'time taken to complete a mongo command',
     percentiles: [],
-    labelNames: ['status', 'method'],
+    labelNames: ['status', 'method', 'ns'],
   })
 
-  if (mongoClient.on) {
-    mongoClient.on('commandSucceeded', event => {
-      mongoCommandTimer.observe(
-        {
-          status: 'success',
-          method: event.commandName === 'find' ? 'read' : 'write',
-        },
-        event.duration
-      )
-    })
-
-    mongoClient.on('commandFailed', event => {
-      mongoCommandTimer.observe(
-        {
-          status: 'failed',
-          method: event.commandName === 'find' ? 'read' : 'write',
-        },
-        event.duration
-      )
-    })
+  metrics = {
+    poolSize,
+    availableConnections,
+    waitQueueSize,
+    maxPoolSize,
+    mongoCommandStarted,
+    mongoCommandTimer,
   }
+  return metrics
+}
+
+function monitor(mongoClient, clientLabel) {
+  initMetricsOnce(clientLabel)
+
+  mongoClient.on('commandStarted', event => {
+    const { commandName, command } = event
+    const collection = command?.[commandName]
+    if (typeof collection !== 'string') return // Lifecycle commands
+    if (commandName === 'create') return // Mongoose init
+    metrics.mongoCommandStarted.inc({
+      method: commandName === 'find' ? 'read' : 'write',
+      collection,
+    })
+  })
+
+  mongoClient.on('commandSucceeded', event => {
+    metrics.mongoCommandTimer.observe(
+      {
+        status: 'success',
+        method: event.commandName === 'find' ? 'read' : 'write',
+        ns: event.reply?.cursor?.ns, // best effort, set on 'find'
+      },
+      event.duration
+    )
+  })
+
+  mongoClient.on('commandFailed', event => {
+    metrics.mongoCommandTimer.observe(
+      {
+        status: 'failed',
+        method: event.commandName === 'find' ? 'read' : 'write',
+      },
+      event.duration
+    )
+  })
 
   function collect() {
-    // Reset all gauges in case they contain values for servers that
-    // disappeared
-    poolSize.reset()
-    availableConnections.reset()
-    waitQueueSize.reset()
-    maxPoolSize.reset()
-
     const servers = mongoClient.topology?.s?.servers
     if (servers != null) {
       for (const [address, server] of servers) {
@@ -72,13 +111,21 @@ function monitor(mongoClient) {
         }
 
         const labels = { mongo_server: address }
-        poolSize.set(labels, pool.totalConnectionCount)
-        availableConnections.set(labels, pool.availableConnectionCount)
-        waitQueueSize.set(labels, pool.waitQueueSize)
-        maxPoolSize.set(labels, pool.options.maxPoolSize)
+        if (clientLabel) labels.client = clientLabel
+        metrics.poolSize.set(labels, pool.totalConnectionCount)
+        metrics.availableConnections.set(labels, pool.availableConnectionCount)
+        metrics.waitQueueSize.set(labels, pool.waitQueueSize)
+        metrics.maxPoolSize.set(labels, pool.options.maxPoolSize)
       }
     }
   }
+  collectPoolMetrics.push(collect)
 }
 
-module.exports = { monitor }
+module.exports = {
+  monitor,
+  reset() {
+    metrics = undefined
+    collectPoolMetrics.length = 0
+  },
+}

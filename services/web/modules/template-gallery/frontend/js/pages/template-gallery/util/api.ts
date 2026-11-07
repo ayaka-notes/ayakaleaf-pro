@@ -1,12 +1,31 @@
 import { GetTemplatesResponseBody, Sort } from '../types/api'
 import { getJSON } from '@/infrastructure/fetch-json'
 
-export function getTemplates(sortBy: Sort, category: string): Promise<GetTemplatesResponseBody> {
-  const queryParams = new URLSearchParams({
-    by: sortBy.by,
-    order: sortBy.order,
-    category,
-  }).toString()
+export type GetTemplatesParams = {
+  sort: Sort
+  category: string
+  page: number
+  pageSize: number
+  q?: string
+}
 
-  return getJSON(`/api/templates?${queryParams}`)
+export function getTemplates({
+  sort,
+  category,
+  page,
+  pageSize,
+  q,
+}: GetTemplatesParams): Promise<GetTemplatesResponseBody> {
+  const queryParams = new URLSearchParams({
+    by: sort.by,
+    order: sort.order,
+    category,
+    page: String(page),
+    pageSize: String(pageSize),
+  })
+  if (q) {
+    queryParams.set('q', q)
+  }
+
+  return getJSON(`/api/templates?${queryParams.toString()}`)
 }

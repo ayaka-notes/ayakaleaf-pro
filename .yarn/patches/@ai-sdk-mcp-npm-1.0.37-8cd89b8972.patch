@@ -1,0 +1,16 @@
+diff --git a/dist/index.mjs b/dist/index.mjs
+index b781835b37a1262510bdd66d8d3b399a076e9d68..312c314186d85bb3bc2ab2620e99bca259ef7167 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -44,10 +44,9 @@ import { z as z2 } from "zod/v4";
+ 
+ // src/tool/types.ts
+ import { z } from "zod/v4";
+-var LATEST_PROTOCOL_VERSION = "2025-11-25";
++var LATEST_PROTOCOL_VERSION = "2025-06-18";
+ var SUPPORTED_PROTOCOL_VERSIONS = [
+   LATEST_PROTOCOL_VERSION,
+-  "2025-06-18",
+   "2025-03-26",
+   "2024-11-05"
+ ];

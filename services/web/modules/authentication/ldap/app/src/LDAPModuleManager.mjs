@@ -2,7 +2,7 @@ import logger from '@overleaf/logger'
 import { Strategy as LDAPStrategy } from 'passport-ldapauth'
 import Settings from '@overleaf/settings'
 import PermissionsManager from '../../../../../app/src/Features/Authorization/PermissionsManager.mjs'
-import { readFilesContentFromEnv, numFromEnv, boolFromEnv } from '../../../utils.mjs'
+import { readFilesContentFromEnv, numFromEnv, boolFromEnv, hasPassword } from '../../../utils.mjs'
 import LDAPAuthenticationController from './LDAPAuthenticationController.mjs'
 import fetchLDAPContacts from './LDAPContacts.mjs'
 
@@ -30,7 +30,7 @@ const LDAPModuleManager = {
       searchBase: process.env.OVERLEAF_LDAP_SEARCH_BASE,
       searchFilter: process.env.OVERLEAF_LDAP_SEARCH_FILTER,
       searchScope: process.env.OVERLEAF_LDAP_SEARCH_SCOPE || 'sub',
-      searchAttributes: JSON.parse(process.env.OVERLEAF_LDAP_SEARCH_ATTRIBUTES || '[]'),
+      searchAttributes: JSON.parse(process.env.OVERLEAF_LDAP_SEARCH_ATTRIBUTES || null),
       cache: boolFromEnv(process.env.OVERLEAF_LDAP_CACHE),
       timeout: numFromEnv(process.env.OVERLEAF_LDAP_TIMEOUT),
       connectTimeout: numFromEnv(process.env.OVERLEAF_LDAP_CONNECT_TIMEOUT),
@@ -79,9 +79,9 @@ const LDAPModuleManager = {
       logger.info({}, error.message)
     }
     const ldapPolicyValidator = async ({ user, subscription }) => {
-// If user is not logged in, user.externalAuth is undefined,
-// in this case allow to change password if the user has a hashedPassword
-      return user.externalAuth === 'ldap' || (user.externalAuth === undefined && !user.hashedPassword)
+      // Only an account without a local password may not set one: LDAP and
+      // SAML remove the password on login, OIDC keeps the one of a local account
+      return !(await hasPassword(user._id))
     }
     try {
     PermissionsManager.registerPolicy(

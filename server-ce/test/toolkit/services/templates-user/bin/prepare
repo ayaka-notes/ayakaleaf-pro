@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Usage: services/templates-user/bin/prepare
+# Nothing to do, the user is created once Overleaf is up.

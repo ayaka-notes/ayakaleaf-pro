@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Usage: services/authentik/bin/down
+# Removes the authentik containers and their data.
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+export TOOLKIT_NETWORK=${TOOLKIT_NETWORK:-overleaf_default}
+export AUTHENTIK_STATE_DIR=${AUTHENTIK_STATE_DIR:-/nonexistent}
+docker compose --profile ldap down --volumes --remove-orphans --timeout 0

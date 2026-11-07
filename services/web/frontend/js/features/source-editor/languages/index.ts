@@ -8,15 +8,11 @@ export const languages = [
       'sty',
       'cls',
       'clo',
-      'bst',
       'bbl',
       'pdf_tex',
       'pdf_t',
-      'map',
       'fd',
-      'enc',
       'def',
-      'mf',
       'pgf',
       'tikz',
       'bbx',
@@ -28,7 +24,6 @@ export const languages = [
       'xmpdata',
       'Rnw',
       'rnw',
-      'lyx',
       'inc',
       'dtx',
       'hak',
@@ -60,9 +55,16 @@ export const languages = [
   }),
   LanguageDescription.of({
     name: 'markdown',
-    extensions: ['md', 'markdown'],
+    extensions: ['md', 'markdown', 'qmd', 'rmd'],
     load: () => {
       return import('./markdown').then(m => m.markdown())
+    },
+  }),
+  LanguageDescription.of({
+    name: 'python',
+    extensions: ['py'],
+    load: () => {
+      return import('@codemirror/lang-python').then(m => m.python())
     },
   }),
 ]

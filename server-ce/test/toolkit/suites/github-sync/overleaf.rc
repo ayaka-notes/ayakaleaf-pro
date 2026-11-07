@@ -1,0 +1,3 @@
+# The docs ask for git-bridge first; without it the editor and the settings
+# hide the GitHub integration
+GIT_BRIDGE_ENABLED=true

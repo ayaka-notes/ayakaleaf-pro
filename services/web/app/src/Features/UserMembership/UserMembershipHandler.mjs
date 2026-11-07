@@ -6,6 +6,9 @@ import { Publisher } from '../../models/Publisher.mjs'
 import UserMembershipViewModel from './UserMembershipViewModel.mjs'
 import UserGetter from '../User/UserGetter.mjs'
 import UserMembershipErrors from './UserMembershipErrors.mjs'
+import Modules from '../../infrastructure/Modules.mjs'
+import mongoose from '../../infrastructure/Mongoose.mjs'
+import SubscriptionUpdater from '../Subscription/SubscriptionUpdater.mjs'
 
 const { ObjectId } = mongodb
 
@@ -27,7 +30,7 @@ const UserMembershipHandler = {
     return await getPopulatedListOfMembers(entity, attributes)
   },
 
-  async addUser(entity, entityConfig, email) {
+  async addUser(entity, entityConfig, email, auditInfo) {
     const attribute = entityConfig.fields.write
     const user = await UserGetter.promises.getUserByAnyEmail(email)
 
@@ -39,16 +42,81 @@ const UserMembershipHandler = {
       throw new UserMembershipErrors.UserAlreadyAddedError()
     }
 
+    // if the entity is a Subscription with managed users enabled, then audit log the event
+    if (
+      entityConfig.modelName === 'Subscription' &&
+      entity.managedUsersEnabled
+    ) {
+      const session = await mongoose.startSession()
+      try {
+        await session.withTransaction(async () => {
+          const auditLog = {
+            groupId: entity._id,
+            operation: 'group-role-changed',
+            initiatorId: auditInfo.initiatorId,
+            ipAddress: auditInfo.ipAddress,
+            info: {
+              userId: user._id,
+              role: 'manager',
+            },
+          }
+          await Modules.promises.hooks.fire(
+            'addGroupAuditLogEntry',
+            auditLog,
+            session
+          )
+        })
+      } finally {
+        await session.endSession()
+      }
+    }
+
     await addUserToEntity(entity, attribute, user)
+
+    if (
+      entityConfig.modelName === 'Subscription' &&
+      attribute === 'manager_ids'
+    ) {
+      await SubscriptionUpdater.promises.sendGroupRoleUserProperty(user._id)
+    }
+
     return UserMembershipViewModel.build(user)
   },
 
-  async removeUser(entity, entityConfig, userId) {
+  async removeUser(entity, entityConfig, userId, auditInfo) {
     const attribute = entityConfig.fields.write
     if (entity.admin_id ? entity.admin_id.equals(userId) : undefined) {
       throw new UserMembershipErrors.UserIsManagerError()
     }
-    return await removeUserFromEntity(entity, attribute, userId)
+
+    // if the entity is a Subscription with managed users enabled, then audit log the event
+    if (
+      entityConfig.modelName === 'Subscription' &&
+      entity.managedUsersEnabled
+    ) {
+      const auditLog = {
+        groupId: entity._id,
+        operation: 'group-role-changed',
+        initiatorId: auditInfo.initiatorId,
+        ipAddress: auditInfo.ipAddress,
+        info: {
+          userId,
+          role: 'member',
+        },
+      }
+      await Modules.promises.hooks.fire('addGroupAuditLogEntry', auditLog)
+    }
+
+    const result = await removeUserFromEntity(entity, attribute, userId)
+
+    if (
+      entityConfig.modelName === 'Subscription' &&
+      attribute === 'manager_ids'
+    ) {
+      await SubscriptionUpdater.promises.sendGroupRoleUserProperty(userId)
+    }
+
+    return result
   },
 }
 
@@ -74,6 +142,20 @@ async function getPopulatedListOfMembers(entity, attributes) {
       user._id.toString() === entity.admin_id.toString()
     ) {
       user.isEntityAdmin = true
+    }
+    if (
+      user?._id &&
+      entity?.manager_ids &&
+      entity.manager_ids.includes(user._id)
+    ) {
+      user.isEntityManager = true
+    }
+    if (
+      user?._id &&
+      entity?.member_ids &&
+      entity.member_ids.includes(user._id)
+    ) {
+      user.isEntityMember = true
     }
   }
 

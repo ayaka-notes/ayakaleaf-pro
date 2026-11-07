@@ -3,9 +3,14 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import sinon from 'sinon'
 import { projectsData } from '../../../../fixtures/projects-data'
 import { location } from '@/shared/components/location'
-import { CompileAndDownloadProjectPDFButtonTooltip } from '../../../../../../../../frontend/js/features/project-list/components/table/cells/action-buttons/compile-and-download-project-pdf-button'
+import {
+  CompileAndDownloadProjectPDFButtonTooltip,
+  FAKE_EDITOR_ID,
+} from '@/features/project-list/components/table/cells/action-buttons/compile-and-download-project-pdf-button'
 import fetchMock from 'fetch-mock'
 import * as eventTracking from '@/infrastructure/event-tracking'
+import getMeta from '@/utils/meta'
+import { SplitTestProvider } from '@/shared/context/split-test-context'
 
 describe('<CompileAndDownloadProjectPDFButton />', function () {
   let sendMBSpy: sinon.SinonSpy
@@ -15,7 +20,9 @@ describe('<CompileAndDownloadProjectPDFButton />', function () {
     this.locationWrapperSandbox = sinon.createSandbox()
     this.locationWrapperStub = this.locationWrapperSandbox.stub(location)
     render(
-      <CompileAndDownloadProjectPDFButtonTooltip project={projectsData[0]} />
+      <SplitTestProvider>
+        <CompileAndDownloadProjectPDFButtonTooltip project={projectsData[0]} />
+      </SplitTestProvider>
     )
   })
 
@@ -29,6 +36,102 @@ describe('<CompileAndDownloadProjectPDFButton />', function () {
     const btn = screen.getByRole('button', { name: 'Download PDF' })
     fireEvent.mouseOver(btn)
     await screen.findByRole('tooltip', { name: 'Download PDF' })
+  })
+
+  it('downloads the project PDF from cache when clicked', async function () {
+    Object.assign(getMeta('ol-ExposedSettings'), {
+      isOverleaf: true,
+    })
+    fetchMock.get(
+      `/project/${projectsData[0].id}/output/cached/output.overleaf.json`,
+      {
+        status: 'success',
+        compileGroup: 'standard',
+        clsiServerId: 'server-1',
+        outputFiles: [
+          { path: 'output.pdf', build: '123-321', downloadURL: 'cached.pdf' },
+        ],
+        options: { draft: false },
+      },
+      { delay: 10 }
+    )
+
+    const btn = screen.getByRole('button', { name: 'Download PDF' })
+    fireEvent.click(btn)
+
+    await waitFor(() => {
+      screen.getByRole('button', { name: 'Compiling…' })
+    })
+
+    const assignStub = this.locationWrapperStub.assign
+    await waitFor(() => {
+      expect(assignStub).to.have.been.called
+    })
+
+    expect(assignStub).to.have.been.calledOnce
+    expect(assignStub).to.have.been.calledWith('cached.pdf')
+
+    expect(sendMBSpy).to.have.been.calledOnce
+    expect(sendMBSpy).to.have.been.calledWith('project-list-page-interaction', {
+      action: 'downloadPDF',
+      page: '/',
+      projectId: projectsData[0].id,
+      isSmallDevice: true,
+    })
+  })
+
+  it('ignores cached draft PDF and downloads the project PDF when clicked', async function () {
+    Object.assign(getMeta('ol-ExposedSettings'), {
+      isOverleaf: true,
+    })
+    fetchMock.get(
+      `/project/${projectsData[0].id}/output/cached/output.overleaf.json`,
+      {
+        status: 'success',
+        compileGroup: 'standard',
+        clsiServerId: 'server-1',
+        outputFiles: [
+          { path: 'output.pdf', build: '123-321', downloadURL: 'cached.pdf' },
+        ],
+        options: { draft: true },
+      },
+      { delay: 10 }
+    )
+    fetchMock.post(
+      `/project/${projectsData[0].id}/compile`,
+      {
+        status: 'success',
+        compileGroup: 'standard',
+        clsiServerId: 'server-1',
+        outputFiles: [{ path: 'output.pdf', build: '123-321' }],
+      },
+      { delay: 10 }
+    )
+
+    const btn = screen.getByRole('button', { name: 'Download PDF' })
+    fireEvent.click(btn)
+
+    await waitFor(() => {
+      screen.getByRole('button', { name: 'Compiling…' })
+    })
+
+    const assignStub = this.locationWrapperStub.assign
+    await waitFor(() => {
+      expect(assignStub).to.have.been.called
+    })
+
+    expect(assignStub).to.have.been.calledOnce
+    expect(assignStub).to.have.been.calledWith(
+      `/download/project/${projectsData[0].id}/build/123-321/output/output.pdf?compileGroup=standard&popupDownload=true&editorId=${FAKE_EDITOR_ID}&clsiserverid=server-1`
+    )
+
+    expect(sendMBSpy).to.have.been.calledOnce
+    expect(sendMBSpy).to.have.been.calledWith('project-list-page-interaction', {
+      action: 'downloadPDF',
+      page: '/',
+      projectId: projectsData[0].id,
+      isSmallDevice: true,
+    })
   })
 
   it('downloads the project PDF when clicked', async function () {
@@ -57,7 +160,7 @@ describe('<CompileAndDownloadProjectPDFButton />', function () {
 
     expect(assignStub).to.have.been.calledOnce
     expect(assignStub).to.have.been.calledWith(
-      `/download/project/${projectsData[0].id}/build/123-321/output/output.pdf?compileGroup=standard&popupDownload=true&clsiserverid=server-1`
+      `/download/project/${projectsData[0].id}/build/123-321/output/output.pdf?compileGroup=standard&popupDownload=true&editorId=${FAKE_EDITOR_ID}&clsiserverid=server-1`
     )
 
     expect(sendMBSpy).to.have.been.calledOnce

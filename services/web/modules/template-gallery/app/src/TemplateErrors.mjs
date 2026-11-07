@@ -11,3 +11,9 @@ export class RecompileRequiredError extends OError {
     super(message, { status: 400 })
   }
 }
+
+export class MainFileRequiredError extends OError {
+  constructor(message = 'Main file required') {
+    super(message, { status: 400 })
+  }
+}

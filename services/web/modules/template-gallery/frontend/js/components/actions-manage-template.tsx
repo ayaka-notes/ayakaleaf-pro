@@ -5,7 +5,7 @@ import getMeta from '@/utils/meta'
 import OLTooltip from '@/shared/components/ol/ol-tooltip'
 import { useDetachCompileContext } from '@/shared/context/detach-compile-context'
 import EditorManageTemplateModalWrapper from '../pages/template/components/manage-template-modal/editor-manage-template-modal-wrapper'
-import LeftMenuButton from '@/features/editor-left-menu/components/left-menu-button'
+import OLButton from '@/shared/components/ol/ol-button'
 
 type TemplateManageResponse = {
   template_id: string
@@ -37,9 +37,9 @@ export default function ActionsManageTemplate() {
   return (
     <>
       {pdfFile ? (
-        <LeftMenuButton onClick={handleShowModal} icon='open_in_new'>
+        <OLButton variant="link" className="left-menu-button" onClick={handleShowModal} leadingIcon='open_in_new'>
           {t('publish_as_template')}
-        </LeftMenuButton>
+        </OLButton>
       ) : (
         <OLTooltip
           id="disabled-publish-as-template"
@@ -50,13 +50,15 @@ export default function ActionsManageTemplate() {
         >
           {/* OverlayTrigger won't fire unless the child is a non-react html element (e.g div, span) */}
           <div>
-            <LeftMenuButton
-              icon='open_in_new'
+            <OLButton
+              variant="link"
+              className="left-menu-button"
+              leadingIcon='open_in_new'
               disabled
-              disabledAccesibilityText={"Please compile your project before publishing it as a template"}
+              aria-label={"Please compile your project before publishing it as a template"}
             >
               {t('publish_as_template')}
-            </LeftMenuButton>
+            </OLButton>
           </div>
         </OLTooltip>
       )}

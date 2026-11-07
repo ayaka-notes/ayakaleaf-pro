@@ -16,13 +16,7 @@ export default function CollaboratorsLimitUpgrade() {
         type="info"
         customIcon={<img src={addMoreEditorsImage} alt="" aria-hidden="true" />}
         title={t('add_more_collaborators')}
-        content={
-          <p>
-            {t(
-              'upgrade_to_add_more_collaborators_and_access_collaboration_features'
-            )}
-          </p>
-        }
+        content={<p>{t('upgrade_to_add_more_collaborators_and_more')}</p>}
         isActionBelowContent
         action={
           user.allowedFreeTrial ? (

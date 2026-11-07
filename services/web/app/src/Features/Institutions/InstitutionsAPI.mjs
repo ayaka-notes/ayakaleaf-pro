@@ -3,20 +3,25 @@ import OError from '@overleaf/o-error'
 import logger from '@overleaf/logger'
 import settings from '@overleaf/settings'
 import request from 'requestretry'
-import { promisifyAll, promiseMapWithLimit } from '@overleaf/promise-utils'
+import { promisify, promiseMapWithLimit } from '@overleaf/promise-utils'
 import NotificationsBuilder from '../Notifications/NotificationsBuilder.mjs'
 import {
   V1ConnectionError,
   InvalidInstitutionalEmailError,
 } from '../Errors/Errors.js'
-import { fetchJson, fetchNothing } from '@overleaf/fetch-utils'
+import {
+  fetchJson,
+  fetchNothing,
+  RequestFailedError,
+} from '@overleaf/fetch-utils'
 import Modules from '../../infrastructure/Modules.mjs'
 
 function _makeRequestOptions(options) {
+  const timeout = options.timeout || settings.apis.v1.timeout
   const requestOptions = {
     method: options.method,
     basicAuth: { user: settings.apis.v1.user, password: settings.apis.v1.pass },
-    signal: AbortSignal.timeout(settings.apis.v1.timeout),
+    signal: AbortSignal.timeout(timeout),
   }
 
   if (options.body) {
@@ -27,6 +32,22 @@ function _makeRequestOptions(options) {
 }
 
 function _responseErrorHandling(options, error) {
+  if (!(error instanceof RequestFailedError)) {
+    // The error is not an HTTP failure status from v1, so there is no response
+    // to inspect: e.g. a client-side timeout/abort, DNS failure or connection
+    // error. Log the underlying error for diagnosis before wrapping it, since
+    // it otherwise gets swallowed by the generic V1ConnectionError message
+    // below.
+    logger.warn(
+      { err: error, path: options.path },
+      `${options.defaultErrorMessage}: request to v1 failed without a response`
+    )
+    throw new V1ConnectionError({
+      message: 'error getting affiliations from v1',
+      info: { path: options.path },
+    }).withCause(error)
+  }
+
   const status = error.response.status
 
   if (status >= 500) {
@@ -163,18 +184,21 @@ function getUserAffiliations(userId, callback) {
       if (body?.length > 0) {
         const concurrencyLimit = 10
         await promiseMapWithLimit(concurrencyLimit, body, async affiliation => {
-          const group = (
-            await Modules.promises.hooks.fire(
-              'getGroupWithDomainCaptureByV1Id',
-              affiliation.institution.id
-            )
-          )?.[0]
+          if (affiliation.institution.confirmed) {
+            // only check groups if domain is confirmed
+            const group = (
+              await Modules.promises.hooks.fire(
+                'getGroupWithDomainCaptureByV1Id',
+                affiliation.institution.id
+              )
+            )?.[0]
 
-          if (group) {
-            affiliation.group = {
-              _id: group._id,
-              managedUsersEnabled: Boolean(group.managedUsersEnabled),
-              domainCaptureEnabled: Boolean(group.domainCaptureEnabled),
+            if (group) {
+              affiliation.group = {
+                _id: group._id,
+                managedUsersEnabled: Boolean(group.managedUsersEnabled),
+                domainCaptureEnabled: Boolean(group.domainCaptureEnabled),
+              }
             }
           }
 
@@ -193,6 +217,10 @@ async function getUsersNeedingReconfirmationsLapsedProcessed() {
     path: '/api/v2/institutions/need_reconfirmation_lapsed_processed',
     defaultErrorMessage:
       'Could not get users that need reconfirmations lapsed processed',
+    // The underlying v1 query can be slow and is bounded by a 55s Postgres
+    // statement_timeout; give it more room than the default client timeout
+    // so v1 has a chance to return a clean error before we give up on it.
+    timeout: 60_000,
   })
 }
 
@@ -313,6 +341,15 @@ function sendUsersWithReconfirmationsLapsedProcessed(users, callback) {
   )
 }
 
+async function verifyDomainMatchesDomainMatcher(domain, institutionId) {
+  return await _affiliationRequestFetchJson({
+    method: 'POST',
+    path: `/api/v2/institutions/domain_matches_matcher`,
+    body: { domain, id: institutionId },
+    defaultErrorMessage: "Couldn't verify if domain matches matcher",
+  })
+}
+
 const InstitutionsAPI = {
   getInstitutionAffiliations,
 
@@ -406,17 +443,29 @@ function makeAffiliationRequest(options, callback) {
   })
 }
 
-InstitutionsAPI.promises = promisifyAll(InstitutionsAPI, {
-  without: [
-    'addAffiliation',
-    'removeAffiliation',
-    'getUsersNeedingReconfirmationsLapsedProcessed',
-  ],
-})
-
-InstitutionsAPI.promises.addAffiliation = addAffiliation
-InstitutionsAPI.promises.removeAffiliation = removeAffiliation
-InstitutionsAPI.promises.getUsersNeedingReconfirmationsLapsedProcessed =
-  getUsersNeedingReconfirmationsLapsedProcessed
+InstitutionsAPI.promises = {
+  getInstitutionAffiliations: promisify(
+    InstitutionsAPI.getInstitutionAffiliations
+  ),
+  getConfirmedInstitutionAffiliations: promisify(
+    InstitutionsAPI.getConfirmedInstitutionAffiliations
+  ),
+  getInstitutionAffiliationsCounts: promisify(
+    InstitutionsAPI.getInstitutionAffiliationsCounts
+  ),
+  getLicencesForAnalytics: promisify(InstitutionsAPI.getLicencesForAnalytics),
+  getUserAffiliations: promisify(InstitutionsAPI.getUserAffiliations),
+  getUsersNeedingReconfirmationsLapsedProcessed,
+  addAffiliation,
+  removeAffiliation,
+  endorseAffiliation: promisify(InstitutionsAPI.endorseAffiliation),
+  deleteAffiliations: promisify(InstitutionsAPI.deleteAffiliations),
+  addEntitlement: promisify(InstitutionsAPI.addEntitlement),
+  removeEntitlement: promisify(InstitutionsAPI.removeEntitlement),
+  sendUsersWithReconfirmationsLapsedProcessed: promisify(
+    InstitutionsAPI.sendUsersWithReconfirmationsLapsedProcessed
+  ),
+  verifyDomainMatchesDomainMatcher,
+}
 
 export default InstitutionsAPI

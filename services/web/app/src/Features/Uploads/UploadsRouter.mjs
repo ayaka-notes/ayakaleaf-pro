@@ -4,6 +4,9 @@ import ProjectUploadController from './ProjectUploadController.mjs'
 import { RateLimiter } from '../../infrastructure/RateLimiter.mjs'
 import RateLimiterMiddleware from '../Security/RateLimiterMiddleware.mjs'
 import Settings from '@overleaf/settings'
+import AsyncLocalStorage from '../../infrastructure/AsyncLocalStorage.mjs'
+import { multerErrorHandler } from '../../infrastructure/Multer.mjs'
+import { getRawReqInput } from '../../infrastructure/Validation.mjs'
 
 const rateLimiters = {
   projectUpload: new RateLimiter('project-upload', {
@@ -23,8 +26,33 @@ export default {
       AuthenticationController.requireLogin(),
       RateLimiterMiddleware.rateLimit(rateLimiters.projectUpload),
       ProjectUploadController.multerMiddleware,
-      ProjectUploadController.uploadProject
+      ProjectUploadController.uploadProject,
+      multerErrorHandler
     )
+
+    if (Settings.enablePandocConversions) {
+      webRouter.post(
+        '/project/new/import-document',
+        AuthenticationController.requireLogin(),
+        RateLimiterMiddleware.rateLimit(rateLimiters.projectUpload),
+        ProjectUploadController.multerMiddleware,
+        ProjectUploadController.importDocument,
+        multerErrorHandler
+      )
+      // Keep old route for backwards compatibility with old frontends that haven't reloaded
+      webRouter.post(
+        '/project/new/import-docx',
+        AuthenticationController.requireLogin(),
+        RateLimiterMiddleware.rateLimit(rateLimiters.projectUpload),
+        ProjectUploadController.multerMiddleware,
+        (req, res, next) => {
+          getRawReqInput(req).query.type = 'docx'
+          next()
+        },
+        ProjectUploadController.importDocument,
+        multerErrorHandler
+      )
+    }
 
     const fileUploadEndpoint = '/Project/:Project_id/upload'
     const fileUploadRateLimit = RateLimiterMiddleware.rateLimit(
@@ -37,18 +65,22 @@ export default {
       webRouter.post(
         fileUploadEndpoint,
         fileUploadRateLimit,
+        AsyncLocalStorage.middleware,
         AuthorizationMiddleware.ensureUserCanWriteProjectContent,
         ProjectUploadController.multerMiddleware,
-        ProjectUploadController.uploadFile
+        ProjectUploadController.uploadFile,
+        multerErrorHandler
       )
     } else {
       webRouter.post(
         fileUploadEndpoint,
         fileUploadRateLimit,
         AuthenticationController.requireLogin(),
+        AsyncLocalStorage.middleware,
         AuthorizationMiddleware.ensureUserCanWriteProjectContent,
         ProjectUploadController.multerMiddleware,
-        ProjectUploadController.uploadFile
+        ProjectUploadController.uploadFile,
+        multerErrorHandler
       )
     }
   },

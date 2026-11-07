@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Button } from 'react-bootstrap'
 import { CopyToClipboard } from '@/shared/components/copy-to-clipboard'
 import { useProjectContext } from '@/shared/context/project-context'
-import IntegrationCard from '@/features/ide-redesign/components/integrations-panel/integration-card'
+import IntegrationCard from '@/features/integrations-panel/integration-card'
 import GitLogoOrange from '@/shared/svgs/git-logo-orange'
 
 import {
@@ -41,8 +41,8 @@ function ModalGitBridgeSync({ handleHide, projectId }: Props) {
                     <p>
                         {t('git_bridge_modal_git_clone_your_project')}
                     </p>
-                    <div className="git-bridge-copy">
-                        <code>{gitCloneMethodOption}</code>
+                    <div className="git-bridge-copy justify-content-between align-items-start">
+                        <code style={{ flex: 1, minWidth: 0, wordBreak: 'break-all' }}>{gitCloneMethodOption}</code>
                         <span>
                             <CopyToClipboard content={gitCloneMethodOption}
                                 kind="text" />
@@ -96,6 +96,7 @@ function GitBridgeSyncModal({ show, projectId, handleHide }: GitBridgeSyncModalP
     return (
         <OLModal show={show} animation onHide={handleHide}
             id="git-bridge-sync-modal" backdrop="static" size="lg"
+            initialFocus={false} enforceFocus={false}
         >
             <ModalGitBridgeSync projectId={projectId} handleHide={handleHide}
             />
@@ -115,7 +116,7 @@ function GitBridgeSyncCard() {
             <IntegrationCard
                 title={t('git_integration')}
                 description={t('git_clone_this_project')}
-                icon={<GitLogoOrange size={18} />}
+                icon={<GitLogoOrange size={32} />}
                 showPaywallBadge={false}
                 onClick={() => setShowGitBridgeSyncModal(true)}
             >

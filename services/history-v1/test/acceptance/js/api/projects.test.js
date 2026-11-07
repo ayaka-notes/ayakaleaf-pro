@@ -16,8 +16,11 @@ const {
   BlobStore,
   persistChanges,
   redisBuffer,
-  blobHash,
 } = require('../../../../storage')
+const {
+  blobHashFromStream,
+  blobHashFromString,
+} = require('overleaf-editor-core/lib/blob_utils')
 
 const { expectHttpError } = require('./support/expect_response')
 const testServer = require('./support/test_server')
@@ -30,6 +33,7 @@ const {
   AddFileOperation,
   EditFileOperation,
   TextOperation,
+  Operation,
 } = require('overleaf-editor-core')
 const testProjects = require('./support/test_projects')
 const { ObjectId } = require('mongodb')
@@ -104,6 +108,79 @@ describe('project controller', function () {
         /^http:\/\/gcs:9090\/download\/storage\/v1\/b\/overleaf-test-zips/
       )
       expect(zipStore.storeZip.calledOnce).to.be.true
+    })
+  })
+
+  describe('getLatestZip', function () {
+    it('returns a zip of the latest snapshot', async function () {
+      const projectId = fixtures.docs.uninitializedProject.id
+
+      const uploadResponse = await fetch(
+        testServer.url(
+          `/api/projects/${projectId}/blobs/${testFiles.HELLO_TXT_HASH}`
+        ),
+        {
+          method: 'PUT',
+          body: fs.createReadStream(testFiles.path('hello.txt')),
+          headers: { Authorization: testServer.basicAuthHeader },
+        }
+      )
+      expect(uploadResponse.ok).to.be.true
+
+      const snapshot = new Snapshot()
+      snapshot.addFile('hello.txt', File.fromHash(testFiles.HELLO_TXT_HASH))
+      const importResponse =
+        await testServer.basicAuthClient.apis.ProjectImport.importSnapshot1({
+          project_id: projectId,
+          snapshot: snapshot.toRaw(),
+        })
+      expect(importResponse.obj.projectId).to.equal(projectId)
+
+      const downloadClient =
+        await testServer.createClientForDownloadZip(projectId)
+      const zipResponse = await downloadClient.apis.Project.getLatestZip({
+        project_id: projectId,
+      })
+      expect(zipResponse.status).to.equal(HTTPStatus.OK)
+      expect(zipResponse.headers['x-history-version']).to.equal('0')
+      expect(zipResponse.headers['content-type']).to.equal(
+        'application/octet-stream'
+      )
+      expect(zipResponse.headers['content-disposition']).to.equal(
+        'attachment; filename=project.zip'
+      )
+
+      const testFile = File.fromHash(testFiles.HELLO_TXT_HASH)
+      const testChange = new Change(
+        [Operation.addFile('main.tex', testFile)],
+        new Date()
+      )
+      const importchangesResponse =
+        await testServer.basicAuthClient.apis.ProjectImport.importChanges1({
+          project_id: projectId,
+          end_version: 0,
+          changes: [testChange.toRaw()],
+        })
+      expect(importchangesResponse.status).to.equal(HTTPStatus.CREATED)
+      expect(importchangesResponse.obj).to.deep.equal({ resyncNeeded: false })
+
+      const zipResponse2 = await downloadClient.apis.Project.getLatestZip({
+        project_id: projectId,
+      })
+      expect(zipResponse2.status).to.equal(HTTPStatus.OK)
+      expect(zipResponse2.headers['x-history-version']).to.equal('1')
+    })
+
+    it('returns 404 for an unknown project', async function () {
+      const unknownProjectId = new ObjectId().toString()
+      const downloadClient =
+        await testServer.createClientForDownloadZip(unknownProjectId)
+      await expectHttpError(
+        downloadClient.apis.Project.getLatestZip({
+          project_id: unknownProjectId,
+        }),
+        HTTPStatus.NOT_FOUND
+      )
     })
   })
 
@@ -365,7 +442,7 @@ describe('project controller', function () {
               blobHashes: ['non-existent-hash'],
             },
           }),
-          HTTPStatus.INTERNAL_SERVER_ERROR
+          HTTPStatus.UNPROCESSABLE_ENTITY
         )
       })
 
@@ -379,7 +456,7 @@ describe('project controller', function () {
 
         for (let i = 0; i < nTextBlobs; i++) {
           const content = `text blob ${i}`
-          const hash = blobHash.fromString(content)
+          const hash = blobHashFromString(content)
           blobHashes.push(hash)
           expectedTextBytes += content.length
           const res = await fetch(
@@ -395,7 +472,7 @@ describe('project controller', function () {
 
         for (let i = 0; i < nBinaryBlobs; i++) {
           const content = Buffer.from([0, i, i + 1, i + 2])
-          const hash = await blobHash.fromStream(
+          const hash = await blobHashFromStream(
             content.length,
             Readable.from(content)
           )
@@ -433,7 +510,7 @@ describe('project controller', function () {
     })
   })
 
-  // eslint-disable-next-line mocha/no-skipped-tests
+  // eslint-disable-next-line mocha/no-pending-tests
   describe.skip('getLatestContent', function () {
     // TODO: remove this endpoint entirely, see
     // https://github.com/overleaf/write_latex/pull/5120#discussion_r244291862

@@ -1,0 +1,109 @@
+import MaterialIcon, {
+  AvailableUnfilledIcon,
+} from '@/shared/components/material-icon'
+import { forwardRef, ReactElement, useCallback } from 'react'
+import {
+  OLDropdown,
+  OLDropdownToggle,
+} from '@/shared/components/ol/ol-dropdown-menu'
+import OLTooltip from '@/shared/components/ol/ol-tooltip'
+
+type RailActionButton = {
+  key: string
+  icon: AvailableUnfilledIcon
+  title: string
+  action: () => void
+  indicator?: ReactElement
+  hide?: boolean
+  ref?: React.Ref<HTMLButtonElement>
+}
+
+type RailDropdown = {
+  key: string
+  icon: AvailableUnfilledIcon
+  title: string
+  dropdown: ReactElement
+  indicator?: ReactElement
+  hide?: boolean
+  ref?: React.Ref<HTMLButtonElement>
+}
+
+export type RailAction = RailDropdown | RailActionButton
+
+const RailActionElement = forwardRef<HTMLButtonElement, { action: RailAction }>(
+  ({ action }, ref) => {
+    const onActionClick = useCallback(() => {
+      if ('action' in action) {
+        action.action()
+      }
+    }, [action])
+
+    if (action.hide) {
+      return null
+    }
+
+    if ('dropdown' in action) {
+      return (
+        <OLDropdown align="end" drop="end">
+          <OLTooltip
+            id={`rail-dropdown-tooltip-${action.key}`}
+            description={action.title}
+            overlayProps={{ delay: 0, placement: 'right' }}
+          >
+            <span>
+              <OLDropdownToggle
+                ref={ref}
+                id={`rail-dropdown-btn-${action.key}`}
+                className="ide-rail-tab-link ide-rail-tab-button ide-rail-tab-dropdown"
+                as="button"
+                aria-label={action.title}
+              >
+                <RailActionIcon
+                  type={action.icon}
+                  indicator={action.indicator}
+                />
+              </OLDropdownToggle>
+            </span>
+          </OLTooltip>
+          {action.dropdown}
+        </OLDropdown>
+      )
+    } else {
+      return (
+        <OLTooltip
+          id={`rail-tab-tooltip-${action.key}`}
+          description={action.title}
+          overlayProps={{ delay: 0, placement: 'right' }}
+        >
+          <button
+            ref={ref}
+            onClick={onActionClick}
+            className="ide-rail-tab-link ide-rail-tab-button"
+            aria-label={action.title}
+          >
+            <RailActionIcon type={action.icon} indicator={action.indicator} />
+          </button>
+        </OLTooltip>
+      )
+    }
+  }
+)
+
+function RailActionIcon({
+  type,
+  indicator,
+}: {
+  type: AvailableUnfilledIcon
+  indicator?: ReactElement
+}) {
+  return (
+    <>
+      <MaterialIcon className="ide-rail-tab-link-icon" type={type} unfilled />
+      {indicator}
+    </>
+  )
+}
+
+RailActionElement.displayName = 'RailActionElement'
+
+export default RailActionElement

@@ -1,9 +1,10 @@
-import { ChangeEvent, FC, memo, useCallback } from 'react'
+import { ChangeEvent, FC, memo, useCallback, useId } from 'react'
 import OLTooltip from '@/shared/components/ol/ol-tooltip'
 import { sendMB } from '../../../infrastructure/event-tracking'
 import { useTranslation } from 'react-i18next'
 import { useEditorOpenDocContext } from '@/features/ide-react/context/editor-open-doc-context'
 import { useEditorPropertiesContext } from '@/features/ide-react/context/editor-properties-context'
+import { getFileExtension } from '../utils/file'
 import { isVisualEditorAvailable } from '../utils/visual-editor'
 
 function EditorSwitch() {
@@ -11,10 +12,12 @@ function EditorSwitch() {
   const { showVisual: visual, setShowVisual: setVisual } =
     useEditorPropertiesContext()
   const { openDocName } = useEditorOpenDocContext()
+  const inputId = useId()
 
   const richTextAvailable = openDocName
     ? isVisualEditorAvailable(openDocName)
     : false
+  const extension = getFileExtension(openDocName || '') ?? ''
 
   const handleChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
@@ -30,9 +33,9 @@ function EditorSwitch() {
           break
       }
 
-      sendMB('editor-switch-change', { editorType })
+      sendMB('editor-switch-change', { editorType, extension })
     },
-    [setVisual]
+    [extension, setVisual]
   )
 
   return (
@@ -40,28 +43,30 @@ function EditorSwitch() {
       className="editor-toggle-switch"
       aria-label={t('toolbar_code_visual_editor_switch')}
     >
-      <fieldset className="toggle-switch">
-        <legend className="visually-hidden">Editor mode.</legend>
+      <form>
+        <fieldset className="toggle-switch">
+          <legend className="visually-hidden">Editor mode.</legend>
 
-        <input
-          type="radio"
-          name="editor"
-          value="cm6"
-          id="editor-switch-cm6"
-          className="toggle-switch-input"
-          checked={!richTextAvailable || !visual}
-          onChange={handleChange}
-        />
-        <label htmlFor="editor-switch-cm6" className="toggle-switch-label">
-          <span>{t('code_editor')}</span>
-        </label>
+          <input
+            type="radio"
+            name="editor"
+            value="cm6"
+            id={inputId}
+            className="toggle-switch-input"
+            checked={!richTextAvailable || !visual}
+            onChange={handleChange}
+          />
+          <label htmlFor={inputId} className="toggle-switch-label">
+            <span>{t('code')}</span>
+          </label>
 
-        <RichTextToggle
-          checked={richTextAvailable && visual}
-          disabled={!richTextAvailable}
-          handleChange={handleChange}
-        />
-      </fieldset>
+          <RichTextToggle
+            checked={richTextAvailable && visual}
+            disabled={!richTextAvailable}
+            handleChange={handleChange}
+          />
+        </fieldset>
+      </form>
     </div>
   )
 }
@@ -72,6 +77,7 @@ const RichTextToggle: FC<{
   handleChange: (event: ChangeEvent<HTMLInputElement>) => void
 }> = ({ checked, disabled, handleChange }) => {
   const { t } = useTranslation()
+  const inputId = useId()
 
   const toggle = (
     <span>
@@ -79,14 +85,14 @@ const RichTextToggle: FC<{
         type="radio"
         name="editor"
         value="rich-text"
-        id="editor-switch-rich-text"
+        id={inputId}
         className="toggle-switch-input"
         checked={checked}
         onChange={handleChange}
         disabled={disabled}
       />
-      <label htmlFor="editor-switch-rich-text" className="toggle-switch-label">
-        <span>{t('visual_editor')}</span>
+      <label htmlFor={inputId} className="toggle-switch-label">
+        <span>{t('visual')}</span>
       </label>
     </span>
   )
@@ -94,7 +100,7 @@ const RichTextToggle: FC<{
   if (disabled) {
     return (
       <OLTooltip
-        description={t('visual_editor_is_only_available_for_tex_files')}
+        description={t('visual_editor_does_not_support_this_file_type')}
         id="rich-text-toggle-tooltip"
         overlayProps={{ placement: 'bottom' }}
         tooltipProps={{ className: 'tooltip-wide' }}

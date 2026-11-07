@@ -101,6 +101,52 @@ describe('ProjectStructureChanges', function () {
     return await owner.deleteItemInProject(projectId, type, itemId)
   }
 
+  describe('uploading a project with relativePath set to the literal "null" string', function () {
+    it('should create the project successfully', async function () {
+      const zipFilename = 'test_project_with_name.zip'
+      const zipFile = fs.createReadStream(
+        Path.resolve(Path.join(import.meta.dirname, '..', 'files', zipFilename))
+      )
+
+      const { response, body } = await owner.doRequest('POST', {
+        uri: 'project/new/upload',
+        formData: {
+          name: zipFilename,
+          qqfile: zipFile,
+          relativePath: 'null',
+        },
+      })
+
+      expect(response.statusCode).to.be.within(200, 299)
+      const parsedBody = JSON.parse(body)
+      expect(parsedBody.success).to.equal(true)
+      expect(parsedBody.project_id).to.be.a('string')
+    })
+  })
+
+  describe('uploading a project with relativePath set to the literal "" string', function () {
+    it('should create the project successfully', async function () {
+      const zipFilename = 'test_project_with_name.zip'
+      const zipFile = fs.createReadStream(
+        Path.resolve(Path.join(import.meta.dirname, '..', 'files', zipFilename))
+      )
+
+      const { response, body } = await owner.doRequest('POST', {
+        uri: 'project/new/upload',
+        formData: {
+          name: zipFilename,
+          qqfile: zipFile,
+          relativePath: '',
+        },
+      })
+
+      expect(response.statusCode).to.be.within(200, 299)
+      const parsedBody = JSON.parse(body)
+      expect(parsedBody.success).to.equal(true)
+      expect(parsedBody.project_id).to.be.a('string')
+    })
+  })
+
   describe('uploading a project with a name', function () {
     let exampleProjectId
     const testProjectName = 'wombat'
@@ -176,6 +222,38 @@ describe('ProjectStructureChanges', function () {
           error: 'invalid_upload_request',
         })
       })
+
+      it('should create file with relativePath set to literal ""', async function () {
+        const testTex = 'test.tex'
+        const stream = fs.createReadStream(
+          Path.resolve(Path.join(import.meta.dirname, '..', 'files', testTex))
+        )
+
+        const projectId = await owner.createProject('foo', {
+          template: 'blank',
+        })
+        const projectBefore = await ProjectGetter.promises.getProject(projectId)
+        const { response, body } = await owner.doRequest('POST', {
+          uri: `project/${projectId}/upload`,
+          qs: {
+            folder_id: projectBefore.rootFolder[0]._id.toString(),
+          },
+          formData: {
+            name: testTex,
+            qqfile: stream,
+            relativePath: '',
+          },
+        })
+
+        expect(response.statusCode).to.be.within(200, 299)
+        const parsedBody = JSON.parse(body)
+        expect(parsedBody.success).to.equal(true)
+        const project = await ProjectGetter.promises.getProject(projectId)
+        expect(project.rootFolder[0].docs.map(d => d.name)).to.deep.equal([
+          'main.tex',
+          testTex,
+        ])
+      })
     })
   })
 
@@ -247,6 +325,24 @@ describe('ProjectStructureChanges', function () {
       const project = await ProjectGetter.promises.getProject(exampleProjectId)
       expect(project.rootFolder[0].folders[0].name).to.equal('styles')
       expect(project.rootFolder[0].folders[0].docs[0].name).to.equal('ao.sty')
+    })
+  })
+
+  describe('uploading a project containing a filename that is too long', function () {
+    let res
+
+    beforeEach(async function () {
+      const { response } = await uploadExampleProject(
+        owner,
+        'test_project_with_too_long_filename.zip',
+        { allowBadStatus: true }
+      )
+
+      res = response
+    })
+
+    it('should fail with 422 error', function () {
+      expect(res.statusCode).to.equal(422)
     })
   })
 

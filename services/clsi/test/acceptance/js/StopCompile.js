@@ -1,7 +1,7 @@
-const { promisify } = require('node:util')
-const Client = require('./helpers/Client')
-const ClsiApp = require('./helpers/ClsiApp')
-const { expect } = require('chai')
+import { promisify } from 'node:util'
+import Client from './helpers/Client.js'
+import ClsiApp from './helpers/ClsiApp.js'
+import { expect } from 'chai'
 
 const sleep = promisify(setTimeout)
 
@@ -56,5 +56,18 @@ describe('Stop compile', function () {
     expect(this.compileResult.error).not.to.exist
     expect(this.compileResult.body.compile.status).to.equal('terminated')
     expect(this.compileResult.body.compile.error).to.equal('terminated')
+  })
+
+  it('should return the log output file name', function () {
+    const outputFilePaths = this.compileResult.body.compile.outputFiles.map(
+      x => x.path
+    )
+    outputFilePaths.should.include('output.synctex(busy)') // compile was still pending
+    outputFilePaths.should.include('output.log')
+  })
+
+  it('should work with not pending compile', async function () {
+    const res = await Client.stopCompile(this.project_id)
+    expect(res.status).to.equal(204)
   })
 })

@@ -1,16 +1,15 @@
-const express = require('express')
-const bodyParser = require('body-parser')
-const { EventEmitter } = require('node:events')
-const http = require('node:http')
-const https = require('node:https')
-const { promisify } = require('node:util')
+import express from 'express'
+import { EventEmitter } from 'node:events'
+import http from 'node:http'
+import https from 'node:https'
+import { promisify } from 'node:util'
 
 class TestServer {
   constructor() {
     this.app = express()
     this.events = new EventEmitter()
 
-    this.app.use(bodyParser.json())
+    this.app.use(express.json())
     this.app.use((req, res, next) => {
       this.events.emit('request-received')
       this.lastReq = req
@@ -38,6 +37,22 @@ class TestServer {
 
     this.app.get('/500', (req, res) => {
       res.sendStatus(500)
+    })
+
+    this.app.get('/400', (req, res) => {
+      res.status(400).send('boom-400')
+    })
+
+    this.app.get('/409', (req, res) => {
+      res.status(409).send('boom-409')
+    })
+
+    this.app.get('/413', (req, res) => {
+      res.status(413).send('boom-413')
+    })
+
+    this.app.get('/422', (req, res) => {
+      res.status(422).send('boom-422')
     })
 
     this.app.post('/sink', (req, res) => {
@@ -119,12 +134,21 @@ class TestServer {
   }
 
   stop() {
-    const stopHttp = promisify(this.server.close).bind(this.server)
-    const stopHttps = promisify(this.https_server.close).bind(this.https_server)
-    this.server.closeAllConnections()
-    this.https_server.closeAllConnections()
-    return Promise.all([stopHttp(), stopHttps()])
+    const promises = []
+    if (this.server) {
+      const stopHttp = promisify(this.server.close).bind(this.server)
+      this.server.closeAllConnections()
+      promises.push(stopHttp())
+    }
+    if (this.https_server) {
+      const stopHttps = promisify(this.https_server.close).bind(
+        this.https_server
+      )
+      this.https_server.closeAllConnections()
+      promises.push(stopHttps())
+    }
+    return Promise.all(promises)
   }
 }
 
-module.exports = { TestServer }
+export { TestServer }

@@ -20,6 +20,7 @@ import { RateLimiter } from '../../infrastructure/RateLimiter.mjs'
 import Features from '../../infrastructure/Features.mjs'
 import tsscmp from 'tsscmp'
 import Modules from '../../infrastructure/Modules.mjs'
+import { z, parseReq } from '../../infrastructure/Validation.mjs'
 
 const AUDIT_LOG_TOKEN_PREFIX_LENGTH = 10
 
@@ -54,9 +55,18 @@ async function _sendSecurityAlertEmail(user, email) {
   await EmailHandler.promises.sendEmail('securityAlert', emailOptions)
 }
 
+const sendExistingEmailConfirmationCodeSchema = z.object({
+  body: z.strictObject({
+    email: z.string().optional(),
+  }),
+})
+
 async function sendExistingEmailConfirmationCode(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
-  const email = EmailHelper.parseEmail(req.body.email)
+  const { body } = parseReq(req, sendExistingEmailConfirmationCodeSchema, {
+    logOnly: true,
+  })
+  const email = EmailHelper.parseEmail(body.email)
   if (!email) {
     return res.sendStatus(400)
   }
@@ -71,6 +81,23 @@ async function sendExistingEmailConfirmationCode(req, res) {
   res.sendStatus(204)
 }
 
+const universitySchema = z
+  .strictObject({
+    id: z.number().optional(),
+    name: z.string().optional(),
+    country_code: z.string().optional(),
+  })
+  .optional()
+
+const addWithConfirmationCodeSchema = z.object({
+  body: z.strictObject({
+    email: z.string().optional(),
+    university: universitySchema,
+    role: z.string().optional(),
+    department: z.string().optional(),
+  }),
+})
+
 /**
  * This method is for adding a secondary email to be confirmed via a code.
  */
@@ -78,11 +105,14 @@ async function addWithConfirmationCode(req, res) {
   delete req.session.pendingSecondaryEmail
 
   const userId = SessionManager.getLoggedInUserId(req.session)
-  const email = EmailHelper.parseEmail(req.body.email)
+  const { body } = parseReq(req, addWithConfirmationCodeSchema, {
+    logOnly: true,
+  })
+  const email = EmailHelper.parseEmail(body.email)
   const affiliationOptions = {
-    university: req.body.university,
-    role: req.body.role,
-    department: req.body.department,
+    university: body.university,
+    role: body.role,
+    department: body.department,
   }
 
   if (!email) {
@@ -175,6 +205,12 @@ async function sendCodeAndStoreInSession(
   }
 }
 
+const checkConfirmationCodeSchema = z.object({
+  body: z.strictObject({
+    code: z.string().optional(),
+  }),
+})
+
 /**
  * @param {string} sessionKey
  * @param {(req: import('express').Request, user: any, email: string, affiliationOptions: any) => Promise<void>} beforeConfirmEmail
@@ -183,7 +219,9 @@ async function sendCodeAndStoreInSession(
 const _checkConfirmationCode =
   (sessionKey, beforeConfirmEmail) => async (req, res) => {
     const userId = SessionManager.getLoggedInUserId(req.session)
-    const code = req.body.code
+    const { code } = parseReq(req, checkConfirmationCodeSchema, {
+      logOnly: true,
+    }).body
     const user = await UserGetter.promises.getUser(userId, {
       email: 1,
       'emails.email': 1,
@@ -247,15 +285,11 @@ const _checkConfirmationCode =
 
       delete req.session[sessionKey]
 
-      AnalyticsManager.recordEventForUserInBackground(
-        user._id,
-        'email-verified',
-        {
-          provider: 'email',
-          verification_type: 'token',
-          isPrimary: user.email === emailToCheck,
-        }
-      )
+      AnalyticsManager.recordEventForSession(req.session, 'email-verified', {
+        provider: 'email',
+        verification_type: 'token',
+        isPrimary: user.email === emailToCheck,
+      })
 
       const redirectUrl =
         AuthenticationController.getRedirectFromSession(req) || '/project'
@@ -391,16 +425,14 @@ const resendExistingSecondaryEmailConfirmationCode = _resendConfirmationCode(
 )
 
 async function confirmSecondaryEmailPage(req, res) {
-  const userId = SessionManager.getLoggedInUserId(req.session)
-
   if (!req.session.pendingSecondaryEmail) {
     const redirectURL =
       AuthenticationController.getRedirectFromSession(req) || '/project'
     return res.redirect(redirectURL)
   }
 
-  AnalyticsManager.recordEventForUserInBackground(
-    userId,
+  AnalyticsManager.recordEventForSession(
+    req.session,
     'confirm-secondary-email-page-displayed'
   )
 
@@ -421,8 +453,8 @@ async function addSecondaryEmailPage(req, res) {
     return res.redirect(redirectURL)
   }
 
-  AnalyticsManager.recordEventForUserInBackground(
-    userId,
+  AnalyticsManager.recordEventForSession(
+    req.session,
     'add-secondary-email-page-displayed'
   )
 
@@ -442,8 +474,8 @@ async function primaryEmailCheckPage(req, res) {
     return res.redirect('/project')
   }
 
-  AnalyticsManager.recordEventForUserInBackground(
-    userId,
+  AnalyticsManager.recordEventForSession(
+    req.session,
     'primary-email-check-page-displayed'
   )
 
@@ -456,8 +488,8 @@ async function primaryEmailCheck(req, res) {
     $set: { lastPrimaryEmailCheck: new Date() },
   })
 
-  AnalyticsManager.recordEventForUserInBackground(
-    userId,
+  AnalyticsManager.recordEventForSession(
+    req.session,
     'primary-email-check-done'
   )
 
@@ -487,16 +519,30 @@ async function primaryEmailCheck(req, res) {
   AsyncFormHelper.redirect(req, res, '/project')
 }
 
+const showConfirmSchema = z.object({
+  query: z.object({
+    token: z.string().optional(),
+  }),
+})
+
 async function showConfirm(req, res, next) {
+  const { query } = parseReq(req, showConfirmSchema, { logOnly: true })
   res.render('user/confirm_email', {
-    token: req.query.token,
+    token: query.token,
     title: 'confirm_email',
   })
 }
 
+const removeEmailSchema = z.object({
+  body: z.strictObject({
+    email: z.string().optional(),
+  }),
+})
+
 async function remove(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
-  const email = EmailHelper.parseEmail(req.body.email)
+  const { body } = parseReq(req, removeEmailSchema, { logOnly: true })
+  const email = EmailHelper.parseEmail(body.email)
   if (!email) {
     return res.sendStatus(422)
   }
@@ -508,9 +554,21 @@ async function remove(req, res) {
   res.sendStatus(200)
 }
 
+const setDefaultEmailSchema = z.object({
+  body: z.strictObject({
+    email: z.string().optional(),
+  }),
+  query: z.object({
+    'delete-unconfirmed-primary': z.string().optional(),
+  }),
+})
+
 async function setDefault(req, res, next) {
   const userId = SessionManager.getLoggedInUserId(req.session)
-  const email = EmailHelper.parseEmail(req.body.email)
+  const { body, query } = parseReq(req, setDefaultEmailSchema, {
+    logOnly: true,
+  })
+  const email = EmailHelper.parseEmail(body.email)
 
   if (!email) {
     return res.sendStatus(422)
@@ -522,7 +580,7 @@ async function setDefault(req, res, next) {
   )
   const primaryEmailData = emails?.find(email => email.email === oldDefault)
   const deleteOldEmail =
-    req.query['delete-unconfirmed-primary'] !== undefined &&
+    query['delete-unconfirmed-primary'] !== undefined &&
     primaryEmailData &&
     !primaryEmailData.confirmedAt
 
@@ -556,7 +614,7 @@ async function setDefault(req, res, next) {
     )
   }
   if (
-    req.query['delete-unconfirmed-primary'] !== undefined &&
+    query['delete-unconfirmed-primary'] !== undefined &&
     primaryEmailData &&
     !primaryEmailData.confirmedAt
   ) {
@@ -574,6 +632,20 @@ async function setDefault(req, res, next) {
   }
   res.sendStatus(200)
 }
+
+const endorseEmailSchema = z.object({
+  body: z.strictObject({
+    email: z.string().optional(),
+    role: z.string().optional(),
+    department: z.string().optional(),
+  }),
+})
+
+const confirmEmailSchema = z.object({
+  body: z.strictObject({
+    token: z.string().nullish(),
+  }),
+})
 
 const UserEmailsController = {
   list(req, res, next) {
@@ -610,7 +682,8 @@ const UserEmailsController = {
 
   endorse(req, res, next) {
     const userId = SessionManager.getLoggedInUserId(req.session)
-    const email = EmailHelper.parseEmail(req.body.email)
+    const { body } = parseReq(req, endorseEmailSchema, { logOnly: true })
+    const email = EmailHelper.parseEmail(body.email)
     if (!email) {
       return res.sendStatus(422)
     }
@@ -618,8 +691,8 @@ const UserEmailsController = {
     InstitutionsAPI.endorseAffiliation(
       userId,
       email,
-      req.body.role,
-      req.body.department,
+      body.role,
+      body.department,
       function (error) {
         if (error) {
           return next(error)
@@ -644,7 +717,9 @@ const UserEmailsController = {
   showConfirm: expressify(showConfirm),
 
   confirm(req, res, next) {
-    const { token } = req.body
+    const { token } = parseReq(req, confirmEmailSchema, {
+      logOnly: true,
+    }).body
     if (!token) {
       return res.status(422).json({
         message: req.i18n.translate('confirmation_link_broken'),
@@ -687,7 +762,7 @@ const UserEmailsController = {
               }
               UserGetter.getUser(
                 userData.userId,
-                { email: 1 },
+                { _id: 1, email: 1, analyticsId: 1, labsProgram: 1 },
                 function (error, user) {
                   if (error) {
                     logger.error(
@@ -696,8 +771,8 @@ const UserEmailsController = {
                     )
                   }
                   const isPrimary = user?.email === userData.email
-                  AnalyticsManager.recordEventForUserInBackground(
-                    userData.userId,
+                  AnalyticsManager.recordEventForMongoUserInBackground(
+                    user,
                     'email-verified',
                     {
                       provider: 'email',

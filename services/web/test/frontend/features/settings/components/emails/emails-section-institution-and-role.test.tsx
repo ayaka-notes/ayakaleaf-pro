@@ -12,6 +12,7 @@ import { UserEmailsProvider } from '../../../../../../frontend/js/features/setti
 import EmailsSection from '../../../../../../frontend/js/features/settings/components/emails-section'
 import { Affiliation } from '../../../../../../types/affiliation'
 import getMeta from '@/utils/meta'
+import { SplitTestProvider } from '@/shared/context/split-test-context'
 
 const userData1: UserEmailData & { affiliation: Affiliation } = {
   affiliation: {
@@ -23,6 +24,7 @@ const userData1: UserEmailData & { affiliation: Affiliation } = {
     department: null,
     institution: {
       commonsAccount: false,
+      enterpriseCommons: false,
       writefullCommonsAccount: false,
       confirmed: true,
       id: 1,
@@ -54,6 +56,7 @@ const userData2: UserEmailData & { affiliation: Affiliation } = {
     department: 'Art History',
     institution: {
       commonsAccount: false,
+      enterpriseCommons: false,
       writefullCommonsAccount: false,
       confirmed: true,
       id: 1,
@@ -72,6 +75,14 @@ const userData2: UserEmailData & { affiliation: Affiliation } = {
   },
   email: 'baz@overleaf.com',
   default: false,
+}
+
+function renderEmailsSection() {
+  return render(<EmailsSection />, {
+    wrapper: ({ children }) => (
+      <SplitTestProvider>{children}</SplitTestProvider>
+    ),
+  })
 }
 
 describe('user role and institution', function () {
@@ -125,7 +136,7 @@ describe('user role and institution', function () {
   it('fetches institution data and replaces departments dropdown on add/change', async function () {
     const userEmailData = userData1
     fetchMock.modifyRoute('get user emails', { response: [userEmailData] })
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     await fetchMock.callHistory.flush(true)
     fetchMock.removeRoutes().clearHistory()
@@ -158,7 +169,7 @@ describe('user role and institution', function () {
       .modifyRoute('get user emails', { response: [userData1] })
       .get(/\/institutions\/list/, { departments: [] })
       .post('/user/emails/endorse', 200)
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     const addBtn = await screen.findByRole('button', {
       name: /add role and department/i,

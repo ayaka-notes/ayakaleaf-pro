@@ -1,4 +1,3 @@
-import { isMainFile } from './editor-files'
 import getMeta from '../../../utils/meta'
 import { deleteJSON, postJSON } from '../../../infrastructure/fetch-json'
 import { debounce, DebouncedFunc } from 'lodash'
@@ -8,9 +7,9 @@ import { debugConsole } from '@/utils/debugging'
 import { signalWithTimeout } from '@/utils/abort-signal'
 import { Dispatch, SetStateAction } from 'react'
 import { OpenDocuments } from '@/features/ide-react/editor/open-documents'
-import { DocumentContainer } from '@/features/ide-react/editor/document-container'
 import { CompileOptions, CompileResponseData } from '@ol-types/compile'
 import { DeliveryLatencies } from './types'
+import { RootDocInfo } from '@/shared/hooks/use-root-doc'
 
 const AUTO_COMPILE_MAX_WAIT = 5000
 // We add a 2 second debounce to sending user changes to server if they aren't
@@ -36,13 +35,12 @@ export default class DocumentCompiler {
   cleanupCompileResult: () => void
   signal: AbortSignal
   openDocs: OpenDocuments
-  projectRootDocId?: string | null
   clsiServerId: string | null
-  currentDoc: DocumentContainer | null
   error: Error | undefined
   timer: number
   defaultOptions: CompileOptions
   debouncedAutoCompile: DebouncedFunc<() => void>
+  getRootDocInfo: () => RootDocInfo
 
   constructor({
     compilingRef,
@@ -56,6 +54,7 @@ export default class DocumentCompiler {
     cleanupCompileResult,
     signal,
     openDocs,
+    getRootDocInfo,
   }: {
     compilingRef: React.MutableRefObject<boolean>
     projectId: string
@@ -68,6 +67,7 @@ export default class DocumentCompiler {
     cleanupCompileResult: () => void
     signal: AbortSignal
     openDocs: OpenDocuments
+    getRootDocInfo: () => RootDocInfo
   }) {
     this.compilingRef = compilingRef
     this.projectId = projectId
@@ -80,14 +80,14 @@ export default class DocumentCompiler {
     this.cleanupCompileResult = cleanupCompileResult
     this.signal = signal
     this.openDocs = openDocs
+    this.getRootDocInfo = getRootDocInfo
 
-    this.projectRootDocId = null
     this.clsiServerId = null
-    this.currentDoc = null
     this.error = undefined
     this.timer = 0
     this.defaultOptions = {
       draft: false,
+      png2pdf: false,
       stopOnFirstError: false,
     }
 
@@ -134,11 +134,13 @@ export default class DocumentCompiler {
 
       const t0 = performance.now()
 
-      const rootDocId = this.getRootDocOverrideId()
+      const { rootDocId, rootResourcePath } = this.getRootDocInfo()
 
       const body = {
         rootDoc_id: rootDocId,
+        rootResourcePath,
         draft: options.draft,
+        png2pdf: options.png2pdf,
         check: 'silent', // NOTE: 'error' and 'validate' are possible, but unused
         // use incremental compile for all users but revert to a full compile
         // if there was previously a server error
@@ -164,7 +166,10 @@ export default class DocumentCompiler {
       // unset the error before it's set again later, so that components are recreated and events are tracked
       this.setError(undefined)
 
-      data.options = options
+      data.options = {
+        ...options,
+        rootResourcePath,
+      }
       data.rootDocId = rootDocId
       if (data.clsiServerId) {
         this.clsiServerId = data.clsiServerId
@@ -177,21 +182,6 @@ export default class DocumentCompiler {
     } finally {
       this.setCompiling(false)
     }
-  }
-
-  // parse the text of the current doc in the editor
-  // if it contains "\documentclass" then use this as the root doc
-  getRootDocOverrideId() {
-    // only override when not in the root doc itself
-    if (this.currentDoc && this.currentDoc.doc_id !== this.projectRootDocId) {
-      const snapshot = this.currentDoc.getSnapshot()
-
-      if (snapshot && isMainFile(snapshot)) {
-        return this.currentDoc.doc_id
-      }
-    }
-
-    return null
   }
 
   // build the query parameters added to post-compile requests

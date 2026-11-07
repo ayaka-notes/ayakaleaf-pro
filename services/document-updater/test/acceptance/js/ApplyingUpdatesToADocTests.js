@@ -113,6 +113,15 @@ describe('Applying updates to a doc', function () {
       body.should.deep.equal({})
     })
 
+    it('should set the project notification timestamp in Redis', async function () {
+      const timestamp = await rclientDU.get(
+        Keys.projectNotificationTimestamp({ project_id: this.project_id })
+      )
+      expect(timestamp).to.exist
+      const timestampValue = parseInt(timestamp, 10)
+      timestampValue.should.be.within(this.startTime, Date.now())
+    })
+
     describe('when sending another update', function () {
       beforeEach(async function () {
         this.timeout(10000)
@@ -157,6 +166,16 @@ describe('Applying updates to a doc', function () {
         const { lastUpdatedAt } =
           await DocUpdaterClient.getProjectLastUpdatedAt(this.project_id)
         lastUpdatedAt.should.be.within(this.secondStartTime, Date.now())
+      })
+
+      it('should not change the project notification timestamp', async function () {
+        const timestamp = await rclientDU.get(
+          Keys.projectNotificationTimestamp({ project_id: this.project_id })
+        )
+        expect(timestamp).to.exist
+        const timestampValue = parseInt(timestamp, 10)
+        // Should still be within the first update time range, not the second
+        timestampValue.should.be.within(this.startTime, this.secondStartTime)
       })
     })
 
@@ -275,6 +294,15 @@ describe('Applying updates to a doc', function () {
       body.should.deep.equal({})
     })
 
+    it('should set the project notification timestamp in Redis', async function () {
+      const timestamp = await rclientDU.get(
+        Keys.projectNotificationTimestamp({ project_id: this.project_id })
+      )
+      expect(timestamp).to.exist
+      const timestampValue = parseInt(timestamp, 10)
+      timestampValue.should.be.within(this.startTime, Date.now())
+    })
+
     describe('when sending another update', function () {
       beforeEach(async function () {
         this.timeout(10000)
@@ -324,6 +352,16 @@ describe('Applying updates to a doc', function () {
         const { lastUpdatedAt } =
           await DocUpdaterClient.getProjectLastUpdatedAt(this.project_id)
         lastUpdatedAt.should.be.within(this.secondStartTime, Date.now())
+      })
+
+      it('should not change the project notification timestamp', async function () {
+        const timestamp = await rclientDU.get(
+          Keys.projectNotificationTimestamp({ project_id: this.project_id })
+        )
+        expect(timestamp).to.exist
+        const timestampValue = parseInt(timestamp, 10)
+        // Should still be within the first update time range, not the second
+        timestampValue.should.be.within(this.startTime, this.secondStartTime)
       })
     })
 
@@ -611,12 +649,45 @@ describe('Applying updates to a doc', function () {
     it('should send a message with an error', function () {
       this.messageCallback.called.should.equal(true)
       const [channel, message] = this.messageCallback.args[0]
-      channel.should.equal('applied-ops')
+      channel.should.equal('editor-events')
       JSON.parse(message).should.deep.include({
         project_id: this.project_id,
         doc_id: this.doc_id,
         error: 'Delete component does not match',
       })
+    })
+  })
+
+  describe('with an applied update', function () {
+    beforeEach(async function () {
+      MockWebApi.insertDoc(this.project_id, this.doc_id, {
+        lines: this.lines,
+        version: this.version,
+      })
+
+      DocUpdaterClient.subscribeToAppliedOps(
+        (this.messageCallback = sinon.stub())
+      )
+
+      await sendUpdateAndWait(this.project_id, this.doc_id, this.update)
+    })
+
+    it('should update the doc', async function () {
+      const doc = await DocUpdaterClient.getDoc(this.project_id, this.doc_id)
+      doc.lines.should.deep.equal(this.result)
+    })
+
+    it('should publish the applied op on the editor-events channel', function () {
+      this.messageCallback.called.should.equal(true)
+      const [channel, message] = this.messageCallback.args[0]
+      channel.should.equal('editor-events')
+      const parsedMessage = JSON.parse(message)
+      parsedMessage.should.deep.include({
+        project_id: this.project_id,
+        doc_id: this.doc_id,
+        message: 'otUpdateApplied',
+      })
+      parsedMessage.op.v.should.equal(this.version)
     })
   })
 
@@ -649,7 +720,7 @@ describe('Applying updates to a doc', function () {
     it('should send a message with an error', function () {
       this.messageCallback.called.should.equal(true)
       const [channel, message] = this.messageCallback.args[0]
-      channel.should.equal('applied-ops')
+      channel.should.equal('editor-events')
       JSON.parse(message).should.deep.include({
         project_id: this.project_id,
         doc_id: this.doc_id,
@@ -686,7 +757,7 @@ describe('Applying updates to a doc', function () {
     it('should send a message with an error', function () {
       this.messageCallback.called.should.equal(true)
       const [channel, message] = this.messageCallback.args[0]
-      channel.should.equal('applied-ops')
+      channel.should.equal('editor-events')
       JSON.parse(message).should.deep.include({
         project_id: this.project_id,
         doc_id: this.doc_id,
@@ -718,7 +789,7 @@ describe('Applying updates to a doc', function () {
     it('should send a message with an error', function () {
       this.messageCallback.called.should.equal(true)
       const [channel, message] = this.messageCallback.args[0]
-      channel.should.equal('applied-ops')
+      channel.should.equal('editor-events')
       JSON.parse(message).should.deep.include({
         project_id: this.project_id,
         doc_id: this.doc_id,
@@ -796,9 +867,9 @@ describe('Applying updates to a doc', function () {
 
     it('should return a message about duplicate ops', function () {
       this.messageCallback.calledTwice.should.equal(true)
-      this.messageCallback.args[0][0].should.equal('applied-ops')
+      this.messageCallback.args[0][0].should.equal('editor-events')
       expect(JSON.parse(this.messageCallback.args[0][1]).op.dup).to.be.undefined
-      this.messageCallback.args[1][0].should.equal('applied-ops')
+      this.messageCallback.args[1][0].should.equal('editor-events')
       expect(JSON.parse(this.messageCallback.args[1][1]).op.dup).to.equal(true)
     })
   })
@@ -847,9 +918,9 @@ describe('Applying updates to a doc', function () {
 
     it('should return a message about duplicate ops', function () {
       this.messageCallback.calledTwice.should.equal(true)
-      this.messageCallback.args[0][0].should.equal('applied-ops')
+      this.messageCallback.args[0][0].should.equal('editor-events')
       expect(JSON.parse(this.messageCallback.args[0][1]).op.dup).to.be.undefined
-      this.messageCallback.args[1][0].should.equal('applied-ops')
+      this.messageCallback.args[1][0].should.equal('editor-events')
       expect(JSON.parse(this.messageCallback.args[1][1]).op.dup).to.equal(true)
     })
   })
@@ -878,11 +949,11 @@ describe('Applying updates to a doc', function () {
     it('should send a message with an error', function () {
       this.messageCallback.called.should.equal(true)
       const [channel, message] = this.messageCallback.args[0]
-      channel.should.equal('applied-ops')
+      channel.should.equal('editor-events')
       JSON.parse(message).should.deep.include({
         project_id: this.project_id,
         doc_id: this.doc_id,
-        error: `doc not not found: /project/${this.project_id}/doc/${this.doc_id}`,
+        error: 'doc not found',
       })
     })
   })

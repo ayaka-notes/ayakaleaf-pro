@@ -1,0 +1,60 @@
+<configuration>
+
+    <variable name="LOG_LEVEL" value="${LOG_LEVEL:-INFO}" />
+
+    <!-- Log everything (subject to logger and root levels set below) to stdout. -->
+    <appender name="stdout" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.out</target>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <timestampPattern>yyyy-MM-dd'T'HH:mm:ss.SSSXXX</timestampPattern>
+            <fieldNames>
+                <timestamp>time</timestamp>
+                <version>[ignore]</version>
+                <message>message</message>
+                <logger>logger</logger>
+                <thread>thread</thread>
+                <level>[ignore]</level>
+                <levelValue>[ignore]</levelValue>
+                <stackTrace>stack_trace</stackTrace>
+            </fieldNames>
+            <provider class="net.logstash.logback.composite.loggingevent.LoggingEventPatternJsonProvider">
+                <pattern>{"severity":"%replace(%replace(%level){'WARN','WARNING'}){'TRACE','DEBUG'}"}</pattern>
+            </provider>
+            <provider class="uk.ac.ic.wlgitbridge.server.GcpLabelsJsonProvider" />
+        </encoder>
+    </appender>
+
+    <!-- Log warnings and errors to stderr. We send them to a log aggregation service for monitoring. -->
+    <appender name="stderr" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.err</target>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>WARN</level>
+        </filter>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <timestampPattern>yyyy-MM-dd'T'HH:mm:ss.SSSXXX</timestampPattern>
+            <fieldNames>
+                <timestamp>time</timestamp>
+                <version>[ignore]</version>
+                <message>message</message>
+                <logger>logger</logger>
+                <thread>thread</thread>
+                <level>[ignore]</level>
+                <levelValue>[ignore]</levelValue>
+                <stackTrace>stack_trace</stackTrace>
+            </fieldNames>
+            <provider class="net.logstash.logback.composite.loggingevent.LoggingEventPatternJsonProvider">
+                <pattern>{"severity":"%replace(%replace(%level){'WARN','WARNING'}){'TRACE','DEBUG'}"}</pattern>
+            </provider>
+            <provider class="uk.ac.ic.wlgitbridge.server.GcpLabelsJsonProvider" />
+        </encoder>
+    </appender>
+
+    <!-- Set log levels for the application (or parts of the application). -->
+    <logger name="uk.ac.ic.wlgitbridge" level="${LOG_LEVEL}" />
+
+    <!-- The root log level determines how much our dependencies put in the logs. -->
+    <root level="WARN">
+        <appender-ref ref="stdout" />
+        <appender-ref ref="stderr" />
+    </root>
+</configuration>

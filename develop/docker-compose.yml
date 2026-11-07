@@ -22,13 +22,12 @@ services:
     build:
       context: ..
       dockerfile: services/clsi/Dockerfile
+    # target: with-texlive
     env_file:
       - dev.env
     environment:
-      - TEXLIVE_IMAGE=texlive-full # docker build texlive -t texlive-full
       - SANDBOXED_COMPILES=true
-      - SANDBOXED_COMPILES_HOST_DIR_COMPILES=${PWD}/compiles
-      - SANDBOXED_COMPILES_HOST_DIR_OUTPUT=${PWD}/output
+      - DOWNLOAD_HOST=http://clsi-nginx:8080
     user: root
     volumes:
       - ${PWD}/compiles:/overleaf/services/clsi/compiles
@@ -36,12 +35,16 @@ services:
       - ${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock
       - clsi-cache:/overleaf/services/clsi/cache
 
-  contacts:
-    build:
-      context: ..
-      dockerfile: services/contacts/Dockerfile
-    env_file:
-      - dev.env
+  clsi-nginx:
+    image: nginx:1.28
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /run
+    volumes:
+      - ${PWD}/output:/output:ro
+      - ../services/clsi/nginx.conf:/etc/nginx/conf.d/nginx.conf:ro
 
   docstore:
     build:
@@ -56,6 +59,10 @@ services:
       dockerfile: services/document-updater/Dockerfile
     env_file:
       - dev.env
+    environment:
+      # Dropbox gets a doc when it is written to Mongo, as with
+      # server-ce/init_scripts/100_dropbox_background_flush.sh
+      - CONTINUOUS_BACKGROUND_FLUSH=true
 
   filestore:
     build:
@@ -63,8 +70,8 @@ services:
       dockerfile: services/filestore/Dockerfile
     env_file:
       - dev.env
-#    environment:
-#      - ENABLE_CONVERSIONS=true
+    #    environment:
+    #      - ENABLE_CONVERSIONS=true
     volumes:
       - filestore-public-files:/overleaf/services/filestore/public_files
       - filestore-template-files:/overleaf/services/filestore/template_files
@@ -76,7 +83,7 @@ services:
       context: ..
       dockerfile: services/history-v1/Dockerfile
     env_file:
-        - dev.env
+      - dev.env
     environment:
       OVERLEAF_EDITOR_ANALYTICS_BUCKET: "/buckets/analytics"
       OVERLEAF_EDITOR_BLOBS_BUCKET: "/buckets/blobs"
@@ -85,7 +92,7 @@ services:
       OVERLEAF_EDITOR_ZIPS_BUCKET: "/buckets/zips"
       PERSISTOR_BACKEND: fs
     volumes:
-        - history-v1-buckets:/buckets
+      - history-v1-buckets:/buckets
 
   linked-url-proxy:
     build:
@@ -93,9 +100,11 @@ services:
       dockerfile: services/linked-url-proxy/Dockerfile
     env_file:
       - dev.env
+    environment:
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs
 
   mongo:
-    image: mongo:6.0
+    image: mongo:8
     command: --replSet overleaf
     ports:
       - "127.0.0.1:27017:27017" # for debugging
@@ -104,6 +113,8 @@ services:
       - ../bin/shared/mongodb-init-replica-set.js:/docker-entrypoint-initdb.d/mongodb-init-replica-set.js
     environment:
       MONGO_INITDB_DATABASE: sharelatex
+      # mongo 8 fails on kernel 6.19+ (SERVER-121912), as in the e2e config
+      GLIBC_TUNABLES: glibc.pthread.rseq=1
     extra_hosts:
       # Required when using the automatic database setup for initializing the
       # replica set. This override is not needed when running the setup after
@@ -122,7 +133,7 @@ services:
       context: ..
       dockerfile: services/project-history/Dockerfile
     env_file:
-        - dev.env
+      - dev.env
 
   real-time:
     build:
@@ -131,8 +142,15 @@ services:
     env_file:
       - dev.env
 
+  third-party-datastore:
+    build:
+      context: ..
+      dockerfile: services/third-party-datastore/Dockerfile
+    env_file:
+      - dev.env
+
   redis:
-    image: redis:5
+    image: redis:7
     ports:
       - "127.0.0.1:6379:6379" # for debugging
     volumes:
@@ -144,23 +162,27 @@ services:
       dockerfile: services/web/Dockerfile
       target: dev
     env_file:
+      - authentication/authentication.env
       - dev.env
     environment:
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs
       - APP_NAME=Overleaf Community Edition
       - ENABLED_LINKED_FILE_TYPES=project_file,project_output_file,url,mendeley,zotero
       - EMAIL_CONFIRMATION_DISABLED=true
       - NODE_ENV=development
       - OVERLEAF_ALLOW_PUBLIC_ACCESS=true
+      - TPDS_HOST=third-party-datastore
     command: ["node", "app.mjs"]
     volumes:
       - sharelatex-data:/var/lib/overleaf
       - web-data:/overleaf/services/web/data
+      - ./data/certs/:/var/lib/overleaf/certs/
+      - ./authentication/saml/idp.crt:/etc/saml/idp.crt:ro
     depends_on:
       - mongo
       - redis
       - chat
       - clsi
-      - contacts
       - docstore
       - document-updater
       - filestore
@@ -169,13 +191,19 @@ services:
       - notifications
       - project-history
       - real-time
+      - third-party-datastore
 
   webpack:
     build:
       context: ..
       dockerfile: services/web/Dockerfile
       target: webpack
-    command: ["npx", "webpack", "serve", "--config", "webpack.config.dev-env.js"]
+    environment:
+      - NODE_ENV=development
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs
+      - OVERLEAF_CONFIG=/overleaf/services/web/config/settings.webpack.js
+    command:
+      ["yarn", "exec", "webpack", "serve", "--config", "webpack.config.dev-env.js"]
     ports:
       - "127.0.0.1:80:3808"
     volumes:
@@ -233,3 +261,14 @@ services:
       - "8081:8081"
     environment:
       ME_CONFIG_MONGODB_SERVER: mongo
+  
+  # LDAP and SAML test users, see authentication/README.md
+  ldap:
+    build: ./authentication/ldap
+    healthcheck:
+      test: ["CMD-SHELL", "ldapsearch -x -H ldap:/// -b dc=planetexpress,dc=com -s base >/dev/null"]
+
+  saml:
+    build: ./authentication/saml
+    env_file:
+      - dev.env

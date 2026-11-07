@@ -4,7 +4,8 @@ import { useUserContext } from '@/shared/context/user-context'
 import teaserVideo from '../images/teaser-track-changes.mp4'
 import teaserImage from '../images/teaser-track-changes.gif'
 import { startFreeTrial, upgradePlan } from '@/main/account-upgrade'
-import { memo } from 'react'
+import { sendMB } from '@/infrastructure/event-tracking'
+import { memo, useEffect } from 'react'
 import {
   OLModal,
   OLModalBody,
@@ -16,22 +17,40 @@ import OLButton from '@/shared/components/ol/ol-button'
 import OLRow from '@/shared/components/ol/ol-row'
 import OLCol from '@/shared/components/ol/ol-col'
 import MaterialIcon from '@/shared/components/material-icon'
+import { useEditorContext } from '@/shared/context/editor-context'
 
-type UpgradeTrackChangesModalProps = {
-  show: boolean
-  setShow: React.Dispatch<React.SetStateAction<boolean>>
-}
-
-function UpgradeTrackChangesModal({
-  show,
-  setShow,
-}: UpgradeTrackChangesModalProps) {
+function UpgradeTrackChangesModal() {
   const { t } = useTranslation()
   const { project } = useProjectContext()
   const user = useUserContext()
+  const {
+    upgradeTrackChangesModal: { show, location = 'unknown' },
+    setUpgradeTrackChangesModal,
+  } = useEditorContext()
+
+  const handleClose = () => {
+    sendMB('paywall-dismiss', {
+      'paywall-type': 'track-changes',
+      location,
+    })
+    setUpgradeTrackChangesModal({ show: false })
+  }
+
+  useEffect(() => {
+    if (show) {
+      sendMB('paywall-prompt', {
+        'paywall-type': 'track-changes',
+        location,
+      })
+    }
+  }, [show, location])
+
+  if (!show) {
+    return null
+  }
 
   return (
-    <OLModal show={show} onHide={() => setShow(false)}>
+    <OLModal show={show} onHide={handleClose}>
       <OLModalHeader>
         <OLModalTitle>{t('upgrade_to_review')}</OLModalTitle>
       </OLModalHeader>
@@ -69,14 +88,24 @@ function UpgradeTrackChangesModal({
               user.allowedFreeTrial ? (
                 <OLButton
                   variant="premium"
-                  onClick={() => startFreeTrial('track-changes')}
+                  onClick={() =>
+                    startFreeTrial('track-changes', undefined, {
+                      location,
+                    })
+                  }
                 >
-                  {t('try_it_for_free')}
+                  {t('try_for_free')}
                 </OLButton>
               ) : (
                 <OLButton
                   variant="premium"
-                  onClick={() => upgradePlan('project-sharing')}
+                  onClick={() => {
+                    sendMB('paywall-click', {
+                      'paywall-type': 'track-changes',
+                      location,
+                    })
+                    upgradePlan('project-sharing')
+                  }}
                 >
                   {t('upgrade')}
                 </OLButton>
@@ -94,7 +123,7 @@ function UpgradeTrackChangesModal({
         )}
       </OLModalBody>
       <OLModalFooter>
-        <OLButton variant="secondary" onClick={() => setShow(false)}>
+        <OLButton variant="secondary" onClick={handleClose}>
           {t('close')}
         </OLButton>
       </OLModalFooter>

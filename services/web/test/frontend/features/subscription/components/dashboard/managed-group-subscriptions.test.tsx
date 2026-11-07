@@ -2,6 +2,7 @@ import { expect } from 'chai'
 import { screen } from '@testing-library/react'
 import ManagedGroupSubscriptions from '../../../../../../frontend/js/features/subscription/components/dashboard/managed-group-subscriptions'
 import { ManagedGroupSubscription } from '../../../../../../types/subscription/dashboard/subscription'
+import { MetaTag } from '@/utils/meta'
 import {
   cleanUpContext,
   renderWithSubscriptionDashContext,
@@ -14,7 +15,7 @@ function getManagedGroupSubscriptions(
   const subscriptionOne = {
     _id: 'bcd567',
     userIsGroupMember: true,
-    planLevelName: 'Professional',
+    planLevelName: 'Pro',
     admin_id: {
       email: 'you@example.com',
     },
@@ -22,13 +23,14 @@ function getManagedGroupSubscriptions(
       groupSSO,
       managedUsers,
     },
+    managedUsersEnabled: false,
     teamName: 'GAS',
   }
 
   const subscriptionTwo = {
     _id: 'def456',
     userIsGroupMember: false,
-    planLevelName: 'Collaborator',
+    planLevelName: 'Standard',
     admin_id: {
       email: 'someone@example.com',
     },
@@ -36,13 +38,14 @@ function getManagedGroupSubscriptions(
       groupSSO,
       managedUsers,
     },
+    managedUsersEnabled: false,
     teamName: 'GASWPLC',
   }
 
   const subscriptionMemberAndAdmin = {
     _id: 'group2abc',
     userIsGroupMember: true,
-    planLevelName: 'Collaborator',
+    planLevelName: 'Standard',
     admin_id: {
       email: 'admin@example.com',
     },
@@ -50,13 +53,14 @@ function getManagedGroupSubscriptions(
       groupSSO,
       managedUsers,
     },
+    managedUsersEnabled: false,
     teamName: 'Testing',
   }
 
   const subscriptionAdmin = {
     _id: 'group123abc',
     userIsGroupMember: false,
-    planLevelName: 'Collaborator',
+    planLevelName: 'Standard',
     admin_id: {
       email: 'admin@example.com',
     },
@@ -64,6 +68,7 @@ function getManagedGroupSubscriptions(
       groupSSO,
       managedUsers,
     },
+    managedUsersEnabled: false,
     teamName: 'Testing Another',
   }
 
@@ -105,16 +110,16 @@ describe('<ManagedGroupSubscriptions />', function () {
     })
     expect(elements.length).to.equal(4)
     expect(elements[0].textContent).to.equal(
-      'You are a manager and member of the Professional group subscription GAS administered by you@example.com.'
+      'You are a manager and member of the Pro group subscription GAS administered by you@example.com.'
     )
     expect(elements[1].textContent).to.equal(
-      'You are a manager of the Collaborator group subscription GASWPLC administered by someone@example.com.'
+      'You are a manager of the Standard group subscription GASWPLC administered by someone@example.com.'
     )
     expect(elements[2].textContent).to.equal(
-      'You are a manager and member of the Collaborator group subscription Testing administered by you (admin@example.com).'
+      'You are a manager and member of the Standard group subscription Testing administered by you (admin@example.com).'
     )
     expect(elements[3].textContent).to.equal(
-      'You are a manager of the Collaborator group subscription Testing Another administered by you (admin@example.com).'
+      'You are a manager of the Standard group subscription Testing Another administered by you (admin@example.com).'
     )
 
     const links = screen.getAllByRole('link')
@@ -208,6 +213,71 @@ describe('<ManagedGroupSubscriptions />', function () {
     await screen.findAllByText('Audit logs')
   })
 
+  it('does not render the Sharing Permissions settings row when the user is not the group admin', function () {
+    renderWithSubscriptionDashContext(<ManagedGroupSubscriptions />, {
+      metaTags: [
+        {
+          name: 'ol-managedGroupSubscriptions',
+          value: managedGroupSubscriptions2,
+        },
+        {
+          name: 'ol-groupSettingsEnabledFor',
+          value: [],
+        },
+        {
+          name: 'ol-splitTestVariants',
+          value: { 'sharing-updates': 'enabled' },
+        },
+      ],
+    })
+
+    expect(screen.queryByText(/sharing permissions/i)).to.be.null
+    expect(screen.queryByText(/manage how group members share projects/i)).to.be
+      .null
+  })
+
+  it('renders the Sharing Permissions settings row when the user is the group admin and plan is professional', async function () {
+    renderWithSubscriptionDashContext(<ManagedGroupSubscriptions />, {
+      metaTags: [
+        {
+          name: 'ol-managedGroupSubscriptions',
+          value: managedGroupSubscriptions,
+        },
+        { name: 'ol-usersEmail', value: 'you@example.com' },
+        {
+          name: 'ol-splitTestVariants',
+          value: {
+            'sharing-updates': 'enabled',
+            'sharing-updates-sharing-permissions': 'enabled',
+          },
+        },
+      ],
+    })
+
+    await screen.findAllByText(/sharing permissions/i)
+    await screen.findAllByText(/manage how group members share projects/i)
+  })
+
+  it('does not render the Sharing Permissions settings row when the "sharing-updates-sharing-permissions" feature flag is disabled', function () {
+    renderWithSubscriptionDashContext(<ManagedGroupSubscriptions />, {
+      metaTags: [
+        {
+          name: 'ol-managedGroupSubscriptions',
+          value: managedGroupSubscriptions,
+        },
+        { name: 'ol-usersEmail', value: 'you@example.com' },
+        {
+          name: 'ol-splitTestVariants',
+          value: { 'sharing-updates': 'enabled' },
+        },
+      ],
+    })
+
+    expect(screen.queryByText(/sharing permissions/i)).to.be.null
+    expect(screen.queryByText(/manage how group members share projects/i)).to.be
+      .null
+  })
+
   it('renders Managed Group / Group SSO settings row when both features are turned on', async function () {
     renderWithSubscriptionDashContext(<ManagedGroupSubscriptions />, {
       metaTags: [
@@ -263,5 +333,338 @@ describe('<ManagedGroupSubscriptions />', function () {
     expect(screen.queryByText('Turn on Managed Users')).to.not.exist
     expect(screen.queryByText('Configure and manage SSO and Managed Users')).to
       .not.exist
+  })
+
+  describe('Feature controls row', function () {
+    const adminEmail = 'admin@example.com'
+
+    function makeSubscription(
+      overrides: Partial<ManagedGroupSubscription>
+    ): ManagedGroupSubscription[] {
+      return [
+        {
+          _id: 'sub123',
+          userIsGroupMember: false,
+          planLevelName: 'Pro',
+          admin_id: { email: adminEmail },
+          features: { groupSSO: false, managedUsers: false },
+          managedUsersEnabled: false,
+          teamName: 'Test Group',
+          ...overrides,
+        },
+      ]
+    }
+
+    describe('when managedUsersEnabled === true', function () {
+      it('renders the feature controls row when the user is admin', async function () {
+        renderWithSubscriptionDashContext(<ManagedGroupSubscriptions />, {
+          metaTags: [
+            {
+              name: 'ol-managedGroupSubscriptions',
+              value: makeSubscription({ managedUsersEnabled: true }),
+            },
+            { name: 'ol-usersEmail', value: adminEmail },
+          ],
+        })
+        await screen.findByText('Feature controls')
+      })
+
+      it('does not render the feature controls row when the user is not the group admin', function () {
+        renderWithSubscriptionDashContext(<ManagedGroupSubscriptions />, {
+          metaTags: [
+            {
+              name: 'ol-managedGroupSubscriptions',
+              value: makeSubscription({ managedUsersEnabled: true }),
+            },
+            { name: 'ol-usersEmail', value: 'other@example.com' },
+          ],
+        })
+        expect(screen.queryByText('Feature controls')).to.be.null
+      })
+    })
+
+    describe('when managedUsersEnabled === false', function () {
+      it('renders the feature controls row when ai features are disabled', async function () {
+        renderWithSubscriptionDashContext(<ManagedGroupSubscriptions />, {
+          metaTags: [
+            {
+              name: 'ol-managedGroupSubscriptions',
+              value: makeSubscription({
+                groupPolicy: { userCannotUseAIFeatures: true },
+              }),
+            },
+            { name: 'ol-usersEmail', value: adminEmail },
+          ],
+        })
+        await screen.findByText('Feature controls')
+      })
+
+      it('renders the feature controls row when chat is disabled', async function () {
+        renderWithSubscriptionDashContext(<ManagedGroupSubscriptions />, {
+          metaTags: [
+            {
+              name: 'ol-managedGroupSubscriptions',
+              value: makeSubscription({
+                groupPolicy: { userCannotUseChat: true },
+              }),
+            },
+            { name: 'ol-usersEmail', value: adminEmail },
+          ],
+        })
+        await screen.findByText('Feature controls')
+      })
+
+      it('renders the feature controls row when dropbox is disabled', async function () {
+        renderWithSubscriptionDashContext(<ManagedGroupSubscriptions />, {
+          metaTags: [
+            {
+              name: 'ol-managedGroupSubscriptions',
+              value: makeSubscription({
+                groupPolicy: { userCannotUseDropbox: true },
+              }),
+            },
+            { name: 'ol-usersEmail', value: adminEmail },
+          ],
+        })
+        await screen.findByText('Feature controls')
+      })
+
+      it('does not render the feature controls row when no group policies are set', function () {
+        renderWithSubscriptionDashContext(<ManagedGroupSubscriptions />, {
+          metaTags: [
+            {
+              name: 'ol-managedGroupSubscriptions',
+              value: makeSubscription({ managedUsersEnabled: false }),
+            },
+            { name: 'ol-usersEmail', value: adminEmail },
+          ],
+        })
+        expect(screen.queryByText('Feature controls')).to.be.null
+      })
+    })
+
+    describe('AI toggling', function () {
+      it('renders the feature controls row when the "ai-toggling" split test is enabled and the group has the aiToggling feature', async function () {
+        renderWithSubscriptionDashContext(<ManagedGroupSubscriptions />, {
+          metaTags: [
+            {
+              name: 'ol-managedGroupSubscriptions',
+              value: makeSubscription({
+                features: {
+                  groupSSO: false,
+                  managedUsers: false,
+                  aiToggling: true,
+                },
+              }),
+            },
+            { name: 'ol-usersEmail', value: adminEmail },
+            {
+              name: 'ol-splitTestVariants',
+              value: { 'ai-toggling': 'enabled' },
+            },
+          ],
+        })
+        await screen.findByText('Feature controls')
+      })
+
+      it('does not render the feature controls row when the "ai-toggling" split test is enabled but the group lacks the aiToggling feature', function () {
+        renderWithSubscriptionDashContext(<ManagedGroupSubscriptions />, {
+          metaTags: [
+            {
+              name: 'ol-managedGroupSubscriptions',
+              value: makeSubscription({
+                features: {
+                  groupSSO: false,
+                  managedUsers: false,
+                  aiToggling: false,
+                },
+              }),
+            },
+            { name: 'ol-usersEmail', value: adminEmail },
+            {
+              name: 'ol-splitTestVariants',
+              value: { 'ai-toggling': 'enabled' },
+            },
+          ],
+        })
+        expect(screen.queryByText('Feature controls')).to.be.null
+      })
+
+      it('does not render the feature controls row when the group has the aiToggling feature but the "ai-toggling" split test is disabled', function () {
+        renderWithSubscriptionDashContext(<ManagedGroupSubscriptions />, {
+          metaTags: [
+            {
+              name: 'ol-managedGroupSubscriptions',
+              value: makeSubscription({
+                features: {
+                  groupSSO: false,
+                  managedUsers: false,
+                  aiToggling: true,
+                },
+              }),
+            },
+            { name: 'ol-usersEmail', value: adminEmail },
+          ],
+        })
+        expect(screen.queryByText('Feature controls')).to.be.null
+      })
+
+      it('does not render the feature controls row when the user is not the group admin', function () {
+        renderWithSubscriptionDashContext(<ManagedGroupSubscriptions />, {
+          metaTags: [
+            {
+              name: 'ol-managedGroupSubscriptions',
+              value: makeSubscription({
+                features: {
+                  groupSSO: false,
+                  managedUsers: false,
+                  aiToggling: true,
+                },
+              }),
+            },
+            { name: 'ol-usersEmail', value: 'other@example.com' },
+            {
+              name: 'ol-splitTestVariants',
+              value: { 'ai-toggling': 'enabled' },
+            },
+          ],
+        })
+        expect(screen.queryByText('Feature controls')).to.be.null
+      })
+    })
+
+    describe('Shared Workspace', function () {
+      // metaAttributesCache isn't cleared between tests, so ol-splitTestVariants leaks from
+      // earlier tests. Every test below sets it explicitly to stay independent of run order.
+      function splitTestVariants(enabled: boolean): MetaTag {
+        return {
+          name: 'ol-splitTestVariants',
+          value: enabled ? { 'shared-workspace': 'enabled' } : {},
+        }
+      }
+
+      it('renders the feature controls row for a non-managed group when the feature is enabled', async function () {
+        renderWithSubscriptionDashContext(<ManagedGroupSubscriptions />, {
+          metaTags: [
+            {
+              name: 'ol-managedGroupSubscriptions',
+              value: makeSubscription({
+                managedUsersEnabled: false,
+                features: {
+                  groupSSO: false,
+                  managedUsers: false,
+                  sharedWorkspace: true,
+                },
+              }),
+            },
+            { name: 'ol-usersEmail', value: adminEmail },
+            splitTestVariants(true),
+          ],
+        })
+        await screen.findByText('Feature controls')
+      })
+
+      it('renders the feature controls row for a non-managed group when the feature is unset', async function () {
+        renderWithSubscriptionDashContext(<ManagedGroupSubscriptions />, {
+          metaTags: [
+            {
+              name: 'ol-managedGroupSubscriptions',
+              value: makeSubscription({
+                managedUsersEnabled: false,
+                features: { groupSSO: false, managedUsers: false },
+              }),
+            },
+            { name: 'ol-usersEmail', value: adminEmail },
+            splitTestVariants(true),
+          ],
+        })
+        await screen.findByText('Feature controls')
+      })
+
+      it('does not render the feature controls row when the split test is not enabled', function () {
+        renderWithSubscriptionDashContext(<ManagedGroupSubscriptions />, {
+          metaTags: [
+            {
+              name: 'ol-managedGroupSubscriptions',
+              value: makeSubscription({
+                managedUsersEnabled: false,
+                features: {
+                  groupSSO: false,
+                  managedUsers: false,
+                  sharedWorkspace: true,
+                },
+              }),
+            },
+            { name: 'ol-usersEmail', value: adminEmail },
+            splitTestVariants(false),
+          ],
+        })
+        expect(screen.queryByText('Feature controls')).to.be.null
+      })
+
+      it('does not render the feature controls row when Overleaf Support has disabled the feature', function () {
+        renderWithSubscriptionDashContext(<ManagedGroupSubscriptions />, {
+          metaTags: [
+            {
+              name: 'ol-managedGroupSubscriptions',
+              value: makeSubscription({
+                managedUsersEnabled: false,
+                features: {
+                  groupSSO: false,
+                  managedUsers: false,
+                  sharedWorkspace: false,
+                },
+              }),
+            },
+            { name: 'ol-usersEmail', value: adminEmail },
+            splitTestVariants(true),
+          ],
+        })
+        expect(screen.queryByText('Feature controls')).to.be.null
+      })
+
+      it('does not render the feature controls row when the user is not the group admin', function () {
+        renderWithSubscriptionDashContext(<ManagedGroupSubscriptions />, {
+          metaTags: [
+            {
+              name: 'ol-managedGroupSubscriptions',
+              value: makeSubscription({
+                managedUsersEnabled: false,
+                features: {
+                  groupSSO: false,
+                  managedUsers: false,
+                  sharedWorkspace: true,
+                },
+              }),
+            },
+            { name: 'ol-usersEmail', value: 'other@example.com' },
+            splitTestVariants(true),
+          ],
+        })
+        expect(screen.queryByText('Feature controls')).to.be.null
+      })
+
+      it('does not render the feature controls row when the group is not on a Pro plan', function () {
+        renderWithSubscriptionDashContext(<ManagedGroupSubscriptions />, {
+          metaTags: [
+            {
+              name: 'ol-managedGroupSubscriptions',
+              value: makeSubscription({
+                managedUsersEnabled: false,
+                planLevelName: 'Standard',
+                features: {
+                  groupSSO: false,
+                  managedUsers: false,
+                  sharedWorkspace: true,
+                },
+              }),
+            },
+            { name: 'ol-usersEmail', value: adminEmail },
+            splitTestVariants(true),
+          ],
+        })
+        expect(screen.queryByText('Feature controls')).to.be.null
+      })
+    })
   })
 })

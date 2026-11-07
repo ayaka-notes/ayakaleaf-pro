@@ -23,7 +23,9 @@ export type ExposedSettings = {
   hotjarVersion?: string
   ieeeBrandId: number
   isOverleaf: boolean
+  env: 'saas' | 'server-pro' | 'server-ce'
   maxEntitiesPerProject: number
+  mixpanelLabsToken?: string
   projectUploadTimeout: number
   propensityId?: string
   maxUploadSize: number
@@ -36,6 +38,7 @@ export type ExposedSettings = {
   }
   recaptchaSiteKeyV3?: string
   recaptchaSiteKey?: string
+  recaptchaEnterpriseSiteKey?: string
   samlInitPath?: string
   sentryAllowedOriginRegex: string
   sentryDsn?: string
@@ -51,4 +54,5 @@ export type ExposedSettings = {
   wikiEnabled?: boolean
   templatesEnabled?: boolean
   linkedInInsightsPartnerId?: string
+  enablePandocConversions: boolean
 }

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Usage: services/gitlab-mock/bin/up
+#
+# Runs after the toolkit's bin/up, once its network exists. Starts the mock as
+# gitlab.example.com, and as gitlab-mock for the control API.
+#
+# Expects TOOLKIT_DIR and TOOLKIT_NETWORK in the environment.
+
+exec "$(dirname "$0")/../../lib/start-mock" gitlab-mock gitlab.example.com

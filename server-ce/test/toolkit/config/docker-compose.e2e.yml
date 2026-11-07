@@ -1,0 +1,10 @@
+services:
+  # mongo 8 fails on kernel 6.19+ (SERVER-121912)
+  mongo:
+    environment:
+      GLIBC_TUNABLES: glibc.pthread.rseq=1
+  sharelatex:
+    environment:
+      OVERLEAF_CONFIG: /etc/overleaf/settings.e2e.cjs
+    volumes:
+      - ../config/settings.cjs:/etc/overleaf/settings.e2e.cjs:ro

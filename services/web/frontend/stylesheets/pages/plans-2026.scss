@@ -1,0 +1,846 @@
+.plans-2026 {
+  padding-top: $header-height;
+
+  .plans-title-section {
+    padding-top: var(--spacing-15);
+    padding-bottom: var(--spacing-13);
+
+    .geo-banner-container {
+      margin-top: 0;
+      margin-bottom: var(--spacing-15);
+    }
+  }
+
+  // Period toggle switch — used only by _plans-period-toggle.pug
+  .plans-period-switch-wrapper {
+    align-items: center;
+    display: inline-flex;
+    gap: var(--spacing-04);
+  }
+
+  .plans-period-label {
+    @include body-sm;
+
+    font-weight: 400;
+    margin: 0;
+
+    @include media-breakpoint-up(md) {
+      @include body-base;
+    }
+  }
+
+  .plans-period-switch-discount-badge {
+    color: var(--neutral-60);
+    font-size: var(--font-size-01);
+  }
+
+  // Card-specific period spacings — scoped to .plans-cards-section
+  // so plans.pug is unaffected
+  &[data-ol-current-plan-period='annual'] {
+    .plans-cards-section .card-cta > .show-for-plan-period-annual {
+      display: grid;
+      grid-row: span 2;
+      grid-template-rows: subgrid;
+      padding-block-end: 0;
+    }
+
+    .plans-cards-section
+      .card-includes-list
+      .card-includes-list-item.show-for-plan-period-annual {
+      display: flex;
+    }
+
+    .plans-cards-section .show-for-plan-period-annual {
+      padding-block-end: var(--spacing-07);
+      position: relative;
+    }
+
+    .plans-feature-table-section .show-for-plan-period-annual,
+    .plans-feature-table-col-header-inner .show-for-plan-period-annual {
+      display: block;
+    }
+
+    @include media-breakpoint-down(xl) {
+      .plans-feature-table-col-header-inner .show-for-plan-period-annual {
+        display: none;
+      }
+    }
+  }
+
+  &[data-ol-current-plan-period='monthly'] {
+    .plans-cards-section .card-cta > .show-for-plan-period-monthly {
+      display: grid;
+      grid-row: span 2;
+      grid-template-rows: subgrid;
+    }
+
+    .plans-cards-section
+      .card-includes-list
+      .card-includes-list-item.show-for-plan-period-monthly {
+      display: flex;
+    }
+
+    .plans-cards-section .plans-new-group-member-picker {
+      display: none;
+    }
+
+    .plans-feature-table-section .show-for-plan-period-monthly,
+    .plans-feature-table-col-header-inner .show-for-plan-period-monthly {
+      display: block;
+    }
+
+    @include media-breakpoint-down(xl) {
+      .plans-feature-table-col-header-inner .show-for-plan-period-monthly {
+        display: none;
+      }
+    }
+  }
+
+  // ─── Plan cards ──────────────────────────────────────────────────────────────
+
+  .plans-interstitial-disclaimer {
+    padding-top: var(--spacing-08);
+  }
+
+  .plans-skip-link {
+    margin-top: var(--spacing-08);
+  }
+
+  .plans-cards-section {
+    background-color: var(--bg-light-primary);
+    padding-block-end: var(--spacing-13);
+
+    .plans-cards-toggles {
+      align-items: center;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .plans-new-period-switcher-container {
+      background: none;
+      border-radius: 0;
+      gap: var(--spacing-04);
+      margin-bottom: 0;
+      margin-top: 0;
+      padding: 0;
+      position: static;
+
+      label {
+        font-size: var(--font-size-02);
+        font-weight: 400;
+        padding: 0;
+
+        @include media-breakpoint-up(md) {
+          font-size: var(--font-size-03);
+        }
+
+        &:hover {
+          background-color: transparent;
+          cursor: default;
+        }
+      }
+    }
+
+    .plans-period-switch-wrapper,
+    .plans-student-info-icon,
+    .plans-student-toggle-wrapper {
+      align-items: center;
+      display: inline-flex;
+    }
+
+    .plans-student-info-icon {
+      color: var(--content-secondary);
+      cursor: default;
+      font-size: var(--font-size-05);
+    }
+
+    .plans-student-toggle-wrapper {
+      gap: var(--spacing-04);
+    }
+
+    .plans-student-toggle-label-container {
+      position: relative;
+    }
+
+    &:not([data-ol-student-mode='true']) .plans-price-student,
+    &:not([data-ol-student-mode='true']) .show-for-plan-type-student {
+      display: none;
+    }
+
+    &[data-ol-student-mode='true'] {
+      .plans-new-group-member-picker,
+      .plans-educational-discount,
+      .hide-for-plan-type-student {
+        display: none;
+      }
+
+      .show-for-plan-type-student {
+        display: block;
+      }
+
+      .plans-card-col.show-for-plan-type-student {
+        display: grid;
+      }
+
+      .plans-card-col[data-ol-disabled-for-student='true'] {
+        display: none;
+      }
+
+      @include media-breakpoint-up(lg) {
+        .plans-cards-row-wrapper {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+    }
+
+    .plans-cards-row-wrapper {
+      display: grid;
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr auto auto auto;
+      gap: var(--spacing-04) var(--spacing-04);
+      padding-top: var(--spacing-08);
+
+      @include media-breakpoint-up(md) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      @include media-breakpoint-up(lg) {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      &.plans-cards-row-auto-fit {
+        @include media-breakpoint-up(lg) {
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        }
+      }
+    }
+
+    .plans-card-col {
+      display: grid;
+      grid-row: span 4;
+      grid-template-rows: subgrid;
+    }
+
+    .price-plan-card {
+      background-color: var(--bg-light-primary);
+      border: 1px solid var(--neutral-30);
+      border-radius: var(--border-radius-medium);
+      color: var(--content-secondary);
+      display: grid;
+      grid-row: span 4;
+      grid-template-rows: subgrid;
+      position: relative;
+      width: 100%;
+
+      &[data-ol-plan-type='free'] {
+        background-color: var(--bg-light-secondary);
+      }
+
+      &.price-plan-card-highlighted {
+        border: 3px solid var(--green-50);
+        border-radius: var(--border-radius-medium);
+        outline: var(--spacing-02) solid var(--green-bright-tint-50);
+        outline-offset: 0;
+      }
+
+      &.price-plan-card-current-plan {
+        background-color: var(--bg-light-secondary);
+      }
+
+      .price-plan-card-badge {
+        @extend .mono-text;
+
+        background-color: var(--green-bright-tint-50);
+        border-radius: var(--border-radius-medium);
+        color: var(--neutral-90);
+        font-size: var(--font-size-03);
+        line-height: var(--line-height-02);
+        left: 50%;
+        padding: var(--spacing-04) var(--spacing-06);
+        position: absolute;
+        top: 0;
+        transform: translate(-50%, -50%);
+        white-space: nowrap;
+      }
+    }
+
+    .card-content-top {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-05);
+      padding: var(--bs-card-spacer-y) var(--bs-card-spacer-x) var(--spacing-05);
+    }
+
+    .card-picker-area {
+      &:not(:empty) {
+        padding: 0 var(--bs-card-spacer-x) var(--spacing-05);
+      }
+    }
+
+    .card-cta {
+      align-self: start;
+      display: grid;
+      grid-row: span 2;
+      grid-template-rows: subgrid;
+
+      --secondary-cta-top-padding: var(--spacing-04);
+
+      // Secondary CTA (e.g. "Try for free →") spacing.
+      // padding-top is calculated because the a.btn inside already has top
+      // padding --spacing-03, while .plans-cta-plain-link has
+      // var(--spacing-04)
+      > .only-show-for-specific-plan-period > .plans-cta:nth-child(2) {
+        align-self: start;
+        padding-top: calc(var(--secondary-cta-top-padding) - var(--spacing-03));
+      }
+
+      .plans-cta-plain-link {
+        align-self: start;
+        grid-row: 4;
+        padding-top: var(--secondary-cta-top-padding);
+        text-align: center;
+
+        a {
+          color: var(--content-secondary);
+          font-size: var(--font-size-02);
+          text-decoration: underline;
+
+          &:hover {
+            color: var(--content-primary);
+          }
+        }
+      }
+
+      > .only-show-for-specific-plan-period > .plans-educational-discount {
+        align-self: center;
+        grid-row: 4;
+        padding-top: var(--spacing-04);
+        text-align: center;
+      }
+    }
+
+    .card-eyebrow {
+      color: var(--green-60);
+      font-size: var(--font-size-05);
+      font-weight: 600;
+    }
+
+    .card-title {
+      color: var(--content-primary);
+      font-size: var(--font-size-07);
+      font-weight: 600;
+      margin-block: 0;
+    }
+
+    .plans-price-card-yearly-summary,
+    .student-plan-saving-badge {
+      @include body-sm;
+
+      position: absolute;
+    }
+
+    .card-title-suffix {
+      font-size: var(--font-size-03);
+      font-weight: 400;
+    }
+
+    .card-description {
+      color: var(--content-secondary);
+      margin-block: 0;
+    }
+
+    .card-includes-list {
+      display: flex;
+      flex-direction: column;
+      font-size: var(--font-size-02);
+      gap: var(--spacing-03);
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .card-includes-list-item.only-show-for-specific-plan-period {
+      display: none;
+    }
+
+    .card-includes-list-heading {
+      color: var(--content-primary);
+
+      &::first-letter {
+        text-transform: uppercase;
+      }
+    }
+
+    li.card-includes-list-item {
+      display: flex;
+      align-items: baseline;
+
+      &::before {
+        color: var(--neutral-40);
+        content: '\2022';
+        flex-shrink: 0;
+        margin-right: var(--spacing-03);
+      }
+    }
+
+    .card-include-has-tooltip {
+      border-bottom: 1px dotted var(--content-secondary);
+      cursor: help;
+    }
+
+    .card-footer {
+      background-color: transparent;
+      border: none;
+      border-radius: 0;
+      display: grid;
+      grid-row: span 2;
+      grid-template-rows: subgrid;
+      padding: 0 var(--spacing-08) var(--spacing-08);
+    }
+
+    .plans-educational-discount-label {
+      align-items: center;
+      color: var(--content-primary);
+      cursor: pointer;
+      display: inline-flex;
+      gap: var(--spacing-03);
+      justify-content: center;
+      margin: 0;
+      text-align: center;
+
+      &:has(input:disabled) {
+        color: var(--content-secondary);
+        cursor: not-allowed;
+        opacity: 0.6;
+      }
+    }
+
+    .plans-educational-discount-checkbox {
+      accent-color: var(--green-50);
+      background-color: var(--bg-light-primary);
+      border: 1px solid var(--border-primary);
+      border-radius: var(--border-radius-base);
+      flex-shrink: 0;
+      height: 16px;
+      width: 16px;
+
+      &:disabled {
+        background-color: var(--bg-light-tertiary);
+        border-color: var(--bg-light-tertiary);
+      }
+    }
+
+    .plans-educational-discount-text {
+      @include body-sm;
+
+      cursor: help;
+      font-weight: 400;
+      text-decoration: underline dotted;
+      text-underline-offset: var(--spacing-01);
+    }
+
+    // Group member picker overrides inside cards
+    .plans-new-group-member-picker {
+      background-color: var(--bg-light-secondary);
+      border: 1px solid var(--neutral-20);
+      border-radius: var(--border-radius-medium);
+      padding: var(--spacing-04);
+      position: relative;
+
+      ul.plans-new-group-member-picker-list {
+        position: absolute;
+        left: 0;
+        right: 0;
+        z-index: 10;
+      }
+    }
+  }
+
+  .plans-cards-section .plans-cta .btn-ghost {
+    color: var(--green-50);
+    font-family: 'DM Mono', monospace;
+    font-size: var(--font-size-02);
+    font-weight: 500;
+    letter-spacing: -1px;
+
+    &:hover {
+      background-color: transparent;
+    }
+  }
+
+  .plans-cta-arrow {
+    margin-left: var(--spacing-02);
+    padding-bottom: 3px;
+    vertical-align: middle;
+  }
+
+  // ─── Organization logos ────────────────────────────────────────────────────────
+
+  .plans-logos-section {
+    background-color: var(--bg-light-secondary);
+  }
+
+  .plans-and-pricing-section .plans-new-organizations {
+    padding-block: var(--spacing-13);
+
+    .plans-new-organizations-logo {
+      margin-top: var(--spacing-06);
+
+      img {
+        filter: grayscale(1) opacity(0.54);
+      }
+    }
+  }
+
+  // ─── Feature comparison table ──────────────────────────────────────────────
+
+  .plans-feature-table-section {
+    padding-block: var(--spacing-15);
+  }
+
+  .plans-feature-table-section .only-show-for-specific-plan-period {
+    display: none;
+  }
+
+  .plans-feature-table-heading {
+    color: var(--content-primary);
+    font-size: var(--font-size-08);
+    font-weight: 600;
+    margin-bottom: var(--spacing-04);
+    text-align: center;
+  }
+
+  .plans-feature-table-subheading {
+    color: var(--content-secondary);
+    font-size: var(--font-size-05);
+    margin-bottom: var(--spacing-10);
+    text-align: center;
+  }
+
+  .plans-feature-table-scroll-wrapper {
+    padding-top: var(--spacing-04);
+    overflow-x: auto;
+  }
+
+  // Below xl the plan cards already show prices and CTAs — the table
+  // just needs plan names so users can compare features.
+  @include media-breakpoint-down(xl) {
+    .plans-feature-table-col-header-inner .plans-cta {
+      display: none;
+    }
+
+    .plans-feature-table-col-header {
+      padding-bottom: var(--spacing-06);
+    }
+  }
+
+  .plans-feature-table {
+    border: 1px solid var(--border-divider);
+    position: relative;
+
+    // separate + spacing 0 is required for position: sticky on header cells
+    border-collapse: separate;
+    border-radius: var(--border-radius-medium);
+    border-spacing: 0;
+
+    // Set min-width to allow enough width for each plan column and prevent
+    // truncation of the column header (e.g. "Organizations") while ensuring
+    // that the table doesn't scroll above the large breakpoint (992px)
+    min-width: 968px;
+    table-layout: fixed;
+    width: 100%;
+
+    th.plans-feature-table-corner-cell,
+    th.plans-feature-table-feature-name-cell {
+      width: 22%;
+    }
+
+    .plans-feature-table-header-row th:first-child {
+      border-top-left-radius: var(--border-radius-medium);
+    }
+
+    .plans-feature-table-header-row th:last-child {
+      border-top-right-radius: var(--border-radius-medium);
+    }
+
+    .plans-feature-table-section:last-child
+      .plans-feature-table-feature-row:last-child
+      th:first-child {
+      border-bottom-left-radius: var(--border-radius-medium);
+    }
+
+    .plans-feature-table-section:last-child
+      .plans-feature-table-feature-row:last-child
+      td:last-child {
+      border-bottom-right-radius: var(--border-radius-medium);
+    }
+
+    .plans-feature-table-section:last-child
+      .plans-feature-table-feature-row:last-child
+      th,
+    .plans-feature-table-section:last-child
+      .plans-feature-table-feature-row:last-child
+      td {
+      border-bottom: none;
+    }
+  }
+
+  .plans-feature-table-thead .plans-feature-table-header-row {
+    position: sticky;
+    top: 0;
+
+    // Paints above positioned .plans-feature-table-cell-bool-content spans in
+    // body rows
+    z-index: 1;
+
+    // Negative spread prevents glow on left/right edges; top glow hidden by
+    // top: 0
+    box-shadow: 0 8px 16px -4px rgb($black, 0.08);
+
+    th {
+      backdrop-filter: blur(12px);
+      background: rgb($white, 0.7);
+      border-bottom: 1px solid var(--border-divider);
+    }
+  }
+
+  .plans-feature-table-col-header {
+    overflow: hidden;
+    padding: var(--spacing-06);
+    text-align: center;
+    vertical-align: top;
+
+    // Reserve space for the absolutely-positioned CTA button — but only when
+    // it's both rendered (hideForLoggedIn suppresses it) and visible at this
+    // breakpoint (prices+CTA hide below xl via .only-show-for-specific-plan-period)
+    @include media-breakpoint-up(xl) {
+      &:has(.plans-cta) {
+        padding-bottom: 56px;
+      }
+    }
+  }
+
+  .plans-feature-table-col-header-inner .plans-cta {
+    bottom: var(--spacing-06);
+    left: var(--spacing-06);
+    position: absolute;
+    right: var(--spacing-06);
+
+    .btn {
+      width: 100%;
+    }
+  }
+
+  .plans-feature-table-corner-cell {
+    padding: var(--spacing-06);
+  }
+
+  .plans-feature-table-col-name {
+    color: var(--green-60);
+    display: block;
+    font-size: var(--font-size-04);
+    font-weight: 500;
+    margin-bottom: var(--spacing-02);
+    text-align: center;
+  }
+
+  .plans-feature-table-col-price {
+    align-items: baseline;
+    display: flex;
+    gap: var(--spacing-01);
+    justify-content: center;
+    margin-bottom: var(--spacing-02);
+  }
+
+  .plans-feature-table-col-price-amount {
+    color: var(--content-primary);
+    font-size: var(--font-size-03);
+    font-weight: 400;
+  }
+
+  .plans-feature-table-col-price-term {
+    color: var(--content-primary);
+    font-size: var(--font-size-03);
+    font-weight: 400;
+  }
+
+  .plans-feature-table-col-price-yearly {
+    @include body-xs;
+
+    color: var(--neutral-60);
+    font-weight: 400;
+    margin-bottom: var(--spacing-02);
+    text-align: center;
+  }
+
+  .plans-feature-table-section-header-row {
+    .plans-feature-table-section-title {
+      background-color: var(--bg-light-secondary);
+      color: var(--content-secondary);
+      font-size: var(--font-size-03);
+      font-weight: 700;
+      padding: var(--spacing-06);
+    }
+
+    .plans-feature-table-section-title-content {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-03);
+    }
+  }
+
+  .plans-feature-table-section-icons {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-06);
+  }
+
+  .plans-feature-table-section-icon-wrapper {
+    display: inline-flex;
+  }
+
+  .plans-feature-table-section-icon {
+    height: var(--spacing-08);
+    width: var(--spacing-08);
+  }
+
+  .plans-feature-table-feature-row th,
+  .plans-feature-table-feature-row td {
+    border-bottom: 1px solid var(--border-divider);
+  }
+
+  .plans-feature-table-feature-name-cell {
+    padding: var(--spacing-06);
+    vertical-align: middle;
+  }
+
+  .plans-feature-table-feature-name-content {
+    display: inline-flex;
+  }
+
+  .plans-feature-table-integrations-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-04);
+  }
+
+  .plans-feature-table-integrations-label {
+    color: var(--content-secondary);
+    font-size: var(--font-size-02);
+    font-weight: 500;
+  }
+
+  .plans-feature-table-feature-name {
+    color: var(--neutral-60);
+    font-size: var(--font-size-03);
+    font-weight: 400;
+
+    &.plans-feature-table-feature-name-has-tooltip {
+      cursor: help;
+      text-decoration: underline dotted var(--green-60);
+    }
+  }
+
+  .plans-feature-table-cell {
+    color: var(--neutral-60);
+    padding: var(--spacing-06);
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  .plans-feature-table-check-icon {
+    display: inline-block;
+    height: var(--spacing-07);
+    vertical-align: middle;
+    width: var(--spacing-07);
+  }
+
+  .plans-feature-table-cell-bool-content {
+    display: inline-block;
+
+    // Collapse to the check icon's height so `top: 50%` on the absolutely-
+    // positioned info icon aligns with the check icon's visual centre.
+    line-height: 1;
+    position: relative;
+
+    &[data-bs-toggle='tooltip'] {
+      cursor: help;
+    }
+  }
+
+  .plans-feature-table-info-icon {
+    color: var(--neutral-60);
+    font-size: var(--font-size-03);
+    vertical-align: middle;
+  }
+
+  // In bool cells the info icon floats beside the check; in text cells it flows
+  // inline. The wrapper has left padding to bridge the gap, preventing tooltip
+  // flicker on hover.
+  .plans-feature-table-cell-bool-content
+    .plans-feature-table-info-icon-wrapper {
+    left: 100%;
+    padding-left: var(--spacing-01);
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  .plans-feature-table-cell-text-content {
+    @include body-base;
+
+    align-items: center;
+    color: var(--content-primary);
+    display: inline-flex;
+    gap: var(--spacing-02);
+
+    &.plans-feature-table-cell-text-small {
+      @include body-sm;
+    }
+  }
+
+  .plans-price-disclaimer:last-child {
+    margin-bottom: 0;
+  }
+
+  // ─── Quotes and FAQs section────────────────────────────────────────────────
+
+  .plans-quotes-section {
+    padding-block-end: var(--spacing-13);
+  }
+
+  .plans-faq {
+    padding-block: var(--spacing-15);
+
+    .faq-heading-container {
+      text-align: center;
+      margin-bottom: var(--spacing-10);
+
+      @include media-breakpoint-up(md) {
+        margin-bottom: var(--spacing-15);
+      }
+
+      h2 {
+        margin-bottom: 0;
+      }
+    }
+
+    .eyebrow-text {
+      margin-bottom: var(--spacing-08);
+    }
+  }
+
+  .plans-faq-tabs {
+    .nav-tabs-container {
+      padding-bottom: var(--spacing-05);
+      margin-bottom: var(--spacing-08);
+
+      ul.nav-tabs {
+        border-bottom-width: 2px;
+        font-size: var(--font-size-04);
+        margin: unset;
+        justify-content: space-between;
+      }
+    }
+  }
+}

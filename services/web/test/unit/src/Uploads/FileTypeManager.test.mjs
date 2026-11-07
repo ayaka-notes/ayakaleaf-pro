@@ -1,4 +1,4 @@
-import { vi, expect } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import sinon from 'sinon'
 import isUtf8 from 'utf-8-validate'
 import Settings from '@overleaf/settings'
@@ -138,6 +138,9 @@ describe('FileTypeManager', function () {
         '/something/file.m',
         '/file.TEX',
         '/file.lhs',
+        '/file.lean',
+        '/file.lean4',
+        '/file.hs',
         '/file.xmpdata',
         '/file.cfg',
         '/file.Rnw',
@@ -334,7 +337,7 @@ describe('FileTypeManager', function () {
 
       it('should recognise new binary files as binary', async function (ctx) {
         const { binary } = await ctx.FileTypeManager.promises.getType(
-          '/file.py',
+          '/file.eps',
           'latin1.tex',
           null
         )
@@ -344,7 +347,7 @@ describe('FileTypeManager', function () {
 
       it('should recognise existing binary files as binary', async function (ctx) {
         const { binary } = await ctx.FileTypeManager.promises.getType(
-          '/file.py',
+          '/file.eps',
           'latin1.tex',
           'file'
         )
@@ -354,7 +357,7 @@ describe('FileTypeManager', function () {
 
       it('should preserve existing non-binary files as non-binary', async function (ctx) {
         const { binary } = await ctx.FileTypeManager.promises.getType(
-          '/file.py',
+          '/file.eps',
           'latin1.tex',
           'doc'
         )

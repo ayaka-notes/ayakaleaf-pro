@@ -36,7 +36,27 @@ export const SurveySchema = new Schema(
       required: true,
     },
     options: {
-      hasRecurlyGroupSubscription: {
+      hasFreeSubscription: {
+        type: Boolean,
+        default: false,
+      },
+      hasIndividualStandardSubscription: {
+        type: Boolean,
+        default: false,
+      },
+      hasIndividualProfessionalSubscription: {
+        type: Boolean,
+        default: false,
+      },
+      hasGroupStandardSubscription: {
+        type: Boolean,
+        default: false,
+      },
+      hasGroupProfessionalSubscription: {
+        type: Boolean,
+        default: false,
+      },
+      hasEnterpriseSubscription: {
         type: Boolean,
         default: false,
       },
@@ -51,6 +71,14 @@ export const SurveySchema = new Schema(
         default: 100,
       },
       excludeLabsUsers: {
+        type: Boolean,
+        default: false,
+      },
+      requireBetaParticipation: {
+        type: Boolean,
+        default: false,
+      },
+      excludeBetaUsers: {
         type: Boolean,
         default: false,
       },

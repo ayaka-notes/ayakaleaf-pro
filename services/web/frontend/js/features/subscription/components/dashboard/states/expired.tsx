@@ -22,7 +22,7 @@ export function ExpiredSubscription({
         >
           {t('view_your_invoices')}
         </OLButton>
-        <OLButton href="/user/subscription/plans" variant="primary">
+        <OLButton href="/user/subscription/choose-your-plan" variant="primary">
           {t('create_new_subscription')}
         </OLButton>
       </p>

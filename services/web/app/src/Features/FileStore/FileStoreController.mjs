@@ -8,11 +8,40 @@ import ProjectLocator from '../Project/ProjectLocator.mjs'
 import HistoryManager from '../History/HistoryManager.mjs'
 import Errors from '../Errors/Errors.js'
 import { preparePlainTextResponse } from '../../infrastructure/Response.mjs'
+import { z, zz, parseReq } from '../../infrastructure/Validation.mjs'
 
+/**
+ * @typedef {import('express').Request} Request
+ * @typedef {import('express').Response} Response
+ * @typedef {import('express').NextFunction} NextFunction
+ */
+
+const getFileSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+    File_id: zz.objectId(),
+  }),
+  // the query string isn't read for any decision-making -- only logged
+  // verbatim for debugging, so treat it as a generic open map
+  query: z.record(z.string(), z.unknown()),
+})
+
+const getFileHeadSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+    File_id: zz.objectId(),
+  }),
+})
+
+/**
+ * @param {Request} req
+ * @param {Response} res
+ */
 async function getFile(req, res) {
-  const projectId = req.params.Project_id
-  const fileId = req.params.File_id
-  const queryString = req.query
+  const { params, query } = parseReq(req, getFileSchema, { logOnly: true })
+  const projectId = params.Project_id
+  const fileId = params.File_id
+  const queryString = query
   const userAgent = req.get('User-Agent')
   req.logger.addFields({ projectId, fileId, queryString })
 
@@ -91,7 +120,8 @@ async function getFile(req, res) {
     if (
       err instanceof Error &&
       'code' in err &&
-      err.code === 'ERR_STREAM_PREMATURE_CLOSE'
+      (err.code === 'ERR_STREAM_PREMATURE_CLOSE' ||
+        err.code === 'ERR_STREAM_UNABLE_TO_PIPE')
     ) {
       // Ignore clients closing the connection prematurely
       return
@@ -100,9 +130,14 @@ async function getFile(req, res) {
   }
 }
 
+/**
+ * @param {Request} req
+ * @param {Response} res
+ */
 async function getFileHead(req, res) {
-  const projectId = req.params.Project_id
-  const fileId = req.params.File_id
+  const { params } = parseReq(req, getFileHeadSchema, { logOnly: true })
+  const projectId = params.Project_id
+  const fileId = params.File_id
 
   let file
   try {
@@ -158,6 +193,9 @@ async function getFileHead(req, res) {
   res.status(200).end()
 }
 
+/**
+ * @param {any} file
+ */
 function isHtml(file) {
   return (
     fileEndsWith(file, '.html') ||
@@ -166,6 +204,10 @@ function isHtml(file) {
   )
 }
 
+/**
+ * @param {any} file
+ * @param {any} ext
+ */
 function fileEndsWith(file, ext) {
   return (
     file.name != null &&
@@ -174,6 +216,9 @@ function fileEndsWith(file, ext) {
   )
 }
 
+/**
+ * @param {any} userAgent
+ */
 function isMobileSafari(userAgent) {
   return (
     userAgent &&

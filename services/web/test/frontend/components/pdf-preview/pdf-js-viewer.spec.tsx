@@ -1,7 +1,7 @@
 import { EditorProviders } from '../../helpers/editor-providers'
 import PdfJsViewer from '../../../../frontend/js/features/pdf-preview/components/pdf-js-viewer'
 import { mockScope } from './scope'
-import { getContainerEl } from 'cypress/react18'
+import { getContainerEl } from 'cypress/react'
 import { unmountComponentAtNode } from 'react-dom'
 import { PdfPreviewProvider } from '../../../../frontend/js/features/pdf-preview/components/pdf-preview-provider'
 

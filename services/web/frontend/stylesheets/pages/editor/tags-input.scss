@@ -37,6 +37,21 @@
       }
     }
   }
+
+  &.form-control-lg {
+    min-height: initial;
+    padding-top: calc(#{$input-padding-y-lg} - #{$input-border-width} * 2);
+    padding-bottom: calc(#{$input-padding-y-lg} - #{$input-border-width} * 2);
+  }
+}
+
+.modal-redesign {
+  .tags-input .tags {
+    .badge-tag {
+      margin-top: 1px;
+      margin-bottom: 1px;
+    }
+  }
 }
 
 .tags-input .tags:focus-within {

@@ -1,23 +1,11 @@
-/* eslint-disable
-    n/handle-callback-err,
-    max-len,
-    no-return-assign,
-*/
-// TODO: This file was created by bulk-decaffeinate.
-// Fix any style issues and re-enable lint.
-/*
- * decaffeinate suggestions:
- * DS101: Remove unnecessary use of Array.from
- * DS102: Remove unnecessary code created because of implicit returns
- * DS207: Consider shorter variations of null checks
- * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
- */
 import logger from '@overleaf/logger'
-
 import OError from '@overleaf/o-error'
 import metrics from '@overleaf/metrics'
 import fs from 'node:fs'
+import fsPromises from 'node:fs/promises'
 import Path from 'node:path'
+import { pipeline } from 'node:stream'
+import { callbackify } from 'node:util'
 import yauzl from 'yauzl'
 import Settings from '@overleaf/settings'
 import {
@@ -25,247 +13,226 @@ import {
   EmptyZipFileError,
   ZipContentsTooLargeError,
 } from './ArchiveErrors.mjs'
-import _ from 'lodash'
-import { promisifyAll } from '@overleaf/promise-utils'
+import FileTypeManager from './FileTypeManager.mjs'
 
-const ONE_MEG = 1024 * 1024
+const MAX_UNCOMPRESSED_BYTES = 6 * Settings.maxUploadSize || 1024 * 1024 * 300
 
-const ArchiveManager = {
-  _isZipTooLarge(source, callback) {
-    if (callback == null) {
-      callback = function () {}
+/**
+ * Check if a zip entry's file path is safe and return the destination path.
+ * Returns null for directory entries.
+ * Throws for relative or unnormalized paths.
+ */
+function _checkFilePath(entry, destination) {
+  // transform backslashes to forwardslashes to accommodate badly-behaved zip archives
+  const transformedFilename = entry.fileName.replace(/\\/g, '/')
+  // check if the entry is a directory
+  if (/\/$/.test(transformedFilename)) {
+    return null
+  }
+  // check that the file does not use a relative path
+  for (const dir of transformedFilename.split('/')) {
+    if (dir === '..') {
+      throw new Error('relative path')
     }
-    callback = _.once(callback)
+  }
+  // check that the destination file path is normalized
+  const dest = `${destination}/${transformedFilename}`
+  if (dest !== Path.normalize(dest)) {
+    throw new Error('unnormalized path')
+  }
+  return dest
+}
 
-    let totalSizeInBytes = null
-    return yauzl.open(source, { lazyEntries: true }, function (err, zipfile) {
-      if (err != null) {
-        return callback(new InvalidZipFileError().withCause(err))
+// Kept callback-based: called from event handler in _extractZipFiles
+function _writeFileEntry(zipfile, entry, destFile, callback) {
+  fs.mkdir(Path.dirname(destFile), { recursive: true }, err => {
+    if (err) return callback(err)
+    zipfile.openReadStream(entry, (err, readStream) => {
+      if (err) return callback(err)
+      const writeStream = fs.createWriteStream(destFile)
+      pipeline(readStream, writeStream, callback)
+    })
+  })
+}
+
+function _isZipTooLarge(source) {
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const done = (err, result) => {
+      if (settled) return
+      settled = true
+      if (err) reject(err)
+      else resolve(result)
+    }
+
+    yauzl.open(source, { lazyEntries: true }, (err, zipfile) => {
+      if (err) {
+        return done(new InvalidZipFileError().withCause(err))
       }
 
+      // Initial rejection of pathological zips without enumerating the central directory.
+      // The per-entry check below applies the real limit after filtering out ignored files.
       if (
-        Settings.maxEntitiesPerProject != null &&
-        zipfile.entryCount > Settings.maxEntitiesPerProject
+        Number.isFinite(Settings.maxEntitiesPerProject) &&
+        zipfile.entryCount > Settings.maxEntitiesPerProject * 10
       ) {
-        return callback(null, true) // too many files in zip file
+        zipfile.close()
+        return done(null, true)
       }
 
-      zipfile.on('error', callback)
+      let totalSizeInBytes = null
+      let projectEntryCount = 0
+      zipfile.on('error', err => done(err))
 
       // read all the entries
       zipfile.readEntry()
-      zipfile.on('entry', function (entry) {
-        totalSizeInBytes += entry.uncompressedSize
-        return zipfile.readEntry()
-      }) // get the next entry
+      zipfile.on('entry', entry => {
+        if (!FileTypeManager.shouldIgnore(entry.fileName)) {
+          totalSizeInBytes += entry.uncompressedSize
+
+          if (totalSizeInBytes > MAX_UNCOMPRESSED_BYTES) {
+            zipfile.close()
+            return done(null, true) // total uncompressed size too large
+          }
+
+          projectEntryCount++
+
+          if (
+            Number.isFinite(Settings.maxEntitiesPerProject) &&
+            projectEntryCount > Settings.maxEntitiesPerProject
+          ) {
+            zipfile.close()
+            return done(null, true) // too many files in zip file
+          }
+        }
+
+        zipfile.readEntry()
+      })
 
       // no more entries to read
-      return zipfile.on('end', function () {
-        if (totalSizeInBytes == null || isNaN(totalSizeInBytes)) {
+      zipfile.on('end', () => {
+        if (!Number.isFinite(totalSizeInBytes)) {
           logger.warn(
             { source, totalSizeInBytes },
             'error getting bytes of zip'
           )
-          return callback(
-            new InvalidZipFileError({ info: { totalSizeInBytes } })
-          )
+          return done(new InvalidZipFileError({ info: { totalSizeInBytes } }))
         }
-        const isTooLarge = totalSizeInBytes > ONE_MEG * 300
-        return callback(null, isTooLarge)
+        done(null, false)
       })
     })
-  },
+  })
+}
 
-  _checkFilePath(entry, destination, callback) {
-    // transform backslashes to forwardslashes to accommodate badly-behaved zip archives
-    if (callback == null) {
-      callback = function () {}
+function _extractZipFiles(source, destination) {
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const done = err => {
+      if (settled) return
+      settled = true
+      if (err) reject(err)
+      else resolve()
     }
-    const transformedFilename = entry.fileName.replace(/\\/g, '/')
-    // check if the entry is a directory
-    const endsWithSlash = /\/$/
-    if (endsWithSlash.test(transformedFilename)) {
-      return callback() // don't give a destfile for directory
-    }
-    // check that the file does not use a relative path
-    for (const dir of Array.from(transformedFilename.split('/'))) {
-      if (dir === '..') {
-        return callback(new Error('relative path'))
-      }
-    }
-    // check that the destination file path is normalized
-    const dest = `${destination}/${transformedFilename}`
-    if (dest !== Path.normalize(dest)) {
-      return callback(new Error('unnormalized path'))
-    } else {
-      return callback(null, dest)
-    }
-  },
 
-  _writeFileEntry(zipfile, entry, destFile, callback) {
-    if (callback == null) {
-      callback = function () {}
-    }
-    callback = _.once(callback)
+    yauzl.open(source, { lazyEntries: true }, (err, zipfile) => {
+      if (err) return done(err)
 
-    return zipfile.openReadStream(entry, function (err, readStream) {
-      if (err != null) {
-        return callback(err)
-      }
-      readStream.on('error', callback)
-      readStream.on('end', callback)
-
-      const errorHandler = function (err) {
-        // clean up before calling callback
-        readStream.unpipe()
-        readStream.destroy()
-        return callback(err)
-      }
-
-      fs.mkdir(Path.dirname(destFile), { recursive: true }, function (err) {
-        if (err != null) {
-          return errorHandler(err)
-        }
-        const writeStream = fs.createWriteStream(destFile)
-        writeStream.on('error', errorHandler)
-        return readStream.pipe(writeStream)
-      })
-    })
-  },
-
-  _extractZipFiles(source, destination, callback) {
-    if (callback == null) {
-      callback = function () {}
-    }
-    callback = _.once(callback)
-
-    return yauzl.open(source, { lazyEntries: true }, function (err, zipfile) {
-      if (err != null) {
-        return callback(err)
-      }
-      zipfile.on('error', callback)
+      zipfile.on('error', err => done(err))
       // read all the entries
       zipfile.readEntry()
 
       let entryFileCount = 0
-      zipfile.on('entry', function (entry) {
-        return ArchiveManager._checkFilePath(
-          entry,
-          destination,
-          function (err, destFile) {
-            if (err != null) {
-              logger.warn(
-                { err, source, destination },
-                'skipping bad file path'
-              )
-              zipfile.readEntry() // bad path, just skip to the next file
-              return
-            }
-            if (destFile != null) {
-              // only write files
-              return ArchiveManager._writeFileEntry(
-                zipfile,
-                entry,
+      zipfile.on('entry', entry => {
+        if (FileTypeManager.shouldIgnore(entry.fileName)) {
+          return zipfile.readEntry()
+        }
+
+        let destFile
+        try {
+          destFile = _checkFilePath(entry, destination)
+        } catch (err) {
+          logger.warn({ err, source, destination }, 'skipping bad file path')
+          zipfile.readEntry() // bad path, just skip to the next file
+          return
+        }
+        if (destFile) {
+          // only write files
+          _writeFileEntry(zipfile, entry, destFile, err => {
+            if (err) {
+              OError.tag(err, 'error unzipping file entry', {
+                source,
                 destFile,
-                function (err) {
-                  if (err != null) {
-                    OError.tag(err, 'error unzipping file entry', {
-                      source,
-                      destFile,
-                    })
-                    zipfile.close() // bail out, stop reading file entries
-                    return callback(err)
-                  } else {
-                    entryFileCount++
-                    return zipfile.readEntry()
-                  }
-                }
-              ) // continue to the next file
+              })
+              zipfile.close() // bail out, stop reading file entries
+              done(new InvalidZipFileError().withCause(err))
             } else {
-              // if it's a directory, continue
-              return zipfile.readEntry()
+              entryFileCount++
+              zipfile.readEntry() // continue to the next file
             }
-          }
-        )
-      })
-      // no more entries to read
-      return zipfile.on('end', () => {
-        if (entryFileCount > 0) {
-          callback()
+          })
         } else {
-          callback(new EmptyZipFileError())
+          // if it's a directory, continue
+          zipfile.readEntry()
+        }
+      })
+
+      // no more entries to read
+      zipfile.on('end', () => {
+        if (entryFileCount > 0) {
+          done()
+        } else {
+          done(new EmptyZipFileError())
         }
       })
     })
-  },
+  })
+}
 
-  extractZipArchive(source, destination, _callback) {
-    if (_callback == null) {
-      _callback = function () {}
+async function extractZipArchive(source, destination) {
+  let isTooLarge
+  try {
+    isTooLarge = await ArchiveManager._isZipTooLarge(source)
+  } catch (err) {
+    OError.tag(err, 'error checking size of zip file')
+    throw err
+  }
+
+  if (isTooLarge) {
+    throw new ZipContentsTooLargeError()
+  }
+
+  const timer = new metrics.Timer('unzipDirectory')
+  logger.debug({ source, destination }, 'unzipping file')
+  try {
+    await _extractZipFiles(source, destination)
+  } catch (err) {
+    OError.tag(err, 'unzip failed', { source, destination })
+    throw err
+  } finally {
+    timer.done()
+  }
+}
+
+async function findTopLevelDirectory(directory) {
+  const files = await fsPromises.readdir(directory)
+  if (files.length === 1) {
+    const childPath = Path.join(directory, files[0])
+    const stat = await fsPromises.stat(childPath)
+    if (stat.isDirectory()) {
+      return childPath
     }
-    const callback = function (...args) {
-      _callback(...Array.from(args || []))
-      return (_callback = function () {})
-    }
+  }
+  return directory
+}
 
-    return ArchiveManager._isZipTooLarge(source, function (err, isTooLarge) {
-      if (err != null) {
-        OError.tag(err, 'error checking size of zip file')
-        return callback(err)
-      }
-
-      if (isTooLarge) {
-        return callback(new ZipContentsTooLargeError())
-      }
-
-      const timer = new metrics.Timer('unzipDirectory')
-      logger.debug({ source, destination }, 'unzipping file')
-
-      return ArchiveManager._extractZipFiles(
-        source,
-        destination,
-        function (err) {
-          timer.done()
-          if (err != null) {
-            OError.tag(err, 'unzip failed', {
-              source,
-              destination,
-            })
-            return callback(err)
-          } else {
-            return callback()
-          }
-        }
-      )
-    })
-  },
-
-  findTopLevelDirectory(directory, callback) {
-    if (callback == null) {
-      callback = function () {}
-    }
-    return fs.readdir(directory, function (error, files) {
-      if (error != null) {
-        return callback(error)
-      }
-      if (files.length === 1) {
-        const childPath = Path.join(directory, files[0])
-        return fs.stat(childPath, function (error, stat) {
-          if (error != null) {
-            return callback(error)
-          }
-          if (stat.isDirectory()) {
-            return callback(null, childPath)
-          } else {
-            return callback(null, directory)
-          }
-        })
-      } else {
-        return callback(null, directory)
-      }
-    })
+const ArchiveManager = {
+  _isZipTooLarge,
+  extractZipArchive: callbackify(extractZipArchive),
+  findTopLevelDirectory: callbackify(findTopLevelDirectory),
+  promises: {
+    extractZipArchive,
+    findTopLevelDirectory,
   },
 }
 
-ArchiveManager.promises = promisifyAll(ArchiveManager)
 export default ArchiveManager

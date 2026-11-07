@@ -2,6 +2,8 @@ import mongodb from 'mongodb-legacy'
 
 import _ from 'lodash'
 import Settings from '@overleaf/settings'
+import OError from '@overleaf/o-error'
+import SplitTestHandler from '../SplitTests/SplitTestHandler.mjs'
 
 const { ObjectId } = mongodb
 
@@ -21,6 +23,7 @@ export default {
   isArchived,
   isTrashed,
   isArchivedOrTrashed,
+  isTrackChangesEnabledForUser,
   getAllowedImagesForUser,
   ensureNameIsUnique,
 }
@@ -61,6 +64,22 @@ function isArchivedOrTrashed(project, userId) {
 }
 
 /**
+ * Whether track changes is enabled for the given user, from the project's
+ * track_changes state: `true` means on for everyone (legacy format),
+ * otherwise it is an object keyed by user id.
+ *
+ * @param {boolean | Record<string, boolean> | undefined} trackChangesState
+ * @param {string | ObjectId | null} userId
+ * @returns {boolean}
+ */
+function isTrackChangesEnabledForUser(trackChangesState, userId) {
+  return (
+    trackChangesState === true ||
+    (userId != null && trackChangesState?.[userId.toString()] === true)
+  )
+}
+
+/**
  * @param {string[]} nameList
  * @param {string} name
  * @param {string[]} suffixes
@@ -90,7 +109,7 @@ function ensureNameIsUnique(nameList, name, suffixes, maxLength) {
   if (uniqueName != null) {
     return uniqueName
   } else {
-    throw new Error(`Failed to generate a unique name for: ${name}`)
+    throw new OError('Failed to generate a unique name', { name })
   }
 }
 
@@ -147,28 +166,44 @@ function _addNumericSuffixToProjectName(name, allProjectNames, maxLength) {
   return null
 }
 
-function _imageAllowed(user, image) {
-  if (image.alphaOnly) {
-    return Boolean(user?.alphaProgram)
+async function _monthlyExperimentalImageAllowed(req, res) {
+  return await SplitTestHandler.promises.featureFlagEnabled(
+    req,
+    res,
+    'monthly-texlive'
+  )
+}
+
+function _imageAllowed(
+  image,
+  alphaImagesAllowed,
+  monthlyExperimentalImagesAllowed
+) {
+  if (image.alphaOnly && !alphaImagesAllowed) {
+    return false
   }
-  if (image.monthlyExperimental) {
-    return Boolean(
-      user?.labsProgram && user.labsExperiments.includes('monthly-texlive')
-    )
+  if (image.monthlyExperimental && !monthlyExperimentalImagesAllowed) {
+    return false
   }
   return true
 }
 
-function getAllowedImagesForUser(user) {
-  let images = Settings.allowedImageNames || []
+async function getAllowedImagesForUser(req, res, user) {
+  const images = Settings.allowedImageNames || []
 
-  images = images.map(image => {
+  const alphaImagesAllowed = Boolean(user?.alphaProgram)
+  const monthlyExperimentalImagesAllowed =
+    await _monthlyExperimentalImageAllowed(req, res)
+
+  return images.map(image => {
     return {
       ...image,
-      allowed: _imageAllowed(user, image),
+      allowed: _imageAllowed(
+        image,
+        alphaImagesAllowed,
+        monthlyExperimentalImagesAllowed
+      ),
       rolling: image.monthlyExperimental,
     }
   })
-
-  return images
 }

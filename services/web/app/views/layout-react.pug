@@ -11,9 +11,8 @@ block append meta
 	- const canDisplayAdminMenu = hasAdminAccess()
 	- const canDisplayAdminRedirect = canRedirectToAdminDomain()
 	- const sessionUser = getSessionUser()
-	- const staffAccess = sessionUser?.staffAccess
 	- const canDisplayProjectUrlLookup = settings.adminPrivilegeAvailable && canDisplayAdminMenu && hasAdminCapability('view-project-setting', false)
-	- const canDisplaySplitTestMenu = hasFeature('saas') && ((canDisplayAdminMenu && hasAdminCapability('view-split-test')) || staffAccess?.splitTestMetrics || staffAccess?.splitTestManagement)
+	- const canDisplaySplitTestMenu = hasFeature('saas') && hasNonAdminDomainCapability('view-split-test')
 	- const canDisplaySurveyMenu = hasFeature('saas') && canDisplayAdminMenu && hasAdminCapability('manage-survey', false)
 	- const canDisplayScriptLogMenu = hasFeature('saas') && hasAdminCapability('view-script-log', false) && canDisplayAdminMenu
 	- const enableUpgradeButton = projectDashboardReact && usersBestSubscription && (usersBestSubscription.type === 'free' || usersBestSubscription.type === 'standalone-ai-add-on')
@@ -23,7 +22,8 @@ block append meta
 		name='ol-navbar'
 		data-type='json'
 		content={
-			customLogo: settings.nav.custom_logo,
+			customLogo: settings.nav.custom_logo_light || settings.nav.custom_logo,
+			customLogoDark: settings.nav.custom_logo_dark || settings.nav.custom_logo,
 			title: nav.title,
 			canDisplayAdminMenu,
 			canDisplayAdminRedirect,

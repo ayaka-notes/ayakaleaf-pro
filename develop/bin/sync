@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+###########################################################
+# 1. This script syncs yarn.lock to package.json.
+# 2. node image is needed to run
+#      `yarn install --mode=update-lockfile` to update yarn.lock.
+###########################################################
+
+MONO_REPO_ROOT=$(git rev-parse --show-toplevel)
+
+docker run --rm \
+  -v "$MONO_REPO_ROOT":/workspace \
+  -w /workspace \
+  node:24.18.1 \
+  sh -c "corepack enable && yarn install --mode=update-lockfile"

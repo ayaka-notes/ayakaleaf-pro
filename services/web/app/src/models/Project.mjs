@@ -1,5 +1,6 @@
 import mongoose from '../infrastructure/Mongoose.mjs'
 import _ from 'lodash'
+import settings from '@overleaf/settings'
 import { FolderSchema } from './Folder.mjs'
 import Errors from '../Features/Errors/Errors.js'
 
@@ -24,18 +25,26 @@ export const ProjectSchema = new Schema(
     lastUpdatedBy: { type: ObjectId, ref: 'User' },
     lastOpened: { type: Date },
     active: { type: Boolean, default: true },
+    readOnly: { type: Boolean, default: false },
     owner_ref: { type: ObjectId, ref: 'User' },
     collaberator_refs: [{ type: ObjectId, ref: 'User' }],
     reviewer_refs: [{ type: ObjectId, ref: 'User' }],
     readOnly_refs: [{ type: ObjectId, ref: 'User' }],
     pendingEditor_refs: [{ type: ObjectId, ref: 'User' }],
     pendingReviewer_refs: [{ type: ObjectId, ref: 'User' }],
+    editAccessRequests: [
+      {
+        userId: { type: ObjectId, ref: 'User' },
+        privilegeLevel: { type: String },
+        requestedAt: { type: Date, default: () => new Date() },
+      },
+    ],
     rootDoc_id: { type: ObjectId },
     rootFolder: [FolderSchema],
     mainBibliographyDoc_id: { type: ObjectId },
     version: { type: Number }, // incremented for every change in the project structure (folders and filenames)
     publicAccesLevel: { type: String, default: 'private' },
-    compiler: { type: String, default: 'pdflatex' },
+    compiler: { type: String, default: settings.defaultLatexCompiler },
     spellCheckLanguage: { type: String, default: 'en' },
     deletedByExternalDataSource: { type: Boolean, default: false },
     description: { type: String, default: '' },
@@ -43,6 +52,7 @@ export const ProjectSchema = new Schema(
     trashed: [{ type: ObjectId, ref: 'User' }],
     deletedDocs: [DeletedDocSchema],
     imageName: { type: String },
+    png2pdf: { type: Boolean },
     brandVariationId: { type: String },
     track_changes: { type: Object },
     tokens: {
@@ -87,7 +97,9 @@ export const ProjectSchema = new Schema(
         zipFileArchivedInProject: { type: Boolean },
         rangesSupportEnabled: { type: Boolean },
         otMigrationStage: { type: Number },
+        lastResyncedAt: { type: Date },
       },
+      isDebugCopyOf: { type: ObjectId },
     },
     collabratecUsers: [
       {
@@ -103,6 +115,7 @@ export const ProjectSchema = new Schema(
       },
     ],
     deferredTpdsFlushCounter: { type: Number },
+    referenceFormat: { type: String },
   },
   { minimize: false }
 )

@@ -1,5 +1,7 @@
 package uk.ac.ic.wlgitbridge;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Arrays;
 import uk.ac.ic.wlgitbridge.application.GitBridgeApp;
 import uk.ac.ic.wlgitbridge.util.Log;
@@ -27,6 +29,19 @@ import uk.ac.ic.wlgitbridge.util.Log;
 public class Main {
 
   public static void main(String[] args) {
+    if ("gke".equals(System.getenv("LOGGING_FORMAT"))) {
+      System.setProperty("logback.configurationFile", "logback-gke.xml");
+    }
+    String hostname = System.getenv("HOSTNAME");
+    if (hostname == null || hostname.isEmpty()) {
+      try {
+        hostname = InetAddress.getLocalHost().getHostName();
+      } catch (UnknownHostException e) {
+        hostname = "unknown";
+      }
+    }
+    System.setProperty("HOSTNAME", hostname);
+    System.setProperty("PID", String.valueOf(ProcessHandle.current().pid()));
     Log.info("Git Bridge started with args: " + Arrays.toString(args));
     try {
       new GitBridgeApp(args).run();

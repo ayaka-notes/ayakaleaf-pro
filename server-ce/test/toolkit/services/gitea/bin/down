@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Usage: services/gitea/bin/down
+# Removes the Gitea container and its data.
+
+docker rm --force --volumes "${CONTAINER_PREFIX:-e2e-}gitea" >/dev/null 2>&1 || true

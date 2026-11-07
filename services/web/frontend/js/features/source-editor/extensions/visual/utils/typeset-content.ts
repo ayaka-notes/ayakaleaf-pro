@@ -78,7 +78,7 @@ export function typesetNodeIntoElement(
   let from = node.from
 
   const addMarkup = (markup: Markup, childNode: SyntaxNode) => {
-    const element = document.createElement(markup.elementType)
+    const element = document.createElement(markup.elementType) as HTMLElement
     if (markup.className) {
       element.classList.add(markup.className)
     }

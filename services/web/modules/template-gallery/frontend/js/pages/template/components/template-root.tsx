@@ -10,7 +10,6 @@ import OLRow from '@/shared/components/ol/ol-row'
 import TemplateDetails from './template-details'
 import TemplatePreview from './template-preview'
 import { useTemplateContext, TemplateProvider } from '../context/template-context'
-import MaterialIcon from '@/shared/components/material-icon'
 
 function TemplateRoot() {
   const { isReady } = useWaitForI18n()

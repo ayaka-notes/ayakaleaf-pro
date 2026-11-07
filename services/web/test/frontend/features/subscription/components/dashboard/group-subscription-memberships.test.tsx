@@ -24,7 +24,7 @@ const memberGroupSubscriptions: MemberGroupSubscription[] = [
   {
     ...groupActiveSubscription,
     userIsGroupManager: false,
-    planLevelName: 'Professional',
+    planLevelName: 'Pro',
     admin_id: {
       id: 'abc123abc123' as UserId,
       email: 'you@example.com',
@@ -33,7 +33,7 @@ const memberGroupSubscriptions: MemberGroupSubscription[] = [
   {
     ...groupActiveSubscriptionWithPendingLicenseChange,
     userIsGroupManager: true,
-    planLevelName: 'Collaborator',
+    planLevelName: 'Standard',
     admin_id: {
       id: 'bcd456bcd456' as UserId,
       email: 'someone@example.com',
@@ -68,7 +68,7 @@ describe('<GroupSubscriptionMemberships />', function () {
     })
     expect(elements.length).to.equal(1)
     expect(elements[0].textContent).to.equal(
-      'You are on our Professional plan as a member of the group subscription GAS administered by you@example.com'
+      'You are on our Pro plan as a member of the group subscription GAS administered by you@example.com'
     )
   })
 

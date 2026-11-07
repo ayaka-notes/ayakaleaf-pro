@@ -1,5 +1,6 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
+import moment from 'moment'
 import getMeta from '@/utils/meta'
 import { resources } from '@/i18n-resources/writefull'
 
@@ -54,15 +55,21 @@ i18n.use(initReactI18next).init({
 // The webpackChunkName here will name this chunk (and thus the requested
 // script) according to the file name. See https://webpack.js.org/api/module-methods/#magic-comments
 // for details
-const localesPromise = import(
-  /* webpackChunkName: "[request]" */ `../../locales/${LANG}.json`
-).then(lang => {
-  i18n.addResourceBundle(LANG, 'translation', lang)
-  i18n.addResourceBundle(
-    LANG,
-    'writefull',
-    LANG === 'es' ? resources.es.writefull : resources.en.writefull
-  )
-})
+const localesPromise = Promise.all([
+  import(
+    /* webpackChunkName: "[request]" */ `../../locales/${LANG}.json`
+  ).then(lang => {
+    i18n.addResourceBundle(LANG, 'translation', lang)
+    i18n.addResourceBundle(
+      LANG,
+      'writefull',
+      LANG === 'es' ? resources.es.writefull : resources.en.writefull
+    )
+  }),
+  // localise moment for dates like "x hours ago" (.catch → keep en default)
+  import(`moment/locale/${LANG.toLowerCase()}`)
+    .then(() => moment.locale(LANG.toLowerCase()))
+    .catch(() => {}),
+])
 
 export default localesPromise

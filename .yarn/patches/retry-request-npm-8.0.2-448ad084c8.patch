@@ -1,0 +1,30 @@
+diff --git a/index.js b/index.js
+index 298a351097d70a7fb005b6961f4d58247e391d8f..6a809ace0349d40cb2b6732ad66fd8ad208698ca 100644
+--- a/index.js
++++ b/index.js
+@@ -1,6 +1,6 @@
+ 'use strict';
+ 
+-const {PassThrough} = require('stream');
++const {PassThrough, pipeline} = require('stream');
+ const extend = require('extend');
+ 
+ let debug = () => {};
+@@ -185,7 +185,7 @@ function retryRequest(requestOpts, opts, callback) {
+         .on('complete', (...params) => handleFinish(params))
+         .on('finish', (...params) => handleFinish(params));
+ 
+-      requestStream.pipe(delayStream);
++      pipeline(requestStream, delayStream, () => {});
+     } else {
+       activeRequest = opts.request(requestOpts, onResponse);
+     }
+@@ -251,7 +251,7 @@ function retryRequest(requestOpts, opts, callback) {
+     // No more attempts need to be made, just continue on.
+     if (streamMode) {
+       retryStream.emit('response', response);
+-      delayStream.pipe(retryStream);
++      pipeline(delayStream, retryStream, () => {});
+       requestStream.on('error', err => {
+         retryStream.destroy(err);
+       });

@@ -55,8 +55,9 @@ function Institution() {
                         tOptions={{ interpolation: { escapeValue: true } }}
                       />{' '}
                       <a
-                        href="/learn/how-to/Institutional_Login"
+                        href="https://docs.overleaf.com/accounts-and-security/email-address-and-login-options/logging-in-with-institutional-sso"
                         target="_blank"
+                        rel="noopener noreferrer"
                       >
                         {t('learn_more')}
                       </a>
@@ -122,8 +123,9 @@ function Institution() {
                     />
                     &nbsp;
                     <a
-                      href="/learn/how-to/Understanding_Managed_Overleaf_Accounts"
+                      href="https://docs.overleaf.com/accounts-and-security/understanding-managed-accounts"
                       target="_blank"
+                      rel="noopener noreferrer"
                     >
                       {t('understand_managed_user_accounts')}
                     </a>
@@ -175,31 +177,46 @@ function Institution() {
                 action={
                   <OLButton
                     variant="secondary"
-                    href="/learn/how-to/Institutional_Login"
+                    href="https://docs.overleaf.com/accounts-and-security/email-address-and-login-options/logging-in-with-institutional-sso"
                     target="_blank"
+                    rel="noopener noreferrer"
                   >
                     {t('find_out_more')}
                   </OLButton>
                 }
               />
             )}
-            {templateKey === 'notification_institution_sso_error' && (
-              <Notification
-                type="error"
-                onDismiss={() => id && handleDismiss(id)}
-                content={
-                  <>
-                    {t('generic_something_went_wrong')}.
-                    <div>
-                      {error?.translatedMessage
-                        ? error?.translatedMessage
-                        : error?.message}
-                    </div>
-                    {error?.tryAgain ? `${t('try_again')}.` : null}
-                  </>
-                }
-              />
-            )}
+            {templateKey === 'notification_institution_sso_error' &&
+              (error?.name ===
+              'SAMLCommonsReconfirmationUnableToFindUserError' ? (
+                <Notification
+                  type="error"
+                  onDismiss={() => id && handleDismiss(id)}
+                  content={
+                    <Trans
+                      i18nKey="saml_commons_reconfirmation_unable_to_find_user"
+                      // eslint-disable-next-line jsx-a11y/anchor-has-content, react/jsx-key
+                      components={[<a href="/contact" target="_blank" />]}
+                    />
+                  }
+                />
+              ) : (
+                <Notification
+                  type="error"
+                  onDismiss={() => id && handleDismiss(id)}
+                  content={
+                    <>
+                      {t('generic_something_went_wrong')}.
+                      <div>
+                        {error?.translatedMessage
+                          ? error?.translatedMessage
+                          : error?.message}
+                      </div>
+                      {error?.tryAgain ? `${t('try_again')}.` : null}
+                    </>
+                  }
+                />
+              ))}
           </Fragment>
         )
       )}

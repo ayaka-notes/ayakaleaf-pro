@@ -9,6 +9,7 @@ import {
 import EmailsSection from '../../../../../../frontend/js/features/settings/components/emails-section'
 import { expect } from 'chai'
 import fetchMock from 'fetch-mock'
+import { cloneDeep } from 'lodash'
 import {
   confirmedUserData,
   fakeUsersData,
@@ -16,6 +17,15 @@ import {
   unconfirmedUserData,
 } from '../../fixtures/test-user-email-data'
 import getMeta from '@/utils/meta'
+import { SplitTestProvider } from '@/shared/context/split-test-context'
+
+function renderEmailsSection() {
+  return render(<EmailsSection />, {
+    wrapper: ({ children }) => (
+      <SplitTestProvider>{children}</SplitTestProvider>
+    ),
+  })
+}
 
 describe('<EmailsSection />', function () {
   beforeEach(function () {
@@ -30,13 +40,13 @@ describe('<EmailsSection />', function () {
   })
 
   it('renders translated heading', function () {
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     screen.getByRole('heading', { name: /emails and affiliations/i })
   })
 
   it('renders translated description', function () {
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     screen.getByText(/add additional email addresses/i)
     screen.getByText(/to change your primary email/i)
@@ -46,14 +56,14 @@ describe('<EmailsSection />', function () {
   })
 
   it('renders a loading message when loading', async function () {
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     await screen.findByText(/loading/i)
   })
 
   it('renders an error message and hides loading message on error', async function () {
     fetchMock.get('/user/emails?ensureAffiliation=true', 500)
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     await screen.findByText(
       /an error has occurred while performing your request/i
@@ -63,7 +73,7 @@ describe('<EmailsSection />', function () {
 
   it('renders user emails', async function () {
     fetchMock.get('/user/emails?ensureAffiliation=true', fakeUsersData)
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     await waitFor(() => {
       fakeUsersData.forEach(userData => {
@@ -74,7 +84,7 @@ describe('<EmailsSection />', function () {
 
   it('renders primary status', async function () {
     fetchMock.get('/user/emails?ensureAffiliation=true', [professionalUserData])
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     await screen.findByText(`${professionalUserData.email}`)
     screen.getByText('Primary')
@@ -82,14 +92,14 @@ describe('<EmailsSection />', function () {
 
   it('shows confirmation status for unconfirmed users', async function () {
     fetchMock.get('/user/emails?ensureAffiliation=true', [unconfirmedUserData])
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     await screen.findByText(/unconfirmed/i)
   })
 
   it('hides confirmation status for confirmed users', async function () {
     fetchMock.get('/user/emails?ensureAffiliation=true', [confirmedUserData])
-    render(<EmailsSection />)
+    renderEmailsSection()
     await waitForElementToBeRemoved(() => screen.getByText(/loading/i))
 
     expect(screen.queryByText(/please check your inbox/i)).to.be.null
@@ -97,25 +107,85 @@ describe('<EmailsSection />', function () {
 
   it('renders resend link', async function () {
     fetchMock.get('/user/emails?ensureAffiliation=true', [unconfirmedUserData])
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     await screen.findByRole('button', { name: 'Send confirmation code' })
   })
 
-  it('renders professional label', async function () {
+  describe('SAML emails', function () {
+    beforeEach(function () {
+      Object.assign(getMeta('ol-ExposedSettings'), {
+        hasSamlFeature: true,
+      })
+      fetchMock.removeRoutes().clearHistory()
+    })
+
+    it('hides resend link when an unconfirmed affiliated email must be confirmed via Commons SAML', async function () {
+      const commonsSamlEmail = cloneDeep(professionalUserData)
+      delete commonsSamlEmail.confirmedAt
+      commonsSamlEmail.affiliation.institution.ssoEnabled = true
+
+      fetchMock.get('/user/emails?ensureAffiliation=true', [commonsSamlEmail])
+      renderEmailsSection()
+
+      await screen.findByText(/unconfirmed/i)
+      expect(screen.queryByRole('button', { name: 'Send confirmation code' }))
+        .to.be.null
+    })
+
+    it('hides resend link when an unconfirmed affiliated email must be confirmed via managed group SAML', async function () {
+      const managedGroupEmail = cloneDeep(professionalUserData)
+      delete managedGroupEmail.confirmedAt
+      managedGroupEmail.affiliation.domainCapturedByGroup = true
+      managedGroupEmail.affiliation.group = {
+        _id: 'group123',
+        domainCaptureEnabled: true,
+        managedUsersEnabled: true,
+      }
+
+      fetchMock.get('/user/emails?ensureAffiliation=true', [managedGroupEmail])
+      renderEmailsSection()
+
+      await screen.findByText(/unconfirmed/i)
+      expect(screen.queryByRole('button', { name: 'Send confirmation code' }))
+        .to.be.null
+    })
+  })
+
+  it('renders commons label', async function () {
     fetchMock.get('/user/emails?ensureAffiliation=true', [professionalUserData])
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     const node = await screen.findByText(professionalUserData.email, {
       exact: false,
     })
-    expect(within(node).getByText(/professional/i)).to.exist
+    expect(within(node).getByText('Commons')).to.exist
+  })
+
+  it('renders commons AI label when institution has writefull commons', async function () {
+    const commonsAIUserData = {
+      ...professionalUserData,
+      affiliation: {
+        ...professionalUserData.affiliation,
+        institution: {
+          ...professionalUserData.affiliation.institution,
+          writefullCommonsAccount: true,
+        },
+      },
+    }
+    fetchMock.get('/user/emails?ensureAffiliation=true', [commonsAIUserData])
+    renderEmailsSection()
+
+    const node = await screen.findByText(commonsAIUserData.email, {
+      exact: false,
+    })
+    expect(within(node).getByText('Commons AI')).to.exist
   })
 
   it('shows loader when resending email', async function () {
     fetchMock.get('/user/emails?ensureAffiliation=true', [unconfirmedUserData])
 
-    render(<EmailsSection />)
+    renderEmailsSection()
     await waitForElementToBeRemoved(() => screen.getByText(/loading/i))
 
     fetchMock.post('/user/emails/send-confirmation-code', 200)
@@ -145,7 +215,7 @@ describe('<EmailsSection />', function () {
   it('shows error when resending email fails', async function () {
     fetchMock.get('/user/emails?ensureAffiliation=true', [unconfirmedUserData])
 
-    render(<EmailsSection />)
+    renderEmailsSection()
     await waitForElementToBeRemoved(() => screen.getByText(/loading/i))
 
     fetchMock.post('/user/emails/send-confirmation-code', 503)
@@ -195,7 +265,7 @@ describe('<EmailsSection />', function () {
     ]
 
     fetchMock.get('/user/emails?ensureAffiliation=true', emails)
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     await waitForElementToBeRemoved(() => screen.getByText(/loading/i))
 

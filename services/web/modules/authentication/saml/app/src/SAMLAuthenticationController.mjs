@@ -1,13 +1,14 @@
-import Settings from '@overleaf/settings'
 import logger from '@overleaf/logger'
 import passport from 'passport'
 import AuthenticationController from '../../../../../app/src/Features/Authentication/AuthenticationController.mjs'
+import AsyncFormHelper from '../../../../../app/src/Features/Helpers/AsyncFormHelper.mjs'
 import SAMLAuthenticationManager from './SAMLAuthenticationManager.mjs'
-import UserController from '../../../../../app/src/Features/User/UserController.mjs'
+import { endSession } from '../../../logout.mjs'
 import UserSessionsManager from '../../../../../app/src/Features/User/UserSessionsManager.mjs'
 import { handleAuthenticateErrors } from '../../../../../app/src/Features/Authentication/AuthenticationErrors.mjs'
 import { xmlResponse } from '../../../../../app/src/infrastructure/Response.mjs'
 import { readFilesContentFromEnv } from '../../../utils.mjs'
+import { logLogout } from '../../../auditLog.mjs'
 
 const SAMLAuthenticationController = {
   passportLogin(req, res, next) {
@@ -102,9 +103,10 @@ const SAMLAuthenticationController = {
   },
   async passportLogout(req, res, next) {
     passport._strategy('saml').logout(req, async (err, url) => {
-      await UserController.doLogout(req)
+      logLogout(req)
+      await endSession(req)
       if (err) return next(err)
-      res.redirect(url)
+      AsyncFormHelper.redirect(req, res, url)
     })
   },
   passportLogoutCallback(req, res, next) {
@@ -130,6 +132,8 @@ const SAMLAuthenticationController = {
     if (req?.session?.saml_extce?.nameID === profile.nameID &&
         req?.session?.saml_extce?.sessionIndex === profile.sessionIndex) {
       profile = req.user
+      // the IdP ends this session; a logout started here ended it already
+      logLogout(req)
     }
     await UserSessionsManager.promises.untrackSession(req.user, req.sessionID).catch(err => {
       logger.warn({ err, userId: req.user._id }, 'failed to untrack session')

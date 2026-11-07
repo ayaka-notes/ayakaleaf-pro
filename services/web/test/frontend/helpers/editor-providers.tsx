@@ -1,5 +1,6 @@
 // Disable prop type checks for test harnesses
 /* eslint-disable react/prop-types */
+import fetchMock from 'fetch-mock'
 import { merge } from 'lodash'
 import { SocketIOMock } from '@/ide/connection/SocketIoShim'
 import { IdeContext } from '@/shared/context/ide-context'
@@ -14,7 +15,6 @@ import React, {
 import { IdeReactContext } from '@/features/ide-react/context/ide-react-context'
 import { IdeEventEmitter } from '@/features/ide-react/create-ide-event-emitter'
 import { ReactScopeValueStore } from '@/features/ide-react/scope-value-store/react-scope-value-store'
-import { ReactScopeEventEmitter } from '@/features/ide-react/scope-event-emitter/react-scope-event-emitter'
 import { ConnectionContext } from '@/features/ide-react/context/connection-context'
 import {
   EditorOpenDocContext,
@@ -44,11 +44,19 @@ import type { DocumentContainer } from '@/features/ide-react/editor/document-con
 import {
   ProjectMetadata,
   ProjectUpdate,
+  TrackChangesStateData,
 } from '@/shared/context/types/project-metadata'
-import { UserId } from '../../../types/user'
+import { User, UserId } from '../../../types/user'
 import { ProjectCompiler } from '../../../types/project-settings'
 import { ReferencesContext } from '@/features/ide-react/context/references-context'
 import { useEditorAnalytics } from '@/shared/hooks/use-editor-analytics'
+import { defaultSettings } from '@/shared/context/user-settings-context'
+import { UserSettings } from '@ol-types/user-settings'
+import { DetachCompileContext } from '@/shared/context/detach-compile-context'
+import { type CompileContext } from '@/shared/context/local-compile-context'
+import { EditorContext } from '@/shared/context/editor-context'
+import { Cobranding } from '@ol-types/cobranding'
+import { EDITOR_SESSION_ID } from '@/features/pdf-preview/util/metrics'
 
 // these constants can be imported in tests instead of
 // using magic strings
@@ -58,39 +66,58 @@ export const USER_ID = '123abd' as UserId
 export const USER_EMAIL = 'testuser@example.com'
 
 const defaultUserSettings = {
-  pdfViewer: 'pdfjs',
-  fontSize: 12,
-  fontFamily: 'monaco',
-  lineHeight: 'normal',
-  editorTheme: 'textmate',
-  overallTheme: '',
-  mode: 'default',
-  autoComplete: true,
-  autoPairDelimiters: true,
-  trackChanges: true,
-  syntaxValidation: false,
-  mathPreview: true,
+  ...defaultSettings,
+  referencesSearchMode: 'simple',
+} satisfies UserSettings
+
+const CHANGES_USERS_ROUTE = 'editor-providers-changes-users'
+
+// ChangesUsersProvider fetches this on mount, so every test rendering the editor
+// context needs the route. Tests that care about the response register their own
+// route before rendering, which takes precedence over this one.
+function mockChangesUsers() {
+  const alreadyMocked = fetchMock.router.routes.some(
+    route => route.config.name === CHANGES_USERS_ROUTE
+  )
+  if (!alreadyMocked) {
+    fetchMock.get('express:/project/:projectId/changes/users', [], {
+      name: CHANGES_USERS_ROUTE,
+    })
+  }
 }
 
 export type EditorProvidersProps = {
-  user?: { id: string; email: string; signUpDate?: string }
+  user?: Pick<
+    User,
+    | 'id'
+    | 'email'
+    | 'signUpDate'
+    | 'activeProfessionalGroupSubscriptions'
+    | 'isProfessionalGroupPlan'
+    | 'isMemberOfGroupSubscription'
+    | 'hasInstitutionLicence'
+    | 'hasPaidSubscription'
+    | 'planCode'
+  >
   projectId?: string
   projectName?: string
   projectOwner?: ProjectMetadata['owner']
   rootDocId?: string
   imageName?: string
   compiler?: ProjectCompiler
+  png2pdf?: boolean
   socket?: Socket
   isRestrictedTokenMember?: boolean
   scope?: Record<string, any>
-  features?: Record<string, boolean>
-  projectFeatures?: Record<string, boolean>
+  features?: Record<string, boolean | string>
+  projectFeatures?: Record<string, boolean | string>
   permissionsLevel?: PermissionsLevel
   children?: React.ReactNode
   rootFolder?: Folder[]
   layoutContext?: Partial<LayoutContextValue>
   userSettings?: Record<string, any>
   providers?: Record<string, React.FC<React.PropsWithChildren<any>>>
+  mockCompileOnLoad?: boolean
 }
 
 export const projectDefaults: ProjectMetadata = {
@@ -127,7 +154,7 @@ export const projectDefaults: ProjectMetadata = {
   compiler: 'pdflatex' as ProjectCompiler,
   members: [],
   invites: [],
-  trackChangesState: {} as Record<UserId | '__guests__', boolean>,
+  trackChangesState: {} as TrackChangesStateData,
   spellCheckLanguage: 'en',
 }
 
@@ -141,7 +168,7 @@ const layoutContextDefault = {
   chatIsOpen: true, // false in the application, true in tests
   reviewPanelOpen: false,
   miniReviewPanelVisible: false,
-  leftMenuShown: false,
+  settingsShown: false,
   projectSearchIsOpen: false,
   pdfLayout: 'sideBySide',
   loadingStyleSheet: false,
@@ -159,6 +186,8 @@ export function EditorProviders({
   rootDocId = projectDefaults.rootDocId,
   imageName = projectDefaults.imageName,
   compiler = projectDefaults.compiler,
+  // left unset by default so the "never chosen" path is the one under test
+  png2pdf,
   socket = new SocketIOMock() as any as Socket,
   isRestrictedTokenMember = false,
   scope: defaultScope = {},
@@ -174,6 +203,7 @@ export function EditorProviders({
   layoutContext = layoutContextDefault,
   userSettings = {},
   providers = {},
+  mockCompileOnLoad = false,
 }: EditorProvidersProps) {
   window.metaAttributesCache.set(
     'ol-gitBridgePublicBaseUrl',
@@ -193,6 +223,7 @@ export function EditorProviders({
     'dropbox',
     'link-sharing',
   ])
+  window.metaAttributesCache.set('ol-defaultLatexCompiler', 'pdflatex')
 
   const scope = merge(
     {
@@ -224,9 +255,10 @@ export function EditorProviders({
     rootFolder,
     imageName,
     compiler,
+    png2pdf,
     members: [],
     invites: [],
-    trackChangesState: false,
+    trackChangesState: {} as TrackChangesStateData,
     spellCheckLanguage: 'en',
   }
 
@@ -234,28 +266,89 @@ export function EditorProviders({
   window.metaAttributesCache.set('ol-user', { ...user, features })
   window.metaAttributesCache.set('ol-project_id', projectId)
 
+  mockChangesUsers()
+
+  const customProviders: Record<string, FC<PropsWithChildren>> = {
+    ConnectionProvider: makeConnectionProvider(socket),
+    IdeReactProvider: makeIdeReactProvider(scope, socket),
+    EditorOpenDocProvider: makeEditorOpenDocProvider({
+      currentDocumentId: scope.editor.currentDocumentId,
+      openDocName: scope.editor.openDocName,
+      currentDocument: scope.editor.sharejs_doc,
+    }),
+    EditorPropertiesProvider: makeEditorPropertiesProvider({
+      wantTrackChanges: scope.editor.wantTrackChanges,
+    }),
+    LayoutProvider: makeLayoutProvider(layoutContext),
+    ProjectProvider: makeProjectProvider(project),
+    ReferencesProvider: makeReferencesProvider(),
+    ...providers,
+  }
+
+  // Only use the mock EditorProvider when explicitly required
+  if (providers.EditorProvider) {
+    customProviders.EditorProvider = providers.EditorProvider
+  }
+
+  // Only override DetachCompileProvider when we need the mock
+  if (mockCompileOnLoad) {
+    customProviders.DetachCompileProvider =
+      makeDetachCompileProvider(mockCompileOnLoad)
+  }
+  // Otherwise, let ReactContextRoot use the real DetachCompileProvider from production
+
   return (
-    <ReactContextRoot
-      providers={{
-        ConnectionProvider: makeConnectionProvider(socket),
-        IdeReactProvider: makeIdeReactProvider(scope, socket),
-        EditorOpenDocProvider: makeEditorOpenDocProvider({
-          currentDocumentId: scope.editor.currentDocumentId,
-          openDocName: scope.editor.openDocName,
-          currentDocument: scope.editor.sharejs_doc,
-        }),
-        EditorPropertiesProvider: makeEditorPropertiesProvider({
-          wantTrackChanges: scope.editor.wantTrackChanges,
-        }),
-        LayoutProvider: makeLayoutProvider(layoutContext),
-        ProjectProvider: makeProjectProvider(project),
-        ReferencesProvider: makeReferencesProvider(),
-        ...providers,
-      }}
-    >
-      {children}
-    </ReactContextRoot>
+    <ReactContextRoot providers={customProviders}>{children}</ReactContextRoot>
   )
+}
+
+export function makeEditorProvider({
+  isProjectOwner = true,
+  cobranding = undefined,
+  renameProject = () => {},
+  isRestrictedTokenMember,
+  hasSuggestionsLeft = false,
+  hasTokensLeft = false,
+  premiumSuggestionResetDate = new Date(),
+  tokenResetDate = new Date(),
+}: {
+  isProjectOwner?: boolean
+  cobranding?: Cobranding
+  renameProject?: () => void
+  isRestrictedTokenMember?: boolean
+  hasSuggestionsLeft?: boolean
+  hasTokensLeft?: boolean
+  premiumSuggestionResetDate?: Date
+  tokenResetDate?: Date
+} = {}) {
+  const EditorProvider: FC<PropsWithChildren> = ({ children }) => {
+    const value = {
+      isProjectOwner,
+      renameProject,
+      isPendingEditor: false,
+      hasSuggestionsLeft,
+      premiumSuggestionResetDate,
+      hasTokensLeft,
+      tokensLeft: 0,
+      setTokensLeft: () => {},
+      tokenResetDate,
+      setTokenResetDate: () => {},
+      suggestionsLeft: 0,
+      setSuggestionsLeft: () => {},
+      setPremiumSuggestionResetDate: () => {},
+      writefullInstance: null,
+      setWritefullInstance: () => {},
+      cobranding,
+      isRestrictedTokenMember,
+      upgradeTrackChangesModal: { show: false },
+      setUpgradeTrackChangesModal: () => {},
+    }
+
+    return (
+      <EditorContext.Provider value={value}>{children}</EditorContext.Provider>
+    )
+  }
+  return EditorProvider
 }
 
 const makeReferencesProvider = () => {
@@ -327,18 +420,15 @@ const makeIdeReactProvider = (
       projectJoined: true,
       permissionsLevel: scope.permissionsLevel as PermissionsLevel,
       setPermissionsLevel: () => {},
+      outOfSync: false,
       setOutOfSync: () => {},
     }))
 
     const [ideContextValue] = useState(() => {
-      const scopeEventEmitter = new ReactScopeEventEmitter(
-        new IdeEventEmitter()
-      )
       const unstableStore = new ReactScopeValueStore()
 
       return {
         socket,
-        scopeEventEmitter,
         unstableStore,
       }
     })
@@ -421,7 +511,7 @@ const makeLayoutProvider = (
     const [miniReviewPanelVisible, setMiniReviewPanelVisible] = useState(
       layout.miniReviewPanelVisible
     )
-    const [leftMenuShown, setLeftMenuShown] = useState(layout.leftMenuShown)
+    const [settingsShown, setSettingsShown] = useState(layout.settingsShown)
     const [projectSearchIsOpen, setProjectSearchIsOpen] = useState(
       layout.projectSearchIsOpen
     )
@@ -492,7 +582,7 @@ const makeLayoutProvider = (
         detachRole,
         changeLayout,
         chatIsOpen,
-        leftMenuShown,
+        settingsShown,
         openFile,
         pdfLayout,
         pdfPreviewOpen,
@@ -502,7 +592,7 @@ const makeLayoutProvider = (
         miniReviewPanelVisible,
         loadingStyleSheet,
         setChatIsOpen,
-        setLeftMenuShown,
+        setSettingsShown,
         setOpenFile,
         setPdfLayout,
         setReviewPanelOpen,
@@ -513,6 +603,8 @@ const makeLayoutProvider = (
         restoreView,
         handleChangeLayout,
         handleDetach,
+        focusMode: layout.focusMode ?? false,
+        setFocusMode: layout.setFocusMode ?? (() => {}),
       }),
       [
         reattach,
@@ -521,7 +613,7 @@ const makeLayoutProvider = (
         detachRole,
         changeLayout,
         chatIsOpen,
-        leftMenuShown,
+        settingsShown,
         openFile,
         pdfLayout,
         pdfPreviewOpen,
@@ -531,7 +623,7 @@ const makeLayoutProvider = (
         miniReviewPanelVisible,
         loadingStyleSheet,
         setChatIsOpen,
-        setLeftMenuShown,
+        setSettingsShown,
         setOpenFile,
         setPdfLayout,
         setReviewPanelOpen,
@@ -586,6 +678,7 @@ export function makeEditorPropertiesProvider(
     const value = {
       showVisual,
       setShowVisual,
+      showVisualForFile: () => showVisual,
       showSymbolPalette,
       setShowSymbolPalette,
       toggleSymbolPalette,
@@ -639,4 +732,131 @@ export function makeProjectProvider(initialProject: ProjectMetadata) {
   }
 
   return ProjectProvider
+}
+
+const BASE_COMPILE_CONTEXT_MOCK = {
+  animateCompileDropdownArrow: false,
+  clearCache: () => {},
+  clearingCache: false,
+  clsiServerId: undefined,
+  codeCheckFailed: false,
+  deliveryLatencies: {},
+  editedSinceCompileStarted: false,
+  fileList: undefined,
+  hasChanges: false,
+  hasShortCompileTimeout: false,
+  highlights: undefined,
+  isProjectOwner: true,
+  lastCompileOptions: {},
+  logEntryAnnotations: undefined,
+  logEntries: undefined,
+  outputFilesArchive: undefined,
+  pdfViewer: 'pdfjs',
+  png2pdf: false,
+  position: undefined,
+  rawLog: undefined,
+  recompileFromScratch: () => {},
+  setAnimateCompileDropdownArrow: () => {},
+  setHasLintingError: () => {},
+  setHighlights: () => {},
+  setPosition: () => {},
+  setShowCompileTimeWarning: () => {},
+  setShowLogs: () => {},
+  toggleLogs: () => {},
+  setStopOnValidationError: () => {},
+  showLogs: false,
+  showCompileTimeWarning: false,
+  stopCompile: () => {},
+  stopOnValidationError: true,
+  stoppedOnFirstError: false,
+  uncompiled: false,
+  validationIssues: undefined,
+  firstRenderDone: () => {},
+  setChangedAt: () => {},
+  cleanupCompileResult: undefined,
+  syncToEntry: () => {},
+  recordAction: () => {},
+  darkModePdf: false,
+  setDarkModePdf: () => {},
+  activeOverallTheme: 'light',
+  isNetworkStalled: false,
+} as const
+
+const makeDetachCompileProvider = (mockCompileOnLoad: boolean = false) => {
+  const DetachCompileProvider: FC<PropsWithChildren> = ({ children }) => {
+    const [pdfUrl, setPdfUrl] = useState<string | undefined>()
+    const [pdfDownloadUrl, setPdfDownloadUrl] = useState<string | undefined>()
+    const [pdfFile, setPdfFile] = useState<any>()
+    const [compiling, setCompiling] = useState(false)
+    const [error, setError] = useState<string | undefined>()
+    const [autoCompile, setAutoCompile] = useState(true)
+    const [draft, setDraft] = useState(false)
+    const [stopOnFirstError, setStopOnFirstError] = useState(false)
+
+    const startCompile = useCallback(async () => {
+      setCompiling(true)
+      try {
+        const response = await fetch('/project/123abc/compile', {
+          method: 'POST',
+        })
+        const data = await response.json()
+        const pdfFileData = data.outputFiles?.find(
+          (file: any) => file.type === 'pdf'
+        )
+        if (data.status === 'success' && pdfFileData) {
+          const newPdfUrl = `${data.pdfDownloadDomain || ''}${pdfFileData.url}`
+          const params = [
+            data.compileGroup && `compileGroup=${data.compileGroup}`,
+            data.clsiServerId && `clsiserverid=${data.clsiServerId}`,
+            `editorId=${EDITOR_SESSION_ID}`,
+            'popupDownload=true',
+          ]
+            .filter(Boolean)
+            .join('&')
+          const newPdfDownloadUrl = `/download/project/123abc/build/${pdfFileData.build}/output/${pdfFileData.path}?${params}`
+
+          setPdfUrl(newPdfUrl)
+          setPdfDownloadUrl(newPdfDownloadUrl)
+          setPdfFile({ pdfUrl: newPdfUrl, pdfDownloadUrl: newPdfDownloadUrl })
+        }
+      } catch (err) {
+        setError('Compile failed')
+      } finally {
+        setCompiling(false)
+      }
+    }, [])
+
+    useEffect(() => {
+      if (mockCompileOnLoad) {
+        startCompile()
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [startCompile])
+
+    const value = {
+      ...BASE_COMPILE_CONTEXT_MOCK,
+      autoCompile,
+      compiling,
+      draft,
+      error,
+      pdfDownloadUrl,
+      pdfFile,
+      pdfUrl,
+      setAutoCompile,
+      setCompiling,
+      setDraft,
+      setError,
+      setStopOnFirstError,
+      startCompile,
+      stopOnFirstError,
+    } as CompileContext
+
+    return (
+      <DetachCompileContext.Provider value={value}>
+        {children}
+      </DetachCompileContext.Provider>
+    )
+  }
+
+  return DetachCompileProvider
 }

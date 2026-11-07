@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Usage: services/authentik/bin/prepare
+#
+# Runs before the toolkit's bin/up. Into $TOOLKIT_DIR/services/authentik/ it
+# writes fresh random secrets (secrets.env), the values the Cypress container
+# needs (cypress.env) and the SAML signing key pair. Then it does what an admin
+# would do in the toolkit: puts the IdP certificate in data/overleaf/certs/ as
+# the docs describe, and fills in the OIDC client secret and LDAP bind
+# password where the suite's config asks for them.
+#
+# Expects TOOLKIT_DIR in the environment.
+
+set -euo pipefail
+
+state="$TOOLKIT_DIR/services/authentik"
+mkdir -p "$state" "$TOOLKIT_DIR/data/overleaf/certs"
+
+function random() {
+  openssl rand -hex 24
+}
+
+oidc_client_secret=$(random)
+ldap_bind_password=$(random)
+test_user_password="Pw-$(random)"
+bootstrap_token=$(random)
+
+cat >"$state/secrets.env" <<EOF
+AUTHENTIK_POSTGRESQL__PASSWORD=$(random)
+AUTHENTIK_SECRET_KEY=$(random)$(random)
+AUTHENTIK_BOOTSTRAP_PASSWORD=$(random)
+AUTHENTIK_BOOTSTRAP_TOKEN=$bootstrap_token
+E2E_OIDC_CLIENT_SECRET=$oidc_client_secret
+E2E_LDAP_BIND_PASSWORD=$ldap_bind_password
+E2E_TEST_USER_PASSWORD=$test_user_password
+EOF
+
+cat >"$state/cypress.env" <<EOF
+CYPRESS_AUTHENTIK_TOKEN=$bootstrap_token
+CYPRESS_AUTHENTIK_USER_PASSWORD=$test_user_password
+EOF
+
+openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj "/CN=e2e-authentik-saml" \
+  -keyout "$state/idp.key" -out "$state/idp.crt" 2>/dev/null
+chmod 644 "$state/idp.key"
+cp "$state/idp.crt" "$TOOLKIT_DIR/data/overleaf/certs/idp_cert.pem"
+
+variables="$TOOLKIT_DIR/config/variables.env"
+apply_config="$(dirname "$0")/../../../bin/apply-config"
+for setting in \
+  "OVERLEAF_OIDC_CLIENT_SECRET=$oidc_client_secret" \
+  "OVERLEAF_LDAP_BIND_CREDENTIALS=$ldap_bind_password"; do
+  if grep -q "^${setting%%=*}=" "$variables"; then
+    "$apply_config" "$variables" <(echo "$setting")
+  fi
+done

@@ -9,8 +9,17 @@ import OLRow from '@/shared/components/ol/ol-row'
 import OLCol from '@/shared/components/ol/ol-col'
 import OLTooltip from '@/shared/components/ol/ol-tooltip'
 import OLButton from '@/shared/components/ol/ol-button'
+import OLBadge from '@/shared/components/ol/ol-badge'
+import DropdownMenuItem from '@/shared/components/dropdown/dropdown-menu-item'
+import {
+  OLDropdown,
+  OLDropdownMenu,
+  OLDropdownToggle,
+} from '@/shared/components/ol/ol-dropdown-menu'
+import ShareProjectModalRow from '@/features/share-project-modal/components/share-project-modal-row'
 import MaterialIcon from '@/shared/components/material-icon'
 import { ProjectMember } from '@/shared/context/types/project-metadata'
+import { useFeatureFlag } from '@/shared/context/split-test-context'
 
 export default function Invite({
   invite,
@@ -19,8 +28,41 @@ export default function Invite({
   invite: ProjectMember
   isProjectOwner: boolean
 }) {
+  const isSharingUpdatesEnabled = useFeatureFlag('sharing-updates')
   const { t } = useTranslation()
-  return (
+
+  return isSharingUpdatesEnabled ? (
+    <ShareProjectModalRow>
+      <div className="d-inline-flex align-items-center h5 m-0 gap-2">
+        <MaterialIcon type="person" unfilled />
+        <div className="px-2">{invite.email}</div>
+        <OLBadge bg="light" text="dark">
+          {t('pending_invite')}
+        </OLBadge>
+      </div>
+      {isProjectOwner ? (
+        <OLDropdown align="end" onSelect={() => {}}>
+          <OLDropdownToggle
+            variant="ghost"
+            className="d-flex align-items-center gap-2 no-default-caret"
+          >
+            <MemberPrivileges privileges={invite.privileges} />
+            <MaterialIcon type="keyboard_arrow_down" />
+          </OLDropdownToggle>
+          <OLDropdownMenu>
+            <ResendInvite invite={invite} />
+            <RevokeInvite invite={invite} />
+          </OLDropdownMenu>
+        </OLDropdown>
+      ) : (
+        <div className="h5 m-0 px-4 fw-semibold">
+          <div className="form-control-plaintext border-0">
+            <MemberPrivileges privileges={invite.privileges} />
+          </div>
+        </div>
+      )}
+    </ShareProjectModalRow>
+  ) : (
     <OLRow className="project-invite">
       <OLCol xs={8}>
         <div>{invite.email}</div>
@@ -45,8 +87,10 @@ export default function Invite({
 }
 
 function ResendInvite({ invite }: { invite: ProjectMember }) {
+  const isSharingUpdatesEnabled = useFeatureFlag('sharing-updates')
   const { t } = useTranslation()
-  const { monitorRequest, setError, inFlight } = useShareProjectContext()
+  const { monitorRequest, setError, inFlight, setSuccessActionMessage } =
+    useShareProjectContext()
   const { projectId } = useProjectContext()
 
   // const buttonRef = useRef(null)
@@ -54,6 +98,7 @@ function ResendInvite({ invite }: { invite: ProjectMember }) {
   const handleClick = useCallback(
     () =>
       monitorRequest(() => resendInvite(projectId, invite))
+        .then(() => setSuccessActionMessage(t('invite_resent')))
         .catch(error => {
           if (error?.response?.status === 404) {
             setError('invite_expired')
@@ -71,10 +116,19 @@ function ResendInvite({ invite }: { invite: ProjectMember }) {
             ;(document.activeElement as HTMLElement).blur()
           }
         }),
-    [invite, monitorRequest, projectId, setError]
+    [invite, monitorRequest, projectId, setError, setSuccessActionMessage, t]
   )
 
-  return (
+  return isSharingUpdatesEnabled ? (
+    <DropdownMenuItem
+      as="button"
+      leadingIcon={<MaterialIcon type="mail" unfilled />}
+      onClick={handleClick}
+      disabled={inFlight}
+    >
+      {t('resend_invite')}
+    </DropdownMenuItem>
+  ) : (
     <OLButton
       variant="link"
       className="btn-inline-link"
@@ -88,8 +142,9 @@ function ResendInvite({ invite }: { invite: ProjectMember }) {
 }
 
 function RevokeInvite({ invite }: { invite: ProjectMember }) {
+  const isSharingUpdatesEnabled = useFeatureFlag('sharing-updates')
   const { t } = useTranslation()
-  const { monitorRequest } = useShareProjectContext()
+  const { monitorRequest, setSuccessActionMessage } = useShareProjectContext()
   const { projectId, project, updateProject } = useProjectContext()
   const { invites, members } = project || {}
 
@@ -107,10 +162,20 @@ function RevokeInvite({ invite }: { invite: ProjectMember }) {
         current_invites_amount: updatedInvites.length,
         current_collaborators_amount: members?.length || 0,
       })
+      setSuccessActionMessage(t('invite_revoked'))
     })
   }
 
-  return (
+  return isSharingUpdatesEnabled ? (
+    <DropdownMenuItem
+      as="button"
+      leadingIcon={<MaterialIcon type="block" unfilled />}
+      variant="danger"
+      onClick={handleClick}
+    >
+      {t('revoke_invite')}
+    </DropdownMenuItem>
+  ) : (
     <OLTooltip
       id="revoke-invite"
       description={t('revoke_invite')}

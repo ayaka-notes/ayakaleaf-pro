@@ -445,7 +445,8 @@ async function processSnapshotPush(projectId, files, postbackUrl, userId) {
         )
         logger.debug({ projectId, path }, 'Deleted file from project')
       } catch (err) {
-        logger.warn({ err, projectId, path }, 'Failed to delete file')
+        // already gone in Overleaf
+        if (!(err instanceof Errors.NotFoundError)) throw err
       }
     }
 
@@ -499,7 +500,7 @@ async function processFileUpdate(projectId, filePath, fileUrl, userId) {
     const elementPath = "/" + filePath
 
     // Determine if this should be a doc or binary file
-    const fileType = await determineFileType(projectId, filePath, fsPath)
+    const fileType = await determineFileType(projectId, elementPath, fsPath)
 
     if (fileType === 'doc') {
       // Process as text document

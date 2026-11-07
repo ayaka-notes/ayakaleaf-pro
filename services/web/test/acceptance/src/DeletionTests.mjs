@@ -137,6 +137,24 @@ describe('Deleting a user', function () {
     })
   })
 
+  it('Should send the Clear-Site-Data header', function (done) {
+    this.user.getCsrfToken(error => {
+      expect(error).not.to.exist
+      this.user.request.post(
+        {
+          url: '/user/delete',
+          json: { password: this.user.password },
+        },
+        (error, response) => {
+          expect(error).not.to.exist
+          expect(response.statusCode).to.equal(200)
+          expect(response.headers['clear-site-data']).to.equal('"*"')
+          done()
+        }
+      )
+    })
+  })
+
   describe('when scrubbing the user', function () {
     beforeEach(function (done) {
       this.user.get((error, user) => {

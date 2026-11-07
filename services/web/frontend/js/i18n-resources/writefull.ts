@@ -11,6 +11,7 @@ const en = {
     generating: 'Generating',
     regenerate: 'Regenerate',
     regenerating: 'Regenerating',
+    retry: 'Retry',
     cancel: 'Cancel',
     yes: 'Yes',
     no: 'No',
@@ -21,13 +22,17 @@ const en = {
     or: 'or',
     close: 'Close',
     submit: 'Submit',
+    loading: 'Loading...',
+    'add-ai-assist':
+      'Add AI assist to your plan to get unlimited access to all AI tools',
     'add-unlimited-ai': 'Add unlimited AI',
     'accept-and-continue': 'Accept and continue',
     'copy-code': 'Copy code',
     'copy-code-copied': 'Copied!',
     'toggle-writefull-toolbar': 'Toggle Writefull toolbar',
     'toggle-writefull': 'Toggle Writefull',
-    'ask-texgpt': 'Ask TeXGPT',
+    'writing-tools': 'Writing tools',
+    'custom-prompt': 'Custom prompt',
     'synonyms-in-context': 'Synonyms in Context',
     translate: 'Translate',
     'translate.zh-CN': 'Chinese (Simplified)',
@@ -76,6 +81,14 @@ const en = {
       'Thank you for your language request',
     'translate.request-new-language.thanks.body':
       'We’ll review your request and consider adding it in the future',
+    'translate.non-latin-warning.title':
+      'Using __language__ characters in Overleaf',
+    'translate.non-latin-warning.body':
+      'To avoid compile issues with your translation, your project might need extra LaTeX packages to handle the proper characters.',
+    'translate.non-latin-warning.link': 'Learn how to use non-Latin characters',
+    'translate.non-latin-warning.dont-show-again':
+      "Don't show this warning again for non-Latin languages",
+    'translate.non-latin-warning.understood': 'I understand, continue',
     'blocked-suggestion-signpost.question':
       'Do you want to permanently stop this suggestion from appearing again?',
     'blocked-suggestion-signpost.tooltip': 'You can block a suggestion here.',
@@ -89,12 +102,15 @@ const en = {
       'You can wait for your Writefull quota to reset,',
     'language-model.quota-reached.tooltip.3':
       'or upgrade now to keep checking your text.',
+    'language-model.quota-reached.ai-bundle.tooltip':
+      "You've hit your daily AI limit! Upgrade for unlimited access to all AI features",
     'language-model.quota-reached.ai-bundle.tooltip.1':
-      "You've hit your quota.",
+      "You've hit your daily AI limit",
     'language-model.quota-reached.ai-bundle.tooltip.2':
       'Add AI Assist for unlimited access to all Overleaf AI features,',
     'language-model.quota-reached.ai-bundle.tooltip.3':
       'including Writefull. Or wait for your quota to reset.',
+    'language-model.quota-reached.tooltip': "You've hit your daily AI limit",
     'language-model.use-gpt.tooltip.1':
       "Writefull's language model reviews only English texts. For non-English texts,",
     'language-model.use-gpt.tooltip.2': 'click here and select the GPT model.',
@@ -115,22 +131,21 @@ const en = {
     'unexpected-error':
       'Sorry, something went wrong. If this keeps happening, please contact us at support@writefull.com.',
     'no-results-warning': 'Sorry, we were not able to find a good response.',
-    'suggestion-card.banner.quick-guide.welcome': 'Welcome to Writefull!',
-    'suggestion-card.banner.quick-guide.start':
-      'Click here to start a quick guide',
-    'suggestion-card.banner.non-english.question': 'Is your text non-English?',
-    'suggestion-card.banner.non-english.yes': 'Yes, switch to GPT.',
-    'suggestion-card.banner.non-english.no': 'No, continue with English.',
+    'suggestion-card.banner.non-english.introduction':
+      "To view AI-powered language suggestions you'll need to use the GPT model.",
+    'suggestion-card.banner.non-english.choose-model': 'Choose model',
+    'suggestion-card.banner.non-english.disable': 'Disable',
     'suggestion-card.track-changes.show': 'Show track changes',
     'suggestion-card.track-changes.hide': 'Hide track changes',
     'suggestion-card.information-tooltip':
       'This is a language suggestion. You can accept, reject or block the suggestion.',
     'suggestion-card.unpin': 'Unpin the card to show it near the edits',
     'suggestion-card.pin': 'Pin the card to keep its size and position',
+    'suggestion-card.show-info': 'Show information',
     'suggestion-card.block-edit': 'Block this edit from appearing again',
     'suggestion-card.hide-suggestions.title': 'Hide suggestions too?',
     'suggestion-card.hide-suggestions.question':
-      'Do you want to hide Writefull suggestions until your quota is reset?',
+      'Do you want to hide language suggestions until your quota is reset?',
     'suggestion-card.accept-changes': 'Accept changes',
     'ai-context-menu.ask-texgpt': 'Ask TeXGPT for help with anything',
     'ai-context-menu.title-generator': 'Title Generator',
@@ -145,12 +160,17 @@ const en = {
     'ai-context-menu.abstract-generator': 'Abstract Generator',
     'ai-context-menu.keywords-generator': 'Keywords Generator',
     'ai-context-menu.context-options': 'Context Options',
+    'ai-context-menu.check-citations': 'Check citations',
     'ai-context-menu.select-text-tooltip':
       'Select text to access these options',
     'ai-context-menu.paraphrase': 'Paraphrase',
+    'ai-context-menu.rephrase': 'Rephrase',
+    'ai-context-menu.shorten': 'Shorten',
+    'ai-context-menu.more-scientific': 'More scientific',
     'ai-context-menu.change-style': 'Change style',
     'ai-context-menu.summarize': 'Summarize',
     'ai-context-menu.explain': 'Explain',
+    'ai-context-menu.rewrite': 'Rewrite',
     'ai-context-menu.back': 'back',
     'ai-context-menu.pin': 'Pin',
     'ai-context-menu.track-changes': 'Track Changes',
@@ -178,9 +198,10 @@ const en = {
     'blocked-language-suggestions-modal.delete': 'Delete',
     'blocked-language-suggestions-modal.empty-state':
       'There are no blocked suggestions to display',
-    'errors.ai-bundle.quota-exceeded.heading': 'You’ve hit your quota!',
+    'errors.ai-bundle.quota-exceeded.heading':
+      'You’ve hit your daily AI limit!',
     'errors.backend-quota-exceeded-freemium.heading':
-      'You’ve hit your Writefull quota',
+      'You’ve hit your daily AI limit',
     'errors.backend-quota-exceeded-freemium.body.1':
       'To ensure fair access for all users, free accounts have a usage limit.',
     'errors.backend-quota-exceeded-freemium.body.2':
@@ -195,8 +216,11 @@ const en = {
       'Invest in your writing and stay ahead with unlimited access.',
     'errors.error-hit-limit-freemium.heading': 'You’re on fire!',
     'errors.error-hit-limit-freemium.body':
-      'You’ve hit your Writefull quota. Upgrade now for unlimited language suggestions and LaTeX support, and early access to upcoming features like TikZ generation.',
+      'You’ve hit your daily AI limit. Upgrade now for unlimited language suggestions and LaTeX support, and early access to upcoming features like TikZ generation.',
     'toolbar.abstract-generator.name': 'Abstract generator',
+    'insert-menu.abstract-generator': 'Abstract',
+    'insert-menu.keywords-generator': 'Keywords',
+    'insert-menu.title-generator': 'Title',
     'toolbar.abstract-generator.disabled_non_english':
       'You need to be writing in English to generate an abstract',
     'toolbar.keywords-generator.name': 'Keywords generator',
@@ -298,7 +322,6 @@ const en = {
       "Complete sentences with 'Shift+Space'",
     'settings.supercomplete': 'Supercomplete',
     'settings.terms-of-service': 'Terms of Service',
-    'settings.manage-plan.freemium': 'Get AI Assist',
     'settings.manage-plan.wf-premium': 'Manage Writefull plan',
     'settings.manage-plan': 'Manage plan',
     'settings.open': 'Open settings dialog',
@@ -361,6 +384,7 @@ const en = {
       'Enter your password below to link the accounts associated with',
     'welcome.choose-a-different-writefull-account':
       'choose a different Writefull account',
+    'welcome.language-suggestions': 'Language suggestions',
     'welcome.writefull':
       'Get Writefull’s AI-powered language suggestions and editing tools in Overleaf to help you write smarter and faster.',
     'welcome.writefull-enabled':
@@ -394,6 +418,7 @@ const en = {
       'information Overleaf shares with Writefull',
     'welcome.and-its': 'and its',
     'welcome.privacy-notice': 'privacy notice',
+    'welcome.ok': 'OK',
     'welcome.go-back': 'Go back',
     'welcome.reset-password': 'Reset password',
     'welcome.enable-writefull':
@@ -406,11 +431,19 @@ const en = {
     'citations-reviewer.chat.fetching-citations':
       'Reviewing your document to see if any passage of text might need a citation',
     'citations-reviewer.chat.fetching-publications': 'Fetching publications...',
+    'citations-reviewer.chat.initial-state.title': 'Citation reviewer',
+    'citations-reviewer.chat.initial-state.description':
+      'The citation reviewer scans your document for statements that may need citations. Click "Find citations" to start the review.',
+    'citations-reviewer.chat.initial-state.done': 'Done',
+    'citations-reviewer.chat.initial-state.run': 'Find citations',
     'citations-reviewer.chat.no-citations.title': 'Well done!',
     'citations-reviewer.chat.no-citations.description':
       "We didn't identify any passages that need additional citation.",
     'citations-reviewer.chat.no-citations.run-again': 'Run again',
     'citations-reviewer.chat.no-citations.done': 'Done',
+    'citations-reviewer.chat.no-citations.rerun':
+      'Do you want us to run the check again with a lower threshold for showing passages that require additional citation?',
+    'citations-reviewer.chat.no-citations.rerun-yes': 'Yes, run again',
     'citations-reviewer.chat.publications.title': 'Suggested papers',
     'citations-reviewer.chat.publications.description':
       'The following papers may support the claim you’ve made. Always check papers yourself to ensure relevance.',
@@ -455,6 +488,38 @@ const en = {
       'Enter keywords',
     'citations-reviewer.chat.custom-search.form.search': 'Search',
     'citations-reviewer.chat.custom-search.form.searching': 'Searching...',
+    'citations-reviewer.chat.backend-quota-error.premium.title':
+      'Usage limit reached',
+    'citations-reviewer.chat.backend-quota-error.premium.body':
+      "You've reached the fair usage limit on your plan. You can check for citations again in __remainingTime__",
+    'citations-reviewer.chat.backend-quota-error.freemium.title':
+      'You’ve hit your daily AI limit',
+    'citations-reviewer.chat.backend-quota-error.freemium.body':
+      'To ensure fair access for all users, free accounts have a usage limit. You can check for citations again in __remainingTime__. Upgrade to Premium to unlock the full power of Writefull.',
+    'citations-reviewer.chat.navigation.publications': 'Suggested papers',
+    'citations-reviewer.chat.navigation.custom-search': 'Search',
+    'citations-reviewer.chat.non-english-error.title':
+      'Citation Reviewer only works on documents written in English',
+    'citations-reviewer.chat.non-english-error.body':
+      'Are you writing in English?',
+    'citations-reviewer.chat.non-english-error.yes':
+      'Yes, run citation reviewer',
+    'citations-reviewer.chat.non-english-error.no': 'No, return to main menu',
+    'paywall.title': 'You’ve hit your Overleaf AI limit',
+    'paywall.title.new-plans': 'You’ve hit your daily AI limit',
+    'paywall.title.new-plans.fair-usage': 'Usage limit reached',
+    'paywall.body':
+      'Upgrade to keep using AI features, or wait __hours__ hours and __minutes__ minutes for your limit to reset.',
+    'paywall.body.legacy':
+      'Upgrade for unlimited access to all AI features or check back at __date__, __time__.',
+    'paywall.body.fair-usage':
+      "You've reached the fair usage limit on your plan. You can continue using AI features again in __hours__ hours and __minutes__ minutes.",
+    'paywall.body.standard-group':
+      'Your limit will reset in __hours__ hours and __minutes__ minutes. Or speak to your group admin about upgrading.',
+    'paywall.body.commons':
+      'You’ve reached your AI usage limit. This will reset in __hours__ hours and __minutes__ minutes.',
+    'paywall.upgrade': 'Upgrade',
+    'paywall.hide': 'Hide for now',
   },
 } as const
 
@@ -470,6 +535,7 @@ const es = {
     generating: 'Generando',
     regenerate: 'Regenerar',
     regenerating: 'Regenerando',
+    retry: 'Reintentar',
     cancel: 'Cancelar',
     yes: 'Sí',
     no: 'No',
@@ -480,14 +546,18 @@ const es = {
     or: 'o',
     close: 'Cerrar',
     submit: 'Enviar',
+    loading: 'Cargando...',
     add: 'Añadir',
+    'add-ai-assist':
+      'Añade AI assist a tu plan para obtener acceso ilimitado a todas las herramientas AI',
     'add-unlimited-ai': 'Añadir IA ilimitada',
     'accept-and-continue': 'Aceptar y continuar',
     'copy-code': 'Copiar código',
     'copy-code-copied': '¡Copiado!',
     'toggle-writefull-toolbar': 'Mostrar/Ocultar barra de Writefull',
     'toggle-writefull': 'Mostrar/Ocultar Writefull',
-    'ask-texgpt': 'Preguntar a TeXGPT',
+    'writing-tools': 'Herramientas de escritura',
+    'custom-prompt': 'Prompt personalizado',
     'synonyms-in-context': 'Sinónimos en Contexto',
     translate: 'Traducir',
     'translate.zh-CN': 'Chino (Simplificado)',
@@ -536,6 +606,15 @@ const es = {
       'Gracias por tu solicitud de idioma',
     'translate.request-new-language.thanks.body':
       'Revisaremos tu solicitud y consideraremos agregarlo en el futuro',
+    'translate.non-latin-warning.title':
+      'Uso de caracteres __language__ en Overleaf',
+    'translate.non-latin-warning.body':
+      'Para evitar problemas de compilación con tu traducción, tu proyecto podría necesitar paquetes LaTeX adicionales para manejar los caracteres correspondientes.',
+    'translate.non-latin-warning.link':
+      'Aprende cómo usar caracteres no latinos',
+    'translate.non-latin-warning.dont-show-again':
+      'No mostrar esta advertencia nuevamente',
+    'translate.non-latin-warning.understood': 'Lo entiendo, continua',
     'blocked-suggestion-signpost.question':
       '¿Quieres dejar de ver esta sugerencia permanentemente? Puedes bloquear esta sugerencia aquí.',
     'blocked-suggestion-signpost.tooltip':
@@ -551,12 +630,16 @@ const es = {
       'Puedes esperar a que se reinicie tu cuota de Writefull,',
     'language-model.quota-reached.tooltip.3':
       'o actualiza ahora para seguir revisando tu texto.',
+    'language-model.quota-reached.ai-bundle.tooltip':
+      'Has alcanzado tu límite de uso! Actualiza para acceso ilimitado a todas las funcionalidades AI.',
     'language-model.quota-reached.ai-bundle.tooltip.1':
       'Has alcanzado tu límite de uso.',
     'language-model.quota-reached.ai-bundle.tooltip.2':
       'Añade AI Assist para acceso ilimitado a todas las funcionalidades AI de Overleaf,',
     'language-model.quota-reached.ai-bundle.tooltip.3':
       'incluyendo Writefull. O espera a que se reinicie tu cuota.',
+    'language-model.quota-reached.tooltip':
+      'Has alcanzado tu límite de uso diario de AI',
     'language-model.use-gpt.tooltip.1':
       'El modelo de lenguaje de Writefull revisa solo textos en inglés. Para textos no ingleses,',
     'language-model.use-gpt.tooltip.2':
@@ -580,13 +663,10 @@ const es = {
       'Lo siento, algo salió mal. Si esto sigue ocurriendo, por favor contáctanos en support@writefull.com.',
     'no-results-warning':
       'Lo siento, no pudimos encontrar una buena respuesta.',
-    'suggestion-card.banner.quick-guide.welcome': '¡Bienvenido a Writefull!',
-    'suggestion-card.banner.quick-guide.start':
-      'Haga clic aquí para una guía rápida',
-    'suggestion-card.banner.non-english.question':
-      '¿Tu texto está en otro idioma que no sea inglés?',
-    'suggestion-card.banner.non-english.yes': 'Sí, cambiar a GPT.',
-    'suggestion-card.banner.non-english.no': 'No, continuar con inglés.',
+    'suggestion-card.banner.non-english.introduction':
+      'Para ver sugerencias de lenguaje impulsadas por IA, necesitarás usar el modelo GPT.',
+    'suggestion-card.banner.non-english.choose-model': 'Elegir modelo',
+    'suggestion-card.banner.non-english.disable': 'Deshabilitar',
     'suggestion-card.track-changes.show': 'Mostrar cambios',
     'suggestion-card.track-changes.hide': 'Ocultar cambios',
     'suggestion-card.information-tooltip':
@@ -595,12 +675,13 @@ const es = {
       'Desanclar la tarjeta para mostrarla cerca de las sugerencias',
     'suggestion-card.pin':
       'Anclar la tarjeta para mantener su tamaño y posición',
+    'suggestion-card.show-info': 'Mostrar información',
     'suggestion-card.block-edit':
       'Bloquear esta sugerencia para que no aparezca de nuevo',
     'suggestion-card.hide-suggestions.title':
       '¿Ocultar también las sugerencias?',
     'suggestion-card.hide-suggestions.question':
-      '¿Quieres ocultar las sugerencias de Writefull hasta que se reinicie tu cuota?',
+      '¿Quieres ocultar las sugerencias de lenguaje hasta que se reinicie tu cuota?',
     'suggestion-card.accept-changes': 'Aceptar cambios',
     'ai-context-menu.ask-texgpt':
       'Pregúntale a TeXGPT para obtener ayuda con cualquier cosa',
@@ -616,12 +697,17 @@ const es = {
     'ai-context-menu.abstract-generator': 'Generar Abstract',
     'ai-context-menu.keywords-generator': 'Generar palabras clave',
     'ai-context-menu.context-options': 'Opciones de contexto',
+    'ai-context-menu.check-citations': 'Comprobar citas',
     'ai-context-menu.select-text-tooltip':
       'Seleccione texto para acceder a estas opciones',
     'ai-context-menu.paraphrase': 'Parafrasear',
+    'ai-context-menu.rephrase': 'Reformular',
+    'ai-context-menu.shorten': 'Acortar',
+    'ai-context-menu.more-scientific': 'Más científico',
     'ai-context-menu.change-style': 'Cambiar estilo',
     'ai-context-menu.summarize': 'Resumir',
     'ai-context-menu.explain': 'Explicar',
+    'ai-context-menu.rewrite': 'Reescribir',
     'ai-context-menu.back': 'Atrás',
     'ai-context-menu.pin': 'Anclar',
     'ai-context-menu.track-changes': 'Control de Cambios',
@@ -651,9 +737,10 @@ const es = {
     'blocked-language-suggestions-modal.delete': 'Eliminar',
     'blocked-language-suggestions-modal.empty-state':
       'No hay sugerencias bloqueadas para mostrar',
-    'errors.ai-bundle.quota-exceeded.heading': '¡Has agotado tu cuota!',
+    'errors.ai-bundle.quota-exceeded.heading':
+      '¡Has agotado tu límite de uso diario de AI!',
     'errors.backend-quota-exceeded-freemium.heading':
-      'Has agotado tu cuota de Writefull',
+      'Has agotado tu límite de uso diario de AI',
     'errors.backend-quota-exceeded-freemium.body.1':
       'Para garantizar un acceso justo para todos los usuarios, las cuentas gratuitas tienen un límite de uso.',
     'errors.backend-quota-exceeded-freemium.body.2':
@@ -670,6 +757,9 @@ const es = {
     'errors.error-hit-limit-freemium.body':
       'Has agotado tu cuota de Writefull. Actualiza ahora para obtener sugerencias de lenguaje ilimitadas y soporte en LaTeX, y acceso anticipado a las próximas funciones de generación como TikZ.',
     'toolbar.abstract-generator.name': 'Generar Abstract',
+    'insert-menu.abstract-generator': 'Abstract',
+    'insert-menu.keywords-generator': 'Palabras clave',
+    'insert-menu.title-generator': 'Título',
     'toolbar.abstract-generator.disabled_non_english':
       'Necesitas estar en un documento en inglés para generar un abstract',
     'toolbar.keywords-generator.name': 'Generar Palabras Clave',
@@ -773,7 +863,6 @@ const es = {
       "Completar oraciones con 'Shift+Espacio'",
     'settings.supercomplete': 'Supercomplete',
     'settings.terms-of-service': 'Términos de Servicio',
-    'settings.manage-plan.freemium': 'Obtener AI Assist',
     'settings.manage-plan.wf-premium': 'Gestionar Plan Writefull',
     'settings.manage-plan': 'Gestionar plan',
     'settings.open': 'Abrir diálogo de configuración',
@@ -838,6 +927,7 @@ const es = {
       'Introduce tu contraseña a continuación para vincular las cuentas asociadas con',
     'welcome.choose-a-different-writefull-account':
       'elige una cuenta de Writefull diferente',
+    'welcome.language-suggestions': 'Sugerencias de lenguaje',
     'welcome.writefull':
       'Obtén las sugerencias de lenguaje y las herramientas de edición impulsadas por IA de Writefull en Overleaf para ayudarte a escribir de manera más inteligente y rápida.',
     'welcome.writefull-enabled':
@@ -871,6 +961,7 @@ const es = {
     'welcome.and-its': 'y su',
     'welcome.privacy-notice': 'aviso de privacidad',
     'welcome.go-back': 'Volver',
+    'welcome.ok': 'OK',
     'welcome.reset-password': 'Restablecer contraseña',
     'welcome.enable-writefull':
       'Habilitar Writefull para soporte de lenguaje y LaTeX',
@@ -883,11 +974,19 @@ const es = {
       'Revisando tu documento para ver si algún pasaje podría necesitar una cita',
     'citations-reviewer.chat.fetching-publications':
       'Obteniendo publicaciones...',
+    'citations-reviewer.chat.initial-state.title': 'Citation reviewer',
+    'citations-reviewer.chat.initial-state.description':
+      'El revisor de citas escanea tu documento en busca de afirmaciones que puedan necesitar citas. Haz clic en "Buscar citas" para iniciar la revisión.',
+    'citations-reviewer.chat.initial-state.done': 'Hecho',
+    'citations-reviewer.chat.initial-state.run': 'Buscar citas',
     'citations-reviewer.chat.no-citations.title': 'Bien hecho!',
     'citations-reviewer.chat.no-citations.description':
       'No se identificaron pasajes que necesiten citas adicionales.',
     'citations-reviewer.chat.no-citations.run-again': 'Volver a ejecutar',
     'citations-reviewer.chat.no-citations.done': 'Hecho',
+    'citations-reviewer.chat.no-citations.rerun':
+      '¿Quieres que volvamos a ejecutar la revisión con un umbral más bajo para mostrar pasajes que requieran citas adicionales?',
+    'citations-reviewer.chat.no-citations.rerun-yes': 'Sí, volver a ejecutar',
     'citations-reviewer.chat.publications.title': 'Artículos sugeridos',
     'citations-reviewer.chat.publications.description':
       'Los siguientes artículos pueden respaldar la afirmación que has hecho. Revisa siempre los artículos por tu cuenta para asegurar su relevancia.',
@@ -934,6 +1033,39 @@ const es = {
       'Introduce palabras clave',
     'citations-reviewer.chat.custom-search.form.search': 'Buscar',
     'citations-reviewer.chat.custom-search.form.searching': 'Buscando...',
+    'citations-reviewer.chat.backend-quota-error.premium.title':
+      'Límite de uso alcanzado',
+    'citations-reviewer.chat.backend-quota-error.premium.body':
+      'Has alcanzado el límite de uso justo en tu plan. Puedes volver a buscar citas en __remainingTime__',
+    'citations-reviewer.chat.backend-quota-error.freemium.title':
+      'Has agotado tu cuota de Writefull',
+    'citations-reviewer.chat.backend-quota-error.freemium.body':
+      'Para garantizar un acceso justo para todos los usuarios, las cuentas gratuitas tienen un límite de uso. Puedes volver a buscar citas en __remainingTime__. Actualiza a Premium para desbloquear todo el potencial de Writefull.',
+    'citations-reviewer.chat.navigation.publications': 'Artículos sugeridos',
+    'citations-reviewer.chat.navigation.custom-search': 'Buscar',
+    'citations-reviewer.chat.non-english-error.title':
+      'El revisor de citas solo funciona en documentos escritos en inglés',
+    'citations-reviewer.chat.non-english-error.body':
+      '¿Estás escribiendo en inglés?',
+    'citations-reviewer.chat.non-english-error.yes':
+      'Sí, ejecutar el revisor de citas',
+    'citations-reviewer.chat.non-english-error.no':
+      'No, volver al menú principal',
+    'paywall.title': 'Has alcanzado tu límite de Overleaf AI',
+    'paywall.title.new-plans': 'Has alcanzado tu límite de AI diario',
+    'paywall.title.new-plans.fair-usage': 'Límite de uso alcanzado',
+    'paywall.body':
+      'Has alcanzado tu límite de AI diario. Mejora tu plan para continuar usando las funciones de AI o espera __hours__ horas y __minutes__ minutos para que se reinicie tu límite.',
+    'paywall.body.legacy':
+      'Actualiza para acceso ilimitado a todas las funciones de AI o vuelve a intentar el __date__ a las __time__.',
+    'paywall.body.fair-usage':
+      'Has alcanzado el límite de uso justo en tu plan. Puedes volver a buscar citas en __hours__ horas y __minutes__ minutos.',
+    'paywall.body.standard-group':
+      'Tu límite se reiniciará en __hours__ horas y __minutes__ minutos. O habla con tu administrador de grupo sobre la mejora de tu plan.',
+    'paywall.body.commons':
+      'Has alcanzado tu límite de uso diario de AI. Este se reiniciará en __hours__ horas y __minutes__ minutos.',
+    'paywall.upgrade': 'Actualizar',
+    'paywall.hide': 'Ocultar por ahora',
   },
 }
 

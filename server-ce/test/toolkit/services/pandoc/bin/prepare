@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Usage: services/pandoc/bin/prepare
+#
+# Runs before the toolkit's bin/up. Builds the Pandoc image from
+# develop/pandoc, since the official one is private, and points clsi at it
+# with PANDOC_IMAGE. clsi starts conversions as sibling containers, so the
+# image only has to exist on the host.
+#
+# Expects TOOLKIT_DIR in the environment.
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+image=overleaf-pro-e2e-pandoc:local
+
+docker build --tag "$image" ../../../../../develop/pandoc
+../../bin/apply-config "$TOOLKIT_DIR/config/variables.env" <(echo "PANDOC_IMAGE=$image")

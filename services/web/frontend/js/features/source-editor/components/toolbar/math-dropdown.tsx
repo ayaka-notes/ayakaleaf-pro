@@ -1,4 +1,4 @@
-import { DropdownHeader } from '@/shared/components/dropdown/dropdown-menu'
+import { OLDropdownHeader } from '@/shared/components/ol/ol-dropdown-menu'
 import { ToolbarButtonMenu } from './button-menu'
 import { emitToolbarEvent } from '../../extensions/toolbar/utils/analytics'
 import MaterialIcon from '../../../../shared/components/material-icon'
@@ -13,11 +13,15 @@ import { memo } from 'react'
 import OLListGroupItem from '@/shared/components/ol/ol-list-group-item'
 import sparkleWhite from '@/shared/svgs/sparkle-small-white.svg'
 import sparkle from '@/shared/svgs/ai-sparkle-text.svg'
+import getMeta from '@/utils/meta'
 
 export const MathDropdown = memo(function MathDropdown() {
   const { t } = useTranslation()
   const view = useCodeMirrorViewContext()
   const { writefullInstance } = useEditorContext()
+  const showAiFeaturesDisabled = getMeta('ol-showAiFeaturesDisabled')
+
+  const renderAIButton = writefullInstance || showAiFeaturesDisabled
 
   return (
     <ToolbarButtonMenu
@@ -25,13 +29,16 @@ export const MathDropdown = memo(function MathDropdown() {
       label={t('toolbar_insert_math')}
       icon={<MaterialIcon type="calculate" />}
     >
-      {writefullInstance && (
+      {renderAIButton && (
         <>
-          <DropdownHeader className="ol-cm-toolbar-header mx-2">
+          <OLDropdownHeader className="ol-cm-toolbar-header mx-2">
             {t('toolbar_insert_math_lowercase')}
-          </DropdownHeader>
+          </OLDropdownHeader>
           <OLListGroupItem
+            className={showAiFeaturesDisabled ? 'opacity-50' : ''}
             aria-label={t('toolbar_generate_math')}
+            disabled={showAiFeaturesDisabled}
+            disabledReason={t('ai_features_unavailable_on_this_project')}
             onClick={() => {
               writefullInstance?.openEquationGenerator()
             }}

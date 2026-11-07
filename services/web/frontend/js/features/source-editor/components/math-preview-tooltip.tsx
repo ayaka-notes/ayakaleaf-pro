@@ -1,9 +1,9 @@
-import { useProjectSettingsContext } from '@/features/editor-left-menu/context/project-settings-context'
+import { useProjectSettingsContext } from '@/features/ide-settings/context/project-settings-context'
 import {
-  Dropdown,
-  DropdownMenu,
-  DropdownToggle,
-} from '@/shared/components/dropdown/dropdown-menu'
+  OLDropdown,
+  OLDropdownMenu,
+  OLDropdownToggle,
+} from '@/shared/components/ol/ol-dropdown-menu'
 import OLButton from '@/shared/components/ol/ol-button'
 import {
   OLModal,
@@ -23,8 +23,8 @@ import {
 import { mathPreviewStateField } from '../extensions/math-preview'
 import { getTooltip } from '@codemirror/view'
 import ReactDOM from 'react-dom'
-import OLDropdownMenuItem from '@/shared/components/ol/ol-dropdown-menu-item'
-import { useIsNewEditorEnabled } from '@/features/ide-redesign/utils/new-editor-utils'
+import DropdownMenuItem from '@/shared/components/dropdown/dropdown-menu-item'
+import { useFeatureFlag } from '@/shared/context/split-test-context'
 
 const MathPreviewTooltipContainer: FC = () => {
   const state = useCodeMirrorStateContext()
@@ -60,7 +60,7 @@ const MathPreviewTooltipContainer: FC = () => {
 const MathPreviewTooltipMenu: FC = () => {
   const { t } = useTranslation()
 
-  const newEditor = useIsNewEditorEnabled()
+  const themed = useFeatureFlag('themed-modals')
 
   const [showDisableModal, setShowDisableModal] = useState(false)
   const { setMathPreview } = useProjectSettingsContext()
@@ -84,8 +84,8 @@ const MathPreviewTooltipMenu: FC = () => {
 
   return (
     <>
-      <Dropdown align="end">
-        <DropdownToggle
+      <OLDropdown align="end">
+        <OLDropdownToggle
           id="some-id"
           className="math-tooltip-options-toggle"
           variant="secondary"
@@ -95,9 +95,9 @@ const MathPreviewTooltipMenu: FC = () => {
             type="more_vert"
             accessibilityLabel={t('more_options')}
           />
-        </DropdownToggle>
-        <DropdownMenu flip={false}>
-          <OLDropdownMenuItem
+        </OLDropdownToggle>
+        <OLDropdownMenu flip={false}>
+          <DropdownMenuItem
             onClick={onHide}
             description={t('temporarily_hides_the_preview')}
             trailingIcon={
@@ -107,18 +107,18 @@ const MathPreviewTooltipMenu: FC = () => {
             }
           >
             {t('hide')}
-          </OLDropdownMenuItem>
-          <OLDropdownMenuItem
+          </DropdownMenuItem>
+          <DropdownMenuItem
             onClick={openDisableModal}
             description={t('permanently_disables_the_preview')}
           >
             {t('disable')}
-          </OLDropdownMenuItem>
-        </DropdownMenu>
-      </Dropdown>
+          </DropdownMenuItem>
+        </OLDropdownMenu>
+      </OLDropdown>
 
       {showDisableModal && (
-        <OLModal show onHide={closeDisableModal}>
+        <OLModal show onHide={closeDisableModal} themed={themed}>
           <OLModalHeader>
             <OLModalTitle>{t('disable_equation_preview')}</OLModalTitle>
           </OLModalHeader>
@@ -126,17 +126,10 @@ const MathPreviewTooltipMenu: FC = () => {
           <OLModalBody>
             {t('disable_equation_preview_confirm')}
             <br />
-            {newEditor ? (
-              <Trans
-                i18nKey="disable_equation_preview_enable_in_settings"
-                components={{ b: <strong /> }}
-              />
-            ) : (
-              <Trans
-                i18nKey="disable_equation_preview_enable"
-                components={{ b: <strong /> }}
-              />
-            )}
+            <Trans
+              i18nKey="disable_equation_preview_enable_in_settings"
+              components={{ b: <strong /> }}
+            />
           </OLModalBody>
 
           <OLModalFooter>

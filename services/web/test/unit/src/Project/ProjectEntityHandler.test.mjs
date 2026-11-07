@@ -1,4 +1,4 @@
-import { vi, expect } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import sinon from 'sinon'
 import Errors from '../../../../app/src/Features/Errors/Errors.js'
 const modulePath = '../../../../app/src/Features/Project/ProjectEntityHandler'
@@ -105,9 +105,7 @@ describe('ProjectEntityHandler', function () {
           ],
         },
       ]
-      ctx.ProjectGetter.promises.getProjectWithoutDocLines = sinon
-        .stub()
-        .resolves(ctx.project)
+      ctx.ProjectGetter.promises.getProject = sinon.stub().resolves(ctx.project)
     })
 
     describe('getAllDocs', function () {
@@ -253,7 +251,7 @@ describe('ProjectEntityHandler', function () {
       })
 
       it('should get the project without the docs lines', function (ctx) {
-        ctx.ProjectGetter.promises.getProjectWithoutDocLines
+        ctx.ProjectGetter.promises.getProject
           .calledWith(projectId)
           .should.equal(true)
       })
@@ -317,9 +315,7 @@ describe('ProjectEntityHandler', function () {
           ],
         },
       ]
-      ctx.ProjectGetter.promises.getProjectWithoutDocLines = sinon
-        .stub()
-        .resolves(ctx.project)
+      ctx.ProjectGetter.promises.getProject = sinon.stub().resolves(ctx.project)
     })
 
     describe('getAllDocs', function () {

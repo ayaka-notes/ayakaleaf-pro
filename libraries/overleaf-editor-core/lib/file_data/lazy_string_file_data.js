@@ -4,11 +4,13 @@
 const _ = require('lodash')
 const assert = require('check-types').assert
 
+const OError = require('@overleaf/o-error')
 const Blob = require('../blob')
 const FileData = require('./')
 const EagerStringFileData = require('./string_file_data')
 const EditOperation = require('../operation/edit_operation')
 const EditOperationBuilder = require('../operation/edit_operation_builder')
+const TextOperation = require('../operation/text_operation')
 
 /**
  *  @import { BlobStore, ReadonlyBlobStore, RangesBlob, RawHashFileData, RawLazyStringFileData } from '../types'
@@ -69,6 +71,25 @@ class LazyStringFileData extends FileData {
       })
     }
     return raw
+  }
+
+  /**
+   * @returns {Record<string, number>}
+   */
+  toStats() {
+    return {
+      hashes: 1 + (this.rangesHash ? 1 : 0),
+      stringLength: this.stringLength,
+      nOperations: this.operations.length,
+      operationsSize:
+        this.operations.length > 0
+          ? this.operations.reduce(
+              // Note: Buffer does not exist in frontend. Use string length instead.
+              (sum, op) => sum + JSON.stringify(op.toJSON()).length,
+              0
+            )
+          : 0,
+    }
   }
 
   /** @inheritdoc */
@@ -133,7 +154,25 @@ class LazyStringFileData extends FileData {
       ranges?.comments,
       ranges?.trackedChanges
     )
-    applyOperations(this.operations, file)
+    try {
+      applyOperations(this.operations, file)
+    } catch (err) {
+      const firstOp = this.operations[0]
+      const firstOpBaseLength =
+        firstOp instanceof TextOperation ? firstOp.baseLength : undefined
+      throw OError.tag(err, 'failed to apply operations in toEager', {
+        blobHash: this.hash,
+        blobContentLength: content.length,
+        metadataStringLength: this.stringLength,
+        totalOperations: this.operations.length,
+        firstOpBaseLength,
+        contentMatchesMetadata: content.length === this.stringLength,
+        contentMatchesFirstOp:
+          typeof firstOpBaseLength === 'number'
+            ? content.length === firstOpBaseLength
+            : undefined,
+      })
+    }
     return file
   }
 
@@ -153,7 +192,18 @@ class LazyStringFileData extends FileData {
    * @param {EditOperation} operation
    */
   edit(operation) {
-    this.stringLength = operation.applyToLength(this.stringLength)
+    try {
+      this.stringLength = operation.applyToLength(this.stringLength)
+    } catch (err) {
+      const baseLength =
+        operation instanceof TextOperation ? operation.baseLength : undefined
+      throw OError.tag(err, 'failed to apply operation length in edit', {
+        blobHash: this.hash,
+        metadataStringLength: this.stringLength,
+        operationBaseLength: baseLength,
+        totalExistingOperations: this.operations.length,
+      })
+    }
     this.operations.push(operation)
   }
 
@@ -186,7 +236,17 @@ class LazyStringFileData extends FileData {
  * @returns {void}
  */
 function applyOperations(operations, file) {
-  _.each(operations, operation => operation.apply(file))
+  for (let i = 0; i < operations.length; i++) {
+    try {
+      operations[i].apply(file)
+    } catch (err) {
+      throw OError.tag(err, 'operation failed during applyOperations', {
+        operationIndex: i,
+        totalOperations: operations.length,
+        currentContentLength: file.getStringLength(),
+      })
+    }
+  }
 }
 
 module.exports = LazyStringFileData

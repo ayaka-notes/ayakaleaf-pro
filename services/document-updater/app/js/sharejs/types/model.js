@@ -618,12 +618,12 @@ module.exports = Model = function (db, options) {
   // after.
   this.getOps = getOps = function (docName, start, end, callback) {
     // getOps will only use the op cache if its there. It won't fill the op cache in.
-    if (!(start >= 0)) {
-      throw new Error('start must be 0+')
-    }
-
     if (typeof end === 'function') {
       ;[end, callback] = Array.from([null, end])
+    }
+
+    if (!(start >= 0)) {
+      return callback(new Error('start must be 0+'))
     }
 
     const ops = docs[docName] != null ? docs[docName].ops : undefined

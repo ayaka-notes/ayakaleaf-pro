@@ -5,50 +5,101 @@ import { JSXElementConstructor, lazy, Suspense, useCallback } from 'react'
 import { Nullable } from '../../../../../../types/utils'
 import { FullSizeLoadingSpinner } from '@/shared/components/loading-spinner'
 import { useLocation } from '@/shared/hooks/use-location'
+import { Tag } from '../../../../../../app/src/Features/Tags/types'
 
 const UploadProjectModal = lazy(() => import('./upload-project-modal'))
+const ImportDocumentModal = lazy(() => import('./import-document-modal'))
 
 export type NewProjectButtonModalVariant =
   | 'blank_project'
   | 'example_project'
   | 'upload_project'
   | 'import_from_github'
+  | 'import_from_gitlab'
+  | 'import_from_gitea'
+  | 'import_docx'
+  | 'import_markdown'
 
 type NewProjectButtonModalProps = {
   modal: Nullable<NewProjectButtonModalVariant>
   onHide: () => void
+  initialTags?: Tag[]
 }
 
-function NewProjectButtonModal({ modal, onHide }: NewProjectButtonModalProps) {
+function NewProjectButtonModal({
+  modal,
+  onHide,
+  initialTags,
+}: NewProjectButtonModalProps) {
   const [importProjectFromGithubModalWrapper] = importOverleafModules(
     'importProjectFromGithubModalWrapper'
   )
   const ImportProjectFromGithubModalWrapper: JSXElementConstructor<{
     onHide: () => void
   }> = importProjectFromGithubModalWrapper?.import.default
+  const [importProjectFromGitlabModalWrapper] = importOverleafModules(
+    'importProjectFromGitlabModalWrapper'
+  )
+  const ImportProjectFromGitlabModalWrapper: JSXElementConstructor<{
+    onHide: () => void
+  }> = importProjectFromGitlabModalWrapper?.import.default
+  const [importProjectFromGiteaModalWrapper] = importOverleafModules(
+    'importProjectFromGiteaModalWrapper'
+  )
+  const ImportProjectFromGiteaModalWrapper: JSXElementConstructor<{
+    onHide: () => void
+  }> = importProjectFromGiteaModalWrapper?.import.default
 
   const location = useLocation()
 
   const openProject = useCallback(
-    (projectId: string) => {
-      location.assign(`/project/${projectId}`)
+    (projectId: string, convertedFrom?: string) => {
+      const url = convertedFrom
+        ? `/project/${projectId}?converted-from=${convertedFrom}`
+        : `/project/${projectId}`
+
+      location.assign(url)
     },
     [location]
   )
 
   switch (modal) {
     case 'blank_project':
-      return <BlankProjectModal onHide={onHide} />
+      return <BlankProjectModal onHide={onHide} initialTags={initialTags} />
     case 'example_project':
-      return <ExampleProjectModal onHide={onHide} />
+      return <ExampleProjectModal onHide={onHide} initialTags={initialTags} />
     case 'upload_project':
       return (
         <Suspense fallback={<FullSizeLoadingSpinner delay={500} />}>
           <UploadProjectModal onHide={onHide} openProject={openProject} />
         </Suspense>
       )
+    case 'import_docx':
+      return (
+        <Suspense fallback={<FullSizeLoadingSpinner delay={500} />}>
+          <ImportDocumentModal
+            type="docx"
+            onHide={onHide}
+            openProject={openProject}
+          />
+        </Suspense>
+      )
+    case 'import_markdown':
+      return (
+        <Suspense fallback={<FullSizeLoadingSpinner delay={500} />}>
+          <ImportDocumentModal
+            type="markdown"
+            onHide={onHide}
+            openProject={openProject}
+          />
+        </Suspense>
+      )
     case 'import_from_github':
       return <ImportProjectFromGithubModalWrapper onHide={onHide} />
+    case 'import_from_gitlab':
+      return <ImportProjectFromGitlabModalWrapper onHide={onHide} />
+    case 'import_from_gitea':
+      return <ImportProjectFromGiteaModalWrapper onHide={onHide} />
     default:
       return null
   }

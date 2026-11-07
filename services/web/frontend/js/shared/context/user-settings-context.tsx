@@ -10,11 +10,12 @@ import {
 import { UserSettings } from '../../../../types/user-settings'
 import getMeta from '@/utils/meta'
 
-const defaultSettings: UserSettings = {
+export const defaultSettings: UserSettings = {
   pdfViewer: 'pdfjs',
   autoComplete: true,
   autoPairDelimiters: true,
   syntaxValidation: false,
+  previewTabs: false,
   editorTheme: 'textmate',
   editorDarkTheme: 'overleaf_dark',
   editorLightTheme: 'textmate',
@@ -24,11 +25,27 @@ const defaultSettings: UserSettings = {
   fontFamily: 'monaco',
   lineHeight: 'normal',
   mathPreview: true,
+  editorTabs: true,
   referencesSearchMode: 'advanced',
-  enableNewEditor: true,
-  enableNewEditorLegacy: true,
-  breadcrumbs: true,
+  breadcrumbs: false,
+  nonBlinkingCursor: false,
   darkModePdf: false,
+  floatingMenu: true,
+  zotero: {
+    enabled: true,
+    groups: [],
+    disablePersonalLibrary: false,
+  },
+  mendeley: {
+    enabled: true,
+    groups: [],
+    disablePersonalLibrary: false,
+  },
+  papers: {
+    enabled: true,
+    groups: [],
+    disablePersonalLibrary: false,
+  },
 }
 
 type UserSettingsContextValue = {

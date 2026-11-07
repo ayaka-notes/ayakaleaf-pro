@@ -9,6 +9,7 @@ import {
 import { visualHighlightStyle, visualTheme } from './visual-theme'
 import { atomicDecorations } from './atomic-decorations'
 import { markDecorations } from './mark-decorations'
+import importOverleafModules from '../../../../../macros/import-overleaf-module.macro'
 import { EditorView, ViewPlugin } from '@codemirror/view'
 import { visualKeymap } from './visual-keymap'
 import { mousedown, mouseDownEffect } from './selection'
@@ -20,12 +21,15 @@ import { pasteHtml } from './paste-html'
 import { commandTooltip } from '../command-tooltip'
 import { tableGeneratorTheme } from './table-generator'
 import { debugConsole } from '@/utils/debugging'
-import { PreviewPath } from '../../../../../../types/preview-path'
+import { getFileExtension } from '../../utils/file'
 
-type Options = {
-  visual: boolean
-  previewByPath: (path: string) => PreviewPath | null
-}
+// Module-provided visual editors registered via the
+// `sourceEditorVisualExtensions` hook. Module exposes `getExtensions(ext)`,
+// returning the visual-mode extensions for that file extension. A module match takes precedence
+// over the LaTeX fallback
+const moduleVisualExtensionProviders: Array<{
+  import: { getExtensions: (ext: string) => Extension }
+}> = importOverleafModules('sourceEditorVisualExtensions')
 
 const visualConf = new Compartment()
 
@@ -45,13 +49,16 @@ const visualState = StateField.define<boolean>({
   },
 })
 
-const configureVisualExtensions = (options: Options) =>
-  options.visual ? extension(options) : []
+const configureVisualExtensions = (showVisual: boolean) =>
+  showVisual ? sharedVisualExtensions() : []
 
-export const visual = (options: Options): Extension => {
+export const visual = (docName: string, showVisual: boolean): Extension => {
+  const extensions = visualModuleExtensions(docName) ?? latexVisualExtensions()
+
   return [
-    visualState.init(() => options.visual),
-    visualConf.of(configureVisualExtensions(options)),
+    visualState.init(() => showVisual),
+    visualConf.of(configureVisualExtensions(showVisual)),
+    visualOnly(showVisual, extensions),
   ]
 }
 
@@ -59,18 +66,26 @@ export const isVisual = (view: EditorView) => {
   return view.state.field(visualState, false) || false
 }
 
-export const setVisual = (options: Options): TransactionSpec => {
+export const setVisual = (showVisual: boolean): TransactionSpec => {
   return {
     effects: [
-      toggleVisualEffect.of(options.visual),
-      visualConf.reconfigure(configureVisualExtensions(options)),
+      toggleVisualEffect.of(showVisual),
+      visualConf.reconfigure(configureVisualExtensions(showVisual)),
     ],
   }
 }
 
-export const sourceOnly = (visual: boolean, extension: Extension) => {
+// Loads `extension` only while the editor is in a particular mode, reacting to
+// mode switches via `toggleVisualEffect`. `activeWhenVisual` selects which mode:
+// `true` for visual-only, `false` for source-only.
+const modeOnly = (
+  activeWhenVisual: boolean,
+  visual: boolean,
+  extension: Extension
+) => {
   const conf = new Compartment()
-  const configure = (visual: boolean) => (visual ? [] : extension)
+  const configure = (visual: boolean) =>
+    visual === activeWhenVisual ? extension : []
   return [
     conf.of(configure(visual)),
 
@@ -87,6 +102,12 @@ export const sourceOnly = (visual: boolean, extension: Extension) => {
     }),
   ]
 }
+
+export const visualOnly = (visual: boolean, extension: Extension) =>
+  modeOnly(true, visual, extension)
+
+export const sourceOnly = (visual: boolean, extension: Extension) =>
+  modeOnly(false, visual, extension)
 
 const parsedAttributesConf = new Compartment()
 
@@ -165,18 +186,39 @@ const scrollJumpAdjuster = EditorState.transactionExtender.of(tr => {
   return {}
 })
 
-const extension = (options: Options) => [
+const sharedVisualExtensions = () => [
   visualTheme,
   visualHighlightStyle,
   mousedown,
+  scrollJumpAdjuster,
+  showContentWhenParsed,
+  EditorView.contentAttributes.of({ 'aria-label': 'Visual Editor editing' }),
+]
+
+const latexVisualExtensions = (): Extension => [
   listItemMarker,
-  atomicDecorations(options),
+  atomicDecorations,
   markDecorations, // NOTE: must be after atomicDecorations, so that mark decorations wrap inline widgets
   visualKeymap,
   commandTooltip,
-  scrollJumpAdjuster,
-  showContentWhenParsed,
   pasteHtml,
   tableGeneratorTheme,
-  EditorView.contentAttributes.of({ 'aria-label': 'Visual Editor editing' }),
 ]
+
+// Returns the visual-mode extensions provided by a module for the active document
+const visualModuleExtensions = (docName: string): Extension | null => {
+  const fileExt = getFileExtension(docName)
+  if (!fileExt) {
+    return null
+  }
+
+  for (const provider of moduleVisualExtensionProviders) {
+    const result = provider.import.getExtensions(fileExt)
+    const extensions = Array.isArray(result) ? result : [result]
+    if (extensions.length > 0) {
+      return extensions
+    }
+  }
+
+  return null
+}

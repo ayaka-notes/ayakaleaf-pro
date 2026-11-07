@@ -1,12 +1,16 @@
 extends ../layout-react
 
+block vars
+	- isWebsiteRedesign = true
+
 block entrypointVar
 	- entrypoint = 'pages/user/subscription/successful-subscription'
 
 block append meta
 	meta(name='ol-subscription' data-type='json' content=personalSubscription)
 	meta(name='ol-postCheckoutRedirect' content=postCheckoutRedirect)
+	meta(name='ol-isUpgrade' data-type='boolean' content=isUpgrade)
 	meta(name='ol-user' data-type='json' content=user)
 
 block content
-	main#subscription-success-root.content.content-alt
+	main#subscription-success-root.content

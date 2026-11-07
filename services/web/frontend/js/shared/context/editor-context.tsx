@@ -14,11 +14,16 @@ import { useProjectContext } from './project-context'
 import { useDetachContext } from './detach-context'
 import getMeta from '../../utils/meta'
 import { useUserContext } from './user-context'
-import { saveProjectSettings } from '@/features/editor-left-menu/utils/api'
+import { saveProjectSettings } from '@/features/ide-settings/utils/api'
 import { useModalsContext } from '@/features/ide-react/context/modals-context'
 import { WritefullAPI } from './types/writefull-instance'
 import { Cobranding } from '../../../../types/cobranding'
 import { SymbolWithCharacter } from '../../../../modules/symbol-palette/frontend/js/data/symbols'
+
+type UpgradeTrackChangesModal = {
+  show: boolean
+  location?: string
+}
 
 export const EditorContext = createContext<
   | {
@@ -29,16 +34,22 @@ export const EditorContext = createContext<
       isProjectOwner: boolean
       isRestrictedTokenMember?: boolean
       isPendingEditor: boolean
-      deactivateTutorial: (tutorial: string) => void
-      inactiveTutorials: string[]
-      currentPopup: string | null
-      setCurrentPopup: Dispatch<SetStateAction<string | null>>
-      hasPremiumSuggestion: boolean
-      setHasPremiumSuggestion: (value: boolean) => void
-      setPremiumSuggestionResetDate: (date: Date) => void
+      hasSuggestionsLeft: boolean
+      suggestionsLeft: number
+      setSuggestionsLeft: (value: number) => void
       premiumSuggestionResetDate: Date
+      setPremiumSuggestionResetDate: (date: Date) => void
+      hasTokensLeft: boolean
+      tokensLeft: number
+      setTokensLeft: (value: number) => void
+      tokenResetDate: Date
+      setTokenResetDate: (date: Date) => void
       writefullInstance: WritefullAPI | null
       setWritefullInstance: (instance: WritefullAPI) => void
+      upgradeTrackChangesModal: UpgradeTrackChangesModal
+      setUpgradeTrackChangesModal: Dispatch<
+        SetStateAction<UpgradeTrackChangesModal>
+      >
     }
   | undefined
 >(undefined)
@@ -75,25 +86,36 @@ export const EditorProvider: FC<React.PropsWithChildren> = ({ children }) => {
     )
   }, [])
 
-  const [inactiveTutorials, setInactiveTutorials] = useState(
-    () => getMeta('ol-inactiveTutorials') || []
+  const [suggestionsLeft, setSuggestionsLeft] = useState<number>(() => {
+    return featureUsage?.aiFeatureUsage?.remainingUsage || 0
+  })
+
+  const hasSuggestionsLeft = useMemo(
+    () => suggestionsLeft > 0,
+    [suggestionsLeft]
   )
 
-  const [currentPopup, setCurrentPopup] = useState<string | null>(null)
-  const [hasPremiumSuggestion, setHasPremiumSuggestion] = useState<boolean>(
-    () => {
-      return Boolean(
-        featureUsage?.aiErrorAssistant &&
-        featureUsage?.aiErrorAssistant.remainingUsage > 0
-      )
-    }
-  )
   const [premiumSuggestionResetDate, setPremiumSuggestionResetDate] =
     useState<Date>(() => {
-      return featureUsage?.aiErrorAssistant?.resetDate
-        ? new Date(featureUsage.aiErrorAssistant.resetDate)
+      return featureUsage?.aiFeatureUsage?.resetDate
+        ? new Date(featureUsage.aiFeatureUsage.resetDate)
         : new Date()
     })
+
+  const [tokensLeft, setTokensLeft] = useState<number>(() => {
+    return featureUsage?.aiWorkbench?.remainingTokens || 0
+  })
+
+  const hasTokensLeft = useMemo(() => tokensLeft > 0, [tokensLeft])
+
+  const [tokenResetDate, setTokenResetDate] = useState<Date>(() => {
+    return featureUsage?.aiWorkbench?.resetDate
+      ? new Date(featureUsage.aiWorkbench.resetDate)
+      : new Date()
+  })
+
+  const [showUpgradeModal, setShowUpgradeModal] =
+    useState<UpgradeTrackChangesModal>({ show: false })
 
   const isPendingEditor = useMemo(
     () =>
@@ -105,13 +127,6 @@ export const EditorProvider: FC<React.PropsWithChildren> = ({ children }) => {
         )
       ),
     [members, userId]
-  )
-
-  const deactivateTutorial = useCallback(
-    (tutorialKey: string) => {
-      setInactiveTutorials([...inactiveTutorials, tutorialKey])
-    },
-    [inactiveTutorials]
   )
 
   const renameProject = useCallback(
@@ -176,16 +191,20 @@ export const EditorProvider: FC<React.PropsWithChildren> = ({ children }) => {
       isRestrictedTokenMember: getMeta('ol-isRestrictedTokenMember'),
       isPendingEditor,
       insertSymbol,
-      inactiveTutorials,
-      deactivateTutorial,
-      currentPopup,
-      setCurrentPopup,
-      hasPremiumSuggestion,
-      setHasPremiumSuggestion,
+      hasSuggestionsLeft,
+      suggestionsLeft,
+      setSuggestionsLeft,
       premiumSuggestionResetDate,
       setPremiumSuggestionResetDate,
+      hasTokensLeft,
+      tokensLeft,
+      setTokensLeft,
+      tokenResetDate,
+      setTokenResetDate,
       writefullInstance,
       setWritefullInstance,
+      upgradeTrackChangesModal: showUpgradeModal,
+      setUpgradeTrackChangesModal: setShowUpgradeModal,
     }),
     [
       cobranding,
@@ -195,16 +214,20 @@ export const EditorProvider: FC<React.PropsWithChildren> = ({ children }) => {
       renameProject,
       isPendingEditor,
       insertSymbol,
-      inactiveTutorials,
-      deactivateTutorial,
-      currentPopup,
-      setCurrentPopup,
-      hasPremiumSuggestion,
-      setHasPremiumSuggestion,
+      hasSuggestionsLeft,
+      suggestionsLeft,
+      setSuggestionsLeft,
       premiumSuggestionResetDate,
       setPremiumSuggestionResetDate,
+      hasTokensLeft,
+      tokensLeft,
+      setTokensLeft,
+      tokenResetDate,
+      setTokenResetDate,
       writefullInstance,
       setWritefullInstance,
+      showUpgradeModal,
+      setShowUpgradeModal,
     ]
   )
 

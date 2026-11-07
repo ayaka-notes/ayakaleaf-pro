@@ -1,0 +1,9734 @@
+[
+  {
+    "classIndex": 0,
+    "command": "\\#",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1,
+    "command": "\\$",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 2,
+    "command": "\\%",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 3,
+    "command": "\\&",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 4,
+    "command": "\\--",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 5,
+    "command": "\\---",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 6,
+    "command": "\\----",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 7,
+    "command": "\\AA",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 8,
+    "command": "\\AE",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 9,
+    "command": "\\Ankh",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 10,
+    "command": "\\Aquarius",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 11,
+    "command": "\\Aries",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 12,
+    "command": "\\Bat",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 13,
+    "command": "\\Bbbk",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 14,
+    "command": "\\Bbbsum",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 15,
+    "command": "\\Bowtie",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 16,
+    "command": "\\Bumpeq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 17,
+    "command": "\\Cancer",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 18,
+    "command": "\\Cap",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 19,
+    "command": "\\Capricorn",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 20,
+    "command": "\\Celtcross",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 21,
+    "command": "\\CircDivd",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 22,
+    "command": "\\CircMinus",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 23,
+    "command": "\\CircNand",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 24,
+    "command": "\\CircNd",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 25,
+    "command": "\\CircNgt",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 26,
+    "command": "\\CircNor",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 27,
+    "command": "\\CircNt",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 28,
+    "command": "\\CircOr",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 29,
+    "command": "\\CircTimes",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 30,
+    "command": "\\CircledA",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 31,
+    "command": "\\Colonapprox",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 32,
+    "command": "\\Coloneq",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 33,
+    "command": "\\Colonsim",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 34,
+    "command": "\\Cross",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 35,
+    "command": "\\Cup",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 36,
+    "command": "\\DAsterisk",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 37,
+    "command": "\\DH",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 38,
+    "command": "\\DJ",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 39,
+    "command": "\\DMinus",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 40,
+    "command": "\\DOWNarrow",
+    "package": "wasysym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 41,
+    "command": "\\DTrpTurn",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 42,
+    "command": "\\DTurnDWavy",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 43,
+    "command": "\\DTurnWavy",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 44,
+    "command": "\\DashV",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 45,
+    "command": "\\DashVDash",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 46,
+    "command": "\\Ddagger",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 47,
+    "command": "\\Ddaggerr",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 48,
+    "command": "\\Ddashv",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 49,
+    "command": "\\Delta",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 50,
+    "command": "\\Denarius",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 51,
+    "command": "\\DiamondLeft",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 52,
+    "command": "\\DiamondRight",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 53,
+    "command": "\\DiamonddotLeft",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 54,
+    "command": "\\DiamonddotRight",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 55,
+    "command": "\\Diamonddotright",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 56,
+    "command": "\\Diamondright",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 57,
+    "command": "\\Dnd",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 58,
+    "command": "\\Dnt",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 59,
+    "command": "\\Dor",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 60,
+    "command": "\\Doteq",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 61,
+    "command": "\\Downarrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 62,
+    "command": "\\EUR",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 63,
+    "command": "\\EURcr",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 64,
+    "command": "\\EURdig",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 65,
+    "command": "\\EURhv",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 66,
+    "command": "\\EURtm",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 67,
+    "command": "\\Earth",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 68,
+    "command": "\\Ecommerce",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 69,
+    "command": "\\Email",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 70,
+    "command": "\\Emailct",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 71,
+    "command": "\\Eqcolon",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 72,
+    "command": "\\Eqqcolon",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 73,
+    "command": "\\EyesDollar",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 74,
+    "command": "\\FAX",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 75,
+    "command": "\\Faxmachine",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 76,
+    "command": "\\Finv",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 77,
+    "command": "\\Frowny",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 78,
+    "command": "\\Game",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 79,
+    "command": "\\Gamma",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 80,
+    "command": "\\Gemini",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 81,
+    "command": "\\Heart",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 82,
+    "command": "\\Im",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 83,
+    "command": "\\Jupiter",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 84,
+    "command": "\\L",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 85,
+    "command": "\\LEFTarrow",
+    "package": "wasysym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 86,
+    "command": "\\LHD",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 87,
+    "command": "\\Lambda",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 88,
+    "command": "\\Lbag",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 89,
+    "command": "\\Leftarrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 90,
+    "command": "\\Leftrightarrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 91,
+    "command": "\\Leo",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 92,
+    "command": "\\Letter",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 93,
+    "command": "\\Libra",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 94,
+    "command": "\\Lightning",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 95,
+    "command": "\\Lleftarrow",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 96,
+    "command": "\\Longleftarrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 97,
+    "command": "\\Longleftrightarrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 98,
+    "command": "\\Longmapsfrom",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 99,
+    "command": "\\Longmapsto",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 100,
+    "command": "\\Longrightarrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 101,
+    "command": "\\Lparengtr",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 102,
+    "command": "\\Lsh",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 103,
+    "command": "\\Lt",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 104,
+    "command": "\\Lvzigzag",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 105,
+    "command": "\\MVAt",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 106,
+    "command": "\\MVRightarrow",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 107,
+    "command": "\\Mapsfrom",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 108,
+    "command": "\\Mapsto",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 109,
+    "command": "\\Mars",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 110,
+    "command": "\\Mercury",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 111,
+    "command": "\\Mobilefone",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 112,
+    "command": "\\Moon",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 113,
+    "command": "\\Mundus",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 114,
+    "command": "\\NG",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 115,
+    "command": "\\Neptune",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 116,
+    "command": "\\Not",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 117,
+    "command": "\\NotDTurnDWavy",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 118,
+    "command": "\\NotDTurnWavy",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 119,
+    "command": "\\NotTurnWavy",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 120,
+    "command": "\\O",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 121,
+    "command": "\\OE",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 122,
+    "command": "\\Omega",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 123,
+    "command": "\\Otimes",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 124,
+    "command": "\\P",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 125,
+    "command": "\\Pfund",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 126,
+    "command": "\\Phi",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 127,
+    "command": "\\Pi",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 128,
+    "command": "\\Pickup",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 129,
+    "command": "\\Pisces",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 130,
+    "command": "\\Pluto",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 131,
+    "command": "\\Prec",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 132,
+    "command": "\\Psi",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 133,
+    "command": "\\RHD",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 134,
+    "command": "\\RIGHTarrow",
+    "package": "wasysym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 135,
+    "command": "\\Rbag",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 136,
+    "command": "\\Rbrbrak",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 137,
+    "command": "\\Re",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 138,
+    "command": "\\Rightarrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 139,
+    "command": "\\Rparenless",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 140,
+    "command": "\\Rrightarrow",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 141,
+    "command": "\\Rsh",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 142,
+    "command": "\\Rvzigzag",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 143,
+    "command": "\\S",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 144,
+    "command": "\\SS",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 145,
+    "command": "\\Sagittarius",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 146,
+    "command": "\\Saturn",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 147,
+    "command": "\\SbNand",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 148,
+    "command": "\\SbNd",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 149,
+    "command": "\\SbNor",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 150,
+    "command": "\\SbOr",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 151,
+    "command": "\\Scorpio",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 152,
+    "command": "\\Seq",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 153,
+    "command": "\\Shilling",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 154,
+    "command": "\\Sigma",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 155,
+    "command": "\\Smiley",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 156,
+    "command": "\\Subset",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 157,
+    "command": "\\Sun",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 158,
+    "command": "\\Supset",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 159,
+    "command": "\\TH",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 160,
+    "command": "\\Taurus",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 161,
+    "command": "\\Telefon",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 162,
+    "command": "\\Theta",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 163,
+    "command": "\\TripleQuote",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 164,
+    "command": "\\TrpTurn",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 165,
+    "command": "\\TurnDWavy",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 166,
+    "command": "\\TurnWavy",
+    "package": "logix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 167,
+    "command": "\\UParrow",
+    "package": "wasysym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 168,
+    "command": "\\Uparrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 169,
+    "command": "\\Updelta",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 170,
+    "command": "\\Updownarrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 171,
+    "command": "\\Upgamma",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 172,
+    "command": "\\Uplambda",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 173,
+    "command": "\\Upomega",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 174,
+    "command": "\\Upphi",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 175,
+    "command": "\\Uppi",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 176,
+    "command": "\\Uppsi",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 177,
+    "command": "\\Upsigma",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 178,
+    "command": "\\Upsilon",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 179,
+    "command": "\\Uptheta",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 180,
+    "command": "\\Upupsilon",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 181,
+    "command": "\\Upxi",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 182,
+    "command": "\\Uranus",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 183,
+    "command": "\\VDash",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 184,
+    "command": "\\Vdash",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 185,
+    "command": "\\Vee",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 186,
+    "command": "\\Venus",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 187,
+    "command": "\\Virgo",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 188,
+    "command": "\\VvDash",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 189,
+    "command": "\\Vvdash",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 190,
+    "command": "\\Xi",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 191,
+    "command": "\\Yinyang",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 192,
+    "command": "\\Yleft",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 193,
+    "command": "\\Yright",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 194,
+    "command": "\\Yup",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 195,
+    "command": "\\_",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 196,
+    "command": "\\aa",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 197,
+    "command": "\\acidfree",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 198,
+    "command": "\\ae",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 199,
+    "command": "\\aleph",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 200,
+    "command": "\\alpha",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 201,
+    "command": "\\amalg",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 202,
+    "command": "\\angle",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 203,
+    "command": "\\angles",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 204,
+    "command": "\\approx",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 205,
+    "command": "\\approxeq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 206,
+    "command": "\\approxeqq",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 207,
+    "command": "\\approxident",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 208,
+    "command": "\\aquarius",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 209,
+    "command": "\\arceq",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 210,
+    "command": "\\aries",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 211,
+    "command": "\\ascnode",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 212,
+    "command": "\\ast",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 213,
+    "command": "\\asteq",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 214,
+    "command": "\\astrosun",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 215,
+    "command": "\\asymp",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 216,
+    "command": "\\ataribox",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 217,
+    "command": "\\awintup",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 218,
+    "command": "\\backapproxeq",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 219,
+    "command": "\\backcong",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 220,
+    "command": "\\backepsilon",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 221,
+    "command": "\\backprime",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 222,
+    "command": "\\backsim",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 223,
+    "command": "\\backsimeq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 224,
+    "command": "\\backsimneqq",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 225,
+    "command": "\\backslash",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 226,
+    "command": "\\backtriplesim",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 227,
+    "command": "\\barleftharpoon",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 228,
+    "command": "\\barrightharpoon",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 229,
+    "command": "\\barwedge",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 230,
+    "command": "\\because",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 231,
+    "command": "\\bell",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 232,
+    "command": "\\beta",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 233,
+    "command": "\\beth",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 234,
+    "command": "\\between",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 235,
+    "command": "\\bigcap",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 236,
+    "command": "\\bigcapdot",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 237,
+    "command": "\\bigcapplus",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 238,
+    "command": "\\bigcirc",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 239,
+    "command": "\\bigcup",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 240,
+    "command": "\\bigcupdot",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 241,
+    "command": "\\bigcupplus",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 242,
+    "command": "\\bigcurlyveedot",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 243,
+    "command": "\\bigdoublecurlyvee",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 244,
+    "command": "\\bigobackslash",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 245,
+    "command": "\\bigodot",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 246,
+    "command": "\\bigoplus",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 247,
+    "command": "\\bigotimes",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 248,
+    "command": "\\bigotriangle",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 249,
+    "command": "\\bigpumpkin",
+    "package": "halloweenmath",
+    "mode": "math"
+  },
+  {
+    "classIndex": 250,
+    "command": "\\bigsqcapplus",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 251,
+    "command": "\\bigsqcup",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 252,
+    "command": "\\bigsqcupdot",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 253,
+    "command": "\\bigsqcupplus",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 254,
+    "command": "\\bigstar",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 255,
+    "command": "\\bigtriangledown",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 256,
+    "command": "\\bigtriangleup",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 257,
+    "command": "\\biguplus",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 258,
+    "command": "\\bigvarstar",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 259,
+    "command": "\\bigvee",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 260,
+    "command": "\\bigveedot",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 261,
+    "command": "\\bigwedge",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 262,
+    "command": "\\bigwedgedot",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 263,
+    "command": "\\blacklozenge",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 264,
+    "command": "\\blacksmiley",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 265,
+    "command": "\\blacksquare",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 266,
+    "command": "\\blacktriangle",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 267,
+    "command": "\\blacktriangledown",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 268,
+    "command": "\\blacktriangleleft",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 269,
+    "command": "\\blacktriangleright",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 270,
+    "command": "\\bot",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 271,
+    "command": "\\bowtie",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 272,
+    "command": "\\boxLeft",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 273,
+    "command": "\\boxRight",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 274,
+    "command": "\\boxast",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 275,
+    "command": "\\boxbox",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 276,
+    "command": "\\boxbslash",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 277,
+    "command": "\\boxcoasterisk",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 278,
+    "command": "\\boxdiv",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 279,
+    "command": "\\boxdot",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 280,
+    "command": "\\boxdotLeft",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 281,
+    "command": "\\boxdotleft",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 282,
+    "command": "\\boxdotright",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 283,
+    "command": "\\boxleft",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 284,
+    "command": "\\boxminus",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 285,
+    "command": "\\boxplus",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 286,
+    "command": "\\boxright",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 287,
+    "command": "\\boxslash",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 288,
+    "command": "\\boxtimes",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 289,
+    "command": "\\brokenvert",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 290,
+    "command": "\\bullet",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 291,
+    "command": "\\bumpeq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 292,
+    "command": "\\bumpeqq",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 293,
+    "command": "\\cancer",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 294,
+    "command": "\\cap",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 295,
+    "command": "\\capbarcup",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 296,
+    "command": "\\capdot",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 297,
+    "command": "\\capovercup",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 298,
+    "command": "\\capplus",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 299,
+    "command": "\\capricornus",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 300,
+    "command": "\\capwedge",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 301,
+    "command": "\\cdot",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 302,
+    "command": "\\cdotp",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 303,
+    "command": "\\cdots",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 304,
+    "command": "\\celsius",
+    "package": "gensymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 305,
+    "command": "\\cent",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 306,
+    "command": "\\centerdot",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 307,
+    "command": "\\checked",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 308,
+    "command": "\\checkmark",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 309,
+    "command": "\\chi",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 310,
+    "command": "\\cirbot",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 311,
+    "command": "\\circ",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 312,
+    "command": "\\circeq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 313,
+    "command": "\\circlearrowleft",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 314,
+    "command": "\\circlearrowright",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 315,
+    "command": "\\circledR",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 316,
+    "command": "\\circledS",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 317,
+    "command": "\\circledast",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 318,
+    "command": "\\circledcirc",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 319,
+    "command": "\\circleddash",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 320,
+    "command": "\\circleddotright",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 321,
+    "command": "\\circledequal",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 322,
+    "command": "\\circplus",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 323,
+    "command": "\\cirfnint",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 324,
+    "command": "\\cirfnintup",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 325,
+    "command": "\\clock",
+    "package": "wasysym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 326,
+    "command": "\\closedcurlywedge",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 327,
+    "command": "\\closedequal",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 328,
+    "command": "\\closedprec",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 329,
+    "command": "\\closedvarcap",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 330,
+    "command": "\\closedvarcup",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 331,
+    "command": "\\closedvarcupsmashprod",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 332,
+    "command": "\\closure",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 333,
+    "command": "\\clubsuit",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 334,
+    "command": "\\colon",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 335,
+    "command": "\\colonapprox",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 336,
+    "command": "\\coloneq",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 337,
+    "command": "\\coloneqq",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 338,
+    "command": "\\colonsim",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 339,
+    "command": "\\commaminus",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 340,
+    "command": "\\complement",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 341,
+    "command": "\\concavediamondtickleft",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 342,
+    "command": "\\cong",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 343,
+    "command": "\\congdot",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 344,
+    "command": "\\conjunction",
+    "package": "wasysym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 345,
+    "command": "\\convolution",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 346,
+    "command": "\\coprod",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 347,
+    "command": "\\copyright",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 348,
+    "command": "\\corresponds",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 349,
+    "command": "\\crossing",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 350,
+    "command": "\\csub",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 351,
+    "command": "\\csube",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 352,
+    "command": "\\csupe",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 353,
+    "command": "\\cup",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 354,
+    "command": "\\cupbarcap",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 355,
+    "command": "\\cupdot",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 356,
+    "command": "\\cupleftarrow",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 357,
+    "command": "\\cupovercap",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 358,
+    "command": "\\cupplus",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 359,
+    "command": "\\cupvee",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 360,
+    "command": "\\curlyeqprec",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 361,
+    "command": "\\curlyeqsucc",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 362,
+    "command": "\\curlyvee",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 363,
+    "command": "\\curlyveedownarrow",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 364,
+    "command": "\\curlyveeuparrow",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 365,
+    "command": "\\curlywedge",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 366,
+    "command": "\\curlywedgedot",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 367,
+    "command": "\\curlywedgedownarrow",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 368,
+    "command": "\\curlywedgeuparrow",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 369,
+    "command": "\\currency",
+    "package": "wasysym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 370,
+    "command": "\\curvearrowleft",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 371,
+    "command": "\\curvearrowleftright",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 372,
+    "command": "\\curvearrowright",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 373,
+    "command": "\\dag",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 374,
+    "command": "\\dagger",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 375,
+    "command": "\\daleth",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 376,
+    "command": "\\dashVdash",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 377,
+    "command": "\\dashVv",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 378,
+    "command": "\\dashcolon",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 379,
+    "command": "\\dashleftarrow",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 380,
+    "command": "\\dashleftrightarrow",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 381,
+    "command": "\\dashrightarrow",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 382,
+    "command": "\\dashv",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 383,
+    "command": "\\ddag",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 384,
+    "command": "\\ddagger",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 385,
+    "command": "\\ddotdot",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 386,
+    "command": "\\ddots",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 387,
+    "command": "\\ddotseq",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 388,
+    "command": "\\degree",
+    "package": "gensymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 389,
+    "command": "\\delta",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 390,
+    "command": "\\descnode",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 391,
+    "command": "\\dh",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 392,
+    "command": "\\diagdown",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 393,
+    "command": "\\diagup",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 394,
+    "command": "\\diameter",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 395,
+    "command": "\\diamond",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 396,
+    "command": "\\diamondsuit",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 397,
+    "command": "\\digamma",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 398,
+    "command": "\\disjquant",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 399,
+    "command": "\\div",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 400,
+    "command": "\\divdot",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 401,
+    "command": "\\divideontimes",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 402,
+    "command": "\\dj",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 403,
+    "command": "\\dot*",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 404,
+    "command": "\\dotcong",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 405,
+    "command": "\\dotdiv",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 406,
+    "command": "\\doteq",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 407,
+    "command": "\\doteqdot",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 408,
+    "command": "\\dotequiv",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 409,
+    "command": "\\dotplus",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 410,
+    "command": "\\dots",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 411,
+    "command": "\\dotsb",
+    "package": "amsmath",
+    "mode": "math"
+  },
+  {
+    "classIndex": 412,
+    "command": "\\dotsc",
+    "package": "amsmath",
+    "mode": "math"
+  },
+  {
+    "classIndex": 413,
+    "command": "\\dotsi",
+    "package": "amsmath",
+    "mode": "math"
+  },
+  {
+    "classIndex": 414,
+    "command": "\\dotsim",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 415,
+    "command": "\\dotsint",
+    "package": "esint",
+    "mode": "math"
+  },
+  {
+    "classIndex": 416,
+    "command": "\\dotsm",
+    "package": "amsmath",
+    "mode": "math"
+  },
+  {
+    "classIndex": 417,
+    "command": "\\dotsminusdots",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 418,
+    "command": "\\dotso",
+    "package": "amsmath",
+    "mode": "math"
+  },
+  {
+    "classIndex": 419,
+    "command": "\\dottimes",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 420,
+    "command": "\\doublebarvee",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 421,
+    "command": "\\doublebarwedge",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 422,
+    "command": "\\doublecap",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 423,
+    "command": "\\doublecup",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 424,
+    "command": "\\doublecurlyvee",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 425,
+    "command": "\\doubleplus",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 426,
+    "command": "\\doublesqcup",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 427,
+    "command": "\\doublevee",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 428,
+    "command": "\\downModels",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 429,
+    "command": "\\downarrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 430,
+    "command": "\\downdownarrows",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 431,
+    "command": "\\downharpoonleft",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 432,
+    "command": "\\downharpoonright",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 433,
+    "command": "\\downslice",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 434,
+    "command": "\\downtouparrow",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 435,
+    "command": "\\downupharpoons",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 436,
+    "command": "\\dsub",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 437,
+    "command": "\\dtimes",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 438,
+    "command": "\\dualmap",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 439,
+    "command": "\\earth",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 440,
+    "command": "\\ell",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 441,
+    "command": "\\elsdot",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 442,
+    "command": "\\emptyset",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 443,
+    "command": "\\epsilon",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 444,
+    "command": "\\eqcirc",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 445,
+    "command": "\\eqcolon",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 446,
+    "command": "\\eqdef",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 447,
+    "command": "\\eqdot",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 448,
+    "command": "\\eqeq",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 449,
+    "command": "\\eqeqeq",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 450,
+    "command": "\\eqqplus",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 451,
+    "command": "\\eqqsim",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 452,
+    "command": "\\eqqslantless",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 453,
+    "command": "\\eqslantgtr",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 454,
+    "command": "\\eqslantless",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 455,
+    "command": "\\equal",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 456,
+    "command": "\\equalparallel",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 457,
+    "command": "\\equiv",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 458,
+    "command": "\\equivDD",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 459,
+    "command": "\\equivVert",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 460,
+    "command": "\\equivVvert",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 461,
+    "command": "\\eqvparsl",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 462,
+    "command": "\\eta",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 463,
+    "command": "\\eth",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 464,
+    "command": "\\exists",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 465,
+    "command": "\\fallingdotseq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 466,
+    "command": "\\fatsemi",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 467,
+    "command": "\\fatslash",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 468,
+    "command": "\\fax",
+    "package": "marvosym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 469,
+    "command": "\\female",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 470,
+    "command": "\\fint",
+    "package": "esint",
+    "mode": "math"
+  },
+  {
+    "classIndex": 471,
+    "command": "\\fivedots",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 472,
+    "command": "\\flat",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 473,
+    "command": "\\forall",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 474,
+    "command": "\\forksnot",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 475,
+    "command": "\\frown",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 476,
+    "command": "\\frowneq",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 477,
+    "command": "\\frownie",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 478,
+    "command": "\\fullmoon",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 479,
+    "command": "\\fullouterjoin",
+    "package": "stix2",
+    "mode": "math"
+  },
+  {
+    "classIndex": 480,
+    "command": "\\gamma",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 481,
+    "command": "\\gemini",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 482,
+    "command": "\\geq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 483,
+    "command": "\\geqdot",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 484,
+    "command": "\\geqq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 485,
+    "command": "\\geqqslant",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 486,
+    "command": "\\geqslant",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 487,
+    "command": "\\geqslantdot",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 488,
+    "command": "\\gescc",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 489,
+    "command": "\\gesdoto",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 490,
+    "command": "\\gesdotol",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 491,
+    "command": "\\gesles",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 492,
+    "command": "\\gg",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 493,
+    "command": "\\ggcurly",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 494,
+    "command": "\\ggg",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 495,
+    "command": "\\gggnest",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 496,
+    "command": "\\gimel",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 497,
+    "command": "\\glE",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 498,
+    "command": "\\gleichstark",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 499,
+    "command": "\\glj",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 500,
+    "command": "\\gnapprox",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 501,
+    "command": "\\gneq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 502,
+    "command": "\\gneqq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 503,
+    "command": "\\gnsim",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 504,
+    "command": "\\gsiml",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 505,
+    "command": "\\gtquest",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 506,
+    "command": "\\gtrapprox",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 507,
+    "command": "\\gtrarr",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 508,
+    "command": "\\gtrdot",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 509,
+    "command": "\\gtreqless",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 510,
+    "command": "\\gtreqlessslant",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 511,
+    "command": "\\gtreqqless",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 512,
+    "command": "\\gtrless",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 513,
+    "command": "\\gtrneqqless",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 514,
+    "command": "\\gtrsim",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 515,
+    "command": "\\guillemotleft",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 516,
+    "command": "\\guillemotright",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 517,
+    "command": "\\guilsinglleft",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 518,
+    "command": "\\guilsinglright",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 519,
+    "command": "\\gvertneqq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 520,
+    "command": "\\hatapprox",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 521,
+    "command": "\\hbar",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 522,
+    "command": "\\hcrossing",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 523,
+    "command": "\\hdotdot",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 524,
+    "command": "\\heartsuit",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 525,
+    "command": "\\hookleftarrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 526,
+    "command": "\\hookrightarrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 527,
+    "command": "\\hslash",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 528,
+    "command": "\\iddots",
+    "package": "mathdots",
+    "mode": "math"
+  },
+  {
+    "classIndex": 529,
+    "command": "\\idotsint",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 530,
+    "command": "\\iiiint",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 531,
+    "command": "\\iiint",
+    "package": "amsmath",
+    "mode": "math"
+  },
+  {
+    "classIndex": 532,
+    "command": "\\iinfin",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 533,
+    "command": "\\iint",
+    "package": "amsmath",
+    "mode": "math"
+  },
+  {
+    "classIndex": 534,
+    "command": "\\imageof",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 535,
+    "command": "\\imath",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 536,
+    "command": "\\in",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 537,
+    "command": "\\infty",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 538,
+    "command": "\\inplus",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 539,
+    "command": "\\int",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 540,
+    "command": "\\intBar",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 541,
+    "command": "\\intBarup",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 542,
+    "command": "\\intcap",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 543,
+    "command": "\\intcapup",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 544,
+    "command": "\\intclockwiseup",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 545,
+    "command": "\\intcup",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 546,
+    "command": "\\intercal",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 547,
+    "command": "\\interleave",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 548,
+    "command": "\\intlarhkup",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 549,
+    "command": "\\intx",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 550,
+    "command": "\\intxup",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 551,
+    "command": "\\invdiameter",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 552,
+    "command": "\\invlazys",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 553,
+    "command": "\\iota",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 554,
+    "command": "\\isinE",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 555,
+    "command": "\\isindot",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 556,
+    "command": "\\isins",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 557,
+    "command": "\\isinvb",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 558,
+    "command": "\\jmath",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 559,
+    "command": "\\jupiter",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 560,
+    "command": "\\kappa",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 561,
+    "command": "\\kernelcontraction",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 562,
+    "command": "\\kreuz",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 563,
+    "command": "\\l",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 564,
+    "command": "\\lambda",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 565,
+    "command": "\\landdownint",
+    "package": "esint",
+    "mode": "math"
+  },
+  {
+    "classIndex": 566,
+    "command": "\\landupint",
+    "package": "esint",
+    "mode": "math"
+  },
+  {
+    "classIndex": 567,
+    "command": "\\langle",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 568,
+    "command": "\\late",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 569,
+    "command": "\\lbag",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 570,
+    "command": "\\lceil",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 571,
+    "command": "\\lcirclerightint",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 572,
+    "command": "\\ldotp",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 573,
+    "command": "\\ldots",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 574,
+    "command": "\\leadsto",
+    "package": "latexsym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 575,
+    "command": "\\leftModels",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 576,
+    "command": "\\leftarrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 577,
+    "command": "\\leftarrowsubset",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 578,
+    "command": "\\leftarrowtail",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 579,
+    "command": "\\leftarrowtriangle",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 580,
+    "command": "\\leftdbltail",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 581,
+    "command": "\\leftfishtail",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 582,
+    "command": "\\leftfree",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 583,
+    "command": "\\leftharpoondown",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 584,
+    "command": "\\leftharpoonup",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 585,
+    "command": "\\leftleftarrows",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 586,
+    "command": "\\leftmoon",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 587,
+    "command": "\\leftouterjoin",
+    "package": "stix2",
+    "mode": "math"
+  },
+  {
+    "classIndex": 588,
+    "command": "\\leftrightarrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 589,
+    "command": "\\leftrightarroweq",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 590,
+    "command": "\\leftrightarrows",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 591,
+    "command": "\\leftrightarrowtriangle",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 592,
+    "command": "\\leftrightharpoondownup",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 593,
+    "command": "\\leftrightharpoons",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 594,
+    "command": "\\leftrightharpoonupdown",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 595,
+    "command": "\\leftrightsquigarrow",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 596,
+    "command": "\\leftsquigarrow",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 597,
+    "command": "\\lefttail",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 598,
+    "command": "\\leftthreetimes",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 599,
+    "command": "\\leo",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 600,
+    "command": "\\leq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 601,
+    "command": "\\leqdot",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 602,
+    "command": "\\leqq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 603,
+    "command": "\\leqslant",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 604,
+    "command": "\\leqslantdot",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 605,
+    "command": "\\lescc",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 606,
+    "command": "\\lesdot",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 607,
+    "command": "\\lessapprox",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 608,
+    "command": "\\lessdot",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 609,
+    "command": "\\lesseqgtr",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 610,
+    "command": "\\lesseqgtrslant",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 611,
+    "command": "\\lesseqqgtr",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 612,
+    "command": "\\lessgtr",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 613,
+    "command": "\\lessneqqgtr",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 614,
+    "command": "\\lesssim",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 615,
+    "command": "\\lfbowtie",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 616,
+    "command": "\\lfloor",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 617,
+    "command": "\\lftimes",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 618,
+    "command": "\\lgE",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 619,
+    "command": "\\lhd",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 620,
+    "command": "\\libra",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 621,
+    "command": "\\lightning",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 622,
+    "command": "\\ll",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 623,
+    "command": "\\llangle",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 624,
+    "command": "\\llbracket",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 625,
+    "command": "\\llceil",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 626,
+    "command": "\\llcorner",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 627,
+    "command": "\\llcurly",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 628,
+    "command": "\\llfloor",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 629,
+    "command": "\\lll",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 630,
+    "command": "\\lllnest",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 631,
+    "command": "\\llparenthesis",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 632,
+    "command": "\\lnapprox",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 633,
+    "command": "\\lneq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 634,
+    "command": "\\lneqq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 635,
+    "command": "\\lnsim",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 636,
+    "command": "\\longleftarrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 637,
+    "command": "\\longleftrightarrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 638,
+    "command": "\\longmapsfrom",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 639,
+    "command": "\\longmapsto",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 640,
+    "command": "\\longrightarrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 641,
+    "command": "\\looparrowleft",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 642,
+    "command": "\\looparrowright",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 643,
+    "command": "\\lozenge",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 644,
+    "command": "\\lozengeminus",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 645,
+    "command": "\\lparenless",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 646,
+    "command": "\\lrcorner",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 647,
+    "command": "\\lsimg",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 648,
+    "command": "\\lsqhook",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 649,
+    "command": "\\ltcc",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 650,
+    "command": "\\ltimes",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 651,
+    "command": "\\ltlarr",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 652,
+    "command": "\\ltquest",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 653,
+    "command": "\\lvertneqq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 654,
+    "command": "\\lvzigzag",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 655,
+    "command": "\\male",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 656,
+    "command": "\\maltese",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 657,
+    "command": "\\mapsfrom",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 658,
+    "command": "\\mapsto",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 659,
+    "command": "\\mars",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 660,
+    "command": "\\mathbb{1}",
+    "package": "bbold",
+    "mode": "math"
+  },
+  {
+    "classIndex": 661,
+    "command": "\\mathcal{A}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 662,
+    "command": "\\mathcal{B}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 663,
+    "command": "\\mathcal{C}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 664,
+    "command": "\\mathcal{D}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 665,
+    "command": "\\mathcal{E}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 666,
+    "command": "\\mathcal{F}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 667,
+    "command": "\\mathcal{G}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 668,
+    "command": "\\mathcal{H}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 669,
+    "command": "\\mathcal{I}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 670,
+    "command": "\\mathcal{J}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 671,
+    "command": "\\mathcal{K}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 672,
+    "command": "\\mathcal{L}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 673,
+    "command": "\\mathcal{M}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 674,
+    "command": "\\mathcal{N}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 675,
+    "command": "\\mathcal{O}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 676,
+    "command": "\\mathcal{P}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 677,
+    "command": "\\mathcal{Q}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 678,
+    "command": "\\mathcal{R}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 679,
+    "command": "\\mathcal{S}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 680,
+    "command": "\\mathcal{T}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 681,
+    "command": "\\mathcal{U}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 682,
+    "command": "\\mathcal{V}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 683,
+    "command": "\\mathcal{W}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 684,
+    "command": "\\mathcal{X}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 685,
+    "command": "\\mathcal{Y}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 686,
+    "command": "\\mathcal{Z}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 687,
+    "command": "\\mathdollar",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 688,
+    "command": "\\mathds{1}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 689,
+    "command": "\\mathds{A}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 690,
+    "command": "\\mathds{B}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 691,
+    "command": "\\mathds{C}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 692,
+    "command": "\\mathds{D}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 693,
+    "command": "\\mathds{E}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 694,
+    "command": "\\mathds{F}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 695,
+    "command": "\\mathds{G}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 696,
+    "command": "\\mathds{H}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 697,
+    "command": "\\mathds{I}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 698,
+    "command": "\\mathds{J}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 699,
+    "command": "\\mathds{K}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 700,
+    "command": "\\mathds{L}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 701,
+    "command": "\\mathds{M}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 702,
+    "command": "\\mathds{N}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 703,
+    "command": "\\mathds{O}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 704,
+    "command": "\\mathds{P}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 705,
+    "command": "\\mathds{Q}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 706,
+    "command": "\\mathds{R}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 707,
+    "command": "\\mathds{S}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 708,
+    "command": "\\mathds{T}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 709,
+    "command": "\\mathds{U}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 710,
+    "command": "\\mathds{V}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 711,
+    "command": "\\mathds{W}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 712,
+    "command": "\\mathds{X}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 713,
+    "command": "\\mathds{Y}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 714,
+    "command": "\\mathds{Z}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 715,
+    "command": "\\mathds{h}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 716,
+    "command": "\\mathds{k}",
+    "package": "dsfont",
+    "mode": "math"
+  },
+  {
+    "classIndex": 717,
+    "command": "\\mathellipsis",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 718,
+    "command": "\\mathfrak{A}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 719,
+    "command": "\\mathfrak{B}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 720,
+    "command": "\\mathfrak{C}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 721,
+    "command": "\\mathfrak{D}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 722,
+    "command": "\\mathfrak{E}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 723,
+    "command": "\\mathfrak{F}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 724,
+    "command": "\\mathfrak{G}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 725,
+    "command": "\\mathfrak{H}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 726,
+    "command": "\\mathfrak{I}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 727,
+    "command": "\\mathfrak{J}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 728,
+    "command": "\\mathfrak{K}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 729,
+    "command": "\\mathfrak{L}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 730,
+    "command": "\\mathfrak{M}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 731,
+    "command": "\\mathfrak{N}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 732,
+    "command": "\\mathfrak{O}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 733,
+    "command": "\\mathfrak{P}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 734,
+    "command": "\\mathfrak{Q}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 735,
+    "command": "\\mathfrak{R}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 736,
+    "command": "\\mathfrak{S}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 737,
+    "command": "\\mathfrak{T}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 738,
+    "command": "\\mathfrak{U}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 739,
+    "command": "\\mathfrak{V}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 740,
+    "command": "\\mathfrak{W}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 741,
+    "command": "\\mathfrak{X}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 742,
+    "command": "\\mathfrak{Y}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 743,
+    "command": "\\mathfrak{Z}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 744,
+    "command": "\\mathfrak{a}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 745,
+    "command": "\\mathfrak{b}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 746,
+    "command": "\\mathfrak{c}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 747,
+    "command": "\\mathfrak{d}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 748,
+    "command": "\\mathfrak{e}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 749,
+    "command": "\\mathfrak{f}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 750,
+    "command": "\\mathfrak{g}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 751,
+    "command": "\\mathfrak{h}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 752,
+    "command": "\\mathfrak{i}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 753,
+    "command": "\\mathfrak{j}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 754,
+    "command": "\\mathfrak{k}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 755,
+    "command": "\\mathfrak{l}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 756,
+    "command": "\\mathfrak{m}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 757,
+    "command": "\\mathfrak{n}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 758,
+    "command": "\\mathfrak{o}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 759,
+    "command": "\\mathfrak{p}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 760,
+    "command": "\\mathfrak{q}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 761,
+    "command": "\\mathfrak{r}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 762,
+    "command": "\\mathfrak{s}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 763,
+    "command": "\\mathfrak{t}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 764,
+    "command": "\\mathfrak{u}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 765,
+    "command": "\\mathfrak{v}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 766,
+    "command": "\\mathfrak{w}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 767,
+    "command": "\\mathfrak{x}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 768,
+    "command": "\\mathfrak{y}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 769,
+    "command": "\\mathfrak{z}",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 770,
+    "command": "\\mathparagraph",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 771,
+    "command": "\\mathscr{A}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 772,
+    "command": "\\mathscr{B}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 773,
+    "command": "\\mathscr{C}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 774,
+    "command": "\\mathscr{D}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 775,
+    "command": "\\mathscr{E}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 776,
+    "command": "\\mathscr{F}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 777,
+    "command": "\\mathscr{G}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 778,
+    "command": "\\mathscr{H}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 779,
+    "command": "\\mathscr{I}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 780,
+    "command": "\\mathscr{J}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 781,
+    "command": "\\mathscr{K}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 782,
+    "command": "\\mathscr{L}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 783,
+    "command": "\\mathscr{M}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 784,
+    "command": "\\mathscr{N}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 785,
+    "command": "\\mathscr{O}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 786,
+    "command": "\\mathscr{P}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 787,
+    "command": "\\mathscr{Q}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 788,
+    "command": "\\mathscr{R}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 789,
+    "command": "\\mathscr{S}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 790,
+    "command": "\\mathscr{T}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 791,
+    "command": "\\mathscr{U}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 792,
+    "command": "\\mathscr{V}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 793,
+    "command": "\\mathscr{W}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 794,
+    "command": "\\mathscr{X}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 795,
+    "command": "\\mathscr{Y}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 796,
+    "command": "\\mathscr{Z}",
+    "package": "mathrsfs",
+    "mode": "math"
+  },
+  {
+    "classIndex": 797,
+    "command": "\\mathsection",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 798,
+    "command": "\\mathsterling",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 799,
+    "command": "\\mathunderscore",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 800,
+    "command": "\\measangledltosw",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 801,
+    "command": "\\measangledrtose",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 802,
+    "command": "\\measangleldtosw",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 803,
+    "command": "\\measanglelutonw",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 804,
+    "command": "\\measangleurtone",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 805,
+    "command": "\\measeq",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 806,
+    "command": "\\measuredangle",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 807,
+    "command": "\\measuredrightangle",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 808,
+    "command": "\\measuredrightangledot",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 809,
+    "command": "\\mercury",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 810,
+    "command": "\\merge",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 811,
+    "command": "\\mho",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 812,
+    "command": "\\mid",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 813,
+    "command": "\\minusdot",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 814,
+    "command": "\\minusfdots",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 815,
+    "command": "\\minusrdots",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 816,
+    "command": "\\mlcp",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 817,
+    "command": "\\models",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 818,
+    "command": "\\moo",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 819,
+    "command": "\\mp",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 820,
+    "command": "\\mu",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 821,
+    "command": "\\multimap",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 822,
+    "command": "\\multimapdotboth",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 823,
+    "command": "\\multimapdotbothA",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 824,
+    "command": "\\multimapdotbothBvert",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 825,
+    "command": "\\multimapdotbothvert",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 826,
+    "command": "\\multimapdotinv",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 827,
+    "command": "\\nBumpeq",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 828,
+    "command": "\\nDoteq",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 829,
+    "command": "\\nLeftarrow",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 830,
+    "command": "\\nLeftrightarrow",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 831,
+    "command": "\\nRightarrow",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 832,
+    "command": "\\nUpdownline",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 833,
+    "command": "\\nVDash",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 834,
+    "command": "\\nabla",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 835,
+    "command": "\\napproxeq",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 836,
+    "command": "\\natural",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 837,
+    "command": "\\nbackapproxeq",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 838,
+    "command": "\\nbackcong",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 839,
+    "command": "\\nbumpeqq",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 840,
+    "command": "\\ncong",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 841,
+    "command": "\\ncurlyeqprec",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 842,
+    "command": "\\ncurlyeqsucc",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 843,
+    "command": "\\ncurvearrowdownup",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 844,
+    "command": "\\ncurvearrowleftright",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 845,
+    "command": "\\ncurvearrownesw",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 846,
+    "command": "\\ncurvearrownwse",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 847,
+    "command": "\\ncurvearrowrightleft",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 848,
+    "command": "\\ncurvearrowswne",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 849,
+    "command": "\\ndownVDash",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 850,
+    "command": "\\ndownupharpoons",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 851,
+    "command": "\\nearrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 852,
+    "command": "\\nefree",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 853,
+    "command": "\\neg",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 854,
+    "command": "\\neptune",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 855,
+    "command": "\\neq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 856,
+    "command": "\\neqslantless",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 857,
+    "command": "\\nequivclosed",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 858,
+    "command": "\\neswcrossing",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 859,
+    "command": "\\neswharpoons",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 860,
+    "command": "\\newmoon",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 861,
+    "command": "\\nexists",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 862,
+    "command": "\\nfallingdotseq",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 863,
+    "command": "\\nfrownsmile",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 864,
+    "command": "\\ng",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 865,
+    "command": "\\ngeq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 866,
+    "command": "\\ngeqdot",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 867,
+    "command": "\\ngeqq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 868,
+    "command": "\\ngeqslant",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 869,
+    "command": "\\ngeqslantdot",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 870,
+    "command": "\\ngtr",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 871,
+    "command": "\\ngtreqlessslant",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 872,
+    "command": "\\ngtreqqless",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 873,
+    "command": "\\ngtrless",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 874,
+    "command": "\\nhVvert",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 875,
+    "command": "\\nhateq",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 876,
+    "command": "\\ni",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 877,
+    "command": "\\niobar",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 878,
+    "command": "\\niplus",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 879,
+    "command": "\\nis",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 880,
+    "command": "\\nlcirclearrowup",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 881,
+    "command": "\\nleftarrow",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 882,
+    "command": "\\nleftfootline",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 883,
+    "command": "\\nleftrightarrow",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 884,
+    "command": "\\nleftrightharpoonupdown",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 885,
+    "command": "\\nleq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 886,
+    "command": "\\nleqq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 887,
+    "command": "\\nleqslant",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 888,
+    "command": "\\nless",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 889,
+    "command": "\\nlesseqgtrslant",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 890,
+    "command": "\\nlongrightfootline",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 891,
+    "command": "\\nmid",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 892,
+    "command": "\\nnearrow",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 893,
+    "command": "\\nnefree",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 894,
+    "command": "\\nneswarrows",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 895,
+    "command": "\\nneswharpoonnwse",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 896,
+    "command": "\\nneswharpoonsenw",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 897,
+    "command": "\\nnwModels",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 898,
+    "command": "\\nnwarrow",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 899,
+    "command": "\\nnwfootline",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 900,
+    "command": "\\nnwfree",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 901,
+    "command": "\\nnwharpoonsw",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 902,
+    "command": "\\nnwseharpoonnesw",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 903,
+    "command": "\\not\\approx",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 904,
+    "command": "\\not\\equiv",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 905,
+    "command": "\\not\\sim",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 906,
+    "command": "\\not\\simeq",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 907,
+    "command": "\\notin",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 908,
+    "command": "\\nparallel",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 909,
+    "command": "\\nplus",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 910,
+    "command": "\\npolint",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 911,
+    "command": "\\nprec",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 912,
+    "command": "\\nprecapprox",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 913,
+    "command": "\\npreceq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 914,
+    "command": "\\npreceqq",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 915,
+    "command": "\\nprecsim",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 916,
+    "command": "\\nrcirclearrowright",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 917,
+    "command": "\\nrightarrow",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 918,
+    "command": "\\nrightfootline",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 919,
+    "command": "\\nsefootline",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 920,
+    "command": "\\nsenwharpoons",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 921,
+    "command": "\\nshortmid",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 922,
+    "command": "\\nshortparallel",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 923,
+    "command": "\\nsim",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 924,
+    "command": "\\nsmileeq",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 925,
+    "command": "\\nsqSupset",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 926,
+    "command": "\\nsqsubseteqq",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 927,
+    "command": "\\nsqsupseteqq",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 928,
+    "command": "\\nsquigarrownesw",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 929,
+    "command": "\\nsquigarrownwse",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 930,
+    "command": "\\nsquigarrowrightleft",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 931,
+    "command": "\\nsquigarrowswne",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 932,
+    "command": "\\nsubseteq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 933,
+    "command": "\\nsubseteqq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 934,
+    "command": "\\nsucc",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 935,
+    "command": "\\nsuccapprox",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 936,
+    "command": "\\nsucceq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 937,
+    "command": "\\nsucceqq",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 938,
+    "command": "\\nsuccsim",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 939,
+    "command": "\\nsupseteq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 940,
+    "command": "\\nsupseteqq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 941,
+    "command": "\\nswModels",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 942,
+    "command": "\\nswarrowtail",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 943,
+    "command": "\\nswfootline",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 944,
+    "command": "\\nswneharpoons",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 945,
+    "command": "\\ntriangleleft",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 946,
+    "command": "\\ntrianglelefteq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 947,
+    "command": "\\ntriangleright",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 948,
+    "command": "\\ntrianglerighteq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 949,
+    "command": "\\ntriplesim",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 950,
+    "command": "\\nu",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 951,
+    "command": "\\nupfootline",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 952,
+    "command": "\\nupfree",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 953,
+    "command": "\\nvDash",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 954,
+    "command": "\\nvDdash",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 955,
+    "command": "\\nvdash",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 956,
+    "command": "\\nveeeq",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 957,
+    "command": "\\nvinfty",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 958,
+    "command": "\\nwarrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 959,
+    "command": "\\nwedgeq",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 960,
+    "command": "\\nwfree",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 961,
+    "command": "\\nwseharpoonswne",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 962,
+    "command": "\\o",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 963,
+    "command": "\\obot",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 964,
+    "command": "\\ocircle",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 965,
+    "command": "\\odiv",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 966,
+    "command": "\\odot",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 967,
+    "command": "\\oe",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 968,
+    "command": "\\ohm",
+    "package": "gensymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 969,
+    "command": "\\oiiint",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 970,
+    "command": "\\oiiintclockwise",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 971,
+    "command": "\\oiiintctrclockwise",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 972,
+    "command": "\\oiiintup",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 973,
+    "command": "\\oiint",
+    "package": "esint",
+    "mode": "math"
+  },
+  {
+    "classIndex": 974,
+    "command": "\\oiintclockwise",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 975,
+    "command": "\\oiintctrclockwise",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 976,
+    "command": "\\oint",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 977,
+    "command": "\\ointclockwise",
+    "package": "esint",
+    "mode": "math"
+  },
+  {
+    "classIndex": 978,
+    "command": "\\ointctrclockwise",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 979,
+    "command": "\\olcross",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 980,
+    "command": "\\oleft",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 981,
+    "command": "\\omega",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 982,
+    "command": "\\ominus",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 983,
+    "command": "\\openJoin",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 984,
+    "command": "\\operp",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 985,
+    "command": "\\oplus",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 986,
+    "command": "\\opluslhrim",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 987,
+    "command": "\\oplusrhrim",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 988,
+    "command": "\\opposition",
+    "package": "wasysym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 989,
+    "command": "\\oright",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 990,
+    "command": "\\oslash",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 991,
+    "command": "\\ostar",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 992,
+    "command": "\\osum",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 993,
+    "command": "\\otimes",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 994,
+    "command": "\\otimeshat",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 995,
+    "command": "\\otimeslhrim",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 996,
+    "command": "\\otimesrhrim",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 997,
+    "command": "\\otriangle",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 998,
+    "command": "\\owedge",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 999,
+    "command": "\\parallel",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1000,
+    "command": "\\parr",
+    "package": "cmll",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1001,
+    "command": "\\parsim",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1002,
+    "command": "\\partial",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1003,
+    "command": "\\permil",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1004,
+    "command": "\\perp",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1005,
+    "command": "\\phi",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1006,
+    "command": "\\phone",
+    "package": "wasysym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1007,
+    "command": "\\pi",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1008,
+    "command": "\\pisces",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1009,
+    "command": "\\pitchfork",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1010,
+    "command": "\\plus",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1011,
+    "command": "\\plusdot",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1012,
+    "command": "\\pluseqq",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1013,
+    "command": "\\plushat",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1014,
+    "command": "\\plussim",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1015,
+    "command": "\\plussubtwo",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1016,
+    "command": "\\plustrif",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1017,
+    "command": "\\pluto",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1018,
+    "command": "\\pm",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1019,
+    "command": "\\pointer",
+    "package": "wasysym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1020,
+    "command": "\\pointint",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1021,
+    "command": "\\pointintup",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1022,
+    "command": "\\pounds",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1023,
+    "command": "\\prec",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1024,
+    "command": "\\precapprox",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1025,
+    "command": "\\preccurlyeq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1026,
+    "command": "\\preceq",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1027,
+    "command": "\\preceqq",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1028,
+    "command": "\\precnapprox",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1029,
+    "command": "\\precneq",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1030,
+    "command": "\\precneqq",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1031,
+    "command": "\\precnsim",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1032,
+    "command": "\\precsim",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1033,
+    "command": "\\prime",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1034,
+    "command": "\\prod",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1035,
+    "command": "\\propto",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1036,
+    "command": "\\prurel",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1037,
+    "command": "\\psi",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1038,
+    "command": "\\pullback",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1039,
+    "command": "\\pumpkin",
+    "package": "halloweenmath",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1040,
+    "command": "\\pushout",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1041,
+    "command": "\\questeq",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1042,
+    "command": "\\quotedblbase",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1043,
+    "command": "\\quotesinglbase",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1044,
+    "command": "\\rangle",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1045,
+    "command": "\\rangledot",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1046,
+    "command": "\\rangledownzigzagarrow",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1047,
+    "command": "\\rbag",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1048,
+    "command": "\\rbrackurtick",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1049,
+    "command": "\\rceil",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1050,
+    "command": "\\rcirclerightint",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1051,
+    "command": "\\recorder",
+    "package": "wasysym",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1052,
+    "command": "\\rfbowtie",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1053,
+    "command": "\\rfloor",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1054,
+    "command": "\\rftimes",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1055,
+    "command": "\\rhd",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1056,
+    "command": "\\rho",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1057,
+    "command": "\\rightVDash",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1058,
+    "command": "\\rightanglemdot",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1059,
+    "command": "\\rightanglesqr",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1060,
+    "command": "\\rightanglesquare",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1061,
+    "command": "\\rightarrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1062,
+    "command": "\\rightarrowsupset",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1063,
+    "command": "\\rightarrowtail",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1064,
+    "command": "\\rightarrowtriangle",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1065,
+    "command": "\\rightbarharpoon",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1066,
+    "command": "\\rightfootline",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1067,
+    "command": "\\rightharpoondown",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1068,
+    "command": "\\rightharpoonup",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1069,
+    "command": "\\rightimply",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1070,
+    "command": "\\rightleftarrows",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1071,
+    "command": "\\rightleftharpoon",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1072,
+    "command": "\\rightleftharpoons",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1073,
+    "command": "\\rightmoon",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1074,
+    "command": "\\rightouterjoin",
+    "package": "stix2",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1075,
+    "command": "\\rightrightarrows",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1076,
+    "command": "\\rightrightharpoons",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1077,
+    "command": "\\rightsquigarrow",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1078,
+    "command": "\\righttail",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1079,
+    "command": "\\rightthreetimes",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1080,
+    "command": "\\ringplus",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1081,
+    "command": "\\risingdotseq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1082,
+    "command": "\\rparengtr",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1083,
+    "command": "\\rppolint",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1084,
+    "command": "\\rrangle",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1085,
+    "command": "\\rrbracket",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1086,
+    "command": "\\rrceil",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1087,
+    "command": "\\rrfloor",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1088,
+    "command": "\\rrparenthesis",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1089,
+    "command": "\\rsqhook",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1090,
+    "command": "\\rsub",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1091,
+    "command": "\\rtimes",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1092,
+    "command": "\\ruledelayed",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1093,
+    "command": "\\rvzigzag",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1094,
+    "command": "\\sagittarius",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1095,
+    "command": "\\saturn",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1096,
+    "command": "\\scorpio",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1097,
+    "command": "\\scpolintup",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1098,
+    "command": "\\scurel",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1099,
+    "command": "\\searrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1100,
+    "command": "\\sefree",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1101,
+    "command": "\\setminus",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1102,
+    "command": "\\sharp",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1103,
+    "command": "\\shortdownarrow",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1104,
+    "command": "\\shortleftarrow",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1105,
+    "command": "\\shortmid",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1106,
+    "command": "\\shortparallel",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1107,
+    "command": "\\shortrightarrow",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1108,
+    "command": "\\shortuparrow",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1109,
+    "command": "\\sigma",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1110,
+    "command": "\\sim",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1111,
+    "command": "\\simeq",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1112,
+    "command": "\\simgE",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1113,
+    "command": "\\simgtr",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1114,
+    "command": "\\simlE",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1115,
+    "command": "\\simless",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1116,
+    "command": "\\simminussim",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1117,
+    "command": "\\simneqq",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1118,
+    "command": "\\simplus",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1119,
+    "command": "\\simrdots",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1120,
+    "command": "\\smallfrown",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1121,
+    "command": "\\smallsetminus",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1122,
+    "command": "\\smallsmile",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1123,
+    "command": "\\smallstar",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1124,
+    "command": "\\smashtimes",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1125,
+    "command": "\\smeparsl",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1126,
+    "command": "\\smile",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1127,
+    "command": "\\smileeq",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1128,
+    "command": "\\smiley",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1129,
+    "command": "\\smt",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1130,
+    "command": "\\smte",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1131,
+    "command": "\\spadesuit",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1132,
+    "command": "\\sphericalangle",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1133,
+    "command": "\\sqSubset",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1134,
+    "command": "\\sqcap",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1135,
+    "command": "\\sqcapdot",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1136,
+    "command": "\\sqcapplus",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1137,
+    "command": "\\sqcup",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1138,
+    "command": "\\sqcupdot",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1139,
+    "command": "\\sqcupplus",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1140,
+    "command": "\\sqiiint",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1141,
+    "command": "\\sqiint",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1142,
+    "command": "\\sqint",
+    "package": "esint",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1143,
+    "command": "\\sqrt{}",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1144,
+    "command": "\\sqsubset",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1145,
+    "command": "\\sqsubseteq",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1146,
+    "command": "\\sqsubseteqq",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1147,
+    "command": "\\sqsubsetneq",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1148,
+    "command": "\\sqsubsetneqq",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1149,
+    "command": "\\sqsupset",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1150,
+    "command": "\\sqsupseteq",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1151,
+    "command": "\\sqsupsetneq",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1152,
+    "command": "\\sqsupsetneqq",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1153,
+    "command": "\\square",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1154,
+    "command": "\\squaredots",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1155,
+    "command": "\\squigarrowdownup",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1156,
+    "command": "\\squigarrowleftright",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1157,
+    "command": "\\squigarrowupdown",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1158,
+    "command": "\\squplus",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1159,
+    "command": "\\ss",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1160,
+    "command": "\\ssearrow",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1161,
+    "command": "\\sswarrow",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1162,
+    "command": "\\star",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1163,
+    "command": "\\stareq",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1164,
+    "command": "\\strictfi",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1165,
+    "command": "\\strictif",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1166,
+    "command": "\\strictiff",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1167,
+    "command": "\\subedot",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1168,
+    "command": "\\submult",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1169,
+    "command": "\\subrarr",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1170,
+    "command": "\\subset",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1171,
+    "command": "\\subsetapprox",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1172,
+    "command": "\\subsetdot",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1173,
+    "command": "\\subseteq",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1174,
+    "command": "\\subseteqq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1175,
+    "command": "\\subsetneq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1176,
+    "command": "\\subsetneqq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1177,
+    "command": "\\subsetplus",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1178,
+    "command": "\\subsim",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1179,
+    "command": "\\subsub",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1180,
+    "command": "\\subsup",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1181,
+    "command": "\\succ",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1182,
+    "command": "\\succapprox",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1183,
+    "command": "\\succcurlyeq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1184,
+    "command": "\\succeq",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1185,
+    "command": "\\succeqq",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1186,
+    "command": "\\succnapprox",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1187,
+    "command": "\\succneq",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1188,
+    "command": "\\succneqq",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1189,
+    "command": "\\succnsim",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1190,
+    "command": "\\succsim",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1191,
+    "command": "\\sum",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1192,
+    "command": "\\sumint",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1193,
+    "command": "\\sun",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1194,
+    "command": "\\supdsub",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1195,
+    "command": "\\supedot",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1196,
+    "command": "\\suphsub",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1197,
+    "command": "\\suplarr",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1198,
+    "command": "\\supmult",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1199,
+    "command": "\\supset",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1200,
+    "command": "\\supsetapprox",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1201,
+    "command": "\\supseteq",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1202,
+    "command": "\\supseteqq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1203,
+    "command": "\\supsetneq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1204,
+    "command": "\\supsetneqq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1205,
+    "command": "\\supsetplus",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1206,
+    "command": "\\supsim",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1207,
+    "command": "\\supsub",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1208,
+    "command": "\\supsup",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1209,
+    "command": "\\surd",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1210,
+    "command": "\\swarrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1211,
+    "command": "\\swfree",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1212,
+    "command": "\\talloblong",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1213,
+    "command": "\\tau",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1214,
+    "command": "\\taurus",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1215,
+    "command": "\\textObardotlessj",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1216,
+    "command": "\\textOlyoghlig",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1217,
+    "command": "\\textasciicircum",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1218,
+    "command": "\\textasciitilde",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1219,
+    "command": "\\textasteriskcentered",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1220,
+    "command": "\\textbabygamma",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1221,
+    "command": "\\textbackslash",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1222,
+    "command": "\\textbaht",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1223,
+    "command": "\\textbar",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1224,
+    "command": "\\textbarb",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1225,
+    "command": "\\textbarc",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1226,
+    "command": "\\textbard",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1227,
+    "command": "\\textbardbl",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1228,
+    "command": "\\textbardotlessj",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1229,
+    "command": "\\textbarg",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1230,
+    "command": "\\textbarglotstop",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1231,
+    "command": "\\textbari",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1232,
+    "command": "\\textbarl",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1233,
+    "command": "\\textbaro",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1234,
+    "command": "\\textbarrevglotstop",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1235,
+    "command": "\\textbaru",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1236,
+    "command": "\\textbeltl",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1237,
+    "command": "\\textbeta",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1238,
+    "command": "\\textbigcircle",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1239,
+    "command": "\\textblank",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1240,
+    "command": "\\textbraceleft",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1241,
+    "command": "\\textbraceright",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1242,
+    "command": "\\textbrokenbar",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1243,
+    "command": "\\textbullet",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1244,
+    "command": "\\textbullseye",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1245,
+    "command": "\\textceltpal",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1246,
+    "command": "\\textcent",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1247,
+    "command": "\\textcentoldstyle",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1248,
+    "command": "\\textchi",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1249,
+    "command": "\\textcircledP",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1250,
+    "command": "\\textcloseepsilon",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1251,
+    "command": "\\textcloseomega",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1252,
+    "command": "\\textcloserevepsilon",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1253,
+    "command": "\\textcolonmonetary",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1254,
+    "command": "\\textcommatailz",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1255,
+    "command": "\\textcopyleft",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1256,
+    "command": "\\textcopyright",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1257,
+    "command": "\\textcorner",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1258,
+    "command": "\\textcrb",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1259,
+    "command": "\\textcrd",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1260,
+    "command": "\\textcrg",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1261,
+    "command": "\\textcrh",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1262,
+    "command": "\\textcrinvglotstop",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1263,
+    "command": "\\textcrlambda",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1264,
+    "command": "\\textcrtwo",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1265,
+    "command": "\\textctc",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1266,
+    "command": "\\textctd",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1267,
+    "command": "\\textctdctzlig",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1268,
+    "command": "\\textctesh",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1269,
+    "command": "\\textctj",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1270,
+    "command": "\\textctn",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1271,
+    "command": "\\textctt",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1272,
+    "command": "\\textcttctclig",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1273,
+    "command": "\\textctyogh",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1274,
+    "command": "\\textctz",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1275,
+    "command": "\\textcurrency",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1276,
+    "command": "\\textdagger",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1277,
+    "command": "\\textdaggerdbl",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1278,
+    "command": "\\textdblhyphen",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1279,
+    "command": "\\textdblhyphenchar",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1280,
+    "command": "\\textdctzlig",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1281,
+    "command": "\\textdegree",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1282,
+    "command": "\\textdiscount",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1283,
+    "command": "\\textdiv",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1284,
+    "command": "\\textdollar",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1285,
+    "command": "\\textdollaroldstyle",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1286,
+    "command": "\\textdong",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1287,
+    "command": "\\textdoublebaresh",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1288,
+    "command": "\\textdoublebarpipe",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1289,
+    "command": "\\textdoublebarslash",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1290,
+    "command": "\\textdoublepipe",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1291,
+    "command": "\\textdoublevertline",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1292,
+    "command": "\\textdownarrow",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1293,
+    "command": "\\textdownstep",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1294,
+    "command": "\\textdyoghlig",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1295,
+    "command": "\\textdzlig",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1296,
+    "command": "\\textellipsis",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1297,
+    "command": "\\textemdash",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1298,
+    "command": "\\textendash",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1299,
+    "command": "\\textepsilon",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1300,
+    "command": "\\textesh",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1301,
+    "command": "\\textestimated",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1302,
+    "command": "\\texteuro",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1303,
+    "command": "\\textexclamdown",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1304,
+    "command": "\\textfishhookr",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1305,
+    "command": "\\textflorin",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1306,
+    "command": "\\textfractionsolidus",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1307,
+    "command": "\\textg",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1308,
+    "command": "\\textgamma",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1309,
+    "command": "\\textglobfall",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1310,
+    "command": "\\textglobrise",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1311,
+    "command": "\\textglotstop",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1312,
+    "command": "\\textgreater",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1313,
+    "command": "\\textguarani",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1314,
+    "command": "\\texthalflength",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1315,
+    "command": "\\texthardsign",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1316,
+    "command": "\\texthooktop",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1317,
+    "command": "\\texthtb",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1318,
+    "command": "\\texthtbardotlessj",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1319,
+    "command": "\\texthtc",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1320,
+    "command": "\\texthtd",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1321,
+    "command": "\\texthtg",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1322,
+    "command": "\\texthth",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1323,
+    "command": "\\texththeng",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1324,
+    "command": "\\texthtk",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1325,
+    "command": "\\texthtp",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1326,
+    "command": "\\texthtq",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1327,
+    "command": "\\texthtrtaild",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1328,
+    "command": "\\texthtscg",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1329,
+    "command": "\\texthtt",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1330,
+    "command": "\\texthvlig",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1331,
+    "command": "\\textinterrobang",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1332,
+    "command": "\\textinterrobangdown",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1333,
+    "command": "\\textinvglotstop",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1334,
+    "command": "\\textinvscr",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1335,
+    "command": "\\textiota",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1336,
+    "command": "\\textlambda",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1337,
+    "command": "\\textlangle",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1338,
+    "command": "\\textlbrackdbl",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1339,
+    "command": "\\textleftarrow",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1340,
+    "command": "\\textlengthmark",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1341,
+    "command": "\\textless",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1342,
+    "command": "\\textlhookt",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1343,
+    "command": "\\textlhtlongi",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1344,
+    "command": "\\textlhtlongy",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1345,
+    "command": "\\textlira",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1346,
+    "command": "\\textlnot",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1347,
+    "command": "\\textlonglegr",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1348,
+    "command": "\\textlptr",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1349,
+    "command": "\\textlquill",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1350,
+    "command": "\\textltailm",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1351,
+    "command": "\\textltailn",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1352,
+    "command": "\\textltilde",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1353,
+    "command": "\\textlyoghlig",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1354,
+    "command": "\\textminus",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1355,
+    "command": "\\textmusicalnote",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1356,
+    "command": "\\textnaira",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1357,
+    "command": "\\textnumero",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1358,
+    "command": "\\textomega",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1359,
+    "command": "\\textonehalf",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1360,
+    "command": "\\textonequarter",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1361,
+    "command": "\\textonesuperior",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1362,
+    "command": "\\textopenbullet",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1363,
+    "command": "\\textopencorner",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1364,
+    "command": "\\textopeno",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1365,
+    "command": "\\textordfeminine",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1366,
+    "command": "\\textordmasculine",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1367,
+    "command": "\\textpalhook",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1368,
+    "command": "\\textparagraph",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1369,
+    "command": "\\textperiodcentered",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1370,
+    "command": "\\textpertenthousand",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1371,
+    "command": "\\textperthousand",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1372,
+    "command": "\\textpeso",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1373,
+    "command": "\\textphi",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1374,
+    "command": "\\textpilcrow",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1375,
+    "command": "\\textpipe",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1376,
+    "command": "\\textpm",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1377,
+    "command": "\\textprimstress",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1378,
+    "command": "\\textquestiondown",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1379,
+    "command": "\\textquotedbl",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1380,
+    "command": "\\textquotedblleft",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1381,
+    "command": "\\textquotedblright",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1382,
+    "command": "\\textquoteleft",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1383,
+    "command": "\\textquoteright",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1384,
+    "command": "\\textquotesingle",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1385,
+    "command": "\\textquotestraightbase",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1386,
+    "command": "\\textquotestraightdblbase",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1387,
+    "command": "\\textraiseglotstop",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1388,
+    "command": "\\textraisevibyi",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1389,
+    "command": "\\textramshorns",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1390,
+    "command": "\\textrangle",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1391,
+    "command": "\\textrbrackdbl",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1392,
+    "command": "\\textrecipe",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1393,
+    "command": "\\textreferencemark",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1394,
+    "command": "\\textregistered",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1395,
+    "command": "\\textrevapostrophe",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1396,
+    "command": "\\textreve",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1397,
+    "command": "\\textrevepsilon",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1398,
+    "command": "\\textrevglotstop",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1399,
+    "command": "\\textrevyogh",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1400,
+    "command": "\\textrhookrevepsilon",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1401,
+    "command": "\\textrhookschwa",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1402,
+    "command": "\\textrhoticity",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1403,
+    "command": "\\textrightarrow",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1404,
+    "command": "\\textrptr",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1405,
+    "command": "\\textrquill",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1406,
+    "command": "\\textrtaild",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1407,
+    "command": "\\textrtaill",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1408,
+    "command": "\\textrtailn",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1409,
+    "command": "\\textrtailr",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1410,
+    "command": "\\textrtails",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1411,
+    "command": "\\textrtailt",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1412,
+    "command": "\\textrtailz",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1413,
+    "command": "\\textrthook",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1414,
+    "command": "\\textsca",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1415,
+    "command": "\\textscb",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1416,
+    "command": "\\textsce",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1417,
+    "command": "\\textscg",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1418,
+    "command": "\\textsch",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1419,
+    "command": "\\textschwa",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1420,
+    "command": "\\textsci",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1421,
+    "command": "\\textscj",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1422,
+    "command": "\\textscl",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1423,
+    "command": "\\textscn",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1424,
+    "command": "\\textscoelig",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1425,
+    "command": "\\textscomega",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1426,
+    "command": "\\textscr",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1427,
+    "command": "\\textscripta",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1428,
+    "command": "\\textscriptg",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1429,
+    "command": "\\textscriptv",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1430,
+    "command": "\\textscu",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1431,
+    "command": "\\textscy",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1432,
+    "command": "\\textsecstress",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1433,
+    "command": "\\textsection",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1434,
+    "command": "\\textservicemark",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1435,
+    "command": "\\textsoftsign",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1436,
+    "command": "\\textsterling",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1437,
+    "command": "\\textstretchc",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1438,
+    "command": "\\textsurd",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1439,
+    "command": "\\texttctclig",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1440,
+    "command": "\\textteshlig",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1441,
+    "command": "\\texttheta",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1442,
+    "command": "\\textthorn",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1443,
+    "command": "\\textthreequarters",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1444,
+    "command": "\\textthreequartersemdash",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1445,
+    "command": "\\textthreesuperior",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1446,
+    "command": "\\texttildelow",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1447,
+    "command": "\\texttimes",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1448,
+    "command": "\\texttoneletterstem",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1449,
+    "command": "\\texttrademark",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1450,
+    "command": "\\texttslig",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1451,
+    "command": "\\textturna",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1452,
+    "command": "\\textturncelig",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1453,
+    "command": "\\textturnh",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1454,
+    "command": "\\textturnk",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1455,
+    "command": "\\textturnlonglegr",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1456,
+    "command": "\\textturnm",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1457,
+    "command": "\\textturnmrleg",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1458,
+    "command": "\\textturnr",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1459,
+    "command": "\\textturnrrtail",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1460,
+    "command": "\\textturnscripta",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1461,
+    "command": "\\textturnt",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1462,
+    "command": "\\textturnv",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1463,
+    "command": "\\textturnw",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1464,
+    "command": "\\textturny",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1465,
+    "command": "\\texttwelveudash",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1466,
+    "command": "\\texttwosuperior",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1467,
+    "command": "\\textunderscore",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1468,
+    "command": "\\textuparrow",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1469,
+    "command": "\\textupsilon",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1470,
+    "command": "\\textupstep",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1471,
+    "command": "\\textvertline",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1472,
+    "command": "\\textvibyi",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1473,
+    "command": "\\textvibyy",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1474,
+    "command": "\\textvisiblespace",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1475,
+    "command": "\\textwon",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1476,
+    "command": "\\textwynn",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1477,
+    "command": "\\textyen",
+    "package": "textcomp",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1478,
+    "command": "\\textyogh",
+    "package": "tipa",
+    "mode": "text"
+  },
+  {
+    "classIndex": 1479,
+    "command": "\\th",
+    "package": null,
+    "mode": "text"
+  },
+  {
+    "classIndex": 1480,
+    "command": "\\therefore",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1481,
+    "command": "\\theta",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1482,
+    "command": "\\thickapprox",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1483,
+    "command": "\\thicksim",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1484,
+    "command": "\\thinstar",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1485,
+    "command": "\\threedangle",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1486,
+    "command": "\\tieinfty",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1487,
+    "command": "\\times",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1488,
+    "command": "\\top",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1489,
+    "command": "\\triangle",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1490,
+    "command": "\\triangledown",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1491,
+    "command": "\\triangleleft",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1492,
+    "command": "\\trianglelefteq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1493,
+    "command": "\\triangleminus",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1494,
+    "command": "\\triangleplus",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1495,
+    "command": "\\triangleq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1496,
+    "command": "\\triangleright",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1497,
+    "command": "\\trianglerighteq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1498,
+    "command": "\\tripleplus",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1499,
+    "command": "\\triplesim",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1500,
+    "command": "\\trslash",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1501,
+    "command": "\\twocaps",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1502,
+    "command": "\\twocups",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1503,
+    "command": "\\twoheadleftarrow",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1504,
+    "command": "\\twoheadrightarrow",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1505,
+    "command": "\\typecolon",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1506,
+    "command": "\\udotdot",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1507,
+    "command": "\\ulcorner",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1508,
+    "command": "\\uminus",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1509,
+    "command": "\\unlhd",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1510,
+    "command": "\\unrhd",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1511,
+    "command": "\\upY",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1512,
+    "command": "\\upalpha",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1513,
+    "command": "\\uparrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1514,
+    "command": "\\upbeta",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1515,
+    "command": "\\upchi",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1516,
+    "command": "\\updelta",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1517,
+    "command": "\\updownarrow",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1518,
+    "command": "\\updownharpoons",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1519,
+    "command": "\\upepsilon",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1520,
+    "command": "\\upeta",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1521,
+    "command": "\\upfishtail",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1522,
+    "command": "\\upgamma",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1523,
+    "command": "\\upharpoonleft",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1524,
+    "command": "\\upharpoonright",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1525,
+    "command": "\\upiota",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1526,
+    "command": "\\upkappa",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1527,
+    "command": "\\uplambda",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1528,
+    "command": "\\uplus",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1529,
+    "command": "\\upmu",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1530,
+    "command": "\\upnu",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1531,
+    "command": "\\upomega",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1532,
+    "command": "\\upphi",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1533,
+    "command": "\\uppi",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1534,
+    "command": "\\uppsi",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1535,
+    "command": "\\uprho",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1536,
+    "command": "\\upsigma",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1537,
+    "command": "\\upsilon",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1538,
+    "command": "\\uptau",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1539,
+    "command": "\\uptheta",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1540,
+    "command": "\\uptodownarrow",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1541,
+    "command": "\\upuparrows",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1542,
+    "command": "\\upupsilon",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1543,
+    "command": "\\upvarepsilon",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1544,
+    "command": "\\upvarphi",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1545,
+    "command": "\\upvarpi",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1546,
+    "command": "\\upvarrho",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1547,
+    "command": "\\upvarsigma",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1548,
+    "command": "\\upvartheta",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1549,
+    "command": "\\upxi",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1550,
+    "command": "\\upzeta",
+    "package": "upgreek",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1551,
+    "command": "\\uranus",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1552,
+    "command": "\\urcorner",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1553,
+    "command": "\\utimes",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1554,
+    "command": "\\vBarv",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1555,
+    "command": "\\vDash",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1556,
+    "command": "\\varepsilon",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1557,
+    "command": "\\varkappa",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1558,
+    "command": "\\varniobar",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1559,
+    "command": "\\varnothing",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1560,
+    "command": "\\varoiiintclockwise",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1561,
+    "command": "\\varoiiintctrclockwise",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1562,
+    "command": "\\varoiint",
+    "package": "esint",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1563,
+    "command": "\\varoiintclockwise",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1564,
+    "command": "\\varoiintctrclockwise",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1565,
+    "command": "\\varointclockwise",
+    "package": "esint",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1566,
+    "command": "\\varointctrclockwise",
+    "package": "esint",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1567,
+    "command": "\\varolessthan",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1568,
+    "command": "\\varosum",
+    "package": "fdsymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1569,
+    "command": "\\varparallel",
+    "package": "txfonts",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1570,
+    "command": "\\varphi",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1571,
+    "command": "\\varpi",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1572,
+    "command": "\\varpropto",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1573,
+    "command": "\\varrho",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1574,
+    "command": "\\varsigma",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1575,
+    "command": "\\varsqsubsetneq",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1576,
+    "command": "\\varsqsubsetneqq",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1577,
+    "command": "\\varsqsupsetneq",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1578,
+    "command": "\\varstar",
+    "package": "mathabx",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1579,
+    "command": "\\varsubsetneq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1580,
+    "command": "\\varsubsetneqq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1581,
+    "command": "\\varsupsetneq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1582,
+    "command": "\\varsupsetneqq",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1583,
+    "command": "\\vartheta",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1584,
+    "command": "\\vartimes",
+    "package": "stmaryrd",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1585,
+    "command": "\\vartriangle",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1586,
+    "command": "\\vartriangleleft",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1587,
+    "command": "\\vartriangleright",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1588,
+    "command": "\\vcrossing",
+    "package": "MnSymbol",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1589,
+    "command": "\\vdash",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1590,
+    "command": "\\vdots",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1591,
+    "command": "\\vee",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1592,
+    "command": "\\veebar",
+    "package": "amssymb",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1593,
+    "command": "\\veedot",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1594,
+    "command": "\\veeeq",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1595,
+    "command": "\\veemidvert",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1596,
+    "command": "\\veeodot",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1597,
+    "command": "\\veeonvee",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1598,
+    "command": "\\venus",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1599,
+    "command": "\\vernal",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1600,
+    "command": "\\virgo",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1601,
+    "command": "\\wasylozenge",
+    "package": "wasysym",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1602,
+    "command": "\\wedge",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1603,
+    "command": "\\wedgedot",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1604,
+    "command": "\\wedgedoublebar",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1605,
+    "command": "\\wedgemidvert",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1606,
+    "command": "\\wedgeodot",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1607,
+    "command": "\\wedgeonwedge",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1608,
+    "command": "\\wedgeq",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1609,
+    "command": "\\whitesquaretickleft",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1610,
+    "command": "\\whitesquaretickright",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1611,
+    "command": "\\wideangledown",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1612,
+    "command": "\\wideangleup",
+    "package": "stix",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1613,
+    "command": "\\widehat=",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1614,
+    "command": "\\with",
+    "package": "cmll",
+    "mode": "math"
+  },
+  {
+    "classIndex": 1615,
+    "command": "\\wp",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1616,
+    "command": "\\wr",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1617,
+    "command": "\\xi",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1618,
+    "command": "\\zeta",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1619,
+    "command": "\\{",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1620,
+    "command": "\\|",
+    "package": null,
+    "mode": "math"
+  },
+  {
+    "classIndex": 1621,
+    "command": "\\}",
+    "package": null,
+    "mode": "math"
+  }
+]

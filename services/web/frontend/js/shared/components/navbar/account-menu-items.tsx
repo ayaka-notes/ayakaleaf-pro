@@ -1,4 +1,4 @@
-import { Dropdown } from 'react-bootstrap'
+import { OLDropdownItem } from '@/shared/components/ol/ol-dropdown-menu'
 import { useTranslation } from 'react-i18next'
 import getMeta from '@/utils/meta'
 import type { NavbarSessionUser } from '@/shared/components/types/navbar'
@@ -8,6 +8,8 @@ import NavDropdownLinkItem from './nav-dropdown-link-item'
 import { useDsNavStyle } from '@/features/project-list/components/use-is-ds-nav'
 import { SignOut } from '@phosphor-icons/react'
 import ThemeToggle from '@/features/project-list/components/sidebar/theme-toggle'
+import { OfflineDocBackup } from '@/features/ide-react/editor/offline-doc-backup'
+import { ConnectionOutageTracker } from '@/features/ide-react/editor/connection-outage-tracker'
 
 export function AccountMenuItems({
   sessionUser,
@@ -21,12 +23,13 @@ export function AccountMenuItems({
   const { t } = useTranslation()
   const logOutFormId = 'logOutForm'
   const dsNavStyle = useDsNavStyle()
+  const hasOverallThemes = Boolean(getMeta('ol-overallThemes'))
 
   return (
     <>
-      <Dropdown.Item as="li" disabled role="menuitem">
+      <OLDropdownItem as="li" disabled role="menuitem">
         {sessionUser.email}
-      </Dropdown.Item>
+      </OLDropdownItem>
       <NavDropdownDivider />
       <NavDropdownLinkItem href="/user/settings">
         {t('account_settings')}
@@ -36,7 +39,7 @@ export function AccountMenuItems({
           {t('subscription')}
         </NavDropdownLinkItem>
       ) : null}
-      {showThemeToggle && (
+      {showThemeToggle && hasOverallThemes && (
         <DropdownListItem>
           <ThemeToggle />
         </DropdownListItem>
@@ -50,7 +53,7 @@ export function AccountMenuItems({
           // inside the form, screen readers will not count it in the total
           // number of menu items
         }
-        <Dropdown.Item
+        <OLDropdownItem
           as="button"
           type="submit"
           form={logOutFormId}
@@ -59,8 +62,16 @@ export function AccountMenuItems({
         >
           <span>{t('log_out')}</span>
           {dsNavStyle && <SignOut size={16} />}
-        </Dropdown.Item>
-        <form id={logOutFormId} method="POST" action="/logout">
+        </OLDropdownItem>
+        <form
+          id={logOutFormId}
+          method="POST"
+          action="/logout"
+          onSubmit={() => {
+            OfflineDocBackup.clearAll()
+            ConnectionOutageTracker.clearAll()
+          }}
+        >
           <input type="hidden" name="_csrf" value={getMeta('ol-csrfToken')} />
         </form>
       </DropdownListItem>

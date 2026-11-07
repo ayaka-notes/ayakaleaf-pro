@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Usage: services/mailpit/bin/down
+# Removes the Mailpit container.
+
+docker rm --force "${CONTAINER_PREFIX:-e2e-}mailpit" >/dev/null 2>&1 || true

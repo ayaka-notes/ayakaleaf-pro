@@ -4,10 +4,11 @@ import logger from '@overleaf/logger'
 import ProjectEntityHandler from '../Project/ProjectEntityHandler.mjs'
 import ProjectGetter from '../Project/ProjectGetter.mjs'
 import HistoryManager from '../History/HistoryManager.mjs'
+import Metrics from '@overleaf/metrics'
 let ProjectZipStreamManager
 
 export default ProjectZipStreamManager = {
-  createZipStreamForMultipleProjects(projectIds, callback) {
+  createZipStreamForMultipleProjects(projectIds, zipFromHistory, callback) {
     // We'll build up a zip file that contains multiple zip files
     const archive = archiver('zip')
     archive.on('error', err =>
@@ -19,38 +20,44 @@ export default ProjectZipStreamManager = {
     callback(null, archive)
 
     const jobs = projectIds.map(projectId => cb => {
-      ProjectGetter.getProject(projectId, { name: true }, (error, project) => {
-        if (error) {
-          return cb(error)
-        }
-        if (!project) {
-          logger.debug(
-            { projectId },
-            'cannot append project to zip stream: project not found'
-          )
-          return cb()
-        }
-        logger.debug(
-          { projectId, name: project.name },
-          'appending project to zip stream'
-        )
-        ProjectZipStreamManager.createZipStreamForProject(
-          projectId,
-          (error, stream) => {
-            if (error) {
-              return cb(error)
-            }
-            archive.append(stream, { name: `${project.name}.zip` })
-            stream.on('end', () => {
-              logger.debug(
-                { projectId, name: project.name },
-                'zip stream ended'
-              )
-              cb()
-            })
+      ProjectGetter.getProject(
+        projectId,
+        { name: true, 'overleaf.history.id': true },
+        (error, project) => {
+          if (error) {
+            return cb(error)
           }
-        )
-      })
+          if (!project) {
+            logger.debug(
+              { projectId },
+              'cannot append project to zip stream: project not found'
+            )
+            return cb()
+          }
+          logger.debug(
+            { projectId, name: project.name },
+            'appending project to zip stream'
+          )
+          ProjectZipStreamManager.createZipStreamForProject(
+            projectId,
+            zipFromHistory,
+            project.overleaf.history.id,
+            (error, stream) => {
+              if (error) {
+                return cb(error)
+              }
+              archive.append(stream, { name: `${project.name}.zip` })
+              stream.on('end', () => {
+                logger.debug(
+                  { projectId, name: project.name },
+                  'zip stream ended'
+                )
+                cb()
+              })
+            }
+          )
+        }
+      )
     })
 
     async.series(jobs, () => {
@@ -62,7 +69,16 @@ export default ProjectZipStreamManager = {
     })
   },
 
-  createZipStreamForProject(projectId, callback) {
+  createZipStreamForProject(projectId, zipFromHistory, historyId, callback) {
+    Metrics.inc('project_zip_download', 1, {
+      method: zipFromHistory ? 'history-v1' : 'web',
+    })
+    if (zipFromHistory) {
+      return HistoryManager.flushProject(projectId, error => {
+        if (error) return callback(error)
+        HistoryManager.getLatestZipWithHistoryId(historyId, callback)
+      })
+    }
     const archive = archiver('zip')
     // return stream immediately before we start adding things to it
     archive.on('error', err =>

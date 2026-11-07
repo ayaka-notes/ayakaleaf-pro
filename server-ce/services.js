@@ -21,9 +21,6 @@ module.exports = [
     name: 'chat',
   },
   {
-    name: 'contacts',
-  },
-  {
     name: 'notifications',
   },
   {
@@ -34,6 +31,9 @@ module.exports = [
   },
   {
     name: 'linked-url-proxy',
+  },
+  {
+    name: 'third-party-datastore',
   },
 ]
 

@@ -86,8 +86,54 @@ export default class PDFJSWrapper {
         return
       }
 
-      this.viewer.setDocument(doc)
-      this.linkService.setDocument(doc)
+      // Hold the .pdfViewer element's height steady across the synchronous page-clear
+      // that setDocument() triggers, so the viewer doesn't visually collapse while the
+      // new pages are being initialised. The min-height is released on pagesinit.
+      const viewerEl = this.container.querySelector('.pdfViewer') as HTMLElement
+      const currentHeight = viewerEl.getBoundingClientRect().height
+      if (currentHeight > 0) {
+        viewerEl.style.minHeight = `${currentHeight}px`
+        const clearMinHeight = () => {
+          viewerEl.style.minHeight = ''
+          this.eventBus.off('pagesinit', clearMinHeight)
+        }
+        this.eventBus.on('pagesinit', clearMinHeight)
+      }
+
+      const setDocument = () => {
+        this.viewer.setDocument(doc)
+        this.linkService.setDocument(doc)
+      }
+
+      const container = this.container as typeof this.container & {
+        // supported since Chrome 147
+        startViewTransition?: (cb: () => void | Promise<void>) => {
+          ready: Promise<void>
+        }
+      }
+
+      if (
+        typeof container.startViewTransition === 'function' &&
+        document.visibilityState !== 'hidden'
+      ) {
+        const transition = container.startViewTransition(setDocument)
+
+        transition.ready.catch(err => {
+          const ignored = [
+            'InvalidStateError', // the document was hidden, or the viewport was resized
+            'AbortError', // another transition started
+            'TimeoutError', // setDocument blocked for too long
+          ]
+
+          if (!ignored.includes(err?.name)) {
+            captureException(err, {
+              tags: { handler: 'pdf-preview' },
+            })
+          }
+        })
+      } else {
+        setDocument()
+      }
 
       return doc
     } catch (error: any) {
@@ -161,11 +207,23 @@ export default class PDFJSWrapper {
 
   // get the current page, offset and page size
   get currentPosition() {
-    const pageIndex = this.viewer.currentPageNumber - 1
+    const containerRect = this.container.getBoundingClientRect()
+
+    let pageIndex = this.viewer.currentPageNumber - 1
+    for (let i = pageIndex; i >= 0; i--) {
+      const pageView = this.viewer.getPageView(i)
+      if (!pageView?.div) continue
+      const pageRect = pageView.div.getBoundingClientRect()
+      if (pageRect.bottom < containerRect.top) {
+        pageIndex = i + 1
+        break
+      }
+      pageIndex = i
+    }
+
     const pageView = this.viewer.getPageView(pageIndex)
     const pageRect = pageView.div.getBoundingClientRect()
 
-    const containerRect = this.container.getBoundingClientRect()
     const dy = containerRect.top - pageRect.top
     const dx = containerRect.left - pageRect.left
     const [left, top] = pageView.viewport.convertToPdfPoint(dx, dy)
@@ -194,14 +252,18 @@ export default class PDFJSWrapper {
       destArray,
     })
 
-    // scroll the page left and down by an extra few pixels to account for the pdf.js viewer page border
+    // scrollPageIntoView aligns PDF content to the container top, ignoring the page margin.
+    // For a top-of-document position this leaves scrollTop = marginTop (margin hidden).
+    // Snap back to 0 so the margin is visible, but only when we are in that margin band —
+    // for any real mid-document scrollTop this condition is false and we leave it untouched.
     const pageIndex = this.viewer.currentPageNumber - 1
     const pageView = this.viewer.getPageView(pageIndex)
-    const offset = parseFloat(getComputedStyle(pageView.div).borderWidth)
-    this.viewer.container.scrollBy({
-      top: -offset,
-      left: -offset,
-    })
+    if (pageView) {
+      const marginTop = parseFloat(getComputedStyle(pageView.div).marginTop)
+      if (this.viewer.container.scrollTop <= marginTop) {
+        this.viewer.container.scrollTop = 0
+      }
+    }
   }
 
   isVisible() {

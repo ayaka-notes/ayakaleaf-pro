@@ -1,8 +1,14 @@
+import crypto from 'node:crypto'
 import Settings from '@overleaf/settings'
 import UserCreator from '../../../../../app/src/Features/User/UserCreator.mjs'
 import ThirdPartyIdentityManager from '../../../../../app/src/Features/User/ThirdPartyIdentityManager.mjs'
 import { ParallelLoginError } from '../../../../../app/src/Features/Authentication/AuthenticationErrors.mjs'
 import { User } from '../../../../../app/src/models/User.mjs'
+import {
+  accountBeforeLogin,
+  logLoginChanges,
+  logLoginEntry,
+} from '../../../auditLog.mjs'
 
 const OIDCAuthenticationManager = {
   async findOrCreateUser(profile, auditLog) {
@@ -13,16 +19,21 @@ const OIDCAuthenticationManager = {
       updateUserDetailsOnLogin,
       providerId,
     } = Settings.oidc
-    const email = profile.emails[0].value
-    const oidcUserId = (attUserId === 'email') ? email : profile[attUserId]
+    // Lowercase like LDAP and SAML; the OIDC id and the admin match keep the
+    // email as sent, so existing links and settings still match
+    const email = profile.emails[0].value.toLowerCase()
+    const oidcUserId = (attUserId === 'email') ? profile.emails[0].value : profile[attUserId]
     const firstName = profile.name?.givenName || ""
     const lastName  = profile.name?.familyName || ""
     let isAdmin = false
     if (attAdmin && valAdmin) {
       if (attAdmin === 'email') {
-        isAdmin = (email === valAdmin)
+        isAdmin = (profile.emails[0].value === valAdmin)
       } else {
-        isAdmin = (profile[attAdmin] === valAdmin)
+        const adminClaim = profile[attAdmin] ?? profile._json?.[attAdmin]
+        isAdmin = Array.isArray(adminClaim)
+          ? adminClaim.includes(valAdmin)
+          : adminClaim === valAdmin
       }
     }
     const oidcUserData = null // Possibly it can be used later
@@ -58,8 +69,10 @@ const OIDCAuthenticationManager = {
             last_name: lastName,
             isAdmin: isAdmin,
             holdingAccount: false,
+            analyticsId: crypto.randomUUID(),
           }
         )
+        await logLoginEntry(user, 'create-account', auditLog)
       }
 //    const alreadyLinked = user.thirdPartyIdentifiers.some(item => item.providerId === providerId)
 //    if (!alreadyLinked) {
@@ -77,6 +90,7 @@ const OIDCAuthenticationManager = {
 //    }
     }
 
+    const before = accountBeforeLogin(user)
     let userDetails = updateUserDetailsOnLogin ? { first_name : firstName, last_name: lastName } : {}
     if (attAdmin && valAdmin) {
       user.isAdmin = isAdmin
@@ -90,6 +104,7 @@ const OIDCAuthenticationManager = {
     if (result.modifiedCount !== 1) {
       throw new ParallelLoginError()
     }
+    await logLoginChanges(user, before, userDetails, auditLog)
     return user
   },
   async linkAccount(userId, profile, auditLog) {

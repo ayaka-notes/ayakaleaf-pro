@@ -1,4 +1,4 @@
-import { RouteHandler, RouteMatcher } from 'cypress/types/net-stubbing'
+import type { RouteMatcher, RouteHandler } from 'cypress/types/net-stubbing'
 
 export const interceptAsync = (route: RouteMatcher, alias: string) => {
   const deferred: { resolve: (value: RouteHandler) => void } = {

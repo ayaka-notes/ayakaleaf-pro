@@ -9,13 +9,16 @@
   },
   "version": "0.1.1",
   "dependencies": {
-    "@overleaf/settings": "*",
-    "@overleaf/logger": "*",
-    "@overleaf/metrics": "*",
+    "@overleaf/fetch-utils": "workspace:*",
+    "@overleaf/logger": "workspace:*",
+    "@overleaf/metrics": "workspace:*",
+    "@overleaf/settings": "workspace:*",
+    "als-normalize-urlpath": "^2.3.0",
     "async": "^3.2.5",
     "express": "^4.22.1",
+    "http-proxy-agent": "^7.0.2",
+    "https-proxy-agent": "^7.0.6",
     "ipaddr.js": "^2.1.0",
-    "als-normalize-urlpath": "^2.3.0",
     "strict-url-sanitise": "^0.0.1"
   }
 }

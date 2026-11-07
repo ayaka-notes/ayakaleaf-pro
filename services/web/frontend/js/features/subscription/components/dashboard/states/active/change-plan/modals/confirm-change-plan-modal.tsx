@@ -7,7 +7,10 @@ import {
 } from '../../../../../../../../infrastructure/fetch-json'
 import getMeta from '../../../../../../../../utils/meta'
 import { useSubscriptionDashboardContext } from '../../../../../../context/subscription-dashboard-context'
-import { subscriptionUpdateUrl } from '../../../../../../data/subscription-url'
+import {
+  subscriptionUpdateUrl,
+  reloadWithoutHasSubscription,
+} from '../../../../../../data/subscription-url'
 import { useLocation } from '../../../../../../../../shared/hooks/use-location'
 import {
   OLModal,
@@ -40,12 +43,12 @@ export function ConfirmChangePlanModal() {
           plan_code: planCodeToChangeTo,
         },
       })
-      location.reload()
+      reloadWithoutHasSubscription(location)
     } catch (e) {
       const fetchError = e as FetchError
       const { handled } = await handleStripePaymentAction(fetchError)
       if (handled) {
-        location.reload()
+        reloadWithoutHasSubscription(location)
       } else {
         setError(fetchError)
         setInflight(false)

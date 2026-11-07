@@ -583,7 +583,7 @@ type ElementSelector<T extends string, E extends HTMLElement = HTMLElement> = {
 const createSelector = <
   T extends string,
   E extends HTMLElement = T extends keyof HTMLElementTagNameMap
-    ? HTMLElementTagNameMap[T]
+    ? Extract<HTMLElementTagNameMap[T], HTMLElement>
     : HTMLElement,
 >({
   selector,

@@ -28,9 +28,23 @@ describe('<PasswordSection />', function () {
       'ol-isExternalAuthenticationSystemUsed',
       true
     )
+    window.metaAttributesCache.set('ol-hasPassword', false)
     render(<PasswordSection />)
 
     screen.getByText('Password settings are managed externally.')
+  })
+
+  it('shows the form to a local account when external authentication is used', async function () {
+    Object.assign(getMeta('ol-ExposedSettings'), {
+      isOverleaf: false,
+    })
+    window.metaAttributesCache.set(
+      'ol-isExternalAuthenticationSystemUsed',
+      true
+    )
+    render(<PasswordSection />)
+
+    screen.getByLabelText('Current password')
   })
 
   it('shows no existing password message', async function () {

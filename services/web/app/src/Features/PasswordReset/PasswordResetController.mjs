@@ -9,9 +9,18 @@ import OError from '@overleaf/o-error'
 import EmailsHelper from '../Helpers/EmailHelper.mjs'
 import { expressify } from '@overleaf/promise-utils'
 import { z, parseReq } from '../../infrastructure/Validation.mjs'
-import SplitTestHandler from '../SplitTests/SplitTestHandler.mjs'
+import Features from '../../infrastructure/Features.mjs'
 
 const setNewUserPasswordSchema = z.object({
+  body: z.strictObject({
+    email: z.string().optional(),
+    password: z.string(),
+    passwordResetToken: z.string(),
+  }),
+})
+// Rollout-temporary fallback (pre-refinement schema from main); delete
+// when this route's REQ_VALIDATION_MODE instrumentation is removed.
+const setNewUserPasswordFallbackSchema = z.object({
   body: z.object({
     email: z.string().optional(),
     password: z.string(),
@@ -21,7 +30,9 @@ const setNewUserPasswordSchema = z.object({
 
 async function setNewUserPassword(req, res, next) {
   let user
-  const { body } = parseReq(req, setNewUserPasswordSchema)
+  const { body } = parseReq(req, setNewUserPasswordSchema, {
+    fallbackSchema: setNewUserPasswordFallbackSchema,
+  })
   let { passwordResetToken, password, email } = body
   if (!passwordResetToken || !password) {
     return res.status(400).json({
@@ -114,13 +125,22 @@ async function setNewUserPassword(req, res, next) {
 }
 
 const requestResetSchema = z.object({
+  body: z.strictObject({
+    email: z.string(),
+  }),
+})
+// Rollout-temporary fallback (pre-refinement schema from main); delete
+// when this route's REQ_VALIDATION_MODE instrumentation is removed.
+const requestResetFallbackSchema = z.object({
   body: z.object({
     email: z.string(),
   }),
 })
 
 async function requestReset(req, res, next) {
-  const { body } = parseReq(req, requestResetSchema)
+  const { body } = parseReq(req, requestResetSchema, {
+    fallbackSchema: requestResetFallbackSchema,
+  })
   const email = EmailsHelper.parseEmail(body.email)
   if (!email) {
     return res.status(400).json({
@@ -195,10 +215,6 @@ async function renderSetPasswordForm(req, res, next) {
           params.append('email', email)
         }
       }
-      if (req.query.uniaccessphase1) {
-        // Preserve uniaccessphase1 flag in the redirect so it can be tested
-        params.append('uniaccessphase1', req.query.uniaccessphase1)
-      }
       const queryString = params.toString() ? `?${params.toString()}` : ''
       return res.redirect('/user/password/set' + queryString)
     } catch (err) {
@@ -219,16 +235,8 @@ async function renderSetPasswordForm(req, res, next) {
   const passwordResetToken = req.session.resetToken
   delete req.session.resetToken
 
-  const ciamAssignment = await SplitTestHandler.promises.getAssignment(
-    req,
-    res,
-    'uniaccessphase1'
-  )
-
   res.render(
-    ciamAssignment.variant === 'enabled'
-      ? 'user/setPasswordCiam'
-      : 'user/setPassword',
+    Features.hasFeature('saas') ? 'user/setPasswordCiam' : 'user/setPassword',
     {
       title: 'set_password',
       email,
@@ -251,14 +259,8 @@ async function renderRequestResetForm(req, res) {
     error = 'password_reset_token_expired'
   }
 
-  const ciamAssignment = await SplitTestHandler.promises.getAssignment(
-    req,
-    res,
-    'uniaccessphase1'
-  )
-
   res.render(
-    ciamAssignment.variant === 'enabled'
+    Features.hasFeature('saas')
       ? 'user/passwordResetCiam'
       : 'user/passwordReset',
     {

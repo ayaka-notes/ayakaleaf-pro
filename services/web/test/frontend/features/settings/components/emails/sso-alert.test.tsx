@@ -24,12 +24,12 @@ describe('<SSOAlert/>', function () {
       screen.getByText('Overleaf University', { exact: false })
     })
 
-    it('when entitled, it should render access granted to "professional" features', function () {
+    it('when entitled, it should render access granted to "commons" features', function () {
       window.metaAttributesCache.get('ol-institutionLinked').hasEntitlement =
         true
       render(<SSOAlert />)
       screen.getByText('this grants you access', { exact: false })
-      screen.getByText('Professional')
+      screen.getByText('Commons')
     })
 
     it('when the email is not canonical it should also render a warning alert', function () {
@@ -82,6 +82,19 @@ describe('<SSOAlert/>', function () {
       window.metaAttributesCache.get('ol-samlError').tryAgain = true
       render(<SSOAlert />)
       screen.getByText('Please try again')
+    })
+
+    it('should render reconfirmation unable-to-find-user message for matching SAML error name', function () {
+      window.metaAttributesCache.set('ol-samlError', {
+        name: 'SAMLCommonsReconfirmationUnableToFindUserError',
+      })
+
+      render(<SSOAlert />)
+
+      screen.getByText(/unable to confirm your affiliation/i)
+      const contactLink = screen.getByRole('link', { name: /contact us/i })
+      expect(contactLink.getAttribute('href')).to.equal('/contact')
+      expect(contactLink.getAttribute('target')).to.equal('_blank')
     })
 
     it('the alert should be closeable', function () {

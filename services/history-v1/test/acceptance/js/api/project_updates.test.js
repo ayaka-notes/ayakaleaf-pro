@@ -22,6 +22,7 @@ const TextOperation = core.TextOperation
 const V2DocVersions = core.V2DocVersions
 
 const knex = require('../../../../storage').knex
+const { blobHashFromString } = require('overleaf-editor-core/lib/blob_utils')
 
 describe('history import', function () {
   beforeEach(cleanup.everything)
@@ -511,6 +512,124 @@ describe('history import', function () {
         const lastChange = changes[changes.length - 1]
         expect(lastChange.getOrigin()).to.deep.equal(testGitOrigin)
       })
+  })
+
+  it('preserves rangesHash when importing a file', async function () {
+    const testProjectId = '1'
+    const testFilePathname = 'main.tex'
+    // hello.txt contains "Olá mundo\n" (10 UTF-8 chars).
+    const rangesContent = JSON.stringify({
+      comments: [
+        {
+          id: 'comment-1',
+          ranges: [{ pos: 0, length: 3 }],
+          resolved: false,
+        },
+      ],
+      trackedChanges: [
+        {
+          range: { pos: 4, length: 5 },
+          tracking: {
+            type: 'insert',
+            userId: 'user-1',
+            ts: '2024-01-01T00:00:00.000Z',
+          },
+        },
+      ],
+    })
+    const testRangesHash = blobHashFromString(rangesContent)
+    const testFile = File.fromHash(testFiles.HELLO_TXT_HASH, testRangesHash)
+
+    const [contentResponse, rangesResponse] = await Promise.all([
+      fetch(
+        testServer.url(
+          `/api/projects/${testProjectId}/blobs/${testFiles.HELLO_TXT_HASH}`
+        ),
+        {
+          method: 'PUT',
+          body: fs.createReadStream(testFiles.path('hello.txt')),
+          headers: { Authorization: testServer.basicAuthHeader },
+        }
+      ),
+      fetch(
+        testServer.url(
+          `/api/projects/${testProjectId}/blobs/${testRangesHash}`
+        ),
+        {
+          method: 'PUT',
+          body: rangesContent,
+          headers: { Authorization: testServer.basicAuthHeader },
+        }
+      ),
+    ])
+    expect(contentResponse.ok).to.be.true
+    expect(rangesResponse.ok).to.be.true
+
+    const testSnapshot = new Snapshot()
+    testSnapshot.addFile(testFilePathname, testFile)
+    const importResponse =
+      await basicAuthClient.apis.ProjectImport.importSnapshot1({
+        project_id: testProjectId,
+        snapshot: testSnapshot.toRaw(),
+      })
+    expect(importResponse.obj.projectId).to.equal(testProjectId)
+
+    const historyResponse =
+      await clientForProject.apis.Project.getLatestHistory({
+        project_id: testProjectId,
+      })
+    const chunk = ChunkResponse.fromRaw(historyResponse.obj).getChunk()
+    const file = chunk.getSnapshot().getFile(testFilePathname)
+    expect(file.getRangesHash()).to.equal(testRangesHash)
+  })
+
+  it('preserves projectVersion, v2DocVersions and timestamp on snapshot import', async function () {
+    const testProjectId = '1'
+    const testFilePathname = 'empty.tex'
+    const testDocId = '000000000000000000000001'
+    const testProjectVersion = '12345.0'
+    const testV2DocVersions = new V2DocVersions({
+      [testDocId]: { pathname: testFilePathname, v: 123 },
+    })
+    const testTimestamp = new Date('2024-01-01T00:00:00.000Z')
+
+    const response = await fetch(
+      testServer.url(
+        `/api/projects/${testProjectId}/blobs/${File.EMPTY_FILE_HASH}`
+      ),
+      {
+        method: 'PUT',
+        body: fs.createReadStream(testFiles.path('empty.tex')),
+        headers: { Authorization: testServer.basicAuthHeader },
+      }
+    )
+    expect(response.ok).to.be.true
+
+    const testSnapshot = new Snapshot()
+    testSnapshot.addFile(testFilePathname, File.fromHash(File.EMPTY_FILE_HASH))
+    testSnapshot.setProjectVersion(testProjectVersion)
+    testSnapshot.setV2DocVersions(testV2DocVersions)
+    testSnapshot.setTimestamp(testTimestamp)
+
+    const importResponse =
+      await basicAuthClient.apis.ProjectImport.importSnapshot1({
+        project_id: testProjectId,
+        snapshot: testSnapshot.toRaw(),
+      })
+    expect(importResponse.obj.projectId).to.equal(testProjectId)
+
+    const historyResponse =
+      await clientForProject.apis.Project.getLatestHistory({
+        project_id: testProjectId,
+      })
+    const snapshot = ChunkResponse.fromRaw(historyResponse.obj)
+      .getChunk()
+      .getSnapshot()
+    expect(snapshot.getProjectVersion()).to.equal(testProjectVersion)
+    expect(snapshot.getV2DocVersions()).to.deep.equal(testV2DocVersions)
+    expect(snapshot.getTimestamp()?.toISOString()).to.equal(
+      testTimestamp.toISOString()
+    )
   })
 
   it('rejects text operations on binary files', function () {

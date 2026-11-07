@@ -9,9 +9,9 @@ type GroupPlanProps = Pick<
 >
 
 function getFriendlyPlanName(planName: string): string {
-  if (planName.toLowerCase().includes('professional')) {
-    return 'Professional'
-  } else if (planName.toLowerCase().includes('collaborator')) {
+  if (planName.toLowerCase().includes('pro group')) {
+    return 'Pro'
+  } else if (planName.toLowerCase().includes('standard')) {
     return 'Standard'
   }
   // fallback on plan name

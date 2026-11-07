@@ -8,6 +8,8 @@ const httpAuthUsers = {}
 httpAuthUsers[httpAuthUser] = httpAuthPass
 
 module.exports = {
+  adminRolesEnabled: false,
+
   catchErrors: false,
   clsiCookie: undefined,
 
@@ -67,12 +69,13 @@ module.exports = {
     },
     clsi: {
       url: 'http://127.0.0.1:23013',
+      downloadHost: 'http://127.0.0.1:23080',
+    },
+    clsiCache: {
+      instances: [{ url: 'http://127.0.0.1:23081', shard: 'cache' }],
     },
     realTime: {
       url: 'http://127.0.0.1:23026',
-    },
-    contacts: {
-      url: 'http://127.0.0.1:23036',
     },
     notifications: {
       url: 'http://127.0.0.1:23042',
@@ -115,7 +118,8 @@ module.exports = {
       compileGroup: 'standard',
       trackChanges: false,
       symbolPalette: false,
-      aiErrorAssistant: false,
+      aiUsageQuota: 'basic',
+      offlineMode: false,
     },
     personal: {
       collaborators: 1,
@@ -132,7 +136,8 @@ module.exports = {
       compileGroup: 'standard',
       trackChanges: false,
       symbolPalette: false,
-      aiErrorAssistant: false,
+      aiUsageQuota: 'basic',
+      offlineMode: false,
     },
     collaborator: {
       collaborators: 10,
@@ -149,7 +154,8 @@ module.exports = {
       compileGroup: 'priority',
       trackChanges: true,
       symbolPalette: true,
-      aiErrorAssistant: false,
+      aiUsageQuota: 'basic',
+      offlineMode: true,
     },
     professional: {
       collaborators: -1,
@@ -166,7 +172,8 @@ module.exports = {
       compileGroup: 'priority',
       trackChanges: true,
       symbolPalette: true,
-      aiErrorAssistant: false,
+      aiUsageQuota: 'basic',
+      offlineMode: true,
     },
   }),
 
@@ -189,19 +196,39 @@ module.exports = {
     },
     {
       planCode: 'collaborator',
-      name: 'Collaborator',
+      name: 'Standard monthly',
       price_in_cents: 1500,
+      features: features.collaborator,
+    },
+    // The real student plans live in settings.overrides.saas.js, but
+    // @overleaf/settings' merge replaces arrays wholesale rather than
+    // merging them, so this list (not that one) is what acceptance tests
+    // see. Without these, PlansLocator.findLocalPlanInSettings cannot
+    // resolve 'student' and any test of the student-verification gate is
+    // blocked before the gate is reached. Feature set is deliberately
+    // borrowed from collaborator: the gate only needs the plan to resolve.
+    {
+      planCode: 'student',
+      name: 'Student monthly',
+      price_in_cents: 1000,
+      features: features.collaborator,
+    },
+    {
+      planCode: 'student-annual',
+      name: 'Student annual',
+      price_in_cents: 10000,
+      annual: true,
       features: features.collaborator,
     },
     {
       planCode: 'professional',
-      name: 'Professional',
+      name: 'Pro monthly',
       price_in_cents: 3000,
       features: features.professional,
     },
     {
       planCode: 'group_professional',
-      name: 'Professional - Group Account - Enterprise',
+      name: 'Pro group',
       hideFromUsers: true,
       price_in_cents: 0,
       annual: true,
@@ -213,7 +240,7 @@ module.exports = {
     },
     {
       planCode: 'group_collaborator',
-      name: 'Collaborator - Group Account - Enterprise',
+      name: 'Standard group',
       hideFromUsers: true,
       price_in_cents: 0,
       annual: true,
@@ -291,6 +318,13 @@ module.exports = {
 
   devToolbar: {
     enabled: false,
+  },
+
+  projectInviteEncryptorOptions: {
+    cipherLabel: '2026.3-v3',
+    cipherPasswords: {
+      '2026.3-v3': 'this-is-a-weak-secret-for-tests-web-2026.3-v3',
+    },
   },
 }
 

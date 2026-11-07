@@ -1,4 +1,4 @@
-import { vi, expect } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import sinon from 'sinon'
 import path from 'node:path'
 import mongodb from 'mongodb-legacy'
@@ -76,11 +76,12 @@ describe('DocumentUpdaterHandler', function () {
       },
     }))
 
+    ctx.modulesHooksFire = sinon.stub().resolves()
     vi.doMock('../../../../app/src/infrastructure/Modules', () => ({
       default: {
         promises: {
           hooks: {
-            fire: sinon.stub().resolves(),
+            fire: ctx.modulesHooksFire,
           },
         },
       },
@@ -281,6 +282,7 @@ describe('DocumentUpdaterHandler', function () {
             lines: ctx.lines,
             source: ctx.source,
             user_id: ctx.user_id,
+            trackChanges: false,
           })
           .reply(204)
       })
@@ -297,6 +299,31 @@ describe('DocumentUpdaterHandler', function () {
       })
     })
 
+    describe('with track changes enabled', function () {
+      beforeEach(function (ctx) {
+        ctx.docUpdaterMock
+          .post(`/project/${ctx.project_id}/doc/${ctx.doc_id}`, {
+            lines: ctx.lines,
+            source: ctx.source,
+            user_id: ctx.user_id,
+            trackChanges: true,
+          })
+          .reply(204)
+      })
+
+      it('should forward the trackChanges flag', async function (ctx) {
+        await ctx.handler.promises.setDocument(
+          ctx.project_id,
+          ctx.doc_id,
+          ctx.user_id,
+          ctx.lines,
+          ctx.source,
+          true
+        )
+        expect(ctx.docUpdaterMock.isDone()).to.be.true
+      })
+    })
+
     describe('when the document updater API returns an error', function () {
       beforeEach(function (ctx) {
         ctx.docUpdaterMock
@@ -304,6 +331,7 @@ describe('DocumentUpdaterHandler', function () {
             lines: ctx.lines,
             source: ctx.source,
             user_id: ctx.user_id,
+            trackChanges: false,
           })
           .replyWithError('boom')
       })
@@ -328,6 +356,7 @@ describe('DocumentUpdaterHandler', function () {
             lines: ctx.lines,
             source: ctx.source,
             user_id: ctx.user_id,
+            trackChanges: false,
           })
           .reply(500)
       })
@@ -548,22 +577,111 @@ describe('DocumentUpdaterHandler', function () {
   describe('acceptChanges', function () {
     beforeEach(function (ctx) {
       ctx.change_id = 'mock-change-id-1'
+      ctx.change_contributors = ['mock-user-id-1', 'mock-user-id-2']
     })
 
     describe('successfully', function () {
-      beforeEach(function (ctx) {
+      beforeEach(async function (ctx) {
+        ctx.previews = [
+          {
+            sectionPath: ['Intro'],
+            startLine: 2,
+            changes: [{ i: 'hello', p: 5 }],
+            slice: 'first line\nsecond line hello',
+            sliceStart: 0,
+            userIds: ['mock-user-id-1'],
+          },
+        ]
         ctx.docUpdaterMock
           .post(`/project/${ctx.project_id}/doc/${ctx.doc_id}/change/accept`, {
             change_ids: [ctx.change_id],
           })
-          .reply(200)
+          .reply(200, {
+            changeContributors: ctx.change_contributors,
+            previews: ctx.previews,
+          })
+        await ctx.handler.promises.acceptChanges(
+          ctx.project_id,
+          ctx.doc_id,
+          [ctx.change_id],
+          ctx.user_id
+        )
       })
 
-      it('should accept the change in the document updater', async function (ctx) {
-        await ctx.handler.promises.acceptChanges(ctx.project_id, ctx.doc_id, [
-          ctx.change_id,
-        ])
+      it('should accept the change in the document updater', function (ctx) {
         expect(ctx.docUpdaterMock.isDone()).to.be.true
+      })
+
+      it('should fire the changesAccepted hook with contributors and previews', function (ctx) {
+        expect(ctx.modulesHooksFire).to.have.been.calledWith(
+          'changesAccepted',
+          ctx.project_id,
+          ctx.doc_id,
+          ctx.user_id,
+          ctx.change_contributors,
+          ctx.previews
+        )
+      })
+    })
+
+    describe('when the document updater does not return preview data', function () {
+      beforeEach(async function (ctx) {
+        ctx.docUpdaterMock
+          .post(`/project/${ctx.project_id}/doc/${ctx.doc_id}/change/accept`, {
+            change_ids: [ctx.change_id],
+          })
+          .reply(200, { changeContributors: ctx.change_contributors })
+        await ctx.handler.promises.acceptChanges(
+          ctx.project_id,
+          ctx.doc_id,
+          [ctx.change_id],
+          ctx.user_id
+        )
+      })
+
+      it('should fire the changesAccepted hook with undefined preview data', function (ctx) {
+        expect(ctx.modulesHooksFire).to.have.been.calledWith(
+          'changesAccepted',
+          ctx.project_id,
+          ctx.doc_id,
+          ctx.user_id,
+          ctx.change_contributors,
+          undefined
+        )
+      })
+    })
+
+    describe('when there are no change contributors', function () {
+      beforeEach(async function (ctx) {
+        ctx.docUpdaterMock
+          .post(`/project/${ctx.project_id}/doc/${ctx.doc_id}/change/accept`)
+          .reply(200, { changeContributors: [] })
+        await ctx.handler.promises.acceptChanges(
+          ctx.project_id,
+          ctx.doc_id,
+          [ctx.change_id],
+          ctx.user_id
+        )
+      })
+    })
+
+    describe('when there are duplicate change contributors', function () {
+      beforeEach(async function (ctx) {
+        ctx.docUpdaterMock
+          .post(`/project/${ctx.project_id}/doc/${ctx.doc_id}/change/accept`)
+          .reply(200, {
+            changeContributors: [
+              'mock-user-id-1',
+              'mock-user-id-1',
+              'mock-user-id-2',
+            ],
+          })
+        await ctx.handler.promises.acceptChanges(
+          ctx.project_id,
+          ctx.doc_id,
+          [ctx.change_id],
+          ctx.user_id
+        )
       })
     })
 
@@ -1554,6 +1672,7 @@ describe('DocumentUpdaterHandler', function () {
             lines: ctx.lines,
             source: ctx.source,
             user_id: ctx.user_id,
+            trackChanges: false,
           })
           .reply(200)
       })
@@ -1565,6 +1684,31 @@ describe('DocumentUpdaterHandler', function () {
           ctx.user_id,
           ctx.lines,
           ctx.source
+        )
+        expect(ctx.docUpdaterMock.isDone()).to.be.true
+      })
+    })
+
+    describe('with track changes enabled', function () {
+      beforeEach(function (ctx) {
+        ctx.docUpdaterMock
+          .post(`/project/${ctx.project_id}/doc/${ctx.doc_id}/append`, {
+            lines: ctx.lines,
+            source: ctx.source,
+            user_id: ctx.user_id,
+            trackChanges: true,
+          })
+          .reply(200)
+      })
+
+      it('should forward the trackChanges flag', async function (ctx) {
+        await ctx.handler.promises.appendToDocument(
+          ctx.project_id,
+          ctx.doc_id,
+          ctx.user_id,
+          ctx.lines,
+          ctx.source,
+          true
         )
         expect(ctx.docUpdaterMock.isDone()).to.be.true
       })

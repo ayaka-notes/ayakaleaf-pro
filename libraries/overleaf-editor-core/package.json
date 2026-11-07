@@ -3,13 +3,15 @@
   "version": "1.0.0",
   "description": "Library shared between the editor server and clients.",
   "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./*": "./*"
+  },
   "scripts": {
-    "test": "npm run lint && npm run format && npm run types:check && npm run test:unit",
-    "format": "prettier --list-different $PWD/'**/*.{js,cjs,ts}'",
-    "format:fix": "prettier --write $PWD/'**/*.{js,cjs,ts}'",
-    "lint": "eslint --ext .cjs,.js,.jsx,.mjs,.ts --max-warnings 0 --format unix .",
-    "lint:fix": "eslint --fix --ext .cjs,.js,.jsx,.mjs,.ts .",
-    "test:ci": "npm run test:unit",
+    "test": "yarn run lint && yarn run types:check && yarn run test:unit",
+    "lint": "eslint --cache --cache-location ../../.cache/eslint/ --ext .cjs,.js,.jsx,.mjs,.ts --max-warnings 0 .",
+    "lint:fix": "eslint --cache --cache-location ../../.cache/eslint/ --fix --ext .cjs,.js,.jsx,.mjs,.ts .",
+    "test:ci": "yarn run test:unit",
     "test:unit": "mocha --exit test/**/*.{js,cjs}",
     "types:check": "tsc --noEmit"
   },
@@ -18,8 +20,12 @@
   "private": true,
   "devDependencies": {
     "@types/check-types": "^7.3.7",
+    "@types/lodash": "^4.17.24",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^24.5.2",
     "@types/path-browserify": "^1.0.3",
     "chai": "^3.3.0",
+    "eslint": "^10.4.0",
     "mocha": "^11.1.0",
     "mocha-junit-reporter": "^2.2.1",
     "mocha-multi-reporters": "^1.5.1",
@@ -27,10 +33,13 @@
     "typescript": "^5.0.4"
   },
   "dependencies": {
-    "@overleaf/o-error": "*",
+    "@overleaf/o-error": "workspace:*",
+    "@overleaf/validation-tools": "workspace:*",
     "check-types": "^5.1.0",
-    "lodash": "^4.17.19",
+    "diff-match-patch": "overleaf/diff-match-patch#89805f9c671a77a263fc53461acd62aa7498f688",
+    "lodash": "^4.18.1",
     "p-map": "^4.0.0",
-    "path-browserify": "^1.0.1"
+    "path-browserify": "^1.0.1",
+    "utf-8-validate": "^5.0.4"
   }
 }

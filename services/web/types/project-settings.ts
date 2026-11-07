@@ -21,7 +21,6 @@ export type ProjectCompiler = 'pdflatex' | 'latex' | 'xelatex' | 'lualatex'
 
 export type OverallThemeMeta = {
   name: string
-  path: string
   val: OverallTheme
 }
 

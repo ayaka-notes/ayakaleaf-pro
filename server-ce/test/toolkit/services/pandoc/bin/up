@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Usage: services/pandoc/bin/up
+# Nothing to do, clsi starts a Pandoc container for each conversion.

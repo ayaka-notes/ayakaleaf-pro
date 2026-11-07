@@ -1,8 +1,0 @@
-document-updater
---dependencies=mongo,redis
---env-add=
---env-pass-through=
---esmock-loader=False
---node-version=22.18.0
---pipeline-owner=🥑 Core
---public-repo=True

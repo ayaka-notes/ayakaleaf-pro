@@ -1,7 +1,5 @@
-import type { ReactNode } from 'react'
-
 export type ButtonProps = {
-  children?: ReactNode
+  children?: React.ReactNode
   className?: string
   disabled?: boolean
   download?: boolean | string
@@ -21,7 +19,7 @@ export type ButtonProps = {
   onFocus?: React.FocusEventHandler<HTMLButtonElement>
   onBlur?: React.FocusEventHandler<HTMLButtonElement>
   size?: 'sm' | 'lg' | undefined
-  style?: Record<PropertyKey, string>
+  style?: React.CSSProperties
   active?: boolean
   trailingIcon?: string | React.ReactNode
   type?: 'button' | 'reset' | 'submit'

@@ -14,8 +14,11 @@ import org.apache.commons.io.IOUtils;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.ResetCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.lib.ConfigConstants;
+import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import uk.ac.ic.wlgitbridge.data.filestore.GitDirectoryContents;
 import uk.ac.ic.wlgitbridge.data.filestore.RawDirectory;
@@ -66,11 +69,29 @@ public class GitProjectRepo implements ProjectRepo {
     initRepositoryField(repoStore);
     Preconditions.checkState(repository.isPresent());
     Repository repo = this.repository.get();
-    // TODO: assert that this is a fresh repo. At the moment, we can't be
-    // sure whether the repo to be init'd doesn't exist or is just fresh
-    // and we crashed / aborted while committing
-    if (repo.getObjectDatabase().exists()) return;
+    if (repo.getObjectDatabase().exists()) {
+      boolean isFreshRepo = true;
+      try {
+        isFreshRepo = repo.resolve("HEAD") == null;
+      } catch (Exception e) {
+        Log.warn(
+            "[{}] initRepo could not resolve HEAD to determine repo freshness", projectName, e);
+      }
+      if (!isFreshRepo) {
+        // if the repo has commits (due to a previous crash/abort while it was being initialised),
+        // we're returning early, expecting the repo to be reset to a clean state.
+        // Logging a warning to track this scenario.
+        Log.warn("[{}] initRepo called on repo that already has commits", projectName);
+      }
+      return;
+    }
     repo.create();
+    StoredConfig config = repo.getConfig();
+    config.setBoolean(
+        ConfigConstants.CONFIG_CORE_SECTION, null, ConfigConstants.CONFIG_KEY_SYMLINKS, false);
+    config.save();
+    // Set default branch to "main" for new projects
+    repo.updateRef(Constants.HEAD).link("refs/heads/main");
   }
 
   @Override

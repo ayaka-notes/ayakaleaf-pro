@@ -1,0 +1,223 @@
+:root {
+  --editor-tab-max-path-length: 250px;
+  --editor-tab-divider-color: var(--neutral-70);
+  --editor-tab-row-height: var(--review-panel-header-height, 36px);
+  --editor-tab-drop-indicator-width: 5px;
+  --editor-tab-divider-width: 1px;
+}
+
+@include theme('light') {
+  --editor-tab-divider-color: var(--border-divider);
+}
+
+.editor-tabs-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex: 0 0 auto;
+  min-height: var(--editor-tab-row-height);
+  background: var(--bg-secondary-themed);
+  justify-content: space-between;
+
+  .review-panel-header-slot {
+    display: contents;
+  }
+
+  .editor-tabs-labs-icon {
+    flex: 0 0 auto;
+    padding: 0 var(--spacing-02);
+
+    .material-symbols {
+      font-size: 16px;
+    }
+  }
+}
+
+.editor-tabs-row {
+  display: flex;
+  flex-direction: row;
+  height: var(--editor-tab-row-height);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  flex: 1;
+  background: var(--bg-secondary-themed);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.editor-file-tab {
+  --tab-bg-color: var(--bg-secondary-themed);
+  --tab-text-color: var(--content-secondary-themed);
+
+  display: flex;
+  position: relative;
+  border-right: var(--editor-tab-divider-width) solid
+    var(--editor-tab-divider-color);
+  padding: var(--spacing-01) var(--spacing-02) 0 var(--spacing-02);
+
+  &:first-child {
+    padding-left: 0;
+  }
+
+  &:last-child {
+    padding-right: 0;
+  }
+
+  &.tab-selected,
+  &:has(+ .tab-selected) {
+    border-right-color: transparent;
+  }
+
+  .editor-file-tab-content {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-02);
+    justify-content: center;
+    box-sizing: border-box;
+    padding: var(--spacing-02) var(--spacing-03);
+    background: var(--tab-bg-color);
+    color: var(--tab-text-color);
+    font-size: var(--font-size-02);
+    flex-direction: row;
+    cursor: pointer;
+    user-select: none;
+    border: 1px solid transparent;
+    border-bottom-width: 0;
+  }
+
+  &.tab-selected {
+    --tab-bg-color: var(--bg-primary-themed);
+    --tab-text-color: var(--content-primary-themed);
+
+    .editor-file-tab-content {
+      border-top-left-radius: var(--border-radius-medium);
+      border-top-right-radius: var(--border-radius-medium);
+      border-color: var(--editor-tab-divider-color);
+    }
+  }
+
+  &:not(.tab-selected) .editor-file-tab-content:hover {
+    background-color: var(--bg-tertiary-themed);
+    border-radius: var(--border-radius-medium);
+  }
+
+  .material-symbols {
+    vertical-align: middle;
+    font-size: var(--font-size-03);
+  }
+
+  .file-tree-icon,
+  .linked-file-highlight {
+    color: var(--tab-text-color);
+  }
+
+  .editor-file-tab-icon {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+  }
+
+  .file-tree-icon {
+    margin-right: var(--spacing-01);
+  }
+
+  .linked-file-icon {
+    position: relative;
+    left: -2px;
+  }
+
+  .linked-file-highlight {
+    position: absolute;
+    top: 6px;
+    left: 6px !important;
+    font-size: var(--font-size-01);
+  }
+
+  &.tab-drop-left::after,
+  &.tab-drop-right::after,
+  .editor-tabs-row-hovered &:last-child::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: var(--editor-tab-drop-indicator-width);
+    background-color: var(--border-primary-themed);
+  }
+
+  &.tab-drop-right::after,
+  .editor-tabs-row-hovered &:last-child::after {
+    right: calc(
+      var(--editor-tab-drop-indicator-width) /
+        -2 - var(--editor-tab-divider-width)
+    );
+  }
+
+  &.tab-drop-left::after {
+    left: calc(var(--editor-tab-drop-indicator-width) / -2);
+  }
+
+  &.tab-temporary {
+    font-style: italic;
+  }
+
+  &.tab-disabled {
+    .editor-file-tab-content,
+    .editor-file-tab-icon .file-tree-icon,
+    .editor-file-tab-icon .linked-file-highlight {
+      color: var(--content-disabled-themed);
+    }
+  }
+
+  .editor-file-tab-action {
+    display: flex;
+    align-items: center;
+  }
+
+  .editor-file-tab-close-action {
+    background: transparent;
+    opacity: 0;
+    border: none;
+    color: var(--tab-text-color);
+    cursor: pointer;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    border-radius: 100%;
+    justify-content: center;
+
+    &:hover {
+      background-color: var(--bg-secondary-themed);
+      color: var(--content-primary-themed);
+    }
+
+    &:disabled {
+      cursor: default;
+      color: var(--content-disabled-themed);
+
+      &:hover {
+        background-color: transparent;
+        color: var(--content-disabled-themed);
+      }
+    }
+  }
+
+  &:hover,
+  &:focus-within,
+  &.tab-selected {
+    .editor-file-tab-close-action {
+      opacity: 1;
+    }
+  }
+}
+
+.editor-file-tab-path {
+  text-wrap: nowrap;
+  max-width: var(--editor-tab-max-path-length);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  overflow: hidden;
+}

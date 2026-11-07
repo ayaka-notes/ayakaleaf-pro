@@ -1,12 +1,17 @@
-const Path = require('node:path')
-const RequestParser = require('./RequestParser')
-const CompileManager = require('./CompileManager')
-const Settings = require('@overleaf/settings')
-const Metrics = require('@overleaf/metrics')
-const ProjectPersistenceManager = require('./ProjectPersistenceManager')
-const logger = require('@overleaf/logger')
-const Errors = require('./Errors')
-const { notifyCLSICacheAboutBuild } = require('./CLSICacheHandler')
+import OError from '@overleaf/o-error'
+import Path from 'node:path'
+import RequestParser from './RequestParser.js'
+import CompileManager from './CompileManager.js'
+import Settings from '@overleaf/settings'
+import Metrics from '@overleaf/metrics'
+import ProjectPersistenceManager from './ProjectPersistenceManager.js'
+import logger from '@overleaf/logger'
+import Errors from './Errors.js'
+import CLSICacheHandler from './CLSICacheHandler.js'
+import { parseReq, z, zz } from '@overleaf/validation-tools'
+import { compileRequestBodySchema } from './schemas.js'
+
+const { notifyCLSICacheAboutBuild } = CLSICacheHandler
 
 let lastSuccessfulCompileTimestamp = 0
 
@@ -14,16 +19,43 @@ function timeSinceLastSuccessfulCompile() {
   return Date.now() - lastSuccessfulCompileTimestamp
 }
 
+// project_id is a Mongo ObjectId in the common case, but this service is also
+// hit directly by clsi-perf and by v1 submission/export flows using a bare
+// alphanumeric submission id (see zz.objectId().or(zz.submissionId()) in
+// web's ClsiURLHelpers.mjs, which this mirrors); user_id, when present, is
+// always a Mongo ObjectId.
+const projectOrUserParamsSchema = z.strictObject({
+  project_id: zz.objectId().or(zz.submissionId()),
+  user_id: zz.objectId().optional(),
+})
+
+// web's ClsiManager.mjs (_getCompilerUrl / _makeRequestWithClsiServerId)
+// appends these to every GET it makes against this service, for backend
+// routing and metrics; none of them are read by the handlers below. Spread
+// into each affected route's strictObject query schema so genuine requests
+// aren't rejected.
+const clsiRoutingQueryFields = {
+  compileBackendClass: zz.compileBackendClass().optional(),
+  compileGroup: zz.compileGroup().optional(),
+  clsiserverid: zz.clsiServerId().optional(),
+}
+
+const compileSchema = z.object({
+  params: projectOrUserParamsSchema,
+  body: compileRequestBodySchema,
+})
+
 function compile(req, res, next) {
+  const { params, body } = parseReq(req, compileSchema, { logOnly: true })
   const timer = new Metrics.Timer('compile-request')
-  RequestParser.parse(req.body, function (error, request) {
+  RequestParser.parse(body, function (error, request) {
     if (error) {
       return next(error)
     }
     timer.opts = request.metricsOpts
-    request.project_id = req.params.project_id
-    if (req.params.user_id != null) {
-      request.user_id = req.params.user_id
+    request.project_id = params.project_id
+    if (params.user_id != null) {
+      request.user_id = params.user_id
     }
     ProjectPersistenceManager.markProjectAsJustAccessed(
       request.project_id,
@@ -38,7 +70,7 @@ function compile(req, res, next) {
           stats,
           timings,
           (error, result) => {
-            let { buildId, outputFiles } = result || {}
+            let { buildId, outputFiles, baseHistoryVersion } = result || {}
             let code, status
             if (outputFiles == null) {
               outputFiles = []
@@ -48,7 +80,7 @@ function compile(req, res, next) {
               status = 'compile-in-progress'
             } else if (error instanceof Errors.FilesOutOfSyncError) {
               code = 409 // Http 409 Conflict
-              status = 'retry'
+              status = 'conflict'
               logger.warn(
                 {
                   projectId: request.project_id,
@@ -56,6 +88,10 @@ function compile(req, res, next) {
                 },
                 'files out of sync, please retry'
               )
+            } else if (error instanceof Errors.MissingUpdatesError) {
+              code = 409
+              status = 'missing-updates'
+              baseHistoryVersion = error.info.baseHistoryVersion
             } else if (
               error?.code === 'EPIPE' ||
               error instanceof Errors.TooManyCompileRequestsError
@@ -130,12 +166,14 @@ function compile(req, res, next) {
                 options: {
                   compiler: request.compiler,
                   draft: request.draft,
+                  png2pdf: request.png2pdf,
                   imageName: request.imageName
                     ? Path.basename(request.imageName)
                     : undefined,
                   rootResourcePath: request.rootResourcePath,
                   stopOnFirstError: request.stopOnFirstError,
                 },
+                metricsOpts: request.metricsOpts,
               })
             }
 
@@ -144,14 +182,18 @@ function compile(req, res, next) {
               compile: {
                 status,
                 error: error?.message || error,
+                baseHistoryVersion,
                 stats,
                 timings,
                 buildId,
                 clsiCacheShard,
+                instanceType: Settings.apis.clsi.instanceType,
+                zone: Settings.apis.clsi.zone,
+                isSpotInstance: Settings.apis.clsi.isSpotInstance,
                 outputUrlPrefix: Settings.apis.clsi.outputUrlPrefix,
                 outputFiles: outputFiles.map(file => ({
                   url:
-                    `${Settings.apis.clsi.url}/project/${request.project_id}` +
+                    `${Settings.apis.clsi.downloadHost}/project/${request.project_id}` +
                     (request.user_id != null
                       ? `/user/${request.user_id}`
                       : '') +
@@ -167,8 +209,15 @@ function compile(req, res, next) {
   })
 }
 
+const projectOrUserOnlyParamsSchema = z.object({
+  params: projectOrUserParamsSchema,
+})
+
 function stopCompile(req, res, next) {
-  const { project_id: projectId, user_id: userId } = req.params
+  const { params } = parseReq(req, projectOrUserOnlyParamsSchema, {
+    logOnly: true,
+  })
+  const { project_id: projectId, user_id: userId } = params
   CompileManager.stopCompile(projectId, userId, function (error) {
     if (error) {
       return next(error)
@@ -178,27 +227,64 @@ function stopCompile(req, res, next) {
 }
 
 function clearCache(req, res, next) {
-  ProjectPersistenceManager.clearProject(
-    req.params.project_id,
-    req.params.user_id,
-    function (error) {
-      if (error) {
-        return next(error)
-      }
-      // No content
+  const { params } = parseReq(req, projectOrUserOnlyParamsSchema, {
+    logOnly: true,
+  })
+  const { project_id: projectId, user_id: userId } = params
+  CompileManager.stopCompile(projectId, userId, error => {
+    if (error) return next(OError.tag(error, 'stop compile'))
+    ProjectPersistenceManager.clearProject(projectId, userId, error => {
+      if (error) return next(OError.tag(error, 'clear project'))
       res.sendStatus(204)
-    }
-  )
+    })
+  })
 }
 
+// imageName is validated against the allowlist enforced by
+// CompileManager._runSynctex (Errors.InvalidParameter -> 400), same as
+// before, since (like compile.options.imageName) it has no fixed vocabulary
+// independent of deployment settings.
+const syncFromCodeSchema = z.object({
+  params: projectOrUserParamsSchema,
+  query: z.strictObject({
+    file: zz.filepath(),
+    line: z.coerce.number().int(),
+    column: z.coerce.number().int(),
+    imageName: z.string().optional(),
+    editorId: z.uuid().optional(),
+    buildId: zz.buildId().optional(),
+    compileFromClsiCache: z.stringbool().default(false),
+    ...clsiRoutingQueryFields,
+  }),
+})
+
+// Rollout-temporary fallback (loosened primary schema; no zod validation
+// existed for this route on main); delete when this route's
+// REQ_VALIDATION_MODE instrumentation is removed.
+const syncFromCodeFallbackSchema = z.object({
+  params: z.object({
+    project_id: z.string(),
+    user_id: z.string().optional(),
+  }),
+  query: z.object({
+    file: z.string(),
+    line: z.coerce.number(),
+    column: z.coerce.number(),
+    imageName: z.string().optional(),
+    editorId: z.string().optional(),
+    buildId: z.string().optional(),
+    compileFromClsiCache: z.stringbool().default(false),
+  }),
+})
+
 function syncFromCode(req, res, next) {
-  const { file, editorId, buildId } = req.query
-  const compileFromClsiCache = req.query.compileFromClsiCache === 'true'
-  const line = parseInt(req.query.line, 10)
-  const column = parseInt(req.query.column, 10)
-  const { imageName } = req.query
-  const projectId = req.params.project_id
-  const userId = req.params.user_id
+  const { params, query } = parseReq(req, syncFromCodeSchema, {
+    logOnly: true,
+    fallbackSchema: syncFromCodeFallbackSchema,
+  })
+  const { file, editorId, buildId, compileFromClsiCache, line, column } = query
+  const { imageName } = query
+  const { project_id: projectId, user_id: userId } = params
   CompileManager.syncFromCode(
     projectId,
     userId,
@@ -218,14 +304,47 @@ function syncFromCode(req, res, next) {
   )
 }
 
+const syncFromPdfSchema = z.object({
+  params: projectOrUserParamsSchema,
+  query: z.strictObject({
+    page: z.coerce.number().int(),
+    h: z.coerce.number(),
+    v: z.coerce.number(),
+    imageName: z.string().optional(),
+    editorId: z.uuid().optional(),
+    buildId: zz.buildId().optional(),
+    compileFromClsiCache: z.stringbool().default(false),
+    ...clsiRoutingQueryFields,
+  }),
+})
+
+// Rollout-temporary fallback (loosened primary schema; no zod validation
+// existed for this route on main); delete when this route's
+// REQ_VALIDATION_MODE instrumentation is removed.
+const syncFromPdfFallbackSchema = z.object({
+  params: z.object({
+    project_id: z.string(),
+    user_id: z.string().optional(),
+  }),
+  query: z.object({
+    page: z.coerce.number(),
+    h: z.coerce.number(),
+    v: z.coerce.number(),
+    imageName: z.string().optional(),
+    editorId: z.string().optional(),
+    buildId: z.string().optional(),
+    compileFromClsiCache: z.stringbool().default(false),
+  }),
+})
+
 function syncFromPdf(req, res, next) {
-  const page = parseInt(req.query.page, 10)
-  const h = parseFloat(req.query.h)
-  const v = parseFloat(req.query.v)
-  const { imageName, editorId, buildId } = req.query
-  const compileFromClsiCache = req.query.compileFromClsiCache === 'true'
-  const projectId = req.params.project_id
-  const userId = req.params.user_id
+  const { params, query } = parseReq(req, syncFromPdfSchema, {
+    logOnly: true,
+    fallbackSchema: syncFromPdfFallbackSchema,
+  })
+  const { page, h, v, editorId, buildId, compileFromClsiCache } = query
+  const { imageName } = query
+  const { project_id: projectId, user_id: userId } = params
   CompileManager.syncFromPdf(
     projectId,
     userId,
@@ -245,11 +364,36 @@ function syncFromPdf(req, res, next) {
   )
 }
 
+const wordcountSchema = z.object({
+  params: projectOrUserParamsSchema,
+  query: z.strictObject({
+    file: zz.filepath().default('main.tex'),
+    image: z.string().optional(),
+    ...clsiRoutingQueryFields,
+  }),
+})
+
+// Rollout-temporary fallback (loosened primary schema; no zod validation
+// existed for this route on main); delete when this route's
+// REQ_VALIDATION_MODE instrumentation is removed.
+const wordcountFallbackSchema = z.object({
+  params: z.object({
+    project_id: z.string(),
+    user_id: z.string().optional(),
+  }),
+  query: z.object({
+    file: z.string().default('main.tex'),
+    image: z.string().optional(),
+  }),
+})
+
 function wordcount(req, res, next) {
-  const file = req.query.file || 'main.tex'
-  const projectId = req.params.project_id
-  const userId = req.params.user_id
-  const { image } = req.query
+  const { params, query } = parseReq(req, wordcountSchema, {
+    logOnly: true,
+    fallbackSchema: wordcountFallbackSchema,
+  })
+  const { file, image } = query
+  const { project_id: projectId, user_id: userId } = params
   logger.debug({ image, file, projectId }, 'word count request')
 
   CompileManager.wordcount(
@@ -257,6 +401,7 @@ function wordcount(req, res, next) {
     userId,
     file,
     image,
+    null,
     function (error, result) {
       if (error) {
         return next(error)
@@ -268,17 +413,79 @@ function wordcount(req, res, next) {
   )
 }
 
+const wordcountWithSyncSchema = z.object({
+  params: projectOrUserParamsSchema,
+  query: wordcountSchema.shape.query,
+  body: compileRequestBodySchema,
+})
+
+// Same as wordcount, but carrying the project state as a compile request body.
+// texcount reads the sources from the compile dir, which only a previous
+// compile on this clsi populates -- and there may not have been one, e.g. when
+// the editor served the PDF from clsi-cache, which stores output files only.
+function wordcountWithSync(req, res, next) {
+  const { params, query, body } = parseReq(req, wordcountWithSyncSchema)
+  const { file, image } = query
+  const { project_id: projectId, user_id: userId } = params
+  logger.debug({ image, file, projectId }, 'word count request with sync')
+
+  RequestParser.parse(body, function (error, request) {
+    if (error) {
+      return next(error)
+    }
+    request.project_id = projectId
+    if (userId != null) {
+      request.user_id = userId
+    }
+    ProjectPersistenceManager.markProjectAsJustAccessed(
+      projectId,
+      function (error) {
+        if (error) {
+          return next(error)
+        }
+        CompileManager.wordcount(
+          projectId,
+          userId,
+          file,
+          image,
+          request,
+          function (error, result) {
+            if (error instanceof Errors.MissingUpdatesError) {
+              return res.status(409).json({
+                baseHistoryVersion: error.info.baseHistoryVersion,
+              })
+            }
+            if (error instanceof Errors.AlreadyCompilingError) {
+              return res.status(423).send('compile in progress') // Http 423 Locked
+            }
+            if (error instanceof Errors.TooManyCompileRequestsError) {
+              return res.status(503).send('too many concurrent requests')
+            }
+            if (error) {
+              return next(error)
+            }
+            res.json({
+              texcount: result,
+            })
+          }
+        )
+      }
+    )
+  })
+}
+
 function status(req, res, next) {
   res.send('OK')
 }
 
-module.exports = {
+export default {
   compile,
   stopCompile,
   clearCache,
   syncFromCode,
   syncFromPdf,
   wordcount,
+  wordcountWithSync,
   status,
   timeSinceLastSuccessfulCompile,
 }

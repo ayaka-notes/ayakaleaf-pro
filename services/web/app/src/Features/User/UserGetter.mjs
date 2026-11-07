@@ -274,6 +274,24 @@ const UserGetter = {
   // check for duplicate email address. This is also enforced at the DB level
   ensureUniqueEmailAddress: callbackify(ensureUniqueEmailAddress),
   getWritefullData: callbackify(getWritefullData),
+
+  promises: {
+    getSsoUsersAtInstitution,
+    getUser,
+    getUserFeatures,
+    getUserEmail,
+    getUserFullEmails,
+    getUserConfirmedEmails,
+    getUserByMainEmail,
+    getUserByAnyEmail,
+    getUsersByAnyConfirmedEmail,
+    getUsersByV1Ids,
+    getUsersByHostname,
+    getInstitutionUsersByHostname,
+    getUsers,
+    ensureUniqueEmailAddress,
+    getWritefullData,
+  },
 }
 
 const decorateFullEmails = (
@@ -301,6 +319,7 @@ const decorateFullEmails = (
         entitlement: cachedEntitlement,
         portal,
         group,
+        domainCapturedByGroup,
       } = affiliation
       const lastDayToReconfirm = _lastDayToReconfirm(emailData, institution)
       let { last_day_to_reconfirm: cachedLastDayToReconfirm } = affiliation
@@ -328,6 +347,7 @@ const decorateFullEmails = (
         department,
         licence,
         portal,
+        domainCapturedByGroup,
       }
       if (group) {
         emailData.affiliation.group = group
@@ -350,24 +370,6 @@ const decorateFullEmails = (
   })
 
   return emailsData
-}
-
-UserGetter.promises = {
-  getSsoUsersAtInstitution,
-  getUser,
-  getUserFeatures,
-  getUserEmail,
-  getUserFullEmails,
-  getUserConfirmedEmails,
-  getUserByMainEmail,
-  getUserByAnyEmail,
-  getUsersByAnyConfirmedEmail,
-  getUsersByV1Ids,
-  getUsersByHostname,
-  getInstitutionUsersByHostname,
-  getUsers,
-  ensureUniqueEmailAddress,
-  getWritefullData,
 }
 
 export default UserGetter

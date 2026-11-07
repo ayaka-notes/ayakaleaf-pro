@@ -391,6 +391,8 @@ function createHttpClient(baseUrl, options = {}) {
             `/api/projects/:project_id/timestamp/:timestamp/history`,
             params
           ),
+        getLatestZip: params =>
+          makeRequest('GET', `/api/projects/:project_id/latest/zip`, params),
         getZip: params =>
           makeRequest(
             'GET',

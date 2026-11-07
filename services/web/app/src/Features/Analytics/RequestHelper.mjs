@@ -1,5 +1,6 @@
 import RefererParser from 'referer-parser'
 import { URL } from 'node:url'
+import { z } from '@overleaf/validation-tools'
 
 const UTM_KEYS = [
   'utm_campaign',
@@ -8,7 +9,14 @@ const UTM_KEYS = [
   'utm_content',
   'utm_medium',
   'utm_count',
+  'utm_id',
 ]
+
+const utmQuerySchema = z.object({
+  query: z.object(
+    Object.fromEntries(UTM_KEYS.map(key => [key, z.string().optional()]))
+  ),
+})
 
 function parseUtm(query) {
   const utmValues = {}
@@ -49,8 +57,19 @@ function parseReferrer(referrer, url) {
   return referrerValues
 }
 
+const REGISTRATION_UTM_KEYS = UTM_KEYS.filter(k => k !== 'utm_id')
+
+function stripUTMKeys(query) {
+  return Object.fromEntries(
+    Object.entries(query).filter(([key]) => !UTM_KEYS.includes(key))
+  )
+}
+
 export default {
   UTM_KEYS,
+  REGISTRATION_UTM_KEYS,
+  utmQuerySchema,
   parseUtm,
   parseReferrer,
+  stripUTMKeys,
 }

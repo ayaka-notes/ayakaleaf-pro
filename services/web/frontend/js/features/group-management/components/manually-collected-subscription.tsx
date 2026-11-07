@@ -1,32 +1,40 @@
 import { Trans, useTranslation } from 'react-i18next'
-import OLNotification from '@/shared/components/ol/ol-notification'
+import Notification from '@/shared/components/notification'
 import Card from '@/features/group-management/components/card'
-import useWaitForI18n from '@/shared/hooks/use-wait-for-i18n'
+import getMeta from '@/utils/meta'
 
 function ManuallyCollectedSubscription() {
   const { t } = useTranslation()
-  const { isReady } = useWaitForI18n()
-
-  if (!isReady) {
-    return null
-  }
+  const errorType = getMeta('ol-errorType')
 
   return (
     <Card>
-      <OLNotification
-        type="error"
-        title={t('account_billed_manually')}
-        content={
-          <Trans
-            i18nKey="it_looks_like_your_account_is_billed_manually_purchasing_additional_license_or_upgrading_subscription"
-            components={[
-              // eslint-disable-next-line jsx-a11y/anchor-has-content, react/jsx-key
-              <a href="/contact" rel="noreferrer noopener" />,
-            ]}
-          />
-        }
-        className="m-0"
-      />
+      <div className="notification-list">
+        <Notification
+          type="error"
+          title={t('account_billed_manually')}
+          content={
+            errorType === 'plan-upgrade' ? (
+              <Trans
+                i18nKey="it_looks_like_your_account_is_billed_manually_upgrading_subscription"
+                components={[
+                  // eslint-disable-next-line jsx-a11y/anchor-has-content, react/jsx-key
+                  <a href="/contact" rel="noreferrer noopener" />,
+                ]}
+              />
+            ) : (
+              <Trans
+                i18nKey="it_looks_like_your_account_is_billed_manually_purchasing_additional_license_or_upgrading_subscription"
+                components={[
+                  // eslint-disable-next-line jsx-a11y/anchor-has-content, react/jsx-key
+                  <a href="/contact" rel="noreferrer noopener" />,
+                ]}
+              />
+            )
+          }
+          className="m-0"
+        />
+      </div>
     </Card>
   )
 }

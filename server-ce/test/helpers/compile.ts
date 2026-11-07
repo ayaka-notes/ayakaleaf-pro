@@ -1,17 +1,18 @@
-/**
- * Helper function for throttling clicks on the recompile button to avoid hitting server side rate limits.
- * The naive approach is waiting a fixed a mount of time (3s) just before clicking the button.
- * This helper takes into account that other UI interactions take time. We can deduce that latency from the fixed delay (3s minus other latency). This can bring down the effective waiting time to 0s.
- */
-
 export function stopCompile(options: { delay?: number } = {}) {
   const { delay = 0 } = options
   cy.wait(delay)
   cy.log('Stop compile')
   cy.findByRole('button', { name: 'Toggle compile options menu' }).click()
-  cy.findByRole('menuitem', { name: 'Stop compilation' }).click()
+  cy.findByRole('menuitem', { name: 'Stop compilation' })
+    .should('not.have.class', 'disabled')
+    .and('not.have.attr', 'aria-disabled', 'true')
+    .click()
 }
 
+/**
+ * Throttles compiles to stay below the server side compile rate limit, and
+ * waits until a triggered compile has finished.
+ */
 export function prepareWaitForNextCompileSlot() {
   let lastCompile = 0
   function queueReset() {
@@ -23,7 +24,9 @@ export function prepareWaitForNextCompileSlot() {
     cy.then(() => {
       cy.log('Wait for recompile rate-limit to cool off')
       const msSinceLastCompile = Date.now() - lastCompile
-      cy.wait(Math.max(0, 1_000 - msSinceLastCompile))
+      // The server allows one compile per second, counted from when the
+      // request arrives, which is later than our timestamp. Keep a margin.
+      cy.wait(Math.max(0, 2_000 - msSinceLastCompile))
       queueReset()
     })
   }
@@ -61,7 +64,6 @@ export function prepareWaitForNextCompileSlot() {
     })
   }
   return {
-    queueReset,
     waitForCompileRateLimitCoolOff,
     waitForCompile,
     recompile,

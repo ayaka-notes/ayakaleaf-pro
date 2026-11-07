@@ -1,0 +1,13 @@
+diff --git a/lib/MultiReporters.js b/lib/MultiReporters.js
+index d61e019711d5ac7f82c0fb90548bb0eb41ebbb85..e7a9515e05287621301b831191884a84d72ad0a1 100644
+--- a/lib/MultiReporters.js
++++ b/lib/MultiReporters.js
+@@ -153,7 +153,7 @@ MultiReporters.prototype.getCustomOptions = function (options) {
+         debug('options file (custom)', customOptionsFile);
+ 
+         try {
+-            if ('.js' === path.extname(customOptionsFile)) {
++            if (['.js', '.cjs'].includes(path.extname(customOptionsFile))) {
+                 customOptions = require(customOptionsFile);
+             }
+             else {

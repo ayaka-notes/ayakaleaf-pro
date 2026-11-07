@@ -1,10 +1,10 @@
-const archiver = require('archiver')
-const OutputCacheManager = require('./OutputCacheManager')
-const OutputFileFinder = require('./OutputFileFinder')
-const Settings = require('@overleaf/settings')
-const { open } = require('node:fs/promises')
-const { NotFoundError } = require('./Errors')
-const logger = require('@overleaf/logger')
+import archiver from 'archiver'
+import OutputCacheManager from './OutputCacheManager.js'
+import OutputFileFinder from './OutputFileFinder.js'
+import Settings from '@overleaf/settings'
+import { open } from 'node:fs/promises'
+import { NotFoundError } from './Errors.js'
+import logger from '@overleaf/logger'
 
 // NOTE: Updating this list requires a corresponding change in
 // * services/web/frontend/js/features/pdf-preview/util/file-list.ts
@@ -20,7 +20,7 @@ function getContentDir(projectId, userId) {
   return `${Settings.path.outputDir}/${subDir}/`
 }
 
-module.exports = {
+export default {
   async archiveFilesForBuild(projectId, userId, build) {
     logger.debug({ projectId, userId, build }, 'Will create zip file')
 
@@ -93,10 +93,11 @@ module.exports = {
       )
 
       return outputFiles.filter(
-        // Ignore the pdf, clsi-cache tar-ball and also ignore the files ignored by the frontend.
+        // Ignore the pdf, clsi-cache tar-ball, history snapshot blob and also ignore the files ignored by the frontend.
         ({ path }) =>
           path !== 'output.pdf' &&
           path !== 'output.tar.gz' &&
+          path !== 'history-resync.json.gz' &&
           !ignoreFiles.includes(path)
       )
     } catch (error) {

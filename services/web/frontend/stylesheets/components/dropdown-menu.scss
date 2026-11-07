@@ -37,10 +37,7 @@
 }
 
 @include theme('default') {
-  .ide-redesign-main,
-  .project-ds-nav-page {
-    @include dark-dropdown-menu;
-  }
+  @include dark-dropdown-menu;
 }
 
 $dropdown-item-min-height: 36px;
@@ -80,6 +77,10 @@ $dropdown-item-min-height: 36px;
   z-index: unset;
   display: block;
   float: unset;
+
+  &:focus {
+    outline: none;
+  }
 }
 
 .dropdown-menu {
@@ -96,6 +97,11 @@ $dropdown-item-min-height: 36px;
   .subdued {
     color: var(--content-disabled);
   }
+
+  &.show.dropdown-menu-popper:not([data-popper-placement], [data-bs-popper]) {
+    // Prevents flickering before Popper positions the menu
+    visibility: hidden;
+  }
 }
 
 .dropdown-item {
@@ -103,11 +109,9 @@ $dropdown-item-min-height: 36px;
 
   --bs-dropdown-item-border-radius: var(--border-radius-base);
 
-  display: grid;
-  grid-auto-flow: column;
-  place-content: center start;
+  display: flex;
+  align-items: center;
   min-height: $dropdown-item-min-height; // a minimum height of 36px to be accessible for touch screens
-  position: relative;
   background-color: var(--dropdown-background);
 
   &:active {
@@ -122,6 +126,14 @@ $dropdown-item-min-height: 36px;
 
   &:focus {
     background: none;
+
+    // Bootstrap sets the hover text colour on plain :focus too; reset it so a
+    // mouse-focused (not :focus-visible), non-hovered item stays readable.
+    color: var(--dropdown-text-color);
+  }
+
+  &:focus-visible {
+    @include box-shadow-button-input;
   }
 
   &:hover:not(.active),
@@ -148,6 +160,12 @@ $dropdown-item-min-height: 36px;
     color: var(--dropdown-text-active);
   }
 
+  &.disabled,
+  &[aria-disabled='true'] {
+    color: var(--content-disabled);
+    pointer-events: none;
+  }
+
   &.btn-link {
     text-decoration: none;
 
@@ -172,17 +190,16 @@ $dropdown-item-min-height: 36px;
 }
 
 .dropdown-item-description-container {
-  grid-auto-flow: row;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1;
   min-height: 44px;
-  display: grid;
-  place-content: center start;
 }
 
 .dropdown-item-trailing-icon {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
+  margin-left: auto;
+  padding-left: var(--spacing-04);
 }
 
 .dropdown-item-leading-icon {
@@ -206,6 +223,21 @@ $dropdown-item-min-height: 36px;
 .dropdown-item-leading-icon-empty {
   display: inline-block;
   width: 20px;
+}
+
+// Bootstrap sets pointer-events: none on disabled items, so set the cursor on
+// the parent <li> where pointer events still land.
+.dropdown-menu li:has(> .dropdown-item.disabled),
+.dropdown-menu li:has(> .dropdown-item[aria-disabled='true']) {
+  cursor: not-allowed;
+}
+
+// When the dropdown item itself is rendered as an <li> (e.g. Dropdown.Item as="li"),
+// pointer-events: none is on the <li> itself so re-enable it there.
+.dropdown-menu li.dropdown-item.disabled,
+.dropdown-menu li.dropdown-item[aria-disabled='true'] {
+  pointer-events: auto;
+  cursor: not-allowed;
 }
 
 // description text should look disabled when the dropdown item is disabled
@@ -269,7 +301,8 @@ $dropdown-item-min-height: 36px;
 }
 
 .nested-dropdown-toggle {
-  &::after {
+  &::after,
+  &::before {
     content: none !important;
   }
 
@@ -277,12 +310,19 @@ $dropdown-item-min-height: 36px;
   justify-content: space-between;
 }
 
-.dropdown-shortcut-char {
-  display: inline-block;
-  width: 1em;
-  text-align: center;
+.dropdown-shortcut {
+  display: inline-flex;
+  gap: var(--spacing-02);
 }
 
 .dropdown-item-wide {
   min-width: 264px;
+}
+
+.dropdown-toggle {
+  &.no-default-caret {
+    &::after {
+      content: none !important;
+    }
+  }
 }

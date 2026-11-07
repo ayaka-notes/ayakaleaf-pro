@@ -1,5 +1,29 @@
+// @ts-check
+
 const OError = require('@overleaf/o-error')
 
-class ParamsError extends OError {}
+/**
+ * @typedef {import('zod').ZodError} ZodError
+ */
 
-module.exports = { ParamsError }
+class InvalidRequestError extends OError {
+  /**
+   * @param {ZodError} zodError
+   */
+  constructor(zodError) {
+    super('Invalid request', {}, zodError)
+    this.zodError = zodError
+  }
+}
+
+class InvalidParamsError extends OError {
+  /**
+   * @param {ZodError} zodError
+   */
+  constructor(zodError) {
+    super('Invalid request parameters', {}, zodError)
+    this.zodError = zodError
+  }
+}
+
+module.exports = { InvalidParamsError, InvalidRequestError }

@@ -1,8 +1,14 @@
-import { memo, useCallback, useRef, useState } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import OLButton from '@/shared/components/ol/ol-button'
 import { useTranslation } from 'react-i18next'
 import classNames from 'classnames'
 import { PreventSelectingEntry } from './review-panel-prevent-selecting'
+import { MentionBadge } from '@/shared/components/mention-badge'
+import {
+  MentionSegment,
+  parseMentions,
+  sliceMentionSegments,
+} from '@/shared/utils/parse-mentions'
 
 export const ExpandableContent = memo<{
   className?: string
@@ -33,6 +39,16 @@ export const ExpandableContent = memo<{
 
   const isOverflowing = content.length > limit
 
+  const segments = useMemo(() => parseMentions(content), [content])
+
+  const renderedContent = segments
+    ? renderSegments(
+        isExpanded ? segments : sliceMentionSegments(segments, limit)
+      )
+    : isExpanded
+      ? content
+      : content.slice(0, limit)
+
   const handleShowMore = useCallback(() => {
     setIsExpanded(true)
     contentRef.current?.dispatchEvent(
@@ -54,7 +70,7 @@ export const ExpandableContent = memo<{
         className={classNames('review-panel-expandable-content', className)}
         translate={translate}
       >
-        {isExpanded ? content : content.slice(0, limit)}
+        {renderedContent}
         {isOverflowing && !isExpanded && '...'}
       </div>
       <div
@@ -87,6 +103,17 @@ export const ExpandableContent = memo<{
     </>
   )
 })
+
+function renderSegments(segments: MentionSegment[]) {
+  return segments.map((segment, i) => {
+    if (segment.type === 'mention') {
+      return (
+        <MentionBadge key={`${i}-${segment.userId}`} userId={segment.userId} />
+      )
+    }
+    return segment.value
+  })
+}
 
 function indexOfNthLine(content: string, n: number) {
   if (n < 1) return null

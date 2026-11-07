@@ -1,5 +1,6 @@
 package uk.ac.ic.wlgitbridge.server;
 
+import ch.qos.logback.classic.Level;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.Filter;
 import jakarta.servlet.ServletException;
@@ -45,12 +46,18 @@ public class GitBridgeServer {
 
   private final Server jettyServer;
 
+  private final GceMetadataLogLevelChecker logLevelChecker;
+
+  private ServerConnector connector;
+
   private final int port;
+  private final String bindIp;
   private String rootGitDirectoryPath;
   private String apiBaseURL;
 
   public GitBridgeServer(Config config) throws ServletException {
     this.port = config.getPort();
+    this.bindIp = config.getBindIp();
     this.rootGitDirectoryPath = config.getRootGitDirectory();
     RepoStore repoStore =
         new FSGitRepoStore(
@@ -72,6 +79,16 @@ public class GitBridgeServer {
     Util.setServiceName(config.getServiceName());
     Util.setPostbackURL(config.getPostbackURL());
     Util.setPort(config.getPort());
+    String configuredLogLevel = System.getenv().getOrDefault("LOG_LEVEL", "INFO");
+    String normalizedLogLevel =
+        "WARNING".equalsIgnoreCase(configuredLogLevel) ? "WARN" : configuredLogLevel;
+    Level defaultLogLevel = Level.toLevel(normalizedLogLevel, Level.INFO);
+    boolean gceMetadataEnabled =
+        "true".equalsIgnoreCase(System.getenv("GCE_METADATA_LOG_LEVEL_ENABLED"));
+    logLevelChecker =
+        gceMetadataEnabled
+            ? new GceMetadataLogLevelChecker(config.getServiceName(), defaultLogLevel)
+            : null;
   }
 
   /*
@@ -81,9 +98,18 @@ public class GitBridgeServer {
     try {
       bridge.checkDB();
       jettyServer.start();
+      // Only the integration tests configure port 0, which lets the OS assign a free
+      // port at bind time. Production always configures an explicit non-zero port, so
+      // this branch never runs there.
+      if (port == 0) {
+        int actualPort = connector.getLocalPort();
+        String postbackURL = "http://" + bindIp + ":" + actualPort + "/";
+        Util.setPostbackURL(postbackURL);
+      }
       bridge.startBackgroundJobs();
+      if (logLevelChecker != null) logLevelChecker.start();
       Log.info(Util.getServiceName() + "-Git Bridge server started");
-      Log.info("Listening on port: " + port);
+      Log.info("Listening on port: " + getPort());
       Log.info("Bridged to: " + apiBaseURL);
       Log.info("Postback base URL: " + Util.getPostbackURL());
       Log.info("Root git directory path: " + rootGitDirectoryPath);
@@ -94,7 +120,12 @@ public class GitBridgeServer {
     }
   }
 
+  public int getPort() {
+    return connector.getLocalPort();
+  }
+
   public void stop() {
+    if (logLevelChecker != null) logLevelChecker.stop();
     try {
       jettyServer.stop();
     } catch (Exception e) {
@@ -104,7 +135,7 @@ public class GitBridgeServer {
 
   private void configureJettyServer(Config config, RepoStore repoStore, SnapshotApi snapshotApi)
       throws ServletException {
-    ServerConnector connector = new ServerConnector(this.jettyServer);
+    this.connector = new ServerConnector(this.jettyServer);
     connector.setPort(config.getPort());
     connector.setHost(config.getBindIp());
     connector.setIdleTimeout(config.getIdleTimeout());
@@ -152,6 +183,8 @@ public class GitBridgeServer {
       throws ServletException {
     final ServletContextHandler servletContextHandler = new ServletContextHandler();
     servletContextHandler.setSessionHandler(new SessionHandler());
+    servletContextHandler.addFilter(
+        new FilterHolder(new MdcLoggingFilter()), "/*", EnumSet.of(DispatcherType.REQUEST));
     if (config.getOauth2Server() != null) {
       Filter filter =
           new Oauth2Filter(snapshotApi, config.getOauth2Server(), config.isUserPasswordEnabled());

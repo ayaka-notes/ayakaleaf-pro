@@ -13,6 +13,36 @@ import ClsiCacheHandler from './ClsiCacheHandler.mjs'
 import ProjectGetter from '../Project/ProjectGetter.mjs'
 import { MeteredStream } from '@overleaf/stream-utils'
 import Metrics from '@overleaf/metrics'
+import { z, zz } from '@overleaf/validation-tools'
+import { parseReq } from '../../infrastructure/Validation.mjs'
+
+const downloadFromCacheSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+    editorBuildId: zz.editorBuildId(),
+    filename: zz.filepath().refine(s => ClsiCacheHandler.isAllowedFilename(s), {
+      message: 'path is not allowed',
+    }),
+  }),
+})
+
+// Rollout-temporary fallback (pre-refinement schema from main); delete
+// when this route's REQ_VALIDATION_MODE instrumentation is removed.
+const downloadFromCacheFallbackSchema = z.object({
+  params: z.object({
+    Project_id: zz.objectId(),
+    editorBuildId: zz.editorBuildId(),
+    filename: zz.filepath().refine(s => ClsiCacheHandler.isAllowedFilename(s), {
+      message: 'path is not allowed',
+    }),
+  }),
+})
+
+const getLatestBuildFromCacheSchema = z.object({
+  params: z.strictObject({
+    Project_id: zz.objectId(),
+  }),
+})
 
 /**
  * Download a file from a specific build on the clsi-cache.
@@ -22,22 +52,55 @@ import Metrics from '@overleaf/metrics'
  * @return {Promise<*>}
  */
 async function downloadFromCache(req, res) {
-  const { Project_id: projectId, buildId, filename } = req.params
+  const {
+    params: { Project_id: projectId, editorBuildId, filename },
+  } = parseReq(req, downloadFromCacheSchema, {
+    fallbackSchema: downloadFromCacheFallbackSchema,
+  })
+  return await _downloadFromCacheWithParams(
+    req,
+    res,
+    projectId,
+    editorBuildId,
+    filename
+  )
+}
+
+/**
+ * Download a file from a specific build on the clsi-cache.
+ *
+ * @param req
+ * @param res
+ * @param projectId
+ * @param editorBuildId
+ * @param filename
+ * @param projectId
+ * @return {Promise<*>}
+ */
+async function _downloadFromCacheWithParams(
+  req,
+  res,
+  projectId,
+  editorBuildId,
+  filename
+) {
   const userId = CompileController._getUserIdForCompile(req)
-  const signal = AbortSignal.timeout(60 * 1000)
+  const ac = new AbortController()
+  let timer = setTimeout(() => ac.abort(), 10_000)
   let location, projectName
   try {
     ;[{ location }, { name: projectName }] = await Promise.all([
       ClsiCacheHandler.getOutputFile(
         projectId,
         userId,
-        buildId,
+        editorBuildId,
         filename,
-        signal
+        ac.signal
       ),
       ProjectGetter.promises.getProject(projectId, { name: 1 }),
     ])
   } catch (err) {
+    clearTimeout(timer)
     if (err instanceof NotFoundError) {
       // res.sendStatus() sends a description of the status as body.
       // Using res.status().end() avoids sending that fake body.
@@ -47,11 +110,17 @@ async function downloadFromCache(req, res) {
     }
   }
 
-  const { stream, response } = await fetchStreamWithResponse(location, {
-    signal,
-  })
+  let stream, response
+  try {
+    ;({ stream, response } = await fetchStreamWithResponse(location, {
+      signal: ac.signal,
+    }))
+  } finally {
+    clearTimeout(timer)
+  }
   if (req.destroyed) {
     // The client has disconnected already, avoid trying to write into the broken connection.
+    stream.destroy(new Error('user aborted the request'))
     return
   }
 
@@ -64,6 +133,14 @@ async function downloadFromCache(req, res) {
       ? `${CompileController._getSafeProjectName({ name: projectName })}.pdf`
       : filename
   )
+  // Downloads can take a while on a slow connection, increase timeouts to 10min
+  const TEN_MINUTES_IN_MS = 10 * 60 * 1000
+  res.setTimeout(TEN_MINUTES_IN_MS)
+  timer = setTimeout(() => ac.abort(), TEN_MINUTES_IN_MS)
+
+  // Disable buffering in nginx
+  res.setHeader('X-Accel-Buffering', 'no')
+
   try {
     res.writeHead(response.status)
     await pipeline(
@@ -86,7 +163,8 @@ async function downloadFromCache(req, res) {
     if (
       streamingStarted &&
       reqAborted &&
-      err.code === 'ERR_STREAM_PREMATURE_CLOSE'
+      (err.code === 'ERR_STREAM_PREMATURE_CLOSE' ||
+        err.code === 'ERR_STREAM_UNABLE_TO_PIPE')
     ) {
       // Ignore noisy spurious error
       return
@@ -102,6 +180,8 @@ async function downloadFromCache(req, res) {
       },
       'CLSI-cache proxy error'
     )
+  } finally {
+    clearTimeout(timer)
   }
 }
 
@@ -113,7 +193,10 @@ async function downloadFromCache(req, res) {
  * @return {Promise<void>}
  */
 async function getLatestBuildFromCache(req, res) {
-  const { Project_id: projectId } = req.params
+  const { params } = parseReq(req, getLatestBuildFromCacheSchema, {
+    logOnly: true,
+  })
+  const projectId = params.Project_id
   const userId = CompileController._getUserIdForCompile(req)
   try {
     const {
@@ -155,6 +238,7 @@ async function getLatestBuildFromCache(req, res) {
 }
 
 export default {
+  _downloadFromCacheWithParams,
   downloadFromCache: expressify(downloadFromCache),
   getLatestBuildFromCache: expressify(getLatestBuildFromCache),
 }

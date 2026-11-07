@@ -33,8 +33,27 @@ const BadgeSchema = new Schema(
 const BadgeInfoSchema = new Schema(
   {
     alpha: BadgeSchema,
+    labs: BadgeSchema,
     beta: BadgeSchema,
     release: BadgeSchema,
+  },
+  { _id: false }
+)
+
+const LabsSuccessNotificationSchema = new Schema(
+  {
+    content: {
+      type: String,
+      required: false,
+    },
+    buttonLabel: {
+      type: String,
+      required: false,
+    },
+    buttonUrl: {
+      type: String,
+      required: false,
+    },
   },
   { _id: false }
 )
@@ -85,7 +104,7 @@ const VersionSchema = new Schema(
     phase: {
       type: String,
       default: 'alpha',
-      enum: ['alpha', 'beta', 'release'],
+      enum: ['alpha', 'labs', 'beta', 'release'],
       required: true,
     },
     active: {
@@ -161,6 +180,10 @@ export const SplitTestSchema = new Schema(
       type: String,
       required: false,
     },
+    customerIoEnabled: {
+      type: Boolean,
+      required: false,
+    },
     archived: {
       type: Boolean,
       required: false,
@@ -172,6 +195,30 @@ export const SplitTestSchema = new Schema(
     archivedBy: { type: ObjectId, ref: 'User' },
     badgeInfo: {
       type: BadgeInfoSchema,
+      required: false,
+    },
+    labsTitle: {
+      type: String,
+      required: false,
+    },
+    labsDescription: {
+      type: String,
+      required: false,
+    },
+    labsIcon: {
+      type: String,
+      required: false,
+    },
+    labsSuccessNotification: {
+      type: LabsSuccessNotificationSchema,
+      required: false,
+    },
+    // When set, only users with a premium compile group can see this
+    // experiment on the Labs page or opt into it. Left unset rather than
+    // defaulted to false, so split tests that never use it don't carry a
+    // labs-only field.
+    labsRequirePremiumCompiles: {
+      type: Boolean,
       required: false,
     },
   },

@@ -3,8 +3,7 @@ import { Trans, useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { Button } from 'react-bootstrap'
 import { CopyToClipboard } from '@/shared/components/copy-to-clipboard'
-// import LeftMenuButton from '@/shared/components/left-menu/left-menu-button'
-import LeftMenuButton from '@/features/editor-left-menu/components/left-menu-button'
+import OLButton from '@/shared/components/ol/ol-button'
 import { useProjectContext } from '@/shared/context/project-context'
 import getMeta from '@/utils/meta'
 
@@ -21,7 +20,7 @@ import GitFork from '@/shared/svgs/git-fork'
 
 type Props = {
     handleHide: () => void
-    progjectId: string
+    projectId: string
 }
 
 function ModalGitBridgeSync({ handleHide, projectId }: Props) {
@@ -45,8 +44,8 @@ function ModalGitBridgeSync({ handleHide, projectId }: Props) {
                     <p>
                         {t('git_bridge_modal_git_clone_your_project')}
                     </p>
-                    <div className="git-bridge-copy">
-                        <code>{gitCloneMethodOption}</code>
+                    <div className="git-bridge-copy justify-content-between align-items-start">
+                        <code style={{ flex: 1, minWidth: 0, wordBreak: 'break-all' }}>{gitCloneMethodOption}</code>
                         <span>
                             <CopyToClipboard content={gitCloneMethodOption}
                                 kind="text" />
@@ -101,6 +100,7 @@ function GitBridgeSyncModal({ show, projectId, handleHide }: GitBridgeSyncModalP
     return (
         <OLModal show={show} animation onHide={handleHide}
             id="git-bridge-sync-modal" backdrop="static" size="lg"
+            initialFocus={false} enforceFocus={false}
         >
             <ModalGitBridgeSync projectId={projectId} handleHide={handleHide}
             />
@@ -125,15 +125,14 @@ function GitBridgeSyncButton() {
     // https://fonts.google.com/icons?hl=zh-cn
     return (
         <>
-            <LeftMenuButton
+            <OLButton
                 variant="link"
                 className="left-menu-button"
                 onClick={() => setShowGitBridgeSyncModal(true)}
-                icon="commit"
-                icon={<GitFork />}
+                leadingIcon={<GitFork />}
             >
                 {t('git')}
-            </LeftMenuButton>
+            </OLButton>
             <GitBridgeSyncModal
                 show={showGitBridgeSyncModal}
                 handleHide={() => setShowGitBridgeSyncModal(false)}

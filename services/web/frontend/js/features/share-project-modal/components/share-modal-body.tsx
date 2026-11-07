@@ -10,11 +10,30 @@ import { useProjectContext } from '@/shared/context/project-context'
 import { useMemo } from 'react'
 import RecaptchaConditions from '@/shared/components/recaptcha-conditions'
 import getMeta from '@/utils/meta'
+import { useFeatureFlag } from '@/shared/context/split-test-context'
+import Notification from '@/shared/components/notification'
+import ErrorMessage from '@/features/share-project-modal/components/error-message'
+import ProjectAccess from '@/features/share-project-modal/components/project-access'
+import InvitedPeople from '@/features/share-project-modal/components/invited-people'
+import AccessRequests from '@/features/share-project-modal/components/access-requests'
+import type { ProjectMember } from '@/shared/context/types/project-metadata'
+import type { ShareModalScreen } from './share-project-modal-content'
 
-export default function ShareModalBody() {
+type ShareModalBodyProps = {
+  screen: ShareModalScreen
+  setScreen: React.Dispatch<React.SetStateAction<ShareModalScreen>>
+  error?: string
+}
+
+export default function ShareModalBody({
+  screen,
+  setScreen,
+  error,
+}: ShareModalBodyProps) {
   const { project, features } = useProjectContext()
   const { members, invites } = project || {}
   const { isProjectOwner } = useEditorContext()
+  const isSharingUpdatesEnabled = useFeatureFlag('sharing-updates')
 
   // whether the project has not reached the collaborator limit
   const canAddCollaborators = useMemo(() => {
@@ -108,40 +127,118 @@ export default function ShareModalBody() {
       ) : (
         <SendInvitesNotice />
       )}
-      {isProjectOwner && <LinkSharing />}
-
-      <OwnerInfo />
-
-      {sortedMembers.map(member =>
-        isProjectOwner ? (
-          <EditMember
-            key={member._id}
-            member={member}
-            hasExceededCollaboratorLimit={hasExceededCollaboratorLimit}
-            hasBeenDowngraded={Boolean(
-              member.pendingEditor || member.pendingReviewer
-            )}
+      {isSharingUpdatesEnabled ? (
+        <>
+          {error && (
+            <div className="notification-list">
+              <Notification
+                type="error"
+                content={<ErrorMessage error={error} />}
+              />
+            </div>
+          )}
+          <ShareModalScreenContent
+            screen={screen}
+            setScreen={setScreen}
+            isProjectOwner={isProjectOwner}
+            sortedMembers={sortedMembers}
+            invites={invites}
             canAddCollaborators={canAddCollaborators}
-            isReviewerOnFreeProject={
-              member.privileges === 'review' && !features.trackChanges
-            }
+            hasExceededCollaboratorLimit={hasExceededCollaboratorLimit}
+            hasTrackChangesFeature={Boolean(features.trackChanges)}
           />
-        ) : (
-          <ViewMember key={member._id} member={member} />
-        )
+        </>
+      ) : (
+        <>
+          {isProjectOwner && <LinkSharing />}
+
+          <OwnerInfo />
+
+          {sortedMembers.map(member =>
+            isProjectOwner ? (
+              <EditMember
+                key={member._id}
+                member={member}
+                hasExceededCollaboratorLimit={hasExceededCollaboratorLimit}
+                hasBeenDowngraded={Boolean(
+                  member.pendingEditor || member.pendingReviewer
+                )}
+                canAddCollaborators={canAddCollaborators}
+                isReviewerOnFreeProject={
+                  member.privileges === 'review' && !features.trackChanges
+                }
+              />
+            ) : (
+              <ViewMember key={member._id} member={member} />
+            )
+          )}
+
+          {(invites || []).map(invite => (
+            <Invite
+              key={invite._id}
+              invite={invite}
+              isProjectOwner={isProjectOwner}
+            />
+          ))}
+        </>
       )}
-
-      {(invites || []).map(invite => (
-        <Invite
-          key={invite._id}
-          invite={invite}
-          isProjectOwner={isProjectOwner}
-        />
-      ))}
-
       {!getMeta('ol-ExposedSettings').recaptchaDisabled?.invite && (
         <RecaptchaConditions />
       )}
     </>
+  )
+}
+
+type ShareModalScreenContentProps = {
+  screen: ShareModalScreen
+  setScreen: React.Dispatch<React.SetStateAction<ShareModalScreen>>
+  isProjectOwner: boolean
+  sortedMembers: ProjectMember[]
+  invites?: ProjectMember[]
+  canAddCollaborators: boolean
+  hasExceededCollaboratorLimit: boolean
+  hasTrackChangesFeature: boolean
+}
+
+// Picks the screen to render inside the new share modal. Non-owners only ever
+// see the "invited people" view.
+function ShareModalScreenContent({
+  screen,
+  setScreen,
+  isProjectOwner,
+  sortedMembers,
+  invites,
+  canAddCollaborators,
+  hasExceededCollaboratorLimit,
+  hasTrackChangesFeature,
+}: ShareModalScreenContentProps) {
+  const effectiveScreen = isProjectOwner ? screen : 'invited-people'
+
+  if (effectiveScreen === 'access-requests') {
+    return (
+      <AccessRequests
+        setScreen={setScreen}
+        canAddCollaborators={canAddCollaborators}
+      />
+    )
+  }
+
+  if (effectiveScreen === 'invited-people') {
+    return (
+      <InvitedPeople
+        sortedMembers={sortedMembers}
+        invites={invites}
+        hasExceededCollaboratorLimit={hasExceededCollaboratorLimit}
+        hasTrackChangesFeature={hasTrackChangesFeature}
+        canAddCollaborators={canAddCollaborators}
+      />
+    )
+  }
+
+  return (
+    <ProjectAccess
+      setScreen={setScreen}
+      invitedPeopleCount={sortedMembers.length + (invites || []).length}
+    />
   )
 }

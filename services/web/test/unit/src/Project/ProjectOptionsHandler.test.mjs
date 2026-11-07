@@ -1,4 +1,4 @@
-import { vi, expect } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import sinon from 'sinon'
 import mongodb from 'mongodb-legacy'
 
@@ -35,6 +35,7 @@ describe('ProjectOptionsHandler', function () {
           { imageName: 'texlive-0000.0', imageDesc: 'test image 0' },
           { imageName: 'texlive-1234.5', imageDesc: 'test image 1' },
         ],
+        safeCompilers: ['pdflatex', 'latex', 'xelatex', 'lualatex'],
       },
     }))
 
@@ -55,10 +56,9 @@ describe('ProjectOptionsHandler', function () {
     })
 
     it('should not perform and update on mongo if it is not a recognised compiler', async function (ctx) {
-      const fakeComplier = 'something'
-      expect(
+      await expect(
         ctx.handler.promises.setCompiler(projectId, 'something')
-      ).to.be.rejectedWith(`invalid compiler: ${fakeComplier}`)
+      ).to.be.rejectedWith('invalid compiler')
 
       ctx.projectModel.updateOne.called.should.equal(false)
     })
@@ -76,8 +76,8 @@ describe('ProjectOptionsHandler', function () {
       })
 
       it('should be rejected', async function (ctx) {
-        expect(ctx.handler.promises.setCompiler(projectId, 'xeLaTeX')).to.be
-          .rejected
+        await expect(ctx.handler.promises.setCompiler(projectId, 'xeLaTeX')).to
+          .be.rejected
       })
     })
   })
@@ -92,9 +92,9 @@ describe('ProjectOptionsHandler', function () {
 
     it('should not perform and update on mongo if it is not a reconised image name', async function (ctx) {
       const fakeImageName = 'something'
-      expect(
+      await expect(
         ctx.handler.promises.setImageName(projectId, fakeImageName)
-      ).to.be.rejectedWith(`invalid imageName: ${fakeImageName}`)
+      ).to.be.rejectedWith('invalid imageName')
 
       ctx.projectModel.updateOne.called.should.equal(false)
     })
@@ -112,8 +112,9 @@ describe('ProjectOptionsHandler', function () {
       })
 
       it('should be rejected', async function (ctx) {
-        expect(ctx.handler.promises.setImageName(projectId, 'texlive-1234.5'))
-          .to.be.rejected
+        await expect(
+          ctx.handler.promises.setImageName(projectId, 'texlive-1234.5')
+        ).to.be.rejected
       })
     })
   })
@@ -128,9 +129,9 @@ describe('ProjectOptionsHandler', function () {
 
     it('should not perform and update on mongo if it is not a reconised langauge', async function (ctx) {
       const fakeLanguageCode = 'not a lang'
-      expect(
+      await expect(
         ctx.handler.promises.setSpellCheckLanguage(projectId, fakeLanguageCode)
-      ).to.be.rejectedWith(`invalid languageCode: ${fakeLanguageCode}`)
+      ).to.be.rejectedWith('invalid languageCode')
       ctx.projectModel.updateOne.called.should.equal(false)
     })
 
@@ -145,8 +146,8 @@ describe('ProjectOptionsHandler', function () {
       })
 
       it('should be rejected', async function (ctx) {
-        expect(ctx.handler.promises.setSpellCheckLanguage(projectId)).to.be
-          .rejected
+        await expect(ctx.handler.promises.setSpellCheckLanguage(projectId)).to
+          .be.rejected
       })
     })
   })
@@ -175,8 +176,8 @@ describe('ProjectOptionsHandler', function () {
       })
 
       it('should be rejected', async function (ctx) {
-        expect(ctx.handler.promises.setBrandVariationId(projectId, '123')).to.be
-          .rejected
+        await expect(ctx.handler.promises.setBrandVariationId(projectId, '123'))
+          .to.be.rejected
       })
     })
   })
@@ -197,8 +198,9 @@ describe('ProjectOptionsHandler', function () {
       })
 
       it('should be rejected', async function (ctx) {
-        expect(ctx.handler.promises.setHistoryRangesSupport(projectId, true)).to
-          .be.rejected
+        await expect(
+          ctx.handler.promises.setHistoryRangesSupport(projectId, true)
+        ).to.be.rejected
       })
     })
   })

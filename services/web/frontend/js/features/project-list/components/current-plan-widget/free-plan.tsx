@@ -43,7 +43,8 @@ function FreePlan({ featuresPageURL }: FreePlanProps) {
       </OLTooltip>{' '}
       <span className="d-none d-md-inline-block">
         <OLButton
-          variant="primary"
+          variant="premium"
+          size="sm"
           href="/user/subscription/plans"
           onClick={handleClick}
         >

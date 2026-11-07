@@ -3,6 +3,7 @@ import crypto from 'node:crypto'
 
 import SurveyCache from './SurveyCache.mjs'
 import SubscriptionLocator from '../Subscription/SubscriptionLocator.mjs'
+import PlansHelper from '../Subscription/PlansHelper.mjs'
 import { callbackify } from '@overleaf/promise-utils'
 import UserGetter from '../User/UserGetter.mjs'
 
@@ -19,10 +20,32 @@ import UserGetter from '../User/UserGetter.mjs'
 async function getSurvey(userId) {
   const survey = await SurveyCache.get(true)
   if (survey) {
-    if (survey.options?.hasRecurlyGroupSubscription) {
-      const hasRecurlyGroupSubscription =
-        await SubscriptionLocator.promises.hasRecurlyGroupSubscription(userId)
-      if (!hasRecurlyGroupSubscription) {
+    const hasSubscriptionFilters =
+      survey.options.hasFreeSubscription ||
+      survey.options.hasIndividualStandardSubscription ||
+      survey.options.hasIndividualProfessionalSubscription ||
+      survey.options.hasGroupStandardSubscription ||
+      survey.options.hasGroupProfessionalSubscription ||
+      survey.options.hasEnterpriseSubscription
+
+    if (hasSubscriptionFilters) {
+      const subscriptions =
+        await SubscriptionLocator.promises.getAllAssociatedSubscriptions(
+          userId,
+          {
+            groupPlan: 1,
+            planCode: 1,
+          }
+        )
+      const isFreeSubscription = Boolean(!subscriptions?.length)
+
+      if (isFreeSubscription) {
+        if (!survey.options?.hasFreeSubscription) {
+          return
+        }
+      } else if (
+        !subscriptions.some(sub => _canDisplaySurvey(sub, survey.options))
+      ) {
         return
       }
     }
@@ -34,12 +57,24 @@ async function getSurvey(userId) {
       return
     }
 
-    const { earliestSignupDate, latestSignupDate, excludeLabsUsers } =
-      survey.options || {}
-    if (earliestSignupDate || latestSignupDate || excludeLabsUsers) {
+    const {
+      earliestSignupDate,
+      latestSignupDate,
+      excludeLabsUsers,
+      excludeBetaUsers,
+      requireBetaParticipation,
+    } = survey.options || {}
+    if (
+      earliestSignupDate ||
+      latestSignupDate ||
+      excludeLabsUsers ||
+      excludeBetaUsers ||
+      requireBetaParticipation
+    ) {
       const user = await UserGetter.promises.getUser(userId, {
         signUpDate: 1,
         labsProgram: 1,
+        betaProgram: 1,
       })
       if (!user) {
         return
@@ -58,10 +93,38 @@ async function getSurvey(userId) {
       if (excludeLabsUsers && user.labsProgram) {
         return
       }
+      if (excludeBetaUsers && user.betaProgram) {
+        return
+      }
+      if (requireBetaParticipation && !user.betaProgram) {
+        return
+      }
     }
 
     return { name, title, text, cta, url }
   }
+}
+
+function _canDisplaySurvey(subscription, options = {}) {
+  const {
+    hasIndividualStandardSubscription,
+    hasIndividualProfessionalSubscription,
+    hasGroupStandardSubscription,
+    hasGroupProfessionalSubscription,
+    hasEnterpriseSubscription,
+  } = options
+  const isGroupPlan = subscription.groupPlan
+  const isProfessional = PlansHelper.isProfessionalPlan(subscription.planCode)
+  const isEnterprise =
+    isGroupPlan && subscription.planCode?.includes('enterprise')
+
+  return (
+    (hasIndividualStandardSubscription && !isGroupPlan && !isProfessional) ||
+    (hasIndividualProfessionalSubscription && !isGroupPlan && isProfessional) ||
+    (hasGroupStandardSubscription && isGroupPlan && !isProfessional) ||
+    (hasGroupProfessionalSubscription && isGroupPlan && isProfessional) ||
+    (hasEnterpriseSubscription && isEnterprise)
+  )
 }
 
 function _userRolloutPercentile(userId, surveyName) {

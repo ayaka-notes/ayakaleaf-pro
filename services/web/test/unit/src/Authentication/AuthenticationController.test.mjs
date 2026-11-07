@@ -1,17 +1,32 @@
-import { beforeEach, describe, it, vi, expect } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import sinon from 'sinon'
 import tk from 'timekeeper'
 import MockRequest from '../helpers/MockRequest.mjs'
 import MockResponse from '../helpers/MockResponse.mjs'
 import mongodb from 'mongodb-legacy'
 import AuthenticationErrors from '../../../../app/src/Features/Authentication/AuthenticationErrors.mjs'
+import { setReqValidationModeForTests } from '@overleaf/validation-tools'
 const modulePath =
   '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
 
 const { ObjectId } = mongodb
 
+// We use vi.hoisted + vi.mock for @overleaf/metrics here because it is statically imported
+// by AuthenticationErrors.mjs at the top of this file. If we instead used vi.doMock inside
+// the beforeEach block, AuthenticationErrors.mjs would bind to the real unmocked metrics
+// module before the test setup even begins, causing errors when AuthenticationErrors calls it.
+const hoistedMocks = vi.hoisted(() => ({
+  metricsInc: vi.fn(),
+}))
+
+vi.mock('@overleaf/metrics', () => ({
+  default: {
+    inc: (...args) => hoistedMocks.metricsInc(...args),
+  },
+}))
+
 vi.mock(
-  '../../../../app/src/Features/Analytics/AnalyticsRegistrationSourceHelper.js',
+  '../../../../app/src/Features/Analytics/AnalyticsRegistrationSourceHelper.mjs',
   () => ({
     default: {
       clearInbound: vi.fn(),
@@ -35,34 +50,6 @@ describe('AuthenticationController', function () {
       referal_id: 1234,
       isAdmin: false,
     }
-    ctx.staffUser = {
-      ...ctx.user,
-      staffAccess: {
-        publisherMetrics: true,
-        publisherManagement: false,
-        institutionMetrics: true,
-        institutionManagement: false,
-        groupMetrics: true,
-        groupManagement: false,
-        adminMetrics: true,
-        splitTestMetrics: false,
-        splitTestManagement: true,
-      },
-    }
-    ctx.noStaffAccessUser = {
-      ...ctx.user,
-      staffAccess: {
-        publisherMetrics: false,
-        publisherManagement: false,
-        institutionMetrics: false,
-        institutionManagement: false,
-        groupMetrics: false,
-        groupManagement: false,
-        adminMetrics: false,
-        splitTestMetrics: false,
-        splitTestManagement: false,
-      },
-    }
     ctx.password = 'banana'
     ctx.req = new MockRequest(vi)
     ctx.res = new MockResponse(vi)
@@ -81,6 +68,7 @@ describe('AuthenticationController', function () {
 
     vi.doMock(
       '../../../../app/src/Features/Authentication/AuthenticationErrors',
+      // () => ({ ...AuthenticationErrors })
       () => AuthenticationErrors
     )
 
@@ -115,15 +103,24 @@ describe('AuthenticationController', function () {
       })
     )
 
+    vi.doMock(
+      '../../../../app/src/Features/SplitTests/SplitTestHandler',
+      () => ({
+        default: (ctx.SplitTestHandler = {
+          promises: {
+            userMaintenanceOnLogin: sinon.stub().resolves(),
+          },
+        }),
+      })
+    )
+
     vi.doMock('../../../../app/src/Features/User/UserUpdater', () => ({
       default: (ctx.UserUpdater = {
         updateUser: sinon.stub(),
       }),
     }))
 
-    vi.doMock('@overleaf/metrics', () => ({
-      default: (ctx.Metrics = { inc: sinon.stub() }),
-    }))
+    hoistedMocks.metricsInc = ctx.Metrics.inc
 
     vi.doMock('../../../../app/src/Features/Security/LoginRateLimiter', () => ({
       default: (ctx.LoginRateLimiter = {
@@ -148,7 +145,7 @@ describe('AuthenticationController', function () {
       '../../../../app/src/Features/Analytics/AnalyticsManager',
       () => ({
         default: (ctx.AnalyticsManager = {
-          recordEventForUserInBackground: sinon.stub(),
+          recordEventForMongoUserInBackground: sinon.stub(),
           identifyUser: sinon.stub(),
           getIdsFromSession: sinon.stub().returns({ userId: ctx.user._id }),
         }),
@@ -323,41 +320,6 @@ describe('AuthenticationController', function () {
 
         ctx.AuthenticationController.serializeUser(ctx.user, ctx.callback)
         expect(ctx.callback).to.have.been.calledWith(null, isAdminMatcher)
-      })
-    })
-
-    describe('when staffAccess fields are provided', function () {
-      it('only returns the fields set to true', function (ctx) {
-        const expectedStaffAccess = {
-          publisherMetrics: true,
-          institutionMetrics: true,
-          groupMetrics: true,
-          adminMetrics: true,
-          splitTestManagement: true,
-        }
-        const staffAccessMatcher = sinon.match(value => {
-          return (
-            Object.keys(value.staffAccess).length ===
-            Object.keys(expectedStaffAccess).length
-          )
-        })
-
-        ctx.AuthenticationController.serializeUser(ctx.staffUser, ctx.callback)
-        expect(ctx.callback).to.have.been.calledWith(null, staffAccessMatcher)
-      })
-    })
-
-    describe('when all staffAccess fields are false', function () {
-      it('no staffAccess attribute is set', function (ctx) {
-        const staffAccessMatcher = sinon.match(value => {
-          return !('staffAccess' in value)
-        })
-
-        ctx.AuthenticationController.serializeUser(
-          ctx.noStaffAccessUser,
-          ctx.callback
-        )
-        expect(ctx.callback).to.have.been.calledWith(null, staffAccessMatcher)
       })
     })
   })
@@ -769,6 +731,83 @@ describe('AuthenticationController', function () {
         ctx.next.should.have.not.been.calledOnce
       })
     })
+
+    describe('error_code classification', function () {
+      // The classifier reads err.name (RFC-standard snake_case from
+      // @node-oauth/oauth2-server) plus an overleafErrorCode marker we
+      // attach ourselves. No reliance on err.message — that keeps the
+      // classification immune to library description changes.
+      async function runMiddlewareWithError(ctx, err) {
+        await new Promise(resolve => {
+          ctx.res.json.callsFake(() => resolve())
+          ctx.Oauth2Server.server.authenticate.rejects(err)
+          ctx.middleware(ctx.req, ctx.res, ctx.next)
+        })
+      }
+
+      it('returns "token_expired" when Oauth2ServerModel marks the error', async function (ctx) {
+        await runMiddlewareWithError(ctx, {
+          code: 401,
+          name: 'invalid_token',
+          overleafErrorCode: 'token_expired',
+        })
+        ctx.res.json.should.have.been.calledWithMatch({
+          error_code: 'token_expired',
+        })
+      })
+
+      it('returns "token_invalid" for an invalid_token error without a marker', async function (ctx) {
+        await runMiddlewareWithError(ctx, {
+          code: 401,
+          name: 'invalid_token',
+        })
+        ctx.res.json.should.have.been.calledWithMatch({
+          error_code: 'token_invalid',
+        })
+      })
+
+      it('returns "token_malformed" for a malformed authorization header', async function (ctx) {
+        await runMiddlewareWithError(ctx, {
+          code: 400,
+          name: 'invalid_request',
+          message: 'Invalid request: malformed authorization header',
+        })
+        ctx.res.json.should.have.been.calledWithMatch({
+          error_code: 'token_malformed',
+        })
+      })
+
+      it('returns "invalid_request" for any other invalid_request error', async function (ctx) {
+        await runMiddlewareWithError(ctx, {
+          code: 400,
+          name: 'invalid_request',
+          message: 'Invalid request: something else',
+        })
+        ctx.res.json.should.have.been.calledWithMatch({
+          error_code: 'invalid_request',
+        })
+      })
+
+      it('returns "insufficient_scope" for an insufficient_scope error', async function (ctx) {
+        await runMiddlewareWithError(ctx, {
+          code: 403,
+          name: 'insufficient_scope',
+        })
+        ctx.res.json.should.have.been.calledWithMatch({
+          error_code: 'insufficient_scope',
+        })
+      })
+
+      it('returns "unauthorized_request" for an unauthorized_request error', async function (ctx) {
+        await runMiddlewareWithError(ctx, {
+          code: 401,
+          name: 'unauthorized_request',
+        })
+        ctx.res.json.should.have.been.calledWithMatch({
+          error_code: 'unauthorized_request',
+        })
+      })
+    })
   })
 
   describe('requireGlobalLogin', function () {
@@ -1057,6 +1096,24 @@ describe('AuthenticationController', function () {
         ctx.AuthenticationController._redirectToLoginPage
           .calledWith(ctx.req, ctx.res)
           .should.equal(false)
+      })
+    })
+
+    describe('request validation', function () {
+      beforeEach(function () {
+        setReqValidationModeForTests('enforce')
+      })
+
+      afterEach(function () {
+        setReqValidationModeForTests(null)
+      })
+
+      it('rejects a non-string zipUrl query param', function (ctx) {
+        ctx.req.query.zipUrl = ['a', 'b']
+        ctx.SessionManager.isUserLoggedIn = sinon.stub().returns(false)
+        expect(() => ctx.middleware(ctx.req, ctx.res, ctx.next)).toThrowError(
+          expect.objectContaining({ name: 'InvalidRequestError' })
+        )
       })
     })
   })
@@ -1608,8 +1665,8 @@ describe('AuthenticationController', function () {
 
       it('should track the login event', function (ctx) {
         sinon.assert.calledWith(
-          ctx.AnalyticsManager.recordEventForUserInBackground,
-          ctx.user._id,
+          ctx.AnalyticsManager.recordEventForMongoUserInBackground,
+          ctx.user,
           'user-logged-in'
         )
       })
@@ -1620,7 +1677,7 @@ describe('AuthenticationController', function () {
     beforeEach(function (ctx) {
       ctx.userDetailsMap = new Map()
       ctx.logger.err = sinon.stub()
-      ctx.Metrics.inc = sinon.stub()
+      ctx.Metrics.inc.resetHistory()
     })
 
     describe('with valid credentials', function () {

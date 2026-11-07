@@ -22,6 +22,7 @@ import EditorRealTimeController from '../Editor/EditorRealTimeController.mjs'
 import HistoryManager from '../History/HistoryManager.mjs'
 import ChatApiHandler from '../Chat/ChatApiHandler.mjs'
 import { promiseMapWithLimit } from '@overleaf/promise-utils'
+import { DeletedProjectReasons } from './DeletedProjectReasons.mjs'
 
 const PROJECT_EXPIRATION_BATCH_SIZE = 10000
 
@@ -84,7 +85,11 @@ async function deleteUsersProjects(userId) {
     { userId, projectCount: projects.length },
     'found user projects to delete'
   )
-  await promiseMapWithLimit(5, projects, project => deleteProject(project._id))
+  await promiseMapWithLimit(5, projects, project =>
+    deleteProject(project._id, {
+      deletedReason: DeletedProjectReasons.ACCOUNT_DELETION,
+    })
+  )
   logger.info({ userId }, 'deleted all user projects')
   await CollaboratorsHandler.promises.removeUserFromAllProjects(userId)
 }
@@ -115,8 +120,17 @@ async function expireDeletedProjectsAfterDuration() {
     'expiring batch of deleted projects'
   )
   try {
+    let processedCount = 0
     for (const projectId of projectIds) {
       await expireDeletedProject(projectId)
+      processedCount++
+      if (Settings.shuttingDown) {
+        logger.warn(
+          { projectCount: projectIds.length, processedCount },
+          'graceful shutdown in progress, stopping batch of deleted projects early'
+        )
+        return
+      }
     }
     logger.info(
       { projectCount: projectIds.length },
@@ -179,9 +193,30 @@ async function deleteProject(projectId, options = {}) {
       throw new Errors.NotFoundError('project not found')
     }
 
-    await DocumentUpdaterHandler.promises.flushProjectToMongoAndDelete(
-      projectId
-    )
+    try {
+      // flushProjectToMongoAndDelete performs flush to mongo and history.
+      await DocumentUpdaterHandler.promises.flushProjectToMongoAndDelete(
+        projectId
+      )
+    } catch (err) {
+      // Try harder at flushing the project.
+      // Step 1: Flush to mongo, do not delete yet
+      await DocumentUpdaterHandler.promises.flushProjectToMongo(projectId)
+      try {
+        // Step 2: Attempt to flush the history, this will likely fail.
+        await HistoryManager.promises.flushProject(projectId)
+      } catch {
+        // We found a project with a broken history.
+        // Step 3: Resync the history
+        await HistoryManager.promises.resyncProject(projectId, {
+          force: true,
+        })
+      }
+      // Step 4: Try again, this time delete the docs
+      await DocumentUpdaterHandler.promises.flushProjectToMongoAndDelete(
+        projectId
+      )
+    }
 
     try {
       // OPTIMIZATION: flush docs out of mongo
@@ -214,6 +249,7 @@ async function deleteProject(projectId, options = {}) {
       deleterId:
         options.deleterUser != null ? options.deleterUser._id : undefined,
       deleterIpAddress: options.ipAddress,
+      deletedReason: options.deletedReason,
       deletedProjectId: project._id,
       deletedProjectOwnerId: project.owner_ref,
       deletedProjectCollaboratorIds: project.collaberator_refs,

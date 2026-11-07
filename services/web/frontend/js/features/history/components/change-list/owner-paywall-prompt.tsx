@@ -10,7 +10,6 @@ export function OwnerPaywallPrompt() {
 
   useEffect(() => {
     eventTracking.send('subscription-funnel', 'editor-click-feature', 'history')
-    eventTracking.sendMB('paywall-prompt', { 'paywall-type': 'history' })
   }, [])
 
   const handleFreeTrialClick = useCallback(() => {
@@ -19,7 +18,9 @@ export function OwnerPaywallPrompt() {
 
   return (
     <div className="history-paywall-prompt">
-      <h2 className="history-paywall-heading">{t('premium_feature')}</h2>
+      <h2 className="history-paywall-heading">
+        {t('get_full_project_history')}
+      </h2>
       <p>{t('currently_seeing_only_24_hrs_history')}</p>
       <p>
         <strong>

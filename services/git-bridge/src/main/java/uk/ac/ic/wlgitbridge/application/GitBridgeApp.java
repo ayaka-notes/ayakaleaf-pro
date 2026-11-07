@@ -65,6 +65,10 @@ public class GitBridgeApp implements Runnable {
     server.stop();
   }
 
+  public int getPort() {
+    return server.getPort();
+  }
+
   /* Helper methods */
 
   private void parseArguments(String[] args) throws ArgsException {
@@ -83,7 +87,7 @@ public class GitBridgeApp implements Runnable {
   }
 
   private void loadConfigFile() throws ConfigFileException, IOException {
-    Log.info("Loading config file at path: " + configFilePath);
+    Log.debug("Loading config file at path: " + configFilePath);
     config = new Config(configFilePath);
   }
 

@@ -26,7 +26,7 @@ function AvailableWithGroupProfessionalBadge() {
         onClick: handleUpgradeClick,
       }}
     >
-      <strong>{t('available_with_group_professional')}</strong>
+      <strong>{t('available_for_pro_groups')}</strong>
     </OLTag>
   )
 }

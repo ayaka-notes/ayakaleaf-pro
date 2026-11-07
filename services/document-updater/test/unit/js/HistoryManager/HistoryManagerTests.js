@@ -1,6 +1,7 @@
 /* eslint-disable
     mocha/no-nested-tests,
 */
+const { expect } = require('chai')
 const SandboxedModule = require('sandboxed-module')
 const sinon = require('sinon')
 const modulePath = require('node:path').join(
@@ -12,7 +13,6 @@ describe('HistoryManager', function () {
   beforeEach(function () {
     this.HistoryManager = SandboxedModule.require(modulePath, {
       requires: {
-        request: (this.request = {}),
         '@overleaf/fetch-utils': (this.fetchUtils = {
           fetchNothing: sinon.stub().resolves(),
         }),
@@ -204,6 +204,22 @@ describe('HistoryManager', function () {
           url: `www.filestore.test/${this.project_id}/mock-file-id`,
         },
       ]
+    })
+
+    describe('error', function () {
+      it('should throw directly', async function () {
+        const err = new Error()
+        this.DocumentManager.promises.resyncDocContentsWithLock.rejects(err)
+        await expect(
+          this.HistoryManager.promises.resyncProjectHistory(
+            this.project_id,
+            this.projectHistoryId,
+            this.docs,
+            this.files,
+            {}
+          )
+        ).to.be.rejectedWith(err)
+      })
     })
 
     describe('full sync', function () {

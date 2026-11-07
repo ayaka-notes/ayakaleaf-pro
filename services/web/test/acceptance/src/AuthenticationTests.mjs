@@ -50,6 +50,31 @@ describe('Authentication', function () {
     })
   })
 
+  describe('logout', function () {
+    beforeEach('login', async function () {
+      await user.login()
+    })
+
+    it('should accept a genuine native HTML form submission (form-encoded body, no CSRF header)', async function () {
+      // The real "Log Out" menu item is a plain HTML form (see
+      // account-menu-items.tsx): no JS involved, so the token only ever
+      // travels as a hidden _csrf form field, never as a header. With no
+      // Accept header favouring JSON, logoutSchema's handler redirects
+      // the browser directly rather than returning a JSON body.
+      const { response } = await user.submitNativeForm('/logout')
+      expect(response.statusCode).to.equal(302)
+      expect(response.headers.location).to.equal('/login')
+    })
+
+    it('should still reject an unrecognized field in the body', async function () {
+      const { response } = await user.doRequest('POST', {
+        url: '/logout',
+        json: { _csrf: user.csrfToken, notARealField: 'nope' },
+      })
+      expect(response.statusCode).to.equal(400)
+    })
+  })
+
   describe('login', function () {
     beforeEach('doLogin', async function () {
       await user.login()
@@ -113,26 +138,35 @@ describe('Authentication', function () {
   })
 
   describe('rate-limit', function () {
+    const RATE_LIMIT = 10
+
     beforeEach('fetchCsrfToken', async function () {
       await user.login()
       await user.logout()
       await user.getCsrfToken()
     })
-    const tryLogin = async (i = 0) => {
+    async function tryLogin(i = 0, prefix = '') {
+      const { statusCode } = await tryLoginWithEmail(
+        `${prefix}${user.email}${' '.repeat(i)}`
+      )
+      return statusCode
+    }
+    async function tryLoginWithEmail(email) {
       const {
         response: { statusCode },
+        body,
       } = await user.doRequest('POST', {
         url: Settings.enableLegacyLogin ? '/login/legacy' : '/login',
         json: {
-          email: `${user.email}${' '.repeat(i)}`,
+          email,
           password: 'wrong-password',
           'g-recaptcha-response': 'valid',
         },
       })
-      return statusCode
+      return { statusCode, body }
     }
     it('should return 429 after 10 unsuccessful login attempts', async function () {
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < RATE_LIMIT; i++) {
         const statusCode = await tryLogin()
         expect(statusCode).to.equal(401)
       }
@@ -142,7 +176,7 @@ describe('Authentication', function () {
       }
     })
     it('ignore extra spaces in email address', async function () {
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < RATE_LIMIT; i++) {
         const statusCode = await tryLogin(i)
         expect(statusCode).to.equal(401)
       }
@@ -150,6 +184,29 @@ describe('Authentication', function () {
         const statusCode = await tryLogin(i)
         expect(statusCode).to.equal(429)
       }
+    })
+    it('normalizes the email address', async function () {
+      for (let i = 0; i < RATE_LIMIT / 2; i++) {
+        const statusCode = await tryLogin(i, 'x') // lower
+        expect(statusCode).to.equal(401)
+      }
+      for (let i = 0; i < RATE_LIMIT / 2; i++) {
+        const statusCode = await tryLogin(i, 'X') // upper
+        expect(statusCode).to.equal(401)
+      }
+      // combined, they exceed the rate-limit
+      for (let i = 0; i < 10; i++) {
+        const statusCode = await tryLogin(i, 'x')
+        expect(statusCode).to.equal(429)
+      }
+    })
+    it('should return 400 with bad email (missing @)', async function () {
+      const { statusCode } = await tryLoginWithEmail('foo')
+      expect(statusCode).to.equal(400)
+    })
+    it('should return 400 with bad email (number)', async function () {
+      const { statusCode } = await tryLoginWithEmail(1)
+      expect(statusCode).to.equal(400)
     })
   })
 })

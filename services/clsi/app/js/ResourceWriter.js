@@ -12,21 +12,31 @@
  * DS207: Consider shorter variations of null checks
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
+import { promisify } from 'node:util'
+import UrlCache from './UrlCache.js'
+import Path from 'node:path'
+import fs from 'node:fs'
+import async from 'async'
+import OutputFileFinder from './OutputFileFinder.js'
+import ResourceStateManager from './ResourceStateManager.js'
+import Metrics from '@overleaf/metrics'
+import logger from '@overleaf/logger'
+import settings from '@overleaf/settings'
+import ClsiMetrics from './Metrics.js'
+import { Minimatch } from 'minimatch'
+
+const { shouldSkipMetrics } = ClsiMetrics
+
+// Additional file patterns to keep between compiles
+const preciousFileMatcher = new Minimatch(settings.preciousFilePattern, {
+  dot: true,
+})
+
 let ResourceWriter
-const { promisify } = require('node:util')
-const UrlCache = require('./UrlCache')
-const Path = require('node:path')
-const fs = require('node:fs')
-const async = require('async')
-const OutputFileFinder = require('./OutputFileFinder')
-const ResourceStateManager = require('./ResourceStateManager')
-const Metrics = require('@overleaf/metrics')
-const logger = require('@overleaf/logger')
-const settings = require('@overleaf/settings')
 
 const parallelFileDownloads = settings.parallelFileDownloads || 1
 
-module.exports = ResourceWriter = {
+export default ResourceWriter = {
   syncResourcesToDisk(request, basePath, callback) {
     if (callback == null) {
       callback = function () {}
@@ -193,7 +203,7 @@ module.exports = ResourceWriter = {
       request.metricsOpts
     )
     const callback = function (error, ...result) {
-      timer.done()
+      if (!shouldSkipMetrics(request)) timer.done()
       return _callback(error, ...Array.from(result))
     }
 
@@ -248,7 +258,7 @@ module.exports = ResourceWriter = {
     }
     if (
       path.match(/\.(pygtex|pygstyle)$/) ||
-      path.match(/(^|\/)_minted-[^\/]+\//)
+      path.match(/(^|\/)_minted(-[^\/]+)?\//)
     ) {
       // minted files/directory
       shouldDelete = false
@@ -259,6 +269,10 @@ module.exports = ResourceWriter = {
     }
     if (path.match(/-eps-converted-to\.pdf$/)) {
       // Epstopdf generated files
+      shouldDelete = false
+    }
+    // Keep additional precious files and directories
+    if (shouldDelete && preciousFileMatcher.match(path)) {
       shouldDelete = false
     }
     if (
@@ -374,7 +388,7 @@ module.exports = ResourceWriter = {
   },
 }
 
-module.exports.promises = {
+ResourceWriter.promises = {
   syncResourcesToDisk: promisify(ResourceWriter.syncResourcesToDisk),
   saveIncrementalResourcesToDisk: promisify(
     ResourceWriter.saveIncrementalResourcesToDisk

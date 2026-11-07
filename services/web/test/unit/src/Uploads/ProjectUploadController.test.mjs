@@ -5,14 +5,45 @@
  * DS206: Consider reworking classes to avoid initClass
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
-import { expect, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import sinon from 'sinon'
+import Path from 'node:path'
 import MockRequest from '../helpers/MockRequest.mjs'
 import MockResponse from '../helpers/MockResponse.mjs'
 import ArchiveErrors from '../../../../app/src/Features/Uploads/ArchiveErrors.mjs'
+import {
+  InvalidParamsError,
+  InvalidRequestError,
+  setReqValidationModeForTests,
+} from '@overleaf/validation-tools'
+import { asZodError } from '@overleaf/validation-tools/testUtils.js'
+import {
+  FileTooLargeError,
+  DocumentConversionError,
+  TooManyFilesError,
+} from '../../../../app/src/Features/Errors/Errors.js'
+
+vi.mock('../../../../app/src/Features/Errors/Errors.js', () =>
+  vi.importActual('../../../../app/src/Features/Errors/Errors.js')
+)
 
 const modulePath =
   '../../../../app/src/Features/Uploads/ProjectUploadController.mjs'
+
+// A minimal but schema-valid multer file object (zz.uploadedFile()), keyed
+// off the temp path used throughout these tests.
+function uploadedFile(path) {
+  return {
+    fieldname: 'qqfile',
+    originalname: Path.basename(path),
+    encoding: '7bit',
+    mimetype: 'application/octet-stream',
+    size: 1234,
+    destination: Path.dirname(path),
+    filename: Path.basename(path),
+    path,
+  }
+}
 
 describe('ProjectUploadController', function () {
   beforeEach(async function (ctx) {
@@ -40,9 +71,20 @@ describe('ProjectUploadController', function () {
     ctx.EditorController = {
       promises: {},
     }
+    ctx.ProjectOptionsHandler = {
+      promises: {
+        setCompiler: sinon.stub().resolves(),
+      },
+    }
+    ctx.DocumentConversionManager = {
+      promises: {
+        convertDocumentToLaTeXZipArchive: sinon.stub(),
+      },
+    }
 
-    vi.doMock('multer', () => ({
-      default: sinon.stub(),
+    vi.doMock('../../../../app/src/infrastructure/Multer.mjs', () => ({
+      multer: { MulterError: class MulterError extends Error {} },
+      multerUploadHandler: sinon.stub().returns({ single: sinon.stub() }),
     }))
 
     vi.doMock('@overleaf/settings', () => ({
@@ -52,7 +94,7 @@ describe('ProjectUploadController', function () {
     vi.doMock(
       '../../../../app/src/Features/Uploads/ProjectUploadManager',
       () => ({
-        default: (ctx.ProjectUploadManager = {}),
+        default: (ctx.ProjectUploadManager = { promises: {} }),
       })
     )
 
@@ -87,20 +129,51 @@ describe('ProjectUploadController', function () {
       default: ctx.EditorController,
     }))
 
-    vi.doMock('fs', () => ({
+    vi.doMock(
+      '../../../../app/src/Features/Project/ProjectOptionsHandler',
+      () => ({
+        default: ctx.ProjectOptionsHandler,
+      })
+    )
+
+    vi.doMock(
+      '../../../../app/src/Features/Uploads/DocumentConversionManager.mjs',
+      () => ({
+        default: ctx.DocumentConversionManager,
+      })
+    )
+
+    ctx.AnalyticsManager = {
+      recordEventForSession: sinon.stub(),
+      recordEventForUserInBackground: sinon.stub(),
+    }
+    vi.doMock(
+      '../../../../app/src/Features/Analytics/AnalyticsManager.mjs',
+      () => ({
+        default: ctx.AnalyticsManager,
+      })
+    )
+
+    vi.doMock('node:fs', () => ({
       default: (ctx.fs = {}),
     }))
 
+    vi.doMock('node:fs/promises', () => ({
+      default: (ctx.fsPromises = {}),
+    }))
+
     ctx.ProjectUploadController = (await import(modulePath)).default
+  })
+
+  afterEach(function () {
+    setReqValidationModeForTests(null)
   })
 
   describe('uploadProject', function () {
     beforeEach(function (ctx) {
       ctx.path = '/path/to/file/on/disk.zip'
       ctx.fileName = 'filename.zip'
-      ctx.req.file = {
-        path: ctx.path,
-      }
+      ctx.req.file = uploadedFile(ctx.path)
       ctx.req.body = {
         name: ctx.fileName,
       }
@@ -109,9 +182,10 @@ describe('ProjectUploadController', function () {
           _id: ctx.user_id,
         },
       }
-      ctx.project = { _id: (ctx.project_id = 'project-id-123') }
+      ctx.project = { _id: (ctx.project_id = '507f191e810c19729de860ea') }
 
       ctx.fs.unlink = sinon.stub()
+      ctx.fsPromises.unlink = sinon.stub().resolves()
     })
 
     describe('successfully', function () {
@@ -171,6 +245,10 @@ describe('ProjectUploadController', function () {
           JSON.stringify({ success: false, error: 'upload_failed' })
         )
       })
+
+      it('should remove the uploaded file', function (ctx) {
+        ctx.fs.unlink.calledWith(ctx.path).should.equal(true)
+      })
     })
 
     describe('when ProjectUploadManager.createProjectFromZipArchive reports the file as invalid', function () {
@@ -195,18 +273,85 @@ describe('ProjectUploadController', function () {
       it("should return an 'unprocessable entity' status code", function (ctx) {
         expect(ctx.res.statusCode).to.equal(422)
       })
+
+      it('should remove the uploaded file', function (ctx) {
+        ctx.fs.unlink.calledWith(ctx.path).should.equal(true)
+      })
+    })
+
+    describe('request validation', function () {
+      beforeEach(function () {
+        setReqValidationModeForTests('enforce')
+      })
+
+      it('rejects an unrecognized body field', function (ctx) {
+        ctx.req.body.extraField = 'nope'
+        expect(() =>
+          ctx.ProjectUploadController.uploadProject(ctx.req, ctx.res)
+        ).to.throw(InvalidRequestError)
+        expect(ctx.fs.unlink).not.to.have.been.called
+      })
+
+      it('accepts relativePath set to the literal "null" string', function (ctx) {
+        ctx.req.body.relativePath = 'null'
+        ctx.ProjectUploadManager.createProjectFromZipArchive = sinon
+          .stub()
+          .callsArgWith(3, null, ctx.project)
+        ctx.ProjectUploadController.uploadProject(ctx.req, ctx.res)
+        expect(ctx.res.body).to.deep.equal(
+          JSON.stringify({
+            success: true,
+            project_id: ctx.project_id,
+          })
+        )
+      })
+
+      it('accepts a nested relativePath', function (ctx) {
+        ctx.req.body.relativePath = 'folder/main.tex'
+        ctx.ProjectUploadManager.createProjectFromZipArchive = sinon
+          .stub()
+          .callsArgWith(3, null, ctx.project)
+        ctx.ProjectUploadController.uploadProject(ctx.req, ctx.res)
+        expect(ctx.res.body).to.deep.equal(
+          JSON.stringify({
+            success: true,
+            project_id: ctx.project_id,
+          })
+        )
+      })
+
+      it('rejects a relativePath that attempts path traversal', function (ctx) {
+        ctx.req.body.relativePath = '../../etc/passwd'
+        let error
+        try {
+          ctx.ProjectUploadController.uploadProject(ctx.req, ctx.res)
+        } catch (err) {
+          error = err
+        }
+        expect(
+          sinon
+            .match({
+              name: 'InvalidRequestError',
+              zodError: asZodError({
+                code: 'custom',
+                path: ['body', 'relativePath'],
+                message: 'path traversal detected',
+              }),
+            })
+            .test(error)
+        ).to.be.true
+        expect(ctx.fs.unlink).not.to.have.been.called
+      })
     })
   })
 
   describe('uploadFile', function () {
     beforeEach(function (ctx) {
-      ctx.project_id = 'project-id-123'
-      ctx.folder_id = 'folder-id-123'
+      ctx.project_id = '507f191e810c19729de860ea'
+      ctx.folder_id = '507f191e810c19729de860eb'
       ctx.path = '/path/to/file/on/disk.png'
       ctx.fileName = 'filename.png'
-      ctx.req.file = {
-        path: ctx.path,
-      }
+      ctx.req.file = uploadedFile(ctx.path)
       ctx.req.body = {
         name: ctx.fileName,
       }
@@ -218,6 +363,7 @@ describe('ProjectUploadController', function () {
       ctx.req.params = { Project_id: ctx.project_id }
       ctx.req.query = { folder_id: ctx.folder_id }
       ctx.fs.unlink = sinon.stub()
+      ctx.fsPromises.unlink = sinon.stub().resolves()
     })
 
     describe('successfully', function () {
@@ -332,7 +478,7 @@ describe('ProjectUploadController', function () {
       })
 
       it('should unlink the file', function (ctx) {
-        ctx.fs.unlink.should.have.been.calledWith(ctx.path)
+        ctx.fsPromises.unlink.should.have.been.calledWith(ctx.path)
       })
 
       it('should call next with the error', function (ctx) {
@@ -355,13 +501,17 @@ describe('ProjectUploadController', function () {
           })
         )
       })
+
+      it('should remove the uploaded file', function (ctx) {
+        ctx.fs.unlink.calledWith(ctx.path).should.equal(true)
+      })
     })
 
     describe('when FileSystemImportManager.addEntity returns a too many files error', function () {
       beforeEach(function (ctx) {
         ctx.FileSystemImportManager.addEntity = sinon
           .stub()
-          .callsArgWith(6, new Error('project_has_too_many_files'))
+          .callsArgWith(6, new TooManyFilesError('project_has_too_many_files'))
         ctx.ProjectUploadController.uploadFile(ctx.req, ctx.res)
       })
 
@@ -372,6 +522,10 @@ describe('ProjectUploadController', function () {
             error: 'project_has_too_many_files',
           })
         )
+      })
+
+      it('should remove the uploaded file', function (ctx) {
+        ctx.fs.unlink.calledWith(ctx.path).should.equal(true)
       })
     })
 
@@ -391,7 +545,7 @@ describe('ProjectUploadController', function () {
       })
 
       it('should remove the uploaded file', function (ctx) {
-        ctx.fs.unlink.calledWith(ctx.path).should.equal(true)
+        ctx.fsPromises.unlink.calledWith(ctx.path).should.equal(true)
       })
     })
 
@@ -411,7 +565,475 @@ describe('ProjectUploadController', function () {
       })
 
       it('should remove the uploaded file', function (ctx) {
-        ctx.fs.unlink.calledWith(ctx.path).should.equal(true)
+        ctx.fsPromises.unlink.calledWith(ctx.path).should.equal(true)
+      })
+    })
+
+    describe('request validation', function () {
+      beforeEach(function () {
+        setReqValidationModeForTests('enforce')
+      })
+
+      it('rejects a malformed Project_id param', async function (ctx) {
+        ctx.req.params.Project_id = 'not-an-object-id'
+        await expect(
+          ctx.ProjectUploadController.uploadFile(ctx.req, ctx.res)
+        ).to.be.rejectedWith(InvalidParamsError)
+        expect(ctx.fsPromises.unlink).not.to.have.been.called
+      })
+    })
+  })
+
+  describe('importDocument', function () {
+    beforeEach(async function (ctx) {
+      ctx.req.file = uploadedFile('/path/to/uploaded/file.docx')
+      ctx.req.body = {
+        name: 'file.docx',
+      }
+      ctx.req.query = { type: 'docx' }
+      ctx.archivePath = '/path/to/archive.zip'
+      ctx.fsPromises.unlink = sinon.stub().resolves()
+    })
+
+    describe('with conversionType=docx', async function () {
+      describe('successfully', async function () {
+        beforeEach(async function (ctx) {
+          ctx.DocumentConversionManager.promises.convertDocumentToLaTeXZipArchive =
+            sinon.stub().resolves(ctx.archivePath)
+          ctx.ProjectUploadManager.promises.createProjectFromZipArchive = sinon
+            .stub()
+            .resolves({
+              _id: 'new-project-id',
+            })
+
+          await new Promise(resolve => {
+            ctx.res.json = data => {
+              expect(data.success).to.be.true
+              expect(data.project_id).to.equal('new-project-id')
+              resolve()
+            }
+            ctx.ProjectUploadController.importDocument(ctx.req, ctx.res)
+          })
+        })
+
+        it('should call the DocumentConversionManager with file path and type', function (ctx) {
+          expect(
+            ctx.DocumentConversionManager.promises
+              .convertDocumentToLaTeXZipArchive
+          ).to.have.been.calledWith(ctx.req.file.path, ctx.user_id, 'docx')
+        })
+
+        it('should use the resulting archive to create a new project', function (ctx) {
+          expect(
+            ctx.ProjectUploadManager.promises.createProjectFromZipArchive
+          ).to.have.been.calledWith(ctx.user_id, 'file', ctx.archivePath)
+        })
+
+        it('should set the compiler to lualatex', function (ctx) {
+          expect(
+            ctx.ProjectOptionsHandler.promises.setCompiler
+          ).to.have.been.calledWith('new-project-id', 'lualatex')
+        })
+
+        it('should unlink the archive after creating the project', function (ctx) {
+          expect(ctx.fsPromises.unlink).to.have.been.calledWith(ctx.archivePath)
+        })
+
+        it('should unlink the uploaded file', function (ctx) {
+          expect(ctx.fsPromises.unlink).to.have.been.calledWith(
+            ctx.req.file.path
+          )
+        })
+
+        it('should record a successful convert-format analytics event', function (ctx) {
+          sinon.assert.calledWith(
+            ctx.AnalyticsManager.recordEventForSession,
+            ctx.req.session,
+            'convert-format',
+            {
+              sourceFormat: 'docx',
+              targetFormat: 'latex',
+              status: 'success',
+              operation: 'import',
+            }
+          )
+        })
+      })
+    })
+
+    describe('with conversionType=markdown', async function () {
+      beforeEach(async function (ctx) {
+        ctx.req.file = uploadedFile('/path/to/uploaded/file.md')
+        ctx.req.body = {
+          name: 'file.md',
+        }
+        ctx.req.query = { type: 'markdown' }
+        ctx.DocumentConversionManager.promises.convertDocumentToLaTeXZipArchive =
+          sinon.stub().resolves(ctx.archivePath)
+        ctx.ProjectUploadManager.promises.createProjectFromZipArchive = sinon
+          .stub()
+          .resolves({
+            _id: 'new-project-id',
+          })
+
+        await new Promise(resolve => {
+          ctx.res.json = data => {
+            expect(data.success).to.be.true
+            expect(data.project_id).to.equal('new-project-id')
+            resolve()
+          }
+          ctx.ProjectUploadController.importDocument(ctx.req, ctx.res)
+        })
+      })
+
+      it('should call the DocumentConversionManager with file path and markdown type', function (ctx) {
+        expect(
+          ctx.DocumentConversionManager.promises
+            .convertDocumentToLaTeXZipArchive
+        ).to.have.been.calledWith(ctx.req.file.path, ctx.user_id, 'markdown')
+      })
+
+      it('should use the resulting archive to create a new project', function (ctx) {
+        expect(
+          ctx.ProjectUploadManager.promises.createProjectFromZipArchive
+        ).to.have.been.calledWith(ctx.user_id, 'file', ctx.archivePath)
+      })
+
+      it('should set the compiler to lualatex', function (ctx) {
+        expect(
+          ctx.ProjectOptionsHandler.promises.setCompiler
+        ).to.have.been.calledWith('new-project-id', 'lualatex')
+      })
+
+      it('should unlink the archive after creating the project', function (ctx) {
+        expect(ctx.fsPromises.unlink).to.have.been.calledWith(ctx.archivePath)
+      })
+
+      it('should unlink the uploaded file', function (ctx) {
+        expect(ctx.fsPromises.unlink).to.have.been.calledWith(ctx.req.file.path)
+      })
+
+      it('should record a successful convert-format analytics event', function (ctx) {
+        sinon.assert.calledWith(
+          ctx.AnalyticsManager.recordEventForSession,
+          ctx.req.session,
+          'convert-format',
+          {
+            sourceFormat: 'markdown',
+            targetFormat: 'latex',
+            status: 'success',
+            operation: 'import',
+          }
+        )
+      })
+    })
+
+    describe('with an invalid conversionType', async function () {
+      beforeEach(async function (ctx) {
+        ctx.req.query = { type: 'invalid' }
+
+        await new Promise(resolve => {
+          ctx.res.json = data => {
+            expect(data).to.deep.equal({
+              success: false,
+              error: 'invalid_import_type',
+            })
+            resolve()
+          }
+          ctx.ProjectUploadController.importDocument(ctx.req, ctx.res)
+        })
+      })
+
+      it('should return http 400', function (ctx) {
+        expect(ctx.res.statusCode).to.equal(400)
+      })
+
+      it('should not call DocumentConversionManager', function (ctx) {
+        expect(
+          ctx.DocumentConversionManager.promises
+            .convertDocumentToLaTeXZipArchive
+        ).not.to.have.been.called
+      })
+    })
+
+    describe('unsuccessfully', async function () {
+      beforeEach(async function (ctx) {
+        ctx.DocumentConversionManager.promises.convertDocumentToLaTeXZipArchive =
+          sinon.stub().rejects(new Error('Conversion failed'))
+
+        await new Promise(resolve => {
+          ctx.res.json = data => {
+            expect(data.success).to.be.false
+            resolve()
+          }
+          ctx.ProjectUploadController.importDocument(ctx.req, ctx.res)
+        })
+      })
+
+      it('should call the DocumentConversionManager to convert the file', function (ctx) {
+        expect(
+          ctx.DocumentConversionManager.promises
+            .convertDocumentToLaTeXZipArchive
+        ).to.have.been.calledWith(ctx.req.file.path, ctx.user_id, 'docx')
+      })
+
+      it('should unlink the uploaded file', function (ctx) {
+        expect(ctx.fsPromises.unlink).to.have.been.calledWith(ctx.req.file.path)
+      })
+
+      it('should return http 500', function (ctx) {
+        expect(ctx.res.statusCode).to.equal(500)
+      })
+
+      it('should record a failed convert-format analytics event', function (ctx) {
+        sinon.assert.calledWith(
+          ctx.AnalyticsManager.recordEventForSession,
+          ctx.req.session,
+          'convert-format',
+          {
+            sourceFormat: 'docx',
+            targetFormat: 'latex',
+            status: 'failure',
+            operation: 'import',
+          }
+        )
+      })
+    })
+
+    describe('when the conversion fails with a user-facing error', async function () {
+      beforeEach(async function (ctx) {
+        ctx.DocumentConversionManager.promises.convertDocumentToLaTeXZipArchive =
+          sinon
+            .stub()
+            .rejects(new DocumentConversionError('parse error at line 5'))
+
+        await new Promise(resolve => {
+          ctx.res.json = data => {
+            expect(data).to.deep.equal({
+              success: false,
+              error: 'parse error at line 5',
+            })
+            resolve()
+          }
+          ctx.ProjectUploadController.importDocument(ctx.req, ctx.res)
+        })
+      })
+
+      it('should return http 422', function (ctx) {
+        expect(ctx.res.statusCode).to.equal(422)
+      })
+
+      it('should unlink the uploaded file', function (ctx) {
+        expect(ctx.fsPromises.unlink).to.have.been.calledWith(ctx.req.file.path)
+      })
+    })
+
+    describe('when the conversion fails without a specific message', async function () {
+      beforeEach(async function (ctx) {
+        ctx.DocumentConversionManager.promises.convertDocumentToLaTeXZipArchive =
+          sinon.stub().rejects(new DocumentConversionError())
+
+        await new Promise(resolve => {
+          ctx.res.json = data => {
+            expect(data.success).to.equal(false)
+            expect(data.error).to.equal('upload_failed')
+            resolve()
+          }
+          ctx.ProjectUploadController.importDocument(ctx.req, ctx.res)
+        })
+      })
+
+      it('should return http 422', function (ctx) {
+        expect(ctx.res.statusCode).to.equal(422)
+      })
+    })
+
+    describe('when the converted archive is too large', async function () {
+      beforeEach(async function (ctx) {
+        ctx.DocumentConversionManager.promises.convertDocumentToLaTeXZipArchive =
+          sinon.stub().rejects(new FileTooLargeError('file too large'))
+
+        await new Promise(resolve => {
+          ctx.res.json = data => {
+            expect(data).to.deep.equal({
+              success: false,
+              error: 'file_too_large',
+            })
+            resolve()
+          }
+          ctx.ProjectUploadController.importDocument(ctx.req, ctx.res)
+        })
+      })
+
+      it('should return http 422', function (ctx) {
+        expect(ctx.res.statusCode).to.equal(422)
+      })
+
+      it('should unlink the uploaded file', function (ctx) {
+        expect(ctx.fsPromises.unlink).to.have.been.calledWith(ctx.req.file.path)
+      })
+    })
+
+    describe('request validation', function () {
+      beforeEach(function () {
+        setReqValidationModeForTests('enforce')
+      })
+
+      it('rejects an unrecognized body field', async function (ctx) {
+        ctx.req.body.extraField = 'nope'
+        await expect(
+          ctx.ProjectUploadController.importDocument(ctx.req, ctx.res)
+        ).to.be.rejectedWith(InvalidRequestError)
+        expect(
+          ctx.DocumentConversionManager.promises
+            .convertDocumentToLaTeXZipArchive
+        ).not.to.have.been.called
+      })
+    })
+  })
+
+  describe('multerMiddleware', function () {
+    beforeEach(async function (ctx) {
+      vi.resetModules()
+
+      ctx.uploadSingleMiddleware = sinon.stub()
+
+      class MulterError extends Error {
+        constructor(code) {
+          super(code)
+          this.code = code
+        }
+      }
+      ctx.MulterError = MulterError
+
+      vi.doMock('../../../../app/src/infrastructure/Multer.mjs', () => ({
+        multer: { MulterError },
+        multerUploadHandler: sinon.stub().returns({
+          single: sinon.stub().returns(ctx.uploadSingleMiddleware),
+        }),
+      }))
+      vi.doMock('@overleaf/settings', () => ({ default: { path: {} } }))
+      vi.doMock('@overleaf/metrics', () => ({ default: ctx.metrics }))
+      vi.doMock(
+        '../../../../app/src/Features/Authentication/SessionManager',
+        () => ({ default: ctx.SessionManager })
+      )
+      vi.doMock(
+        '../../../../app/src/Features/Uploads/ProjectUploadManager',
+        () => ({ default: (ctx.ProjectUploadManager = { promises: {} }) })
+      )
+      vi.doMock(
+        '../../../../app/src/Features/Uploads/FileSystemImportManager',
+        () => ({ default: (ctx.FileSystemImportManager = {}) })
+      )
+      vi.doMock(
+        '../../../../app/src/Features/Uploads/ArchiveErrors',
+        () => ArchiveErrors
+      )
+      vi.doMock('../../../../app/src/Features/Project/ProjectLocator', () => ({
+        default: ctx.ProjectLocator,
+      }))
+      vi.doMock('../../../../app/src/Features/Editor/EditorController', () => ({
+        default: ctx.EditorController,
+      }))
+      vi.doMock(
+        '../../../../app/src/Features/Project/ProjectOptionsHandler',
+        () => ({ default: ctx.ProjectOptionsHandler })
+      )
+      vi.doMock(
+        '../../../../app/src/Features/Uploads/DocumentConversionManager.mjs',
+        () => ({ default: ctx.DocumentConversionManager })
+      )
+      vi.doMock('node:fs', () => ({ default: (ctx.fs = {}) }))
+      vi.doMock('node:fs/promises', () => ({
+        default: (ctx.fsPromises = {}),
+      }))
+
+      ctx.ProjectUploadController = (await import(modulePath)).default
+    })
+
+    describe('when the request is aborted', function () {
+      describe('without a file on disk', function () {
+        beforeEach(function (ctx) {
+          ctx.req.destroyed = true
+          ctx.uploadSingleMiddleware.callsFake((req, res, cb) => {
+            cb(new Error('Request aborted'))
+          })
+          ctx.next = sinon.stub()
+          ctx.fs.unlink = sinon.stub()
+          ctx.ProjectUploadController.multerMiddleware(
+            ctx.req,
+            ctx.res,
+            ctx.next
+          )
+        })
+
+        it('should not call next with the error', function (ctx) {
+          expect(ctx.next).not.to.have.been.called
+        })
+
+        it('should not attempt to unlink when no file exists', function (ctx) {
+          expect(ctx.fs.unlink).not.to.have.been.called
+        })
+      })
+
+      describe('with a file already written to disk', function () {
+        beforeEach(function (ctx) {
+          const filePath = '/tmp/uploaded-file'
+          ctx.req.destroyed = true
+          ctx.req.file = { path: filePath }
+          ctx.uploadSingleMiddleware.callsFake((req, res, cb) => {
+            cb(new Error('Request aborted'))
+          })
+          ctx.next = sinon.stub()
+          ctx.fs.unlink = sinon.stub()
+          ctx.ProjectUploadController.multerMiddleware(
+            ctx.req,
+            ctx.res,
+            ctx.next
+          )
+        })
+
+        it('should not call next with the error', function (ctx) {
+          expect(ctx.next).not.to.have.been.called
+        })
+
+        it('should unlink the uploaded file to prevent disk space leak', function (ctx) {
+          expect(ctx.fs.unlink).to.have.been.calledWith(ctx.req.file.path)
+        })
+      })
+    })
+
+    describe('when a generic multer error occurs', function () {
+      beforeEach(function (ctx) {
+        ctx.error = new Error('some other error')
+        ctx.uploadSingleMiddleware.callsFake((req, res, cb) => {
+          cb(ctx.error)
+        })
+        ctx.next = sinon.stub()
+        ctx.ProjectUploadController.multerMiddleware(ctx.req, ctx.res, ctx.next)
+      })
+
+      it('should call next with the error', function (ctx) {
+        expect(ctx.next).to.have.been.calledWith(ctx.error)
+      })
+    })
+
+    describe('when the file is too large', function () {
+      beforeEach(function (ctx) {
+        ctx.uploadSingleMiddleware.callsFake((req, res, cb) => {
+          cb(new ctx.MulterError('LIMIT_FILE_SIZE'))
+        })
+        ctx.next = sinon.stub()
+        ctx.ProjectUploadController.multerMiddleware(ctx.req, ctx.res, ctx.next)
+      })
+
+      it('should return a 422 response', function (ctx) {
+        expect(ctx.res.statusCode).to.equal(422)
+      })
+
+      it('should not call next', function (ctx) {
+        expect(ctx.next).not.to.have.been.called
       })
     })
   })

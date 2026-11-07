@@ -7,8 +7,10 @@ const SymbolPaletteItem = forwardRef(function ({
   handleSelect,
   handleKeyDown,
   symbol,
+  spriteSheet,
 }, ref) {
   const buttonRef = useRef(null)
+  const spriteStyle = spriteSheet?.getStyle(symbol.command)
 
   // Forward internal ref to parent
   useEffect(() => {
@@ -34,7 +36,7 @@ const SymbolPaletteItem = forwardRef(function ({
 
   return (
     <OLTooltip
-      id={`symbol-${symbol.codepoint}`}
+      id={`symbol-${encodeURIComponent(symbol.command)}`}
       description={
         <div>
           <div className="symbol-palette-item-description">
@@ -53,7 +55,7 @@ const SymbolPaletteItem = forwardRef(function ({
       overlayProps={{ placement: 'top', trigger: ['hover', 'focus'] }}
     >
       <button
-        key={symbol.codepoint}
+        type="button"
         className="symbol-palette-item"
         onClick={() => handleSelect(symbol)}
         onKeyDown={handleKeyDown}
@@ -63,7 +65,11 @@ const SymbolPaletteItem = forwardRef(function ({
         aria-label={symbol.description}
         aria-selected={focused ? 'true' : 'false'}
       >
-        {symbol.character}
+        {spriteStyle ? (
+          <span aria-hidden="true" style={spriteStyle} />
+        ) : (
+          symbol.character
+        )}
       </button>
     </OLTooltip>
   )
@@ -80,5 +86,6 @@ SymbolPaletteItem.propTypes = {
   handleKeyDown: PropTypes.func.isRequired,
   handleSelect: PropTypes.func.isRequired,
   focused: PropTypes.bool,
+  spriteSheet: PropTypes.object,
 }
 export default SymbolPaletteItem

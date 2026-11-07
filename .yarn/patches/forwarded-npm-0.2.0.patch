@@ -1,0 +1,13 @@
+diff --git a/index.js b/index.js
+index b2b6bdd..75e6254 100644
+--- a/index.js
++++ b/index.js
+@@ -46,7 +46,7 @@ function forwarded (req) {
+ function getSocketAddr (req) {
+   return req.socket
+     ? req.socket.remoteAddress
+-    : req.connection.remoteAddress
++    : req.connection && req.connection.remoteAddress
+ }
+ 
+ /**

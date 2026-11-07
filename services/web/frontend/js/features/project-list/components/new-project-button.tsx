@@ -10,15 +10,20 @@ import { Nullable } from '../../../../../types/utils'
 import { sendMB } from '../../../infrastructure/event-tracking'
 import importOverleafModules from '../../../../macros/import-overleaf-module.macro'
 import {
-  Dropdown,
-  DropdownDivider,
-  DropdownHeader,
-  DropdownItem,
-  DropdownMenu,
-  DropdownToggle,
-} from '@/shared/components/dropdown/dropdown-menu'
+  OLDropdown,
+  OLDropdownDivider,
+  OLDropdownHeader,
+  OLDropdownItem,
+  OLDropdownMenu,
+  OLDropdownToggle,
+} from '@/shared/components/ol/ol-dropdown-menu'
+import type { OLDropdownProps } from '@/shared/components/types/dropdown-menu-props'
 import { useSendProjectListMB } from '@/features/project-list/components/project-list-events'
 import type { PortalTemplate } from '../../../../../types/portal-template'
+import { useFeatureFlag } from '@/shared/context/split-test-context'
+import { useProjectListContext } from '@/features/project-list/context/project-list-context'
+import { NestableDropdownContextProvider } from '@/shared/context/nestable-dropdown-context'
+import { NestedMenuBarDropdown } from '@/shared/components/menu-bar/menu-bar-dropdown'
 
 type SendTrackingEvent = {
   dropdownMenu: string
@@ -41,6 +46,7 @@ type NewProjectButtonProps = {
   className?: string
   trackingKey?: string
   showAddAffiliationWidget?: boolean
+  align?: OLDropdownProps['align']
 }
 
 function NewProjectButton({
@@ -49,6 +55,7 @@ function NewProjectButton({
   className,
   trackingKey,
   showAddAffiliationWidget,
+  align = 'start',
 }: NewProjectButtonProps) {
   const { t } = useTranslation()
   const { templateLinks } = getMeta('ol-ExposedSettings')
@@ -57,6 +64,16 @@ function NewProjectButton({
   const portalTemplates = getMeta('ol-portalTemplates') || []
   const { show: enableAddAffiliationWidget } = useAddAffiliation()
   const sendProjectListMB = useSendProjectListMB()
+  const docxImportEnabled =
+    useFeatureFlag('import-docx') &&
+    getMeta('ol-ExposedSettings').enablePandocConversions
+  const markdownImportEnabled =
+    useFeatureFlag('import-markdown') &&
+    getMeta('ol-ExposedSettings').enablePandocConversions
+  const { selectedTagId, tags } = useProjectListContext()
+  const initialTags = selectedTagId
+    ? tags.filter(tag => tag._id === selectedTagId)
+    : []
   const sendTrackingEvent = useCallback(
     ({
       dropdownMenu,
@@ -155,124 +172,197 @@ function NewProjectButton({
     onClick: (e: React.MouseEvent) => void
   }> = importProjectFromGithubMenu?.import.default
 
+  const [importProjectFromGitlabMenu] = importOverleafModules(
+    'importProjectFromGitlabMenu'
+  )
+
+  const ImportProjectFromGitlabMenu: JSXElementConstructor<{
+    onClick: (e: React.MouseEvent) => void
+  }> = importProjectFromGitlabMenu?.import.default
+
+  const [importProjectFromGiteaMenu] = importOverleafModules(
+    'importProjectFromGiteaMenu'
+  )
+
+  const ImportProjectFromGiteaMenu: JSXElementConstructor<{
+    onClick: (e: React.MouseEvent) => void
+  }> = importProjectFromGiteaMenu?.import.default
+
   return (
     <>
-      <Dropdown
+      <OLDropdown
+        align={align}
         className={classnames('new-project-dropdown', className)}
         onSelect={handleMainButtonClick}
         onToggle={nextShow => {
           if (nextShow) sendProjectListMB('new-project-expand', undefined)
         }}
       >
-        <DropdownToggle
+        <OLDropdownToggle
           id={id}
           className="new-project-button"
           variant="primary"
         >
           {buttonText || t('new_project')}
-        </DropdownToggle>
-        <DropdownMenu>
-          <li role="none">
-            <DropdownItem
-              onClick={e =>
-                handleModalMenuClick(e, {
-                  modalVariant: 'blank_project',
-                  dropdownMenuEvent: 'blank-project',
-                })
-              }
-            >
-              {t('blank_project')}
-            </DropdownItem>
-          </li>
-          <li role="none">
-            <DropdownItem
-              onClick={e =>
-                handleModalMenuClick(e, {
-                  modalVariant: 'example_project',
-                  dropdownMenuEvent: 'example-project',
-                })
-              }
-            >
-              {t('example_project')}
-            </DropdownItem>
-          </li>
-          <li role="none">
-            <DropdownItem
-              onClick={e =>
-                handleModalMenuClick(e, {
-                  modalVariant: 'upload_project',
-                  dropdownMenuEvent: 'upload-project',
-                })
-              }
-            >
-              {t('upload_project')}
-            </DropdownItem>
-          </li>
-          <li role="none">
-            {ImportProjectFromGithubMenu && (
-              <ImportProjectFromGithubMenu
+        </OLDropdownToggle>
+        <OLDropdownMenu>
+          <NestableDropdownContextProvider id={id}>
+            <li role="none">
+              <OLDropdownItem
                 onClick={e =>
                   handleModalMenuClick(e, {
-                    modalVariant: 'import_from_github',
-                    dropdownMenuEvent: 'import-from-github',
+                    modalVariant: 'blank_project',
+                    dropdownMenuEvent: 'blank-project',
                   })
                 }
-              />
-            )}
-          </li>
-          {portalTemplates.length > 0 ? (
-            <>
-              <DropdownDivider />
-              <DropdownHeader aria-hidden="true">
-                {`${t('institution')} ${t('templates')}`}
-              </DropdownHeader>
-              {portalTemplates.map((portalTemplate, index) => (
-                <li role="none" key={`portal-template-${index}`}>
-                  <DropdownItem
-                    key={`portal-template-${index}`}
-                    href={`${portalTemplate.url}#templates`}
-                    onClick={e => handlePortalTemplateClick(e, portalTemplate)}
-                    aria-label={`${portalTemplate.name} ${t('template')}`}
-                  >
-                    {portalTemplate.name}
-                  </DropdownItem>
-                </li>
-              ))}
-            </>
-          ) : null}
-
-          {templateLinks && templateLinks.length > 0 && (
-            <>
-              <DropdownDivider />
-              <DropdownHeader aria-hidden="true">
-                {t('templates')}
-              </DropdownHeader>
-            </>
-          )}
-          {templateLinks?.map((templateLink, index) => (
-            <li role="none" key={`new-project-button-template-${index}`}>
-              <DropdownItem
-                href={templateLink.url}
-                onClick={e => handleStaticTemplateClick(e, templateLink)}
-                aria-label={`${templateLink.name} ${t('template')}`}
               >
-                {templateLink.name === 'view_all'
-                  ? t('view_all')
-                  : templateLink.name}
-              </DropdownItem>
+                {t('blank_project')}
+              </OLDropdownItem>
             </li>
-          ))}
-          {showAddAffiliationWidget && enableAddAffiliationWidget ? (
-            <>
-              <DropdownDivider />
-              <li className="add-affiliation-mobile-wrapper">
-                <AddAffiliation className="is-mobile" />
+            <OLDropdownDivider />
+            <OLDropdownHeader aria-hidden="true">
+              {t('import')}
+            </OLDropdownHeader>
+            <li role="none">
+              <OLDropdownItem
+                onClick={e =>
+                  handleModalMenuClick(e, {
+                    modalVariant: 'upload_project',
+                    dropdownMenuEvent: 'upload-project',
+                  })
+                }
+              >
+                {t('existing_project_zip')}
+              </OLDropdownItem>
+            </li>
+            {docxImportEnabled && (
+              <li role="none">
+                <OLDropdownItem
+                  onClick={e =>
+                    handleModalMenuClick(e, {
+                      modalVariant: 'import_docx',
+                      dropdownMenuEvent: 'import-docx',
+                    })
+                  }
+                >
+                  {t('word_document')}
+                </OLDropdownItem>
               </li>
-            </>
-          ) : null}
-        </DropdownMenu>
-      </Dropdown>
-      <NewProjectButtonModal modal={modal} onHide={() => setModal(null)} />
+            )}
+            {markdownImportEnabled && (
+              <li role="none">
+                <OLDropdownItem
+                  onClick={e =>
+                    handleModalMenuClick(e, {
+                      modalVariant: 'import_markdown',
+                      dropdownMenuEvent: 'import-markdown',
+                    })
+                  }
+                >
+                  {t('markdown_document')}
+                </OLDropdownItem>
+              </li>
+            )}
+            {ImportProjectFromGithubMenu && (
+              <li role="none">
+                <ImportProjectFromGithubMenu
+                  onClick={e =>
+                    handleModalMenuClick(e, {
+                      modalVariant: 'import_from_github',
+                      dropdownMenuEvent: 'import-from-github',
+                    })
+                  }
+                />
+              </li>
+            )}
+            {ImportProjectFromGitlabMenu && (
+              <li role="none">
+                <ImportProjectFromGitlabMenu
+                  onClick={e =>
+                    handleModalMenuClick(e, {
+                      modalVariant: 'import_from_gitlab',
+                      dropdownMenuEvent: 'import-from-gitlab',
+                    })
+                  }
+                />
+              </li>
+            )}
+            {ImportProjectFromGiteaMenu && (
+              <li role="none">
+                <ImportProjectFromGiteaMenu
+                  onClick={e =>
+                    handleModalMenuClick(e, {
+                      modalVariant: 'import_from_gitea',
+                      dropdownMenuEvent: 'import-from-gitea',
+                    })
+                  }
+                />
+              </li>
+            )}
+            <OLDropdownDivider />
+            <OLDropdownHeader aria-hidden="true">
+              {t('templates')}
+            </OLDropdownHeader>
+            <li role="none">
+              <OLDropdownItem
+                onClick={e =>
+                  handleModalMenuClick(e, {
+                    modalVariant: 'example_project',
+                    dropdownMenuEvent: 'example-project',
+                  })
+                }
+              >
+                {t('example_project')}
+              </OLDropdownItem>
+            </li>
+            {portalTemplates.map((portalTemplate, index) => (
+              <li role="none" key={`portal-template-${index}`}>
+                <OLDropdownItem
+                  href={`${portalTemplate.url}#templates`}
+                  onClick={e => handlePortalTemplateClick(e, portalTemplate)}
+                  aria-label={`${portalTemplate.name} ${t('template')}`}
+                >
+                  {portalTemplate.name}
+                </OLDropdownItem>
+              </li>
+            ))}
+            {templateLinks && templateLinks.length > 0 && (
+              <NestedMenuBarDropdown
+                id="more-templates"
+                title={t('more_templates')}
+                drop={align === 'end' ? 'start' : 'end'}
+              >
+                {templateLinks.map((template, i) => (
+                  <li role="none" key={`more-template-${i}`}>
+                    <OLDropdownItem
+                      href={template.url}
+                      onClick={e => handleStaticTemplateClick(e, template)}
+                      aria-label={`${template.name === 'view_all' ? t('view_all') : template.name} ${t('template')}`}
+                    >
+                      {template.name === 'view_all'
+                        ? t('view_all')
+                        : template.name}
+                    </OLDropdownItem>
+                  </li>
+                ))}
+              </NestedMenuBarDropdown>
+            )}
+            {showAddAffiliationWidget && enableAddAffiliationWidget ? (
+              <>
+                <OLDropdownDivider />
+                <li className="add-affiliation-mobile-wrapper">
+                  <AddAffiliation className="is-mobile" />
+                </li>
+              </>
+            ) : null}
+          </NestableDropdownContextProvider>
+        </OLDropdownMenu>
+      </OLDropdown>
+      <NewProjectButtonModal
+        modal={modal}
+        onHide={() => setModal(null)}
+        initialTags={initialTags}
+      />
     </>
   )
 }

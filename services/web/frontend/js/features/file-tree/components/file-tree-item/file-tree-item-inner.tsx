@@ -8,10 +8,11 @@ import { useDraggable } from '../../contexts/file-tree-draggable'
 
 import FileTreeItemName from './file-tree-item-name'
 import FileTreeItemMenu from './file-tree-item-menu'
+import SplitTestBadge from '@/shared/components/split-test-badge'
+import { useFeatureFlag } from '@/shared/context/split-test-context'
 import { useFileTreeSelectable } from '../../contexts/file-tree-selectable'
 import { useFileTreeActionable } from '../../contexts/file-tree-actionable'
 import { useDragDropManager } from 'react-dnd'
-import { useIsNewEditorEnabled } from '@/features/ide-redesign/utils/new-editor-utils'
 
 function FileTreeItemInner({
   id,
@@ -31,11 +32,15 @@ function FileTreeItemInner({
   const { fileTreeReadOnly } = useFileTreeData()
   const { setContextMenuCoords } = useFileTreeMainContext()
   const { isRenaming } = useFileTreeActionable()
-
   const { selectedEntityIds } = useFileTreeSelectable()
 
   const hasMenu =
     !fileTreeReadOnly && isSelected && selectedEntityIds.size === 1
+  const showMarkdownBadge =
+    useFeatureFlag('markdown-visual') &&
+    type !== 'folder' &&
+    (name.toLowerCase().endsWith('.md') ||
+      name.toLowerCase().endsWith('.markdown'))
 
   const { dragRef, setIsDraggable } = useDraggable(id)
 
@@ -62,6 +67,11 @@ function FileTreeItemInner({
   }, [isSelected, itemRef])
 
   function handleContextMenu(ev: React.MouseEvent<HTMLDivElement>) {
+    if (ev.shiftKey) {
+      setContextMenuCoords(null)
+      return
+    }
+
     ev.preventDefault()
 
     setContextMenuCoords({
@@ -83,7 +93,9 @@ function FileTreeItemInner({
       data-file-type={type}
     >
       <div
-        className="entity-name entity-name-react"
+        className={classNames('entity-name', 'entity-name-react', {
+          'file-tree-has-beta-badge': showMarkdownBadge,
+        })}
         role="presentation"
         ref={itemRef}
       >
@@ -94,6 +106,14 @@ function FileTreeItemInner({
           onClick={onClick}
           setIsDraggable={setIsDraggable}
         />
+        {showMarkdownBadge && (
+          <div className="file-tree-beta-badge text-white">
+            <SplitTestBadge
+              splitTestName="markdown-visual"
+              displayOnVariants={['enabled']}
+            />
+          </div>
+        )}
         {hasMenu ? <FileTreeItemMenu id={id} name={name} /> : null}
       </div>
     </div>
@@ -113,39 +133,24 @@ const FileTreeItemIconsAndName = ({
   onClick?: () => void
   setIsDraggable: (isDraggable: boolean) => void
 }) => {
-  const newEditor = useIsNewEditorEnabled()
-
-  if (newEditor) {
-    return onClick ? (
-      <button className="file-tree-entity-button" onClick={onClick}>
-        {icons}
-        <FileTreeItemName
-          name={name}
-          isSelected={isSelected}
-          setIsDraggable={setIsDraggable}
-        />
-      </button>
-    ) : (
-      <div className="file-tree-entity-details">
-        {icons}
-        <FileTreeItemName
-          name={name}
-          isSelected={isSelected}
-          setIsDraggable={setIsDraggable}
-        />
-      </div>
-    )
-  }
-
-  return (
-    <>
+  return onClick ? (
+    <button className="file-tree-entity-button" onClick={onClick}>
       {icons}
       <FileTreeItemName
         name={name}
         isSelected={isSelected}
         setIsDraggable={setIsDraggable}
       />
-    </>
+    </button>
+  ) : (
+    <div className="file-tree-entity-details">
+      {icons}
+      <FileTreeItemName
+        name={name}
+        isSelected={isSelected}
+        setIsDraggable={setIsDraggable}
+      />
+    </div>
   )
 }
 

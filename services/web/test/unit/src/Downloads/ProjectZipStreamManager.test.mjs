@@ -1,4 +1,4 @@
-import { vi } from 'vitest'
+import { beforeEach, describe, it, vi } from 'vitest'
 // TODO: This file was created by bulk-decaffeinate.
 // Fix any style issues and re-enable lint.
 /*
@@ -46,7 +46,9 @@ describe('ProjectZipStreamManager', function () {
     vi.doMock(
       '../../../../app/src/Features/History/HistoryManager.mjs',
       () => ({
-        default: (ctx.HistoryManager = {}),
+        default: (ctx.HistoryManager = {
+          flushProject: sinon.stub().yields(null),
+        }),
       })
     )
 
@@ -81,6 +83,8 @@ describe('ProjectZipStreamManager', function () {
 
           ctx.ProjectZipStreamManager.createZipStreamForProject = (
             projectId,
+            zipFromHistory,
+            historyId,
             callback
           ) => {
             callback(null, ctx.zip_streams[projectId])
@@ -92,12 +96,16 @@ describe('ProjectZipStreamManager', function () {
           sinon.spy(ctx.ProjectZipStreamManager, 'createZipStreamForProject')
 
           ctx.ProjectGetter.getProject = (projectId, fields, callback) => {
-            return callback(null, { name: ctx.project_names[projectId] })
+            return callback(null, {
+              name: ctx.project_names[projectId],
+              overleaf: { history: { id: 123 } },
+            })
           }
           sinon.spy(ctx.ProjectGetter, 'getProject')
 
           ctx.ProjectZipStreamManager.createZipStreamForMultipleProjects(
             ctx.project_ids,
+            false,
             (...args) => {
               return ctx.callback(...Array.from(args || []))
             }
@@ -131,7 +139,7 @@ describe('ProjectZipStreamManager', function () {
       it('should get the names of each project', function (ctx) {
         return Array.from(ctx.project_ids).map(projectId =>
           ctx.ProjectGetter.getProject
-            .calledWith(projectId, { name: true })
+            .calledWith(projectId, { name: true, 'overleaf.history.id': true })
             .should.equal(true)
         )
       })
@@ -160,6 +168,8 @@ describe('ProjectZipStreamManager', function () {
 
           ctx.ProjectZipStreamManager.createZipStreamForProject = (
             projectId,
+            zipFromHistory,
+            historyId,
             callback
           ) => {
             callback(null, ctx.zip_streams[projectId])
@@ -171,12 +181,16 @@ describe('ProjectZipStreamManager', function () {
 
           ctx.ProjectGetter.getProject = (projectId, fields, callback) => {
             const name = ctx.project_names[projectId]
-            callback(null, name ? { name } : undefined)
+            callback(
+              null,
+              name ? { name, overleaf: { history: { id: 123 } } } : undefined
+            )
           }
           sinon.spy(ctx.ProjectGetter, 'getProject')
 
           ctx.ProjectZipStreamManager.createZipStreamForMultipleProjects(
             ctx.project_ids,
+            false,
             ctx.callback
           )
 
@@ -200,7 +214,7 @@ describe('ProjectZipStreamManager', function () {
       it('should get the names of each project', function (ctx) {
         ctx.project_ids.map(projectId =>
           ctx.ProjectGetter.getProject
-            .calledWith(projectId, { name: true })
+            .calledWith(projectId, { name: true, 'overleaf.history.id': true })
             .should.equal(true)
         )
       })
@@ -237,6 +251,8 @@ describe('ProjectZipStreamManager', function () {
         ctx.archive.finalize = sinon.stub()
         return ctx.ProjectZipStreamManager.createZipStreamForProject(
           ctx.project_id,
+          false,
+          123,
           ctx.callback
         )
       })
@@ -285,6 +301,8 @@ describe('ProjectZipStreamManager', function () {
         ctx.archive.finalize = sinon.stub()
         ctx.ProjectZipStreamManager.createZipStreamForProject(
           ctx.project_id,
+          false,
+          123,
           ctx.callback
         )
       })
@@ -317,6 +335,8 @@ describe('ProjectZipStreamManager', function () {
         ctx.archive.finalize = sinon.stub()
         return ctx.ProjectZipStreamManager.createZipStreamForProject(
           ctx.project_id,
+          false,
+          123,
           ctx.callback
         )
       })

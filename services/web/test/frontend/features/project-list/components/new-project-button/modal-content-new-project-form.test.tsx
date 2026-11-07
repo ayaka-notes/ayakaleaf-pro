@@ -4,6 +4,8 @@ import fetchMock from 'fetch-mock'
 import sinon from 'sinon'
 import ModalContentNewProjectForm from '../../../../../../frontend/js/features/project-list/components/new-project-button/modal-content-new-project-form'
 import { location } from '@/shared/components/location'
+import * as projectListApi from '@/features/project-list/util/api'
+import { SplitTestProvider } from '@/shared/context/split-test-context'
 
 describe('<ModalContentNewProjectForm />', function () {
   beforeEach(function () {
@@ -26,7 +28,11 @@ describe('<ModalContentNewProjectForm />', function () {
       },
     })
 
-    render(<ModalContentNewProjectForm onCancel={() => {}} />)
+    render(
+      <SplitTestProvider>
+        <ModalContentNewProjectForm onCancel={() => {}} />
+      </SplitTestProvider>
+    )
 
     const createButton = screen.getByRole('button', {
       name: 'Create',
@@ -51,6 +57,47 @@ describe('<ModalContentNewProjectForm />', function () {
     sinon.assert.calledWith(assignStub, `/project/${projectId}`)
   })
 
+  it('redirects even when adding tags fails', async function () {
+    const projectId = 'ab123'
+
+    fetchMock.post('/project/new', {
+      status: 200,
+      body: {
+        project_id: projectId,
+      },
+    })
+
+    const addProjectsToTagStub = this.locationWrapperSandbox
+      .stub(projectListApi, 'addProjectsToTag')
+      .rejects(new Error('tag add failed'))
+
+    render(
+      <SplitTestProvider>
+        <ModalContentNewProjectForm
+          onCancel={() => {}}
+          initialTags={[{ _id: 'tag-1', user_id: 'user-1', name: 'Tag 1' }]}
+        />
+      </SplitTestProvider>
+    )
+
+    fireEvent.change(screen.getByLabelText('Project name'), {
+      target: { value: 'Test Name' },
+    })
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Create',
+      })
+    )
+
+    const assignStub = this.locationWrapperStub.assign
+    await waitFor(() => {
+      sinon.assert.calledOnce(assignStub)
+    })
+    sinon.assert.calledWith(assignStub, `/project/${projectId}`)
+    sinon.assert.calledWith(addProjectsToTagStub, 'tag-1', [projectId])
+  })
+
   it('shows error when project name contains "/"', async function () {
     const errorMessage = 'Project name cannot contain / characters'
 
@@ -59,7 +106,11 @@ describe('<ModalContentNewProjectForm />', function () {
       body: errorMessage,
     })
 
-    render(<ModalContentNewProjectForm onCancel={() => {}} />)
+    render(
+      <SplitTestProvider>
+        <ModalContentNewProjectForm onCancel={() => {}} />
+      </SplitTestProvider>
+    )
 
     fireEvent.change(screen.getByLabelText('Project name'), {
       target: { value: '/' },
@@ -85,7 +136,11 @@ describe('<ModalContentNewProjectForm />', function () {
       body: errorMessage,
     })
 
-    render(<ModalContentNewProjectForm onCancel={() => {}} />)
+    render(
+      <SplitTestProvider>
+        <ModalContentNewProjectForm onCancel={() => {}} />
+      </SplitTestProvider>
+    )
 
     fireEvent.change(screen.getByLabelText('Project name'), {
       target: { value: '\\' },
@@ -111,7 +166,11 @@ describe('<ModalContentNewProjectForm />', function () {
       body: errorMessage,
     })
 
-    render(<ModalContentNewProjectForm onCancel={() => {}} />)
+    render(
+      <SplitTestProvider>
+        <ModalContentNewProjectForm onCancel={() => {}} />
+      </SplitTestProvider>
+    )
 
     fireEvent.change(screen.getByLabelText('Project name'), {
       target: {

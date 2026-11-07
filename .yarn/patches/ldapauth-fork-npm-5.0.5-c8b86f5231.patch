@@ -1,0 +1,73 @@
+diff --git a/lib/ldapauth.js b/lib/ldapauth.js
+index 88398ed31afee34c8958ad5e7a53653e1b5f6f82..0334177af8a65c7c5f9de7570924ab0f359e3f38 100644
+--- a/lib/ldapauth.js
++++ b/lib/ldapauth.js
+@@ -87,6 +87,7 @@ function LdapAuth(opts) {
+   this.opts.bindProperty || (this.opts.bindProperty = 'dn');
+   this.opts.groupSearchScope || (this.opts.groupSearchScope = 'sub');
+   this.opts.groupDnProperty || (this.opts.groupDnProperty = 'dn');
++  this.opts.tlsStarted = false;
+ 
+   EventEmitter.call(this);
+ 
+@@ -126,21 +127,7 @@ function LdapAuth(opts) {
+   this._userClient.on('error', this._handleError.bind(this));
+ 
+   var self = this;
+-  if (this.opts.starttls) {
+-    // When starttls is enabled, this callback supplants the 'connect' callback
+-    this._adminClient.starttls(this.opts.tlsOptions, this._adminClient.controls, function (err) {
+-      if (err) {
+-        self._handleError(err);
+-      } else {
+-        self._onConnectAdmin();
+-      }
+-    });
+-    this._userClient.starttls(this.opts.tlsOptions, this._userClient.controls, function (err) {
+-      if (err) {
+-        self._handleError(err);
+-      }
+-    });
+-  } else if (opts.reconnect) {
++  if (opts.reconnect && !this.opts.starttls) {
+     this.once('_installReconnectListener', function () {
+       self.log && self.log.trace('install reconnect listener');
+       self._adminClient.on('connect', function () {
+@@ -401,6 +388,37 @@ LdapAuth.prototype._findGroups = function (user, callback) {
+  */
+ LdapAuth.prototype.authenticate = function (username, password, callback) {
+   var self = this;
++  if (this.opts.starttls && !this.opts.tlsStarted) {
++    // When starttls is enabled, this callback supplants the 'connect' callback
++    this._adminClient.starttls(this.opts.tlsOptions, this._adminClient.controls, function (err) {
++      if (err) {
++        self._handleError(err);
++      } else {
++        self._onConnectAdmin(function(){self._handleAuthenticate(username, password, callback);});
++      }
++    });
++    this._userClient.starttls(this.opts.tlsOptions, this._userClient.controls, function (err) {
++      if (err) {
++        self._handleError(err);
++      }
++    });
++  } else {
++    self._handleAuthenticate(username, password, callback);
++  }
++};
++
++/**
++ * Authenticate given credentials against LDAP server
++ * 
++ * @private
++ * @param {string} username - The username to authenticate
++ * @param {string} password - The password to verify
++ * @param {resultCallback} callback - Result handling callback
++ * @returns {undefined}
++ */
++LdapAuth.prototype._handleAuthenticate = function (username, password, callback) {
++  this.opts.tlsStarted = true;
++  var self = this;
+ 
+   if (typeof password === 'undefined' || password === null || password === '') {
+     return callback(new Error('no password given'));

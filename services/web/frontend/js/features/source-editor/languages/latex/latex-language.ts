@@ -111,6 +111,20 @@ export const LaTeXLanguage = LRLanguage.define({
             if (sibling?.type.is(termsModule.NewLine)) {
               return { from: content!.from, to: sibling.from }
             }
+            if (sibling?.type.is(termsModule.Comment)) {
+              // A trailing comment line (e.g. `%`) before an indented
+              // sectioning command should be included in the fold, but the
+              // sectioning command itself should still appear on its own
+              // line. The Comment node consumes its trailing newline, so
+              // end the fold one position before the Comment ends.
+              return { from: content!.from, to: sibling.to - 1 }
+            }
+            if (sibling?.type.is(termsModule.BlankLine)) {
+              // Blank line(s) between previous content and an indented
+              // sectioning command: include all but the last newline in the
+              // fold (mirroring the BlankLine handling below).
+              return { from: content!.from, to: sibling.to - 1 }
+            }
           }
           if (lastChild.type.is(termsModule.BlankLine)) {
             // HACK: BlankLine can contain any number above 2 of \n's.

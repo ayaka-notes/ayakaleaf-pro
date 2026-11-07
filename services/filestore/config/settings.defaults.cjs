@@ -93,11 +93,13 @@ const settings = {
   },
 
   commands: {
-    // Any commands to wrap the convert utility in, for example ["nice"], or ["firejail", "--profile=/etc/firejail/convert.profile"]
+    // Any commands to wrap the convert utility in, for example ["nice"]
     convertCommandPrefix: [],
   },
 
   enableConversions: process.env.ENABLE_CONVERSIONS === 'true',
+
+  converter: process.env.CONVERTER || 'imagemagick',
 
   gracefulShutdownDelayInMs:
     parseInt(process.env.GRACEFUL_SHUTDOWN_DELAY_SECONDS ?? '30', 10) * 1000,

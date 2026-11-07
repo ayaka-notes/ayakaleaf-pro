@@ -6,7 +6,7 @@ import { useSubscriptionDashboardContext } from '../../context/subscription-dash
 import OLRow from '@/shared/components/ol/ol-row'
 import OLCol from '@/shared/components/ol/ol-col'
 import OLPageContentCard from '@/shared/components/ol/ol-page-content-card'
-import OLNotification from '@/shared/components/ol/ol-notification'
+import Notification from '@/shared/components/notification'
 import {
   AI_ADD_ON_CODE,
   ADD_ON_NAME,
@@ -14,16 +14,28 @@ import {
 } from '../../data/add-on-codes'
 import { PaidSubscription } from '../../../../../../types/subscription/dashboard/subscription'
 import { useBroadcastUser } from '@/shared/hooks/user-channel/use-broadcast-user'
+import { getUpgradePlanDisplayName } from '../../util/plan-display-names'
+import { formatPaymentDateTime } from '../../util/payment-dates'
 
 function SuccessfulSubscription() {
   const { t } = useTranslation()
   const { personalSubscription: subscription } =
     useSubscriptionDashboardContext()
   const postCheckoutRedirect = getMeta('ol-postCheckoutRedirect')
+  const isUpgrade = getMeta('ol-isUpgrade')
   const { appName, adminEmail } = getMeta('ol-ExposedSettings')
   useBroadcastUser()
 
   if (!subscription || !('payment' in subscription)) return null
+
+  if (isUpgrade) {
+    return (
+      <UpgradeSuccess
+        subscription={subscription}
+        postCheckoutRedirect={postCheckoutRedirect}
+      />
+    )
+  }
 
   const onAiStandalonePlan = isStandaloneAiPlanCode(subscription.planCode)
 
@@ -32,47 +44,48 @@ function SuccessfulSubscription() {
       <OLRow>
         <OLCol lg={{ span: 8, offset: 2 }}>
           <OLPageContentCard>
-            <div className="page-header">
-              <h2>{t('thanks_for_subscribing')}</h2>
+            <h2>{t('thanks_for_subscribing')}</h2>
+            <div className="notification-list">
+              <Notification
+                type="success"
+                content={
+                  <>
+                    {subscription.payment.trialEndsAt && (
+                      <>
+                        <p>
+                          <Trans
+                            i18nKey="next_payment_of_x_collectected_on_y"
+                            values={{
+                              paymentAmmount: subscription.payment.displayPrice,
+                              collectionDate: formatPaymentDateTime(
+                                subscription.payment.periodEnd
+                              ),
+                            }}
+                            shouldUnescape
+                            tOptions={{ interpolation: { escapeValue: true } }}
+                            components={[<strong />, <strong />]} // eslint-disable-line react/jsx-key
+                          />
+                        </p>
+                        <PriceExceptions subscription={subscription} />
+                      </>
+                    )}
+                    <div className="d-flex justify-content-between align-items-center gap-3">
+                      <span>{t('to_modify_your_subscription_go_to')}</span>
+                      <a href="/user/subscription" rel="noopener noreferrer">
+                        {t('manage_subscription')}
+                      </a>
+                    </div>
+                  </>
+                }
+              />
             </div>
-            <OLNotification
-              type="success"
-              content={
-                <>
-                  {subscription.payment.trialEndsAt && (
-                    <>
-                      <p>
-                        <Trans
-                          i18nKey="next_payment_of_x_collectected_on_y"
-                          values={{
-                            paymentAmmount: subscription.payment.displayPrice,
-                            collectionDate:
-                              subscription.payment.nextPaymentDueAt,
-                          }}
-                          shouldUnescape
-                          tOptions={{ interpolation: { escapeValue: true } }}
-                          components={[<strong />, <strong />]} // eslint-disable-line react/jsx-key
-                        />
-                      </p>
-                      <PriceExceptions subscription={subscription} />
-                    </>
-                  )}
-                  <p>
-                    {t('to_modify_your_subscription_go_to')}&nbsp;
-                    <a href="/user/subscription" rel="noopener noreferrer">
-                      {t('manage_subscription')}.
-                    </a>
-                  </p>
-                </>
-              }
-            />
             {subscription.groupPlan && (
               <p>
                 <a
                   href={`/manage/groups/${subscription._id}/members`}
                   className="btn btn-primary btn-large"
                 >
-                  {t('add_your_first_group_member_now')}
+                  {t('invite_group_members')}
                 </a>
               </p>
             )}
@@ -107,6 +120,86 @@ function SuccessfulSubscription() {
               {t('regards')},
               <br />
               The {appName} Team
+            </p>
+            <p>
+              <a
+                className="btn btn-primary"
+                href={postCheckoutRedirect || '/project'}
+                rel="noopener noreferrer"
+              >
+                {t('back_to_your_projects')}
+              </a>
+            </p>
+          </OLPageContentCard>
+        </OLCol>
+      </OLRow>
+    </div>
+  )
+}
+
+function UpgradeSuccess({
+  subscription,
+  postCheckoutRedirect,
+}: {
+  subscription: PaidSubscription
+  postCheckoutRedirect: string | undefined
+}) {
+  const { t } = useTranslation()
+  const planDisplayName = getUpgradePlanDisplayName(subscription.planCode, t)
+  let benefitsText = ''
+  if (subscription.planCode.startsWith('professional')) {
+    benefitsText = t('get_ready_for_overleaf_at_its_best_pro')
+  } else if (subscription.planCode.startsWith('collaborator')) {
+    benefitsText = t('get_ready_for_overleaf_standard')
+  }
+
+  return (
+    <div className="container">
+      <OLRow>
+        <OLCol lg={{ span: 8, offset: 2 }}>
+          <OLPageContentCard>
+            <h2>{t('welcome_to_plan', { planName: planDisplayName })}</h2>
+            <div className="notification-list">
+              <Notification
+                type="success"
+                content={
+                  <div className="d-flex justify-content-between align-items-center gap-3">
+                    <span>{t('youve_upgraded_your_subscription')}</span>
+                    <a href="/user/subscription" rel="noopener noreferrer">
+                      {t('manage_subscription')}
+                    </a>
+                  </div>
+                }
+              />
+            </div>
+            <p>
+              <Trans
+                i18nKey="next_payment_of_x_collectected_on_y"
+                values={{
+                  paymentAmmount: subscription.payment.displayPrice,
+                  collectionDate: formatPaymentDateTime(
+                    subscription.payment.periodEnd
+                  ),
+                }}
+                shouldUnescape
+                tOptions={{ interpolation: { escapeValue: true } }}
+                components={[<strong />, <strong />]} // eslint-disable-line react/jsx-key
+              />
+            </p>
+            <PriceExceptions subscription={subscription} />
+            {benefitsText && <p>{benefitsText}</p>}
+            <p>
+              <Trans
+                i18nKey="find_out_how_to_get_the_most_out_of_your_new_subscription"
+                components={[
+                  // eslint-disable-next-line react/jsx-key, jsx-a11y/anchor-has-content
+                  <a
+                    href="https://docs.overleaf.com/integrations-and-add-ons/ai-features"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  />,
+                ]}
+              />
             </p>
             <p>
               <a

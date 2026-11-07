@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Usage: services/dropbox-mock/bin/up
+#
+# Runs after the toolkit's bin/up, once its network exists. Starts the mock as
+# the Dropbox hosts, and as dropbox-mock for the control API.
+#
+# Expects TOOLKIT_DIR and TOOLKIT_NETWORK in the environment.
+
+exec "$(dirname "$0")/../../lib/start-mock" dropbox-mock \
+  api-dropbox.example.com \
+  api-content-dropbox.example.com \
+  meta-dropbox.example.com

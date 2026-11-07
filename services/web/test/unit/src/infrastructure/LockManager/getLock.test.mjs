@@ -1,4 +1,4 @@
-import { vi } from 'vitest'
+import { beforeEach, describe, it, vi } from 'vitest'
 /* eslint-disable
     n/handle-callback-err,
     max-len,
@@ -42,13 +42,6 @@ describe('LockManager - getting the lock', function () {
           redisLockExpiry: 30,
           slowExecutionThreshold: 5000,
         },
-      },
-    }))
-
-    vi.doMock('@overleaf/metrics', () => ({
-      default: {
-        inc() {},
-        gauge() {},
       },
     }))
 

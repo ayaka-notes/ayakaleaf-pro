@@ -1,0 +1,63 @@
+diff --git a/index.js b/index.js
+index 768f8ca..a882f4d 100644
+--- a/index.js
++++ b/index.js
+@@ -788,29 +788,35 @@ SendStream.prototype.stream = function stream (path, options) {
+   // pipe
+   var stream = fs.createReadStream(path, options)
+   this.emit('stream', stream)
+-  stream.pipe(res)
+-
+-  // cleanup
+-  function cleanup () {
+-    destroy(stream, true)
+-  }
+-
+-  // response finished, cleanup
+-  onFinished(res, cleanup)
+-
+-  // error handling
+-  stream.on('error', function onerror (err) {
+-    // clean up stream early
+-    cleanup()
+-
+-    // error
+-    self.onStatError(err)
+-  })
+-
+-  // end
+-  stream.on('end', function onend () {
+-    self.emit('end')
+-  })
++  try {
++    Stream.pipeline(stream, res, err => { if (err) { self.onStatError(err) } else { self.emit('end') } })
++  } catch (err) {
++    // Node 24 throws here instead of calling back when the client already left
++    stream.destroy()
++    self.onStatError(err)
++  }
++
++  // // cleanup
++  // function cleanup () {
++  //   destroy(stream, true)
++  // }
++  //
++  // // response finished, cleanup
++  // onFinished(res, cleanup)
++  //
++  // // error handling
++  // stream.on('error', function onerror (err) {
++  //   // clean up stream early
++  //   cleanup()
++  //
++  //   // error
++  //   self.onStatError(err)
++  // })
++  //
++  // // end
++  // stream.on('end', function onend () {
++  //   self.emit('end')
++  // })
+ }
+ 
+ /**

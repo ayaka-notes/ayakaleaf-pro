@@ -1,4 +1,4 @@
-import { vi, expect } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 const modulePath = '../../../../app/src/Features/Subscription/PlansLocator'
 
 const plans = [
@@ -27,7 +27,7 @@ const plans = [
 
 describe('PlansLocator', function () {
   beforeEach(async function (ctx) {
-    ctx.settings = { plans }
+    ctx.settings = { plans, additionalPriceVersions: ['jan2099'] }
     ctx.AI_ADD_ON_CODE = 'assistant'
 
     vi.doMock('@overleaf/settings', () => ({
@@ -57,7 +57,7 @@ describe('PlansLocator', function () {
         planCode,
         currency
       )
-      expect(lookupKey).to.equal('standard_monthly_nov2025_eur')
+      expect(lookupKey).to.equal('standard_monthly_feb2026_eur')
     })
 
     it('should map "collaborator_free_trial_7_days" plan code to stripe lookup keys', function (ctx) {
@@ -67,7 +67,7 @@ describe('PlansLocator', function () {
         planCode,
         currency
       )
-      expect(lookupKey).to.equal('standard_monthly_nov2025_eur')
+      expect(lookupKey).to.equal('standard_monthly_feb2026_eur')
     })
 
     it('should map "collaborator-annual" plan code to stripe lookup keys', function (ctx) {
@@ -77,7 +77,7 @@ describe('PlansLocator', function () {
         planCode,
         currency
       )
-      expect(lookupKey).to.equal('standard_annual_nov2025_eur')
+      expect(lookupKey).to.equal('standard_annual_feb2026_eur')
     })
 
     it('should map "professional" plan code to stripe lookup keys', function (ctx) {
@@ -87,7 +87,7 @@ describe('PlansLocator', function () {
         planCode,
         currency
       )
-      expect(lookupKey).to.equal('professional_monthly_nov2025_eur')
+      expect(lookupKey).to.equal('professional_monthly_feb2026_eur')
     })
 
     it('should map "professional_free_trial_7_days" plan code to stripe lookup keys', function (ctx) {
@@ -97,7 +97,7 @@ describe('PlansLocator', function () {
         planCode,
         currency
       )
-      expect(lookupKey).to.equal('professional_monthly_nov2025_eur')
+      expect(lookupKey).to.equal('professional_monthly_feb2026_eur')
     })
 
     it('should map "professional-annual" plan code to stripe lookup keys', function (ctx) {
@@ -107,7 +107,7 @@ describe('PlansLocator', function () {
         planCode,
         currency
       )
-      expect(lookupKey).to.equal('professional_annual_nov2025_eur')
+      expect(lookupKey).to.equal('professional_annual_feb2026_eur')
     })
 
     it('should map "student" plan code to stripe lookup keys', function (ctx) {
@@ -117,7 +117,7 @@ describe('PlansLocator', function () {
         planCode,
         currency
       )
-      expect(lookupKey).to.equal('student_monthly_nov2025_eur')
+      expect(lookupKey).to.equal('student_monthly_feb2026_eur')
     })
 
     it('shoult map "student_free_trial_7_days" plan code to stripe lookup keys', function (ctx) {
@@ -127,7 +127,7 @@ describe('PlansLocator', function () {
         planCode,
         currency
       )
-      expect(lookupKey).to.equal('student_monthly_nov2025_eur')
+      expect(lookupKey).to.equal('student_monthly_feb2026_eur')
     })
 
     it('should map "student-annual" plan code to stripe lookup keys', function (ctx) {
@@ -137,7 +137,19 @@ describe('PlansLocator', function () {
         planCode,
         currency
       )
-      expect(lookupKey).to.equal('student_annual_nov2025_eur')
+      expect(lookupKey).to.equal('student_annual_feb2026_eur')
+    })
+
+    it('should use the provided lookup key version', function (ctx) {
+      const planCode = 'collaborator'
+      const currency = 'eur'
+      const lookupKey = ctx.PlansLocator.buildStripeLookupKey(
+        planCode,
+        currency,
+        undefined,
+        'jan2099'
+      )
+      expect(lookupKey).to.equal('standard_monthly_jan2099_eur')
     })
 
     it('should return null for unknown add-on codes', function (ctx) {
@@ -169,7 +181,7 @@ describe('PlansLocator', function () {
         currency,
         billingCycleInterval
       )
-      expect(lookupKey).to.equal('assistant_monthly_nov2025_gbp')
+      expect(lookupKey).to.equal('assistant_monthly_feb2026_gbp')
     })
 
     it('returns the key for an annual AI assist add-on', function (ctx) {
@@ -181,7 +193,48 @@ describe('PlansLocator', function () {
         currency,
         billingCycleInterval
       )
-      expect(lookupKey).to.equal('assistant_annual_nov2025_gbp')
+      expect(lookupKey).to.equal('assistant_annual_feb2026_gbp')
+    })
+  })
+
+  describe('getVersionFromStripeLookupKey', function () {
+    it('returns the version from a plan lookup key', function (ctx) {
+      expect(
+        ctx.PlansLocator.getVersionFromStripeLookupKey(
+          'standard_monthly_jan2099_eur'
+        )
+      ).to.equal('jan2099')
+    })
+
+    it('returns the version from an add-on lookup key', function (ctx) {
+      expect(
+        ctx.PlansLocator.getVersionFromStripeLookupKey(
+          'assistant_annual_feb2026_gbp'
+        )
+      ).to.equal('feb2026')
+    })
+
+    it('returns the version from a discounted lookup key', function (ctx) {
+      expect(
+        ctx.PlansLocator.getVersionFromStripeLookupKey(
+          'group_professional_educational_jan2099_usd_discount_20'
+        )
+      ).to.equal('jan2099')
+    })
+
+    it('returns undefined for an unrecognised version', function (ctx) {
+      expect(
+        ctx.PlansLocator.getVersionFromStripeLookupKey(
+          'standard_monthly_jun2025_eur'
+        )
+      ).to.be.undefined
+    })
+
+    it('returns undefined for missing input', function (ctx) {
+      expect(ctx.PlansLocator.getVersionFromStripeLookupKey(null)).to.be
+        .undefined
+      expect(ctx.PlansLocator.getVersionFromStripeLookupKey(undefined)).to.be
+        .undefined
     })
   })
 

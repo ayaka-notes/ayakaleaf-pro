@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Usage: services/github-mock/bin/prepare
+#
+# Runs before the toolkit's bin/up. Into $TOOLKIT_DIR/services/github-mock/
+# it writes a throwaway CA, a certificate for github.com and api.github.com
+# signed by it, and a random OAuth client secret. The CA goes into
+# data/overleaf/certs/, where the suite's NODE_EXTRA_CA_CERTS points, and the
+# secrets into the toolkit's variables.env.
+#
+# Expects TOOLKIT_DIR in the environment.
+
+set -euo pipefail
+
+services="$(cd "$(dirname "$0")/../.." && pwd)"
+state="$TOOLKIT_DIR/services/github-mock"
+
+"$services/lib/make-tls" "$state" github.com api.github.com
+mkdir -p "$TOOLKIT_DIR/data/overleaf/certs"
+cp "$state/ca.crt" "$TOOLKIT_DIR/data/overleaf/certs/github-mock-ca.pem"
+
+client_secret=$(openssl rand -hex 20)
+cat >"$state/mock.env" <<ENV
+GITHUB_MOCK_CLIENT_ID=e2e-github-client
+GITHUB_MOCK_CLIENT_SECRET=$client_secret
+ENV
+
+"$services/../bin/apply-config" "$TOOLKIT_DIR/config/variables.env" <(cat <<ENV
+GITHUB_SYNC_CLIENT_ID=e2e-github-client
+GITHUB_SYNC_CLIENT_SECRET=$client_secret
+GITHUB_TOKEN_CIPHER_PASSWORD=$(openssl rand -hex 24)
+ENV
+)

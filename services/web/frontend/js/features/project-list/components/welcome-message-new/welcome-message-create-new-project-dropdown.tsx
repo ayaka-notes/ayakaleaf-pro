@@ -4,14 +4,15 @@ import { sendMB } from '../../../../infrastructure/event-tracking'
 import getMeta from '../../../../utils/meta'
 import { NewProjectButtonModalVariant } from '../new-project-button/new-project-button-modal'
 import {
-  Dropdown,
-  DropdownDivider,
-  DropdownHeader,
-  DropdownItem,
-  DropdownMenu,
-  DropdownToggle,
-} from '@/shared/components/dropdown/dropdown-menu'
+  OLDropdown,
+  OLDropdownDivider,
+  OLDropdownHeader,
+  OLDropdownItem,
+  OLDropdownMenu,
+  OLDropdownToggle,
+} from '@/shared/components/ol/ol-dropdown-menu'
 import createNewProjectImage from '../../images/create-a-new-project.svg'
+import { useFeatureFlag } from '@/shared/context/split-test-context'
 
 const CustomDropdownToggle = forwardRef<
   HTMLButtonElement,
@@ -59,6 +60,12 @@ function WelcomeMessageCreateNewProjectDropdown({
 }: WelcomeMessageCreateNewProjectDropdownProps) {
   const { t } = useTranslation()
   const portalTemplates = getMeta('ol-portalTemplates') || []
+  const docxImportEnabled =
+    useFeatureFlag('import-docx') &&
+    getMeta('ol-ExposedSettings').enablePandocConversions
+  const markdownImportEnabled =
+    useFeatureFlag('import-markdown') &&
+    getMeta('ol-ExposedSettings').enablePandocConversions
 
   const { isOverleaf } = getMeta('ol-ExposedSettings')
 
@@ -95,14 +102,14 @@ function WelcomeMessageCreateNewProjectDropdown({
   )
 
   return (
-    <Dropdown>
-      <DropdownToggle
+    <OLDropdown className="welcome-message-card-item">
+      <OLDropdownToggle
         as={CustomDropdownToggle}
         id="create-new-project-dropdown-toggle-btn"
       />
-      <DropdownMenu flip={false} className="create-new-project-dropdown">
+      <OLDropdownMenu flip={false} className="create-new-project-dropdown">
         <li role="none">
-          <DropdownItem
+          <OLDropdownItem
             as="button"
             onClick={e =>
               handleDropdownItemClick(e, 'blank_project', 'blank-project')
@@ -110,10 +117,10 @@ function WelcomeMessageCreateNewProjectDropdown({
             tabIndex={-1}
           >
             {t('blank_project')}
-          </DropdownItem>
+          </OLDropdownItem>
         </li>
         <li role="none">
-          <DropdownItem
+          <OLDropdownItem
             as="button"
             onClick={e =>
               handleDropdownItemClick(e, 'example_project', 'example-project')
@@ -121,22 +128,48 @@ function WelcomeMessageCreateNewProjectDropdown({
             tabIndex={-1}
           >
             {t('example_project')}
-          </DropdownItem>
+          </OLDropdownItem>
         </li>
         <li role="none">
-          <DropdownItem
+          <OLDropdownItem
             as="button"
             onClick={e =>
               handleDropdownItemClick(e, 'upload_project', 'upload-project')
             }
             tabIndex={-1}
           >
-            {t('upload_project')}
-          </DropdownItem>
+            {t('existing_project_zip')}
+          </OLDropdownItem>
         </li>
+        {docxImportEnabled && (
+          <li role="none">
+            <OLDropdownItem
+              as="button"
+              onClick={e =>
+                handleDropdownItemClick(e, 'import_docx', 'import-docx')
+              }
+              tabIndex={-1}
+            >
+              {t('import_word_document')}
+            </OLDropdownItem>
+          </li>
+        )}
+        {markdownImportEnabled && (
+          <li role="none">
+            <OLDropdownItem
+              as="button"
+              onClick={e =>
+                handleDropdownItemClick(e, 'import_markdown', 'import-markdown')
+              }
+              tabIndex={-1}
+            >
+              {t('import_markdown_file')}
+            </OLDropdownItem>
+          </li>
+        )}
         {isOverleaf && (
           <li role="none">
-            <DropdownItem
+            <OLDropdownItem
               as="button"
               onClick={e =>
                 handleDropdownItemClick(
@@ -148,28 +181,28 @@ function WelcomeMessageCreateNewProjectDropdown({
               tabIndex={-1}
             >
               {t('import_from_github')}
-            </DropdownItem>
+            </OLDropdownItem>
           </li>
         )}
         {(portalTemplates?.length ?? 0) > 0 ? (
           <>
-            <DropdownDivider />
-            <DropdownHeader aria-hidden="true">
+            <OLDropdownDivider />
+            <OLDropdownHeader aria-hidden="true">
               {t('institution_templates')}
-            </DropdownHeader>
+            </OLDropdownHeader>
             {portalTemplates?.map((portalTemplate, index) => (
-              <DropdownItem
+              <OLDropdownItem
                 key={`portal-template-${index}`}
                 onClick={e => handlePortalTemplateClick(e, portalTemplate.name)}
                 href={`${portalTemplate.url}#templates`}
               >
                 {portalTemplate.name}
-              </DropdownItem>
+              </OLDropdownItem>
             ))}
           </>
         ) : null}
-      </DropdownMenu>
-    </Dropdown>
+      </OLDropdownMenu>
+    </OLDropdown>
   )
 }
 

@@ -7,6 +7,7 @@ import moment from 'moment'
 import { fetchJson } from '@overleaf/fetch-utils'
 import contentDisposition from 'content-disposition'
 import Features from './Features.mjs'
+import { getRawReqInput } from './Validation.mjs'
 import SessionManager from '../Features/Authentication/SessionManager.mjs'
 import PackageVersions from './PackageVersions.js'
 import Modules from './Modules.mjs'
@@ -21,6 +22,8 @@ const {
   hasAdminAccess,
   useAdminCapabilities,
   useHasAdminCapability,
+  useNonAdminDomainCapabilities,
+  useHasNonAdminDomainCapability,
 } = AdminAuthorizationHelper
 const IEEE_BRAND_ID = Settings.ieeeBrandId
 
@@ -166,7 +169,7 @@ export default async function (webRouter, privateApiRouter, publicApiRouter) {
       return chunks.map(chunk => staticFilesBase + chunk)
     }
 
-    res.locals.mathJaxPath = `/js/libs/mathjax-${PackageVersions.version.mathjax}/es5/tex-svg-full.js`
+    res.locals.mathJaxPath = `/js/libs/mathjax-${PackageVersions.version.mathjax}/tex-svg.js`
     res.locals.dictionariesRoot = `/js/dictionaries/${PackageVersions.version.dictionaries}/`
 
     res.locals.lib = PackageVersions.lib
@@ -254,8 +257,10 @@ export default async function (webRouter, privateApiRouter, publicApiRouter) {
   })
 
   webRouter.use(function (req, res, next) {
+    // template locals helper predates validation; raw access is allowlisted
+    const { query } = getRawReqInput(req)
     res.locals.getReqQueryParam = field =>
-      req.query != null ? req.query[field] : undefined
+      query != null ? query[field] : undefined
     next()
   })
 
@@ -279,8 +284,9 @@ export default async function (webRouter, privateApiRouter, publicApiRouter) {
   })
 
   webRouter.use(useAdminCapabilities)
-
   webRouter.use(useHasAdminCapability)
+  webRouter.use(useNonAdminDomainCapabilities)
+  webRouter.use(useHasNonAdminDomainCapability)
 
   webRouter.use(function (req, res, next) {
     // Clone the nav settings so they can be modified for each request
@@ -302,23 +308,20 @@ export default async function (webRouter, privateApiRouter, publicApiRouter) {
   })
 
   webRouter.use(function (req, res, next) {
-    // TODO
-    if (Settings.overleaf != null) {
-      res.locals.overallThemes = [
-        {
-          name: 'Dark',
-          val: '',
-        },
-        {
-          name: 'Light',
-          val: 'light-',
-        },
-        {
-          name: 'System',
-          val: 'system',
-        },
-      ]
-    }
+    res.locals.overallThemes = [
+      {
+        name: 'Dark',
+        val: '',
+      },
+      {
+        name: 'Light',
+        val: 'light-',
+      },
+      {
+        name: 'System',
+        val: 'system',
+      },
+    ]
     next()
   })
 
@@ -333,13 +336,41 @@ export default async function (webRouter, privateApiRouter, publicApiRouter) {
   })
 
   webRouter.use(function (req, res, next) {
-    res.locals.websiteRedesignOverride = req.query.redesign === 'enabled'
+    res.locals.websiteRedesignOverride =
+      getRawReqInput(req).query.redesign === 'enabled'
+    next()
+  })
+
+  webRouter.use(function (req, res, next) {
+    // Notifications that are no longer used for which we want to remove the dismiss cookies.
+    // This can be removed after some time
+    const LEGACY_NOTIFICATIONS = [{ id: 'ciaminfo', paths: ['/login'] }]
+
+    const KEY_PREFIX = 'readnotif-'
+    const dismissedNotifications = []
+    for (const cookieName in req.cookies) {
+      if (cookieName.startsWith(KEY_PREFIX)) {
+        const legacyNotification = LEGACY_NOTIFICATIONS.find(
+          ({ id }) => cookieName === `${KEY_PREFIX}${id}`
+        )
+        if (legacyNotification) {
+          // Remove the cookie for legacy notifications that we no longer use.
+          for (const path of legacyNotification.paths) {
+            res.clearCookie(cookieName, { path, domain: Settings.cookieDomain })
+          }
+        } else {
+          dismissedNotifications.push(cookieName.slice(KEY_PREFIX.length))
+        }
+      }
+    }
+    res.locals.dismissedNotifications = dismissedNotifications
     next()
   })
 
   webRouter.use(function (req, res, next) {
     res.locals.ExposedSettings = {
       isOverleaf: Settings.overleaf != null,
+      env: Settings.env,
       appName: Settings.appName,
       adminEmail: Settings.adminEmail,
       dropboxAppName:
@@ -361,6 +392,7 @@ export default async function (webRouter, privateApiRouter, publicApiRouter) {
       projectUploadTimeout: Settings.projectUploadTimeout,
       recaptchaSiteKey: Settings.recaptcha?.siteKey,
       recaptchaSiteKeyV3: Settings.recaptcha?.siteKeyV3,
+      recaptchaEnterpriseSiteKey: Settings.recaptcha?.enterpriseSiteKey,
       recaptchaDisabled: Settings.recaptcha?.disabled,
       textExtensions: Settings.textExtensions,
       editableFilenames: Settings.editableFilenames,
@@ -391,6 +423,9 @@ export default async function (webRouter, privateApiRouter, publicApiRouter) {
       cioWriteKey: Settings.analytics?.cio?.writeKey,
       cioSiteId: Settings.analytics?.cio?.siteId,
       linkedInInsightsPartnerId: Settings.analytics?.linkedIn?.partnerId,
+      enablePandocConversions: Settings.enablePandocConversions,
+      mixpanelLabsToken:
+        Settings.labs?.enable && Settings.analytics?.mixpanel?.labsToken,
     }
     next()
   })

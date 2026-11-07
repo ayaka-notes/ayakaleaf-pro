@@ -1,5 +1,5 @@
 .modal-body-share {
-  h3 {
+  &:not(.modal-redesign) h3 {
     border-bottom: 1px solid var(--neutral-30);
     padding-bottom: calc(var(--line-height-03) / 4);
     margin: 0;
@@ -159,6 +159,29 @@
       }
     }
   }
+
+  &.modal-redesign {
+    .public-access-level {
+      margin-top: 0;
+      padding-top: 0;
+      padding-bottom: 0;
+
+      .access-token-display-area {
+        margin-top: 0;
+      }
+    }
+
+    .access-token-wrapper-title {
+      color: var(--content-primary) !important;
+      font-weight: 400;
+    }
+
+    .access-token {
+      code {
+        font-weight: 500;
+      }
+    }
+  }
 }
 
 .copy-button:focus-within {
@@ -185,6 +208,7 @@
     align-items: center;
     justify-content: flex-end;
     padding: 0;
+    flex-wrap: wrap;
   }
 
   .project-member-select {
@@ -198,12 +222,22 @@
 
   .add-collaborator-controls {
     display: flex;
-    align-items: center;
     justify-content: flex-end;
     gap: var(--spacing-03);
 
     .select-wrapper {
       max-width: 130px;
     }
+
+    &:not(.add-collaborator-controls-legacy) .dropdown-menu {
+      left: auto;
+      right: 0;
+    }
+  }
+
+  .form-control-lg {
+    min-height: initial;
+    padding-top: calc(#{$input-padding-y-lg} - #{$input-border-width});
+    padding-bottom: calc(#{$input-padding-y-lg} - #{$input-border-width});
   }
 }

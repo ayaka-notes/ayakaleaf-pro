@@ -17,7 +17,7 @@ export default {
     webRouter.get('/oidc/login/callback', OIDCAuthenticationController.passportLoginCallback)
     AuthenticationController.addEndpointToLoginWhitelist('/oidc/login/callback')
     webRouter.get('/oidc/logout/callback', OIDCAuthenticationController.passportLogoutCallback)
-    webRouter.post('/user/oauth-unlink', OIDCAuthenticationController.unlinkAccount)
+    webRouter.post('/user/oauth-unlink', AuthenticationController.requireLogin(), OIDCAuthenticationController.unlinkAccount)
     webRouter.post('/logout', logout, UserController.logout)
   },
 }

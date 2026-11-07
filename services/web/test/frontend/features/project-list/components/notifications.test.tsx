@@ -239,7 +239,7 @@ describe('<UserNotifications />', function () {
 
       const findOutMore = screen.getByRole('link', { name: /find out more/i })
       expect(findOutMore.getAttribute('href')).to.equal(
-        'https://www.overleaf.com/learn/how-to/Institutional_Login'
+        'https://docs.overleaf.com/accounts-and-security/email-address-and-login-options/logging-in-with-institutional-sso'
       )
       const linkAccount = screen.getByRole('link', { name: /link account/i })
       expect(linkAccount.getAttribute('href')).to.equal(
@@ -273,7 +273,7 @@ describe('<UserNotifications />', function () {
       screen.getByText(/it looks like you’re at/i)
       screen.getByText(/did you know that/i)
       screen.getByText(
-        /add an institutional email address to claim your features/i
+        /add your university email address to see if you qualify/i
       )
 
       const addAffiliation = screen.getByRole('link', {
@@ -334,7 +334,7 @@ describe('<UserNotifications />', function () {
 
       const learnMore = screen.getByRole('link', { name: /learn more/i })
       expect(learnMore.getAttribute('href')).to.equal(
-        '/learn/how-to/Dropbox_Synchronization#Troubleshooting'
+        'https://docs.overleaf.com/integrations-and-add-ons/dropbox'
       )
       const closeBtn = screen.getByRole('button', { name: /close/i })
       fireEvent.click(closeBtn)
@@ -368,7 +368,7 @@ describe('<UserNotifications />', function () {
 
       const learnMore = screen.getByRole('link', { name: /learn more/i })
       expect(learnMore.getAttribute('href')).to.equal(
-        '/learn/how-to/Institutional_Email_Reconfirmation'
+        'https://docs.overleaf.com/accounts-and-security/email-address-and-login-options/logging-in-with-institutional-sso/institutional-email-reconfirmation'
       )
       const closeBtn = screen.getByRole('button', { name: /close/i })
       fireEvent.click(closeBtn)
@@ -489,7 +489,7 @@ describe('<UserNotifications />', function () {
 
       const learnMore = screen.getByRole('link', { name: /learn more/i })
       expect(learnMore.getAttribute('href')).to.equal(
-        '/learn/how-to/Institutional_Login'
+        'https://docs.overleaf.com/accounts-and-security/email-address-and-login-options/logging-in-with-institutional-sso'
       )
 
       const action = screen.getByRole('link', { name: /link account/i })
@@ -594,7 +594,7 @@ describe('<UserNotifications />', function () {
 
       const action = screen.getByRole('link', { name: /find out more/i })
       expect(action.getAttribute('href')).to.equal(
-        '/learn/how-to/Institutional_Login'
+        'https://docs.overleaf.com/accounts-and-security/email-address-and-login-options/logging-in-with-institutional-sso'
       )
 
       const closeBtn = screen.getByRole('button', { name: /close/i })
@@ -621,6 +621,31 @@ describe('<UserNotifications />', function () {
       screen.getByText(/something went wrong/i)
       screen.getByText(institution.error!.message!)
       screen.getByText(/please try again/i)
+
+      const closeBtn = screen.getByRole('button', { name: /close/i })
+      fireEvent.click(closeBtn)
+
+      expect(screen.queryByRole('alert')).to.be.null
+    })
+
+    it('shows reconfirmation unable-to-find-user error content', function () {
+      const institution: DeepPartial<InstitutionType> = {
+        templateKey: 'notification_institution_sso_error',
+        error: {
+          name: 'SAMLCommonsReconfirmationUnableToFindUserError',
+        },
+      }
+      window.metaAttributesCache.set('ol-notificationsInstitution', [
+        { ...notificationsInstitution, ...institution },
+      ])
+      render(<Institution />)
+
+      screen.getByRole('alert')
+      screen.getByText(/unable to confirm your affiliation/i)
+
+      const contactLink = screen.getByRole('link', { name: /contact us/i })
+      expect(contactLink.getAttribute('href')).to.equal('/contact')
+      expect(contactLink.getAttribute('target')).to.equal('_blank')
 
       const closeBtn = screen.getByRole('button', { name: /close/i })
       fireEvent.click(closeBtn)
@@ -790,6 +815,7 @@ describe('<UserNotifications />', function () {
       })
       const resendButton = resendButtons[0]
       fireEvent.click(resendButton)
+      await fetchMock.callHistory.flush(true)
 
       await screen.findByRole('dialog')
 
@@ -810,10 +836,10 @@ describe('<UserNotifications />', function () {
         const alert = await screen.findByRole('alert')
         const email = unconfirmedCommonsUserData.email
         expect(alert.textContent).to.contain(
-          'You are one step away from accessing Overleaf Professional features'
+          'You are one step away from accessing Overleaf premium features'
         )
         expect(alert.textContent).to.contain(
-          `Overleaf has an Overleaf subscription. Click the confirmation link sent to ${email} to upgrade to Overleaf Professional`
+          `Overleaf has an Overleaf subscription. Click the confirmation link sent to ${email} to upgrade to Overleaf Commons`
         )
       })
     }
@@ -873,7 +899,7 @@ describe('<UserNotifications />', function () {
       )
       const learnMore = screen.getByRole('link', { name: /learn more/i })
       expect(learnMore.getAttribute('href')).to.equal(
-        '/learn/how-to/Institutional_Email_Reconfirmation'
+        'https://docs.overleaf.com/accounts-and-security/email-address-and-login-options/logging-in-with-institutional-sso/institutional-email-reconfirmation'
       )
 
       const sendReconfirmationMock = fetchMock.post(

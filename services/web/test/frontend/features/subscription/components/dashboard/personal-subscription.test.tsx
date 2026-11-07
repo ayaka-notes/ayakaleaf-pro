@@ -11,6 +11,7 @@ import {
   annualActiveSubscription,
   canceledSubscription,
   customSubscription,
+  pastDueActiveSubscription,
   pastDueExpiredSubscription,
 } from '../../fixtures/subscriptions'
 import {
@@ -21,6 +22,7 @@ import { reactivateSubscriptionUrl } from '../../../../../../frontend/js/feature
 import fetchMock from 'fetch-mock'
 import sinon from 'sinon'
 import { location } from '@/shared/components/location'
+import { formatPaymentDateTime } from '@/features/subscription/util/payment-dates'
 
 describe('<PersonalSubscription />', function () {
   afterEach(function () {
@@ -76,9 +78,12 @@ describe('<PersonalSubscription />', function () {
         'Your subscription has been canceled and will terminate on',
         { exact: false }
       )
-      screen.getByText(canceledSubscription.payment!.nextPaymentDueAt, {
-        exact: false,
-      })
+      screen.getByText(
+        formatPaymentDateTime(canceledSubscription.payment!.periodEnd)!,
+        {
+          exact: false,
+        }
+      )
 
       screen.getByText('No further payments will be taken.', { exact: false })
 
@@ -113,6 +118,56 @@ describe('<PersonalSubscription />', function () {
       })
       expect(reactivateBtn.disabled).to.be.true
       fetchMock.removeRoutes().clearHistory()
+    })
+
+    it('hides reactivate button for managed users who cannot reactivate', function () {
+      renderWithSubscriptionDashContext(<PersonalSubscription />, {
+        metaTags: [
+          { name: 'ol-subscription', value: canceledSubscription },
+          { name: 'ol-cannot-reactivate-subscription', value: true },
+        ],
+      })
+
+      screen.getByText(
+        'Your subscription has been canceled and will terminate on',
+        { exact: false }
+      )
+      screen.getByRole('link', { name: 'View your invoices' })
+
+      // Should not show the reactivate button
+      expect(
+        screen.queryByRole('button', { name: 'Reactivate your subscription' })
+      ).to.be.null
+    })
+
+    it('shows reactivate button for managed group admins even if they have reactivate restriction', function () {
+      renderWithSubscriptionDashContext(<PersonalSubscription />, {
+        metaTags: [
+          { name: 'ol-subscription', value: canceledSubscription },
+          { name: 'ol-cannot-reactivate-subscription', value: true },
+          { name: 'ol-isManagedGroupAdmin', value: true },
+        ],
+      })
+
+      screen.getByText(
+        'Your subscription has been canceled and will terminate on',
+        { exact: false }
+      )
+      screen.getByRole('link', { name: 'View your invoices' })
+
+      // Should show the reactivate button for group admins
+      screen.getByRole('button', { name: 'Reactivate your subscription' })
+    })
+
+    it('renders the active dash for a past-due Stripe subscription', function () {
+      renderWithSubscriptionDashContext(<PersonalSubscription />, {
+        metaTags: [
+          { name: 'ol-subscription', value: pastDueActiveSubscription },
+        ],
+      })
+
+      screen.getByRole('heading', { name: /billing/i })
+      screen.getByRole('button', { name: 'Cancel your subscription' })
     })
 
     it('renders the expired dash', function () {
@@ -155,6 +210,17 @@ describe('<PersonalSubscription />', function () {
         exact: false,
       })
       expect(invoiceLinks.length).to.equal(2)
+    })
+
+    it('renders subscription details alongside the alert for a past-due Stripe subscription', function () {
+      renderWithSubscriptionDashContext(<PersonalSubscription />, {
+        metaTags: [
+          { name: 'ol-subscription', value: pastDueActiveSubscription },
+        ],
+      })
+      screen.getByRole('alert')
+      screen.getByRole('heading', { name: /billing/i })
+      screen.getByRole('button', { name: 'Cancel your subscription' })
     })
   })
 

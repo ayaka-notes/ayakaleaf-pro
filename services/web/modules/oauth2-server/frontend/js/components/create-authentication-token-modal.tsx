@@ -1,14 +1,8 @@
-import React, { useState, useCallback, memo } from 'react'
+import { memo } from 'react'
 
 import { Button, Modal } from 'react-bootstrap'
 import { Trans, useTranslation } from 'react-i18next'
-import {
-  OLModal,
-  OLModalBody,
-  OLModalFooter,
-  OLModalHeader,
-  OLModalTitle,
-} from '@/shared/components/ol/ol-modal'
+import { OLModal } from '@/shared/components/ol/ol-modal'
 
 import { CopyToClipboard } from '@/shared/components/copy-to-clipboard'
 

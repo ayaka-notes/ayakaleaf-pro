@@ -1,4 +1,4 @@
-import { DropdownHeader } from '@/shared/components/dropdown/dropdown-menu'
+import { OLDropdownHeader } from '@/shared/components/ol/ol-dropdown-menu'
 import { ToolbarButtonMenu } from './button-menu'
 import MaterialIcon from '../../../../shared/components/material-icon'
 import { useTranslation } from 'react-i18next'
@@ -14,10 +14,12 @@ import useDropdown from '../../../../shared/hooks/use-dropdown'
 import * as commands from '../../extensions/toolbar/commands'
 import { useCodeMirrorViewContext } from '../codemirror-context'
 import { emitToolbarEvent } from '../../extensions/toolbar/utils/analytics'
+import getMeta from '@/utils/meta'
 
 export const TableDropdown = memo(function TableDropdown() {
   const { t } = useTranslation()
   const { writefullInstance } = useEditorContext()
+  const showAiFeaturesDisabled = getMeta('ol-showAiFeaturesDisabled')
   const selectSizeDropdown = useDropdown()
   const target = useRef<any>(null)
   const view = useCodeMirrorViewContext()
@@ -41,11 +43,14 @@ export const TableDropdown = memo(function TableDropdown() {
           disablePopover={selectSizeDropdown.open}
           icon={<MaterialIcon type="table_chart" />}
         >
-          <DropdownHeader className="ol-cm-toolbar-header mx-2">
+          <OLDropdownHeader className="ol-cm-toolbar-header mx-2">
             {t('toolbar_table_insert_table_lowercase')}
-          </DropdownHeader>
+          </OLDropdownHeader>
           <OLListGroupItem
+            className={showAiFeaturesDisabled ? 'opacity-50' : ''}
             aria-label={t('toolbar_generate_table')}
+            disabled={showAiFeaturesDisabled}
+            disabledReason={t('ai_features_unavailable_on_this_project')}
             onClick={() => {
               writefullInstance?.openTableGenerator()
             }}

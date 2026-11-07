@@ -34,6 +34,18 @@ const ClsiCookieManagerFactory = function (backendGroup) {
     }
   }
 
+  // TODO: remove this once the old keys have expired after the rollout of the
+  // c3d->free / c4d->premium compile backend class rename.
+  function buildOldKey(projectId, userId, compileBackendClass) {
+    let oldCompileBackendClass = compileBackendClass
+    if (compileBackendClass === 'free') {
+      oldCompileBackendClass = 'c3d'
+    } else if (compileBackendClass === 'premium') {
+      oldCompileBackendClass = 'c4d'
+    }
+    return buildKey(projectId, userId, oldCompileBackendClass)
+  }
+
   async function getServerId(
     projectId,
     userId,
@@ -43,9 +55,16 @@ const ClsiCookieManagerFactory = function (backendGroup) {
     if (!clsiCookiesEnabled) {
       return
     }
-    const serverId = await rclient.get(
+    let serverId = await rclient.get(
       buildKey(projectId, userId, compileBackendClass)
     )
+    if (!serverId) {
+      // Fallback to the old key from before the c3d->free / c4d->premium rename.
+      // TODO: remove this once the old keys have expired.
+      serverId = await rclient.get(
+        buildOldKey(projectId, userId, compileBackendClass)
+      )
+    }
 
     if (!serverId) {
       return await cookieManager.promises._populateServerIdViaRequest(
@@ -118,18 +137,17 @@ const ClsiCookieManagerFactory = function (backendGroup) {
   ) {
     let status
     try {
-      const params = new URLSearchParams({
+      const url = new URL(Settings.apis.clsi.url)
+      url.pathname = '/instance-state'
+      url.search = new URLSearchParams({
         clsiserverid,
         compileGroup,
         compileBackendClass,
       }).toString()
-      const { response, body } = await fetchStringWithResponse(
-        `${Settings.apis.clsi.url}/instance-state?${params}`,
-        {
-          method: 'GET',
-          signal: AbortSignal.timeout(30_000),
-        }
-      )
+      const { response, body } = await fetchStringWithResponse(url.href, {
+        method: 'GET',
+        signal: AbortSignal.timeout(30_000),
+      })
       status =
         response.status === 200 && body === `${clsiserverid},UP\n`
           ? 'load-shedding'
@@ -216,7 +234,10 @@ const ClsiCookieManagerFactory = function (backendGroup) {
       return
     }
     try {
-      await rclient.del(buildKey(projectId, userId, compileBackendClass))
+      await rclient.del(
+        buildKey(projectId, userId, compileBackendClass),
+        buildOldKey(projectId, userId, compileBackendClass)
+      )
     } catch (err) {
       // redis errors need wrapping as the instance may be shared
       throw new OError(

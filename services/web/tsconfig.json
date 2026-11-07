@@ -1,27 +1,33 @@
 {
   "compilerOptions": {
-    "target": "esnext" /* Specify ECMAScript target version */,
-    "module": "esnext" /* Specify module code generation */,
-    "allowJs": true /* Allow JavaScript files to be compiled. */,
+    "target": "esnext",
+    "module": "esnext",
+    "allowJs": true,
     "resolveJsonModule": true,
-    //    "checkJs": true /* Report errors in .js files. */,
-    "jsx": "preserve" /* Specify JSX code generation */,
-    "noEmit": true /* Do not emit outputs. */,
-    "strict": true /* Enable all strict type-checking options. */,
-    "moduleResolution": "node" /* Specify module resolution strategy */,
+    "jsx": "preserve",
+    "noEmit": true,
+    "strict": true,
+    "moduleResolution": "bundler",
     "isolatedModules": true,
-    "esModuleInterop": true /* Enables emit interoperability between CommonJS and ES Modules via creation of namespace objects for all imports. Implies 'allowSyntheticDefaultImports'. */,
-    "skipLibCheck": true /* Skip type checking of declaration files. */,
-    "forceConsistentCasingInFileNames": true /* Disallow inconsistently-cased references to the same file. */,
-    "experimentalDecorators": true /* Allow decorators in writefull - inversify */,
-    "emitDecoratorMetadata": true /* Allow decorators in writefull - inversify */,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "allowImportingTsExtensions": true,
+    "baseUrl": ".",
     "paths": {
       "@/*": ["./frontend/js/*"],
+      "@shared/*": ["./shared/*"],
       "@modules/*": ["./modules/*"],
       "@overleaf/o-error": ["../../libraries/o-error"],
       "@overleaf/ranges-tracker": ["../../libraries/ranges-tracker"],
-      /* can't make this entry @types because that conflicts with the "types" entry below */
+      "@overleaf/validation-tools": ["../../libraries/validation-tools"],
+      "overleaf-editor-core": ["../../libraries/overleaf-editor-core"],
+      "overleaf-editor-core/*": ["../../libraries/overleaf-editor-core/*"],
+
       "@ol-types/*": ["./types/*"],
+      "@ol-storybook/*": ["./.storybook/*"],
       "@wf/*": ["./modules/writefull/frontend/js/integration/src/*"],
       "@wf-tests/*": ["./modules/writefull/frontend/js/integration/tests/*"]
     },
@@ -36,7 +42,9 @@
   },
   "include": [
     "frontend/js/**/*.*",
+    "shared/**/*.*",
     "modules/**/frontend/js/**/*.*",
+    "modules/*/shared/**/*.*",
     "test/frontend/**/*.*",
     "modules/**/test/frontend/**/*.*",
     "frontend/stories/**/*.*",
@@ -45,5 +53,8 @@
     "cypress",
     "types"
   ],
-  "exclude": ["**/*.min.js"]
+  "exclude": [
+    "**/*.min.js",
+    "modules/writefull/frontend/js/integration/src/vite-env.d.ts"
+  ]
 }

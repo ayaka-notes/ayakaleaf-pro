@@ -11,5 +11,8 @@
 
 docker compose -f ./docker-compose.image.yml pull "$@"
 
+sudo mkdir -p data/git-bridge data/redis-insight
+sudo chown 1000:1000 data/git-bridge data/redis-insight
+
 docker compose -f docker-compose.yml -f docker-compose.dev.yml \
     -f ./docker-compose.image.yml up --no-deps --detach "$@"

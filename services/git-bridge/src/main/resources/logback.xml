@@ -5,11 +5,22 @@
     <!-- Log everything (subject to logger and root levels set below) to stdout. -->
     <appender name="stdout" class="ch.qos.logback.core.ConsoleAppender">
         <target>System.out</target>
-        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-            <level>${LOG_LEVEL}</level>
-        </filter>
-        <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{0}: %msg%n</pattern>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <timestampPattern>yyyy-MM-dd'T'HH:mm:ss.SSSXXX</timestampPattern>
+            <fieldNames>
+                <timestamp>time</timestamp>
+                <version>[ignore]</version>
+                <message>msg</message>
+                <logger>[ignore]</logger>
+                <thread>[ignore]</thread>
+                <level>[ignore]</level>
+                <levelValue>[ignore]</levelValue>
+                <stackTrace>stack_trace</stackTrace>
+            </fieldNames>
+            <provider class="net.logstash.logback.composite.loggingevent.LoggingEventPatternJsonProvider">
+                <pattern>{"v":0,"name":"git-bridge","hostname":"${HOSTNAME:-unknown}","pid":${PID:-0}}</pattern>
+            </provider>
+            <provider class="uk.ac.ic.wlgitbridge.server.BunyanLevelJsonProvider" />
         </encoder>
     </appender>
 
@@ -19,8 +30,22 @@
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
             <level>WARN</level>
         </filter>
-        <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{0}: %msg%n</pattern>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <timestampPattern>yyyy-MM-dd'T'HH:mm:ss.SSSXXX</timestampPattern>
+            <fieldNames>
+                <timestamp>time</timestamp>
+                <version>[ignore]</version>
+                <message>msg</message>
+                <logger>[ignore]</logger>
+                <thread>[ignore]</thread>
+                <level>[ignore]</level>
+                <levelValue>[ignore]</levelValue>
+                <stackTrace>stack_trace</stackTrace>
+            </fieldNames>
+            <provider class="net.logstash.logback.composite.loggingevent.LoggingEventPatternJsonProvider">
+                <pattern>{"v":0,"name":"git-bridge","hostname":"${HOSTNAME:-unknown}","pid":${PID:-0}}</pattern>
+            </provider>
+            <provider class="uk.ac.ic.wlgitbridge.server.BunyanLevelJsonProvider" />
         </encoder>
     </appender>
 

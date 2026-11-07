@@ -6,6 +6,10 @@ import { URL } from 'node:url'
 import logger from '@overleaf/logger'
 import Settings from '@overleaf/settings'
 import { fetchStreamWithResponse, RequestFailedError } from '@overleaf/fetch-utils'
+import http from 'node:http'
+import https from 'node:https'
+import { HttpProxyAgent } from 'http-proxy-agent'
+import { HttpsProxyAgent } from 'https-proxy-agent'
 
 function isAllowedResource(targetUrl) {
   if (!Settings.allowedResources) return false
@@ -38,6 +42,9 @@ function isBlockedIp(ipStr, targetUrl) {
 }
 
 async function checkUrlAccess(hostname, targetUrl) {
+  // Behind an outbound proxy, the proxy resolves hosts itself and is
+  // responsible for blocking internal networks; only IP literals are checked.
+  if (Settings.outboundProxy && !ipaddr.isValid(hostname.replace(/^\[|\]$/g, ''))) return null
   const records = await dns.lookup(hostname, { all: true }).catch(() => [])
   if (!records.length) {
     const err = new Error(`DNS lookup failed for ${hostname}`)
@@ -45,7 +52,7 @@ async function checkUrlAccess(hostname, targetUrl) {
     throw err
   }
 // Permit explicitly allowed resources without checking blocked IPs
-  if (isAllowedResource(targetUrl)) return
+  if (isAllowedResource(targetUrl)) return records[0]
   for (const { address } of records) {
     if (isBlockedIp(address, targetUrl)) {
       const err = new Error(`Blocked IP address: ${address}`)
@@ -53,6 +60,7 @@ async function checkUrlAccess(hostname, targetUrl) {
       throw err
     }
   }
+  return records[0]
 }
 
 async function validateAndFetch(rawUrl, redirectCount = 0) {
@@ -88,12 +96,31 @@ async function validateAndFetch(rawUrl, redirectCount = 0) {
   const normalizedUrl = url.toString()
 
   // check DNS and allowed resources
-  await checkUrlAccess(url.hostname, normalizedUrl)
+  const record = await checkUrlAccess(url.hostname, normalizedUrl)
+
+  let agent
+  if (Settings.outboundProxy) {
+    // The proxy connects to the target, so the IP cannot be pinned here.
+    agent = url.protocol === 'https:'
+      ? new HttpsProxyAgent(Settings.outboundProxy)
+      : new HttpProxyAgent(Settings.outboundProxy)
+  } else {
+    const { address: validatedIp, family } = record
+    // pin the connection to the validated IP to prevent DNS rebinding (TOCTOU).
+    // node's Happy Eyeballs calls lookup with { all: true } and expects an array.
+    agent = new (url.protocol === 'https:' ? https : http).Agent({
+      lookup: (_hostname, options, cb) =>
+        options?.all
+          ? cb(null, [{ address: validatedIp, family }])
+          : cb(null, validatedIp, family),
+    })
+  }
 
   const opts = {
     redirect: 'manual',
     timeout: Settings.fetchTimeoutMs,
     headers: Settings.userAgentHeader,
+    agent,
   }
 
   try {

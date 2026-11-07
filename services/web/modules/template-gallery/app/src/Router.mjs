@@ -1,5 +1,6 @@
 import logger from '@overleaf/logger'
 import AuthenticationController from '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
+import AuthorizationMiddleware from '../../../../app/src/Features/Authorization/AuthorizationMiddleware.mjs'
 import RateLimiterMiddleware from '../../../../app/src/Features/Security/RateLimiterMiddleware.mjs'
 import { RateLimiter } from '../../../../app/src/infrastructure/RateLimiter.mjs'
 import TemplateGalleryController from './TemplateGalleryController.mjs'
@@ -55,6 +56,7 @@ export default {
       '/template/new/:Project_id',
       AuthenticationController.requireLogin(),
       PermissionsMiddleware.ensureUserCanManageTemplates,
+      AuthorizationMiddleware.ensureUserCanReadProject,
       RateLimiterMiddleware.rateLimit(rateLimiterNewTemplate),
       TemplateGalleryController.createTemplateFromProject
     )

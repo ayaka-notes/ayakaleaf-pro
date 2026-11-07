@@ -4,7 +4,7 @@ const base = require('./webpack.config.dev')
 
 module.exports = merge(base, {
   devServer: {
-    allowedHosts: 'auto',
+    allowedHosts: 'all',
     devMiddleware: {
       index: false,
     },
@@ -18,6 +18,10 @@ module.exports = merge(base, {
         context: '/git/**',
         target: 'http://git-bridge:8000',
         pathRewrite: { '^/git': '' }
+      },
+      {
+        context: '/simplesaml/**',
+        target: 'http://saml:4000',
       },
       {
         context: ['!**/*.js', '!**/*.css', '!**/*.json'],

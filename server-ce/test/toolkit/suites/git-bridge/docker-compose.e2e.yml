@@ -1,0 +1,17 @@
+# config/docker-compose.e2e.yml, plus git-bridge on port 8001 instead of the
+# default 8000, so the suite only passes when Overleaf, nginx included, reaches
+# git-bridge through GIT_BRIDGE_HOST and GIT_BRIDGE_PORT.
+services:
+  mongo:
+    environment:
+      GLIBC_TUNABLES: glibc.pthread.rseq=1
+  sharelatex:
+    environment:
+      OVERLEAF_CONFIG: /etc/overleaf/settings.e2e.cjs
+      GIT_BRIDGE_PORT: "8001"
+    volumes:
+      - ../config/settings.cjs:/etc/overleaf/settings.e2e.cjs:ro
+  git-bridge:
+    environment:
+      GIT_BRIDGE_PORT: "8001"
+      GIT_BRIDGE_POSTBACK_BASE_URL: "http://git-bridge:8001"

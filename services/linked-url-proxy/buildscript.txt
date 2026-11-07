@@ -2,5 +2,5 @@ linked-url-proxy
 --env-add=
 --env-pass-through=
 --esmock-loader=False
---node-version=22.18.0
+--node-version=24.18.1
 --public-repo=False

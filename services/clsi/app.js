@@ -1,36 +1,35 @@
 // Metrics must be initialized before importing anything else
-require('@overleaf/metrics/initialize')
+import '@overleaf/metrics/initialize.js'
 
-const CompileController = require('./app/js/CompileController')
-const ContentController = require('./app/js/ContentController')
-const Settings = require('@overleaf/settings')
-const logger = require('@overleaf/logger')
+import CompileController from './app/js/CompileController.js'
+import Settings from '@overleaf/settings'
+import logger from '@overleaf/logger'
+import LoggerSerializers from './app/js/LoggerSerializers.js'
+
+import Metrics from '@overleaf/metrics'
+import smokeTest from './test/smoke/js/SmokeTests.js'
+import Errors from './app/js/Errors.js'
+import OutputController from './app/js/OutputController.js'
+
+import ProjectPersistenceManager from './app/js/ProjectPersistenceManager.js'
+import OutputCacheManager from './app/js/OutputCacheManager.js'
+
+import express from 'express'
+
+import net from 'node:net'
+import os from 'node:os'
+import ConversionController from './app/js/ConversionController.js'
+import FileUploadMiddleware from './app/js/FileUploadMiddleware.js'
+import { handleValidationError } from '@overleaf/validation-tools'
 logger.initialize('clsi')
-const LoggerSerializers = require('./app/js/LoggerSerializers')
 logger.logger.serializers.clsiRequest = LoggerSerializers.clsiRequest
-
-const Metrics = require('@overleaf/metrics')
-
-const smokeTest = require('./test/smoke/js/SmokeTests')
-const ContentTypeMapper = require('./app/js/ContentTypeMapper')
-const Errors = require('./app/js/Errors')
-const { createOutputZip } = require('./app/js/OutputController')
-
-const Path = require('node:path')
 
 Metrics.open_sockets.monitor(true)
 Metrics.memory.monitor(logger)
 Metrics.leaked_sockets.monitor(logger)
 
-const ProjectPersistenceManager = require('./app/js/ProjectPersistenceManager')
-const OutputCacheManager = require('./app/js/OutputCacheManager')
-const ContentCacheManager = require('./app/js/ContentCacheManager')
-
 ProjectPersistenceManager.init()
 OutputCacheManager.init()
-
-const express = require('express')
-const bodyParser = require('body-parser')
 const app = express()
 
 Metrics.injectMetricsRoute(app)
@@ -39,7 +38,7 @@ app.use(Metrics.http.monitor(logger))
 // Compile requests can take longer than the default two
 // minutes (including file download time), so bump up the
 // timeout a bit.
-const TIMEOUT = 10 * 60 * 1000
+const TIMEOUT = 630 * 1000 // 10.5 minutes - 30 seconds download allowance
 app.use(function (req, res, next) {
   req.setTimeout(TIMEOUT)
   res.setTimeout(TIMEOUT)
@@ -47,49 +46,9 @@ app.use(function (req, res, next) {
   next()
 })
 
-app.param('project_id', function (req, res, next, projectId) {
-  if (projectId?.match(/^[a-zA-Z0-9_-]+$/)) {
-    next()
-  } else {
-    next(new Error('invalid project id'))
-  }
-})
-
-app.param('user_id', function (req, res, next, userId) {
-  if (userId?.match(/^[0-9a-f]{24}$/)) {
-    next()
-  } else {
-    next(new Error('invalid user id'))
-  }
-})
-
-app.param('build_id', function (req, res, next, buildId) {
-  if (buildId?.match(OutputCacheManager.BUILD_REGEX)) {
-    next()
-  } else {
-    next(new Error(`invalid build id ${buildId}`))
-  }
-})
-
-app.param('contentId', function (req, res, next, contentId) {
-  if (contentId?.match(OutputCacheManager.CONTENT_REGEX)) {
-    next()
-  } else {
-    next(new Error(`invalid content id ${contentId}`))
-  }
-})
-
-app.param('hash', function (req, res, next, hash) {
-  if (hash?.match(ContentCacheManager.HASH_REGEX)) {
-    next()
-  } else {
-    next(new Error(`invalid hash ${hash}`))
-  }
-})
-
 app.post(
   '/project/:project_id/compile',
-  bodyParser.json({ limit: Settings.compileSizeLimit }),
+  express.json({ limit: Settings.compileSizeLimit }),
   CompileController.compile
 )
 app.post('/project/:project_id/compile/stop', CompileController.stopCompile)
@@ -98,13 +57,18 @@ app.delete('/project/:project_id', CompileController.clearCache)
 app.get('/project/:project_id/sync/code', CompileController.syncFromCode)
 app.get('/project/:project_id/sync/pdf', CompileController.syncFromPdf)
 app.get('/project/:project_id/wordcount', CompileController.wordcount)
+app.post(
+  '/project/:project_id/wordcount',
+  express.json({ limit: Settings.compileSizeLimit }),
+  CompileController.wordcountWithSync
+)
 app.get('/project/:project_id/status', CompileController.status)
 app.post('/project/:project_id/status', CompileController.status)
 
 // Per-user containers
 app.post(
   '/project/:project_id/user/:user_id/compile',
-  bodyParser.json({ limit: Settings.compileSizeLimit }),
+  express.json({ limit: Settings.compileSizeLimit }),
   CompileController.compile
 )
 app.post(
@@ -125,87 +89,64 @@ app.get(
   '/project/:project_id/user/:user_id/wordcount',
   CompileController.wordcount
 )
-
-const ForbidSymlinks = require('./app/js/StaticServerForbidSymlinks')
-
-// create a static server which does not allow access to any symlinks
-// avoids possible mismatch of root directory between middleware check
-// and serving the files
-const staticOutputServer = ForbidSymlinks(
-  express.static,
-  Settings.path.outputDir,
-  {
-    setHeaders(res, path, stat) {
-      if (Path.basename(path) === 'output.pdf') {
-        // Calculate an etag in the same way as nginx
-        // https://github.com/tj/send/issues/65
-        const etag = (path, stat) =>
-          `"${Math.ceil(+stat.mtime / 1000).toString(16)}` +
-          '-' +
-          Number(stat.size).toString(16) +
-          '"'
-        res.set('Etag', etag(path, stat))
-      }
-      res.set('Content-Type', ContentTypeMapper.map(path))
-    },
-  }
+app.post(
+  '/project/:project_id/user/:user_id/wordcount',
+  express.json({ limit: Settings.compileSizeLimit }),
+  CompileController.wordcountWithSync
 )
 
 // This needs to be before GET /project/:project_id/build/:build_id/output/*
 app.get(
   '/project/:project_id/build/:build_id/output/output.zip',
-  bodyParser.json(),
-  createOutputZip
+  express.json(),
+  OutputController.createOutputZip
 )
 
 // This needs to be before GET /project/:project_id/user/:user_id/build/:build_id/output/*
 app.get(
   '/project/:project_id/user/:user_id/build/:build_id/output/output.zip',
-  bodyParser.json(),
-  createOutputZip
+  express.json(),
+  OutputController.createOutputZip
 )
 
-app.get(
-  '/project/:project_id/user/:user_id/build/:build_id/output/*',
-  function (req, res, next) {
-    // for specific build get the path from the OutputCacheManager (e.g. .clsi/buildId)
-    req.url =
-      `/${req.params.project_id}-${req.params.user_id}/` +
-      OutputCacheManager.path(req.params.build_id, `/${req.params[0]}`)
-    staticOutputServer(req, res, next)
-  }
+// Conversion endpoints
+// Keep old route for backwards compatibility during CLSI/web deploy transition.
+// conversionType is threaded in directly (rather than via a query.type-setting
+// middleware) so the shared handler never needs to distinguish "the client
+// sent type=docx" from "this route only ever means docx".
+app.post(
+  '/convert/docx-to-latex',
+  FileUploadMiddleware.multerMiddleware,
+  ConversionController.convertDocxToLaTeX
+)
+app.post(
+  '/convert/document-to-latex',
+  FileUploadMiddleware.multerMiddleware,
+  ConversionController.convertDocumentToLaTeX
+)
+app.post(
+  '/project/:project_id/user/:user_id/download/project-to-document',
+  express.json({ limit: Settings.compileSizeLimit }),
+  ConversionController.convertProjectToDocument
+)
+app.post(
+  '/convert/pdf-to-jpeg',
+  FileUploadMiddleware.multerMiddleware,
+  ConversionController.convertPDFToJPEG
 )
 
-app.get(
-  '/project/:projectId/content/:contentId/:hash',
-  ContentController.getPdfRange
-)
-app.get(
-  '/project/:projectId/user/:userId/content/:contentId/:hash',
-  ContentController.getPdfRange
-)
-
-app.get(
-  '/project/:project_id/build/:build_id/output/*',
-  function (req, res, next) {
-    // for specific build get the path from the OutputCacheManager (e.g. .clsi/buildId)
-    req.url =
-      `/${req.params.project_id}/` +
-      OutputCacheManager.path(req.params.build_id, `/${req.params[0]}`)
-    staticOutputServer(req, res, next)
-  }
-)
-
-app.get('/oops', function (req, res, next) {
-  logger.error({ err: 'hello' }, 'test error')
-  res.send('error\n')
-})
-
-app.get('/oops-internal', function (req, res, next) {
-  setTimeout(function () {
-    throw new Error('Test error')
-  }, 1)
-})
+if (process.env.NODE_ENV === 'development' && global.__coverage__) {
+  app.get('/coverage', (req, res) => {
+    const coverage = {}
+    for (const [key, value] of Object.entries(global.__coverage__)) {
+      coverage[key] = {
+        ...value,
+        path: value.path.replace('/overleaf/', '/workspace/'),
+      }
+    }
+    res.json({ coverage })
+  })
+}
 
 app.get('/status', (req, res, next) => res.send('CLSI is alive\n'))
 
@@ -244,9 +185,6 @@ function runSmokeTest() {
     setTimeout(runSmokeTest, INTERVAL)
   })
 }
-if (Settings.smokeTest) {
-  runSmokeTest()
-}
 
 app.get('/health_check', function (req, res) {
   if (Settings.processTooOld) {
@@ -258,7 +196,12 @@ app.get('/health_check', function (req, res) {
   smokeTest.sendLastResult(res)
 })
 
-app.get('/smoke_test_force', (req, res) => smokeTest.sendNewResult(res))
+app.get(
+  '/smoke_test_force',
+  async (req, res, next) => await smokeTest.sendNewResult(res).catch(next)
+)
+
+app.use(handleValidationError)
 
 app.use(function (error, req, res, next) {
   if (error instanceof Errors.NotFoundError) {
@@ -274,9 +217,6 @@ app.use(function (error, req, res, next) {
     res.sendStatus(error.statusCode || 500)
   }
 })
-
-const net = require('node:net')
-const os = require('node:os')
 
 let STATE = 'up'
 
@@ -360,7 +300,7 @@ const host = Settings.internal.clsi.host
 const loadTcpPort = Settings.internal.load_balancer_agent.load_port
 const loadHttpPort = Settings.internal.load_balancer_agent.local_port
 
-if (!module.parent) {
+if (import.meta.main) {
   // Called directly
 
   // handle uncaught exceptions when running in production
@@ -376,6 +316,9 @@ if (!module.parent) {
       logger.fatal({ error }, `Error starting CLSI on ${host}:${port}`)
     } else {
       logger.debug(`CLSI starting up, listening on ${host}:${port}`)
+      if (Settings.smokeTest) {
+        runSmokeTest()
+      }
     }
   })
 
@@ -394,4 +337,4 @@ if (!module.parent) {
   })
 }
 
-module.exports = app
+export default app

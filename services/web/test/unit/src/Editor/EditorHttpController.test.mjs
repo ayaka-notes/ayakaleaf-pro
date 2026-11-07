@@ -51,7 +51,8 @@ describe('EditorHttpController', function () {
     ctx.folder = { _id: new ObjectId() }
     ctx.source = 'editor'
 
-    ctx.parentFolderId = 'mock-folder-id'
+    // parent_folder_id/entity_id/folder_id are all validated as Mongo ObjectIds
+    ctx.parentFolderId = new ObjectId().toString()
     ctx.req = new MockRequest(vi)
     ctx.res = new MockResponse(vi)
     ctx.next = sinon.stub()
@@ -68,6 +69,7 @@ describe('EditorHttpController', function () {
     }
     const members = ctx.members
     const ownerMember = ctx.ownerMember
+    const ownerId = ctx.ownerId
     ctx.CollaboratorsGetter = {
       ProjectAccess: class {
         loadOwnerAndInvitedMembers() {
@@ -84,6 +86,22 @@ describe('EditorHttpController', function () {
 
         isUserInvitedMember() {
           return false
+        }
+
+        getOwnerId() {
+          return ownerId
+        }
+
+        loadAccessRequestsView() {
+          return []
+        }
+
+        getAccessRequestForUser() {
+          return null
+        }
+
+        privilegeLevelForUser() {
+          return 'readOnly'
         }
       },
       promises: {
@@ -131,13 +149,12 @@ describe('EditorHttpController', function () {
     }
     ctx.ProjectGetter = {
       promises: {
-        getProjectWithoutDocLines: sinon.stub().resolves(ctx.project),
+        getProject: sinon.stub().resolves(ctx.project),
       },
     }
     ctx.ProjectEditorHandler = {
       buildProjectModelView: sinon.stub().returns(ctx.projectView),
     }
-    ctx.Metrics = { inc: sinon.stub() }
     ctx.TokenAccessHandler = {
       getRequestToken: sinon.stub().returns(ctx.token),
     }
@@ -161,6 +178,7 @@ describe('EditorHttpController', function () {
     ctx.SplitTestHandler = {
       promises: {
         getAssignmentForUser: sinon.stub().resolves({ variant: 'default' }),
+        featureFlagEnabledForUser: sinon.stub().resolves(false),
       },
     }
     ctx.UserGetter = { promises: { getUser: sinon.stub().resolves(null, {}) } }
@@ -195,9 +213,6 @@ describe('EditorHttpController', function () {
         default: ctx.EditorController,
       })
     )
-    vi.doMock('@overleaf/metrics', () => ({
-      default: ctx.Metrics,
-    }))
     vi.doMock(
       '../../../../app/src/Features/Collaborators/CollaboratorsGetter.mjs',
       () => ({
@@ -369,6 +384,40 @@ describe('EditorHttpController', function () {
       })
     })
 
+    describe('with a restricted user who has a pending access request', function () {
+      beforeEach(async function (ctx) {
+        ctx.accessRequest = {
+          privilegeLevel: 'readAndWrite',
+          requestedAt: new Date(),
+        }
+        sinon
+          .stub(
+            ctx.CollaboratorsGetter.ProjectAccess.prototype,
+            'getAccessRequestForUser'
+          )
+          .returns(ctx.accessRequest)
+        ctx.ProjectEditorHandler.buildProjectModelView.returns(
+          ctx.reducedProjectView
+        )
+        ctx.AuthorizationManager.isRestrictedUser.returns(true)
+        ctx.AuthorizationManager.promises.getPrivilegeLevelForProjectWithProjectAccess.resolves(
+          'readOnly'
+        )
+        await new Promise(resolve => {
+          ctx.res.callback = resolve
+          ctx.EditorHttpController.joinProject(ctx.req, ctx.res)
+        })
+      })
+
+      it('surfaces the caller’s own access request in the project view', function (ctx) {
+        expect(
+          ctx.ProjectEditorHandler.buildProjectModelView
+        ).to.have.been.calledWith(ctx.project, ctx.ownerMember, [], [], true, {
+          myAccessRequest: ctx.accessRequest,
+        })
+      })
+    })
+
     describe('when not authorized', function () {
       beforeEach(async function (ctx) {
         await new Promise(resolve => {
@@ -461,7 +510,7 @@ describe('EditorHttpController', function () {
 
     describe('when project is not found', function () {
       beforeEach(async function (ctx) {
-        ctx.ProjectGetter.promises.getProjectWithoutDocLines.resolves(null)
+        ctx.ProjectGetter.promises.getProject.resolves(null)
         await new Promise(resolve => {
           ctx.next.callsFake(() => resolve())
           ctx.EditorHttpController.joinProject(ctx.req, ctx.res, ctx.next)
@@ -478,7 +527,7 @@ describe('EditorHttpController', function () {
 
   describe('addDoc', function () {
     beforeEach(function (ctx) {
-      ctx.req.params = { Project_id: ctx.project._id }
+      ctx.req.params = { Project_id: ctx.project._id.toString() }
       ctx.req.body = {
         name: (ctx.docName = 'doc-name'),
         parent_folder_id: ctx.parentFolderId,
@@ -495,7 +544,7 @@ describe('EditorHttpController', function () {
 
       it('should call EditorController.addDoc', function (ctx) {
         expect(ctx.EditorController.promises.addDoc).to.have.been.calledWith(
-          ctx.project._id,
+          ctx.project._id.toString(),
           ctx.parentFolderId,
           ctx.docName,
           [],
@@ -523,7 +572,7 @@ describe('EditorHttpController', function () {
 
       it('handle too many files', async function (ctx) {
         ctx.EditorController.promises.addDoc.rejects(
-          new Error('project_has_too_many_files')
+          new Errors.TooManyFilesError('project_has_too_many_files')
         )
         await new Promise(resolve => {
           ctx.res.callback = () => {
@@ -540,7 +589,7 @@ describe('EditorHttpController', function () {
   describe('addFolder', function () {
     beforeEach(function (ctx) {
       ctx.folderName = 'folder-name'
-      ctx.req.params = { Project_id: ctx.project._id }
+      ctx.req.params = { Project_id: ctx.project._id.toString() }
       ctx.req.body = {
         name: ctx.folderName,
         parent_folder_id: ctx.parentFolderId,
@@ -557,7 +606,7 @@ describe('EditorHttpController', function () {
 
       it('should call EditorController.addFolder', function (ctx) {
         expect(ctx.EditorController.promises.addFolder).to.have.been.calledWith(
-          ctx.project._id,
+          ctx.project._id.toString(),
           ctx.parentFolderId,
           ctx.folderName,
           'editor'
@@ -584,7 +633,7 @@ describe('EditorHttpController', function () {
       it('handle too many files', async function (ctx) {
         await new Promise(resolve => {
           ctx.EditorController.promises.addFolder.rejects(
-            new Error('project_has_too_many_files')
+            new Errors.TooManyFilesError('project_has_too_many_files')
           )
           ctx.res.callback = () => {
             expect(ctx.res.body).to.equal('"project_has_too_many_files_limit"')
@@ -613,10 +662,11 @@ describe('EditorHttpController', function () {
 
   describe('renameEntity', function () {
     beforeEach(function (ctx) {
-      ctx.entityId = 'entity-id-123'
-      ctx.entityType = 'entity-type'
+      // entity_id is validated as a Mongo ObjectId; entity_type as an enum
+      ctx.entityId = new ObjectId().toString()
+      ctx.entityType = 'doc'
       ctx.req.params = {
-        Project_id: ctx.project._id,
+        Project_id: ctx.project._id.toString(),
         entity_id: ctx.entityId,
         entity_type: ctx.entityType,
       }
@@ -636,7 +686,7 @@ describe('EditorHttpController', function () {
         expect(
           ctx.EditorController.promises.renameEntity
         ).to.have.been.calledWith(
-          ctx.project._id,
+          ctx.project._id.toString(),
           ctx.entityId,
           ctx.entityType,
           ctx.newName,
@@ -677,11 +727,13 @@ describe('EditorHttpController', function () {
   describe('moveEntity', function () {
     beforeEach(async function (ctx) {
       await new Promise(resolve => {
-        ctx.entityId = 'entity-id-123'
-        ctx.entityType = 'entity-type'
-        ctx.folderId = 'folder-id-123'
+        // entity_id/folder_id are validated as Mongo ObjectIds; entity_type
+        // as an enum
+        ctx.entityId = new ObjectId().toString()
+        ctx.entityType = 'doc'
+        ctx.folderId = new ObjectId().toString()
         ctx.req.params = {
-          Project_id: ctx.project._id,
+          Project_id: ctx.project._id.toString(),
           entity_id: ctx.entityId,
           entity_type: ctx.entityType,
         }
@@ -693,7 +745,7 @@ describe('EditorHttpController', function () {
 
     it('should call EditorController.moveEntity', function (ctx) {
       expect(ctx.EditorController.promises.moveEntity).to.have.been.calledWith(
-        ctx.project._id,
+        ctx.project._id.toString(),
         ctx.entityId,
         ctx.folderId,
         ctx.entityType,
@@ -707,35 +759,40 @@ describe('EditorHttpController', function () {
     })
   })
 
-  describe('deleteEntity', function () {
-    beforeEach(async function (ctx) {
-      await new Promise(resolve => {
-        ctx.entityId = 'entity-id-123'
-        ctx.entityType = 'entity-type'
-        ctx.req.params = {
-          Project_id: ctx.project._id,
-          entity_id: ctx.entityId,
-          entity_type: ctx.entityType,
-        }
-        ctx.res.callback = resolve
-        ctx.EditorHttpController.deleteEntity(ctx.req, ctx.res)
+  for (const [name, entityType] of [
+    ['deleteDoc', 'doc'],
+    ['deleteFile', 'file'],
+    ['deleteFolder', 'folder'],
+  ]) {
+    describe(name, function () {
+      beforeEach(async function (ctx) {
+        await new Promise(resolve => {
+          // entity_id is validated as a Mongo ObjectId
+          ctx.entityId = new ObjectId().toString()
+          ctx.req.params = {
+            Project_id: ctx.project._id.toString(),
+            entity_id: ctx.entityId,
+          }
+          ctx.res.callback = resolve
+          ctx.EditorHttpController[name](ctx.req, ctx.res)
+        })
+      })
+
+      it('should call EditorController.deleteEntity', function (ctx) {
+        expect(
+          ctx.EditorController.promises.deleteEntity
+        ).to.have.been.calledWith(
+          ctx.project._id.toString(),
+          ctx.entityId,
+          entityType,
+          'editor',
+          ctx.user._id
+        )
+      })
+
+      it('should send back a success response', function (ctx) {
+        expect(ctx.res.statusCode).to.equal(204)
       })
     })
-
-    it('should call EditorController.deleteEntity', function (ctx) {
-      expect(
-        ctx.EditorController.promises.deleteEntity
-      ).to.have.been.calledWith(
-        ctx.project._id,
-        ctx.entityId,
-        ctx.entityType,
-        'editor',
-        ctx.user._id
-      )
-    })
-
-    it('should send back a success response', function (ctx) {
-      expect(ctx.res.statusCode).to.equal(204)
-    })
-  })
+  }
 })

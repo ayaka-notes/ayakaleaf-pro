@@ -50,7 +50,7 @@ describe('RemoveDeletedUsersFromTokenAccessRefsTests', function () {
     let result
     try {
       result = await promisify(exec)(
-        'cd ../../tools/migrations && east migrate -t saas --force 20240220130452_remove_deleted_users_from_token_access_refs'
+        'cd ../../tools/migrations && yarn run migrations migrate -t saas --force 20240220130452_remove_deleted_users_from_token_access_refs'
       )
     } catch (error) {
       // dump details like exit code, stdErr and stdOut

@@ -1,8 +1,12 @@
-import { beforeEach, describe, it, expect, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import sinon from 'sinon'
 import mongodb from 'mongodb-legacy'
 import Errors from '../../../../app/src/Features/Errors/Errors.js'
 import Settings from '@overleaf/settings'
+import {
+  InvalidRequestError,
+  setReqValidationModeForTests,
+} from '@overleaf/validation-tools'
 
 const ObjectId = mongodb.ObjectId
 
@@ -10,7 +14,12 @@ const MODULE_PATH = `${import.meta.dirname}/../../../../app/src/Features/Project
 
 // Mock AnalyticsManager as it isn't used in these tests but causes the User model to be imported and redeclares queues
 vi.mock('../../../../app/src/Features/Analytics/AnalyticsManager.mjs', () => {
-  return {}
+  return {
+    default: {
+      setUserPropertyForUserInBackground: () => {},
+      setUserPropertyForSessionInBackground: () => {},
+    },
+  }
 })
 
 describe('ProjectListController', function () {
@@ -36,6 +45,7 @@ describe('ProjectListController', function () {
         theme: 'textmate',
         mode: 'none',
       },
+      aiFeatures: { enabled: false },
     }
     ctx.users = {
       'user-1': {
@@ -128,12 +138,10 @@ describe('ProjectListController', function () {
     ctx.Features = {
       hasFeature: sinon.stub(),
     }
-    ctx.Metrics = {
-      inc: sinon.stub(),
-    }
     ctx.SplitTestHandler = {
       promises: {
         getAssignment: sinon.stub().resolves({ variant: 'default' }),
+        featureFlagEnabled: sinon.stub().resolves(false),
         hasUserBeenAssignedToVariant: sinon.stub().resolves(false),
       },
     }
@@ -148,6 +156,7 @@ describe('ProjectListController', function () {
           bestSubscription: { type: 'free' },
           individualSubscription: null,
           memberGroupSubscriptions: [],
+          managedGroupSubscriptions: [],
         }),
       },
     }
@@ -199,10 +208,6 @@ describe('ProjectListController', function () {
 
     vi.doMock('@overleaf/settings', () => ({
       default: ctx.settings,
-    }))
-
-    vi.doMock('@overleaf/metrics', () => ({
-      default: ctx.Metrics,
     }))
 
     vi.doMock(
@@ -332,6 +337,10 @@ describe('ProjectListController', function () {
       },
     }
     ctx.res = {}
+  })
+
+  afterEach(function () {
+    setReqValidationModeForTests(null)
   })
 
   describe('projectListPage', function () {
@@ -467,11 +476,261 @@ describe('ProjectListController', function () {
       await ctx.ProjectListController.projectListPage(ctx.req, ctx.res)
     })
 
+    it('should look up geo IP in saas', async function (ctx) {
+      ctx.Features.hasFeature.withArgs('saas').returns(true)
+      ctx.res.render = () => {}
+      await ctx.ProjectListController.projectListPage(ctx.req, ctx.res)
+      expect(ctx.GeoIpLookup.promises.getCurrencyCode).to.have.been.calledOnce
+    })
+
+    it('should not look up geo IP in a non-saas environment', async function (ctx) {
+      ctx.Features.hasFeature.withArgs('saas').returns(false)
+      ctx.res.render = () => {}
+      await ctx.ProjectListController.projectListPage(ctx.req, ctx.res)
+      expect(ctx.GeoIpLookup.promises.getCurrencyCode).to.not.have.been.called
+    })
+
+    it('should send groupRole to customer.io for group admins', async function (ctx) {
+      ctx.Features.hasFeature.withArgs('saas').returns(true)
+      ctx.SubscriptionViewModelBuilder.promises.getUsersSubscriptionDetails.resolves(
+        {
+          bestSubscription: { type: 'free' },
+          individualSubscription: null,
+          memberGroupSubscriptions: [],
+          managedGroupSubscriptions: [
+            {
+              planCode: 'group_professional',
+              membersLimit: 12,
+              admin_id: { _id: ctx.user._id },
+            },
+          ],
+        }
+      )
+      ctx.res.render = () => {}
+
+      await ctx.ProjectListController.projectListPage(ctx.req, ctx.res)
+
+      expect(ctx.Modules.promises.hooks.fire).to.have.been.calledWith(
+        'setUserProperties',
+        ctx.user._id,
+        sinon.match({
+          group_role: 'admin',
+        })
+      )
+    })
+
+    it('should send groupRole to customer.io for group managers', async function (ctx) {
+      ctx.Features.hasFeature.withArgs('saas').returns(true)
+      ctx.SubscriptionViewModelBuilder.promises.getUsersSubscriptionDetails.resolves(
+        {
+          bestSubscription: { type: 'free' },
+          individualSubscription: null,
+          memberGroupSubscriptions: [],
+          managedGroupSubscriptions: [
+            {
+              planCode: 'group_professional',
+              membersLimit: 12,
+              admin_id: { _id: new ObjectId() },
+            },
+          ],
+        }
+      )
+      ctx.res.render = () => {}
+
+      await ctx.ProjectListController.projectListPage(ctx.req, ctx.res)
+
+      expect(ctx.Modules.promises.hooks.fire).to.have.been.calledWith(
+        'setUserProperties',
+        ctx.user._id,
+        sinon.match({
+          group_role: 'manager',
+        })
+      )
+    })
+
+    it('should send groupRole to customer.io for group members', async function (ctx) {
+      ctx.Features.hasFeature.withArgs('saas').returns(true)
+      ctx.SubscriptionViewModelBuilder.promises.getUsersSubscriptionDetails.resolves(
+        {
+          bestSubscription: { type: 'free' },
+          individualSubscription: null,
+          memberGroupSubscriptions: [
+            {
+              planCode: 'group_professional',
+              userIsGroupManager: false,
+            },
+          ],
+          managedGroupSubscriptions: [],
+        }
+      )
+      ctx.res.render = () => {}
+
+      await ctx.ProjectListController.projectListPage(ctx.req, ctx.res)
+
+      expect(ctx.Modules.promises.hooks.fire).to.have.been.calledWith(
+        'setUserProperties',
+        ctx.user._id,
+        sinon.match({
+          group_role: 'member',
+        })
+      )
+    })
+
+    it('should send packed split test assignments to customer.io', async function (ctx) {
+      ctx.Features.hasFeature.withArgs('saas').returns(true)
+      ctx.Modules.promises.hooks.fire
+        .withArgs('getSplitTestUserProperties', ctx.user._id)
+        .resolves([{ split_test_assignments: { 'test-a': 'variant-1' } }])
+      ctx.res.render = () => {}
+
+      await ctx.ProjectListController.projectListPage(ctx.req, ctx.res)
+
+      expect(ctx.Modules.promises.hooks.fire).to.have.been.calledWith(
+        'setUserProperties',
+        ctx.user._id,
+        sinon.match({
+          split_test_assignments: { 'test-a': 'variant-1' },
+        })
+      )
+    })
+
+    it('should not request split test user properties in a non-saas environment', async function (ctx) {
+      ctx.Features.hasFeature.withArgs('saas').returns(false)
+      ctx.res.render = () => {}
+
+      await ctx.ProjectListController.projectListPage(ctx.req, ctx.res)
+
+      expect(ctx.Modules.promises.hooks.fire).to.not.have.been.calledWith(
+        'getSplitTestUserProperties',
+        sinon.match.any
+      )
+    })
+
+    it('should still send other user properties when building split test assignments fails', async function (ctx) {
+      ctx.Features.hasFeature.withArgs('saas').returns(true)
+      ctx.Modules.promises.hooks.fire
+        .withArgs('getSplitTestUserProperties', ctx.user._id)
+        .rejects(new Error('boom'))
+      ctx.res.render = () => {}
+
+      await ctx.ProjectListController.projectListPage(ctx.req, ctx.res)
+
+      const call = ctx.Modules.promises.hooks.fire
+        .getCalls()
+        .find(call => call.args[0] === 'setUserProperties')
+      expect(call).to.exist
+      expect(call.args[2]).to.not.have.property('split_test_assignments')
+      expect(call.args[2]).to.have.property('overleaf_id', ctx.user._id)
+    })
+
+    it('should send enterprise_commons=true when user has commons from an enterprise_commons institution', async function (ctx) {
+      ctx.Features.hasFeature.withArgs('saas').returns(true)
+      ctx.UserGetter.promises.getUserFullEmails.resolves([
+        {
+          email: 'test@overleaf.com',
+          emailHasInstitutionLicence: true,
+          affiliation: {
+            institution: {
+              id: 1,
+              name: 'Overleaf',
+              commonsAccount: true,
+              enterpriseCommons: true,
+            },
+          },
+        },
+      ])
+      ctx.res.render = () => {}
+
+      await ctx.ProjectListController.projectListPage(ctx.req, ctx.res)
+
+      expect(ctx.Modules.promises.hooks.fire).to.have.been.calledWith(
+        'setUserProperties',
+        ctx.user._id,
+        sinon.match({ enterprise_commons: true })
+      )
+    })
+
+    it('should send enterprise_commons=false when affiliated with an enterprise_commons institution but without active commons access', async function (ctx) {
+      ctx.Features.hasFeature.withArgs('saas').returns(true)
+      ctx.UserGetter.promises.getUserFullEmails.resolves([
+        {
+          email: 'test@overleaf.com',
+          emailHasInstitutionLicence: false,
+          affiliation: {
+            institution: {
+              id: 1,
+              name: 'Overleaf',
+              commonsAccount: true,
+              enterpriseCommons: true,
+            },
+          },
+        },
+      ])
+      ctx.res.render = () => {}
+
+      await ctx.ProjectListController.projectListPage(ctx.req, ctx.res)
+
+      expect(ctx.Modules.promises.hooks.fire).to.have.been.calledWith(
+        'setUserProperties',
+        ctx.user._id,
+        sinon.match({ enterprise_commons: false })
+      )
+    })
+
+    it('should send domain_capture=true when user has an affiliation with domain capture enabled', async function (ctx) {
+      ctx.Features.hasFeature.withArgs('saas').returns(true)
+      ctx.UserGetter.promises.getUserFullEmails.resolves([
+        {
+          email: 'test@overleaf.com',
+          affiliation: {
+            institution: { id: 1, name: 'Overleaf' },
+            group: {
+              _id: 'g1',
+              domainCaptureEnabled: true,
+              managedUsersEnabled: false,
+            },
+          },
+        },
+      ])
+      ctx.res.render = () => {}
+
+      await ctx.ProjectListController.projectListPage(ctx.req, ctx.res)
+
+      expect(ctx.Modules.promises.hooks.fire).to.have.been.calledWith(
+        'setUserProperties',
+        ctx.user._id,
+        sinon.match({ domain_capture: true })
+      )
+    })
+
+    it('should send domain_capture=false when no affiliation has domain capture enabled', async function (ctx) {
+      ctx.Features.hasFeature.withArgs('saas').returns(true)
+      ctx.UserGetter.promises.getUserFullEmails.resolves([
+        {
+          email: 'test@overleaf.com',
+          affiliation: {
+            institution: { id: 1, name: 'Overleaf' },
+          },
+        },
+      ])
+      ctx.res.render = () => {}
+
+      await ctx.ProjectListController.projectListPage(ctx.req, ctx.res)
+
+      expect(ctx.Modules.promises.hooks.fire).to.have.been.calledWith(
+        'setUserProperties',
+        ctx.user._id,
+        sinon.match({ domain_capture: false })
+      )
+    })
+
     it('should show INR Banner for Indian users with free account', async function (ctx) {
       // usersBestSubscription is only available when saas feature is present
       ctx.Features.hasFeature.withArgs('saas').returns(true)
       ctx.SubscriptionViewModelBuilder.promises.getUsersSubscriptionDetails.resolves(
         {
+          memberGroupSubscriptions: [],
+          managedGroupSubscriptions: [],
           bestSubscription: {
             type: 'free',
           },
@@ -491,6 +750,8 @@ describe('ProjectListController', function () {
       ctx.Features.hasFeature.withArgs('saas').returns(true)
       ctx.SubscriptionViewModelBuilder.promises.getUsersSubscriptionDetails.resolves(
         {
+          memberGroupSubscriptions: [],
+          managedGroupSubscriptions: [],
           bestSubscription: {
             type: 'individual',
           },
@@ -511,12 +772,39 @@ describe('ProjectListController', function () {
         .withArgs(ctx.req, ctx.res, 'domain-capture-redirect')
         .resolves({ variant: 'enabled' })
       ctx.Modules.promises.hooks.fire
-        .withArgs('findDomainCaptureGroupUserCouldBePartOf', ctx.user._id)
-        .resolves([{ _id: new ObjectId(), managedUsersEnabled: true }])
+        .withArgs('findDomainCaptureGroupsUserCouldBePartOf', ctx.user._id)
+        .resolves([
+          [
+            {
+              subscription: { managedUsersEnabled: true },
+            },
+          ],
+        ])
       ctx.res.redirect = url => {
         url.should.equal('/domain-capture')
       }
       await ctx.ProjectListController.projectListPage(ctx.req, ctx.res)
+    })
+
+    it('should not redirect to domain capture page when no domain capture groups found', async function (ctx) {
+      ctx.Features.hasFeature.withArgs('saas').returns(true)
+      ctx.SplitTestHandler.promises.getAssignment
+        .withArgs(ctx.req, ctx.res, 'domain-capture-redirect')
+        .resolves({ variant: 'enabled' })
+      ctx.Modules.promises.hooks.fire
+        .withArgs('findDomainCaptureGroupsUserCouldBePartOf', ctx.user._id)
+        .resolves([[]])
+      let redirectCalled = false
+      ctx.res.redirect = () => {
+        redirectCalled = true
+      }
+      let redirectTo = ''
+      ctx.res.render = (pageName, opts) => {
+        redirectTo = pageName
+      }
+      await ctx.ProjectListController.projectListPage(ctx.req, ctx.res)
+      expect(redirectCalled).to.be.false
+      expect(redirectTo).to.equal('project/list-react')
     })
 
     describe('when user linked to SSO', function () {
@@ -897,7 +1185,7 @@ describe('ProjectListController', function () {
       beforeEach(function (ctx) {
         ctx.Features.hasFeature.withArgs('saas').returns(true)
         ctx.SubscriptionViewModelBuilder.promises.getUsersSubscriptionDetails.resolves(
-          { memberGroupSubscriptions: [] }
+          { memberGroupSubscriptions: [], managedGroupSubscriptions: [] }
         )
         ctx.UserGetter.promises.getUserFullEmails.resolves([
           {
@@ -1037,6 +1325,112 @@ describe('ProjectListController', function () {
         )
       }
       await ctx.ProjectListController.projectListPage(ctx.req, ctx.res)
+    })
+  })
+
+  describe('getProjectsJson', function () {
+    beforeEach(function (ctx) {
+      ctx.projects = [
+        { _id: 1, lastUpdated: new Date(1), owner_ref: 'user-1' },
+        { _id: 2, lastUpdated: new Date(2), owner_ref: 'user-2' },
+      ]
+      ctx.allProjects = {
+        owned: ctx.projects,
+        readAndWrite: [],
+        readOnly: [],
+        tokenReadAndWrite: [],
+        tokenReadOnly: [],
+        review: [],
+      }
+      ctx.ProjectGetter.promises.findAllUsersProjects.resolves(ctx.allProjects)
+      ctx.next = sinon.stub()
+    })
+
+    it('should respond with the paginated/filtered/sorted projects', async function (ctx) {
+      ctx.req.body = {
+        filters: { ownedByUser: true },
+        sort: { by: 'lastUpdated', order: 'desc' },
+        page: { size: 20 },
+      }
+      await new Promise(resolve => {
+        ctx.res.json = data => {
+          expect(data.totalSize).to.equal(ctx.projects.length)
+          expect(data.projects).to.have.length(ctx.projects.length)
+          resolve()
+        }
+        ctx.ProjectListController.getProjectsJson(ctx.req, ctx.res, ctx.next)
+      })
+      sinon.assert.notCalled(ctx.next)
+    })
+
+    it('should work with only a sort and no filters/page', async function (ctx) {
+      ctx.req.body = { sort: { by: 'title', order: 'asc' } }
+      await new Promise(resolve => {
+        ctx.res.json = data => {
+          expect(data.totalSize).to.equal(ctx.projects.length)
+          resolve()
+        }
+        ctx.ProjectListController.getProjectsJson(ctx.req, ctx.res, ctx.next)
+      })
+    })
+
+    it('should not reject an unsupported sort.by value in log mode', async function (ctx) {
+      setReqValidationModeForTests('log')
+      ctx.req.body = { sort: { by: 'not-a-real-field', order: 'asc' } }
+      await ctx.ProjectListController.getProjectsJson(
+        ctx.req,
+        ctx.res,
+        ctx.next
+      )
+      sinon.assert.calledOnce(ctx.next)
+      const err = ctx.next.firstCall.args[0]
+      expect(err).to.not.be.instanceOf(InvalidRequestError)
+      expect(err.message).to.equal('Invalid sorting criteria')
+    })
+
+    it('should not reject an unknown filter key in log mode', async function (ctx) {
+      setReqValidationModeForTests('log')
+      ctx.req.body = { filters: { notARealFilter: true } }
+      await new Promise(resolve => {
+        ctx.res.json = data => {
+          expect(data.totalSize).to.equal(ctx.projects.length)
+          resolve()
+        }
+        ctx.ProjectListController.getProjectsJson(ctx.req, ctx.res, ctx.next)
+      })
+      sinon.assert.notCalled(ctx.next)
+    })
+
+    describe('request validation', function () {
+      beforeEach(function () {
+        setReqValidationModeForTests('enforce')
+      })
+
+      it('rejects an unsupported sort.by value', async function (ctx) {
+        ctx.req.body = { sort: { by: 'not-a-real-field', order: 'asc' } }
+        await ctx.ProjectListController.getProjectsJson(
+          ctx.req,
+          ctx.res,
+          ctx.next
+        )
+        sinon.assert.calledWith(
+          ctx.next,
+          sinon.match.instanceOf(InvalidRequestError)
+        )
+      })
+
+      it('rejects an unknown filter key', async function (ctx) {
+        ctx.req.body = { filters: { notARealFilter: true } }
+        await ctx.ProjectListController.getProjectsJson(
+          ctx.req,
+          ctx.res,
+          ctx.next
+        )
+        sinon.assert.calledWith(
+          ctx.next,
+          sinon.match.instanceOf(InvalidRequestError)
+        )
+      })
     })
   })
 })

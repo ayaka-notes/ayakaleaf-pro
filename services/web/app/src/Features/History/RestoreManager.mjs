@@ -1,5 +1,6 @@
 import Settings from '@overleaf/settings'
 import Path from 'node:path'
+import fs from 'node:fs'
 import FileWriter from '../../infrastructure/FileWriter.mjs'
 import Metrics from '../../infrastructure/Metrics.mjs'
 import FileSystemImportManager from '../Uploads/FileSystemImportManager.mjs'
@@ -34,30 +35,34 @@ const RestoreManager = {
       version,
       pathname
     )
-    const basename = Path.basename(pathname)
-    let dirname = Path.dirname(pathname)
-    if (dirname === '.') {
-      // no directory
-      dirname = ''
-    }
-    const parentFolderId = await RestoreManager._findOrCreateFolder(
-      projectId,
-      dirname,
-      userId
-    )
-    const addEntityWithName = async name =>
-      await FileSystemImportManager.promises.addEntity(
-        userId,
+    try {
+      const basename = Path.basename(pathname)
+      let dirname = Path.dirname(pathname)
+      if (dirname === '.') {
+        // no directory
+        dirname = ''
+      }
+      const parentFolderId = await RestoreManager._findOrCreateFolder(
         projectId,
-        parentFolderId,
-        name,
-        fsPath,
-        false
+        dirname,
+        userId
       )
-    return await RestoreManager._addEntityWithUniqueName(
-      addEntityWithName,
-      basename
-    )
+      const addEntityWithName = async name =>
+        await FileSystemImportManager.promises.addEntity(
+          userId,
+          projectId,
+          parentFolderId,
+          name,
+          fsPath,
+          false
+        )
+      return await RestoreManager._addEntityWithUniqueName(
+        addEntityWithName,
+        basename
+      )
+    } finally {
+      await fs.promises.unlink(fsPath).catch(() => {})
+    }
   },
 
   async revertFile(userId, projectId, version, pathname, options = {}) {
@@ -188,20 +193,24 @@ const RestoreManager = {
         historyId,
         snapshotFile
       )
-      const newFile = await EditorController.promises.upsertFile(
-        projectId,
-        parentFolderId,
-        basename,
-        fsPath,
-        fileMetadata,
-        options.origin,
-        userId
-      )
+      try {
+        const newFile = await EditorController.promises.upsertFile(
+          projectId,
+          parentFolderId,
+          basename,
+          fsPath,
+          fileMetadata,
+          options.origin,
+          userId
+        )
 
-      endTimer({ type: 'file' })
-      return {
-        _id: newFile._id,
-        type: 'file',
+        endTimer({ type: 'file' })
+        return {
+          _id: newFile._id,
+          type: 'file',
+        }
+      } finally {
+        await fs.promises.unlink(fsPath).catch(() => {})
       }
     }
 
@@ -428,13 +437,16 @@ const RestoreManager = {
     const url = `${
       Settings.apis.project_history.url
     }/project/${projectId}/version/${version}/${encodeURIComponent(pathname)}`
-    return await FileWriter.promises.writeUrlToDisk(projectId, url)
+    return await FileWriter.promises.writeUrlToDisk(
+      projectId + '_restore-manager-version',
+      url
+    )
   },
 
   async _writeSnapshotFileToDisk(historyId, file) {
     if (file.isEditable()) {
       return await FileWriter.promises.writeContentToDisk(
-        historyId,
+        historyId + '_restore-manager-editable',
         file.getContent()
       )
     } else {
@@ -443,7 +455,10 @@ const RestoreManager = {
         historyId,
         hash
       )
-      return await FileWriter.promises.writeStreamToDisk(historyId, stream)
+      return await FileWriter.promises.writeStreamToDisk(
+        historyId + '_restore-manager-blob',
+        stream
+      )
     }
   },
 }

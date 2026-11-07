@@ -1,8 +1,15 @@
+import crypto from 'node:crypto'
 import Settings from '@overleaf/settings'
 import UserCreator from '../../../../../app/src/Features/User/UserCreator.mjs'
 import { ParallelLoginError } from '../../../../../app/src/Features/Authentication/AuthenticationErrors.mjs'
 import SAMLIdentityManager from '../../../../../app/src/Features/User/SAMLIdentityManager.mjs'
 import { User } from '../../../../../app/src/models/User.mjs'
+import { firstValue } from '../../../utils.mjs'
+import {
+  accountBeforeLogin,
+  logLoginChanges,
+  logLoginEntry,
+} from '../../../auditLog.mjs'
 
 const SAMLAuthenticationManager = {
   async findOrCreateUser(profile, auditLog) {
@@ -19,8 +26,8 @@ const SAMLAuthenticationManager = {
     const email = Array.isArray(profile[attEmail])
                     ? profile[attEmail][0].toLowerCase()
                     : profile[attEmail].toLowerCase()
-    const firstName = attFirstName ? profile[attFirstName] : ""
-    const lastName  = attLastName  ? profile[attLastName] : email
+    const firstName = attFirstName ? firstValue(profile[attFirstName]) : ""
+    const lastName  = attLastName  ? firstValue(profile[attLastName]) : email
     let isAdmin = false
     if (attAdmin && valAdmin) {
       isAdmin = (Array.isArray(profile[attAdmin]) ? profile[attAdmin].includes(valAdmin) :
@@ -43,8 +50,10 @@ const SAMLAuthenticationManager = {
             isAdmin: isAdmin,
             holdingAccount: false,
             samlIdentifiers: [{ providerId: providerId }],
+            analyticsId: crypto.randomUUID(),
           }
         )
+        await logLoginEntry(user, 'create-account', auditLog)
       }
       // cannot use SAMLIdentityManager.linkAccounts because affilations service is not there
       await User.updateOne(
@@ -59,7 +68,12 @@ const SAMLAuthenticationManager = {
           },
         }
       ).exec()
+      await logLoginEntry(user, 'link-institution-sso', auditLog, {
+        providerId,
+        externalUserId,
+      })
     }
+    const before = accountBeforeLogin(user)
     let userDetails = updateUserDetailsOnLogin ? { first_name : firstName, last_name: lastName } : {}
     if (attAdmin && valAdmin) {
       user.isAdmin = isAdmin
@@ -76,6 +90,10 @@ const SAMLAuthenticationManager = {
     if (result.modifiedCount !== 1) {
       throw new ParallelLoginError()
     }
+    if (before.hasPassword) {
+      await logLoginEntry(user, 'remove-password', auditLog)
+    }
+    await logLoginChanges(user, before, userDetails, auditLog)
     return user
   },
 }

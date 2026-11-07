@@ -2,9 +2,14 @@ import { expect } from 'chai'
 import { screen, within } from '@testing-library/react'
 import SuccessfulSubscription from '../../../../../../frontend/js/features/subscription/components/successful-subscription/successful-subscription'
 import { renderWithSubscriptionDashContext } from '../../helpers/render-with-subscription-dash-context'
-import { annualActiveSubscription } from '../../fixtures/subscriptions'
+import {
+  annualActiveSubscription,
+  annualActiveSubscriptionEuro,
+  annualActiveSubscriptionPro,
+} from '../../fixtures/subscriptions'
 import { ExposedSettings } from '../../../../../../types/exposed-settings'
 import { UserProvider } from '@/shared/context/user-context'
+import { formatPaymentDateTime } from '@/features/subscription/util/payment-dates'
 
 describe('successful subscription page', function () {
   it('renders the invoices link', function () {
@@ -76,12 +81,110 @@ describe('successful subscription page', function () {
       name: /Overleaf’s features/i,
     })
     expect(helpLink.getAttribute('href')).to.equal(
-      '/learn/how-to/Overleaf_premium_features'
+      'https://docs.overleaf.com/getting-started/free-and-premium-plans/premium-features'
     )
 
     const backToYourProjectsLink = screen.getByRole('link', {
       name: /back to your projects/i,
     })
     expect(backToYourProjectsLink.getAttribute('href')).to.equal('/project')
+  })
+
+  describe('upgrade variant', function () {
+    it('renders the upgrade success page when isUpgrade is true', function () {
+      renderWithSubscriptionDashContext(
+        <UserProvider>
+          <SuccessfulSubscription />
+        </UserProvider>,
+        {
+          metaTags: [
+            {
+              name: 'ol-ExposedSettings',
+              value: {
+                adminEmail: 'foo@example.com',
+              } as ExposedSettings,
+            },
+            { name: 'ol-subscription', value: annualActiveSubscriptionPro },
+            { name: 'ol-isUpgrade', value: true },
+          ],
+        }
+      )
+
+      screen.getByRole('heading', { name: /welcome to pro/i })
+      const alert = screen.getByRole('alert')
+      within(alert).getByText(/you.ve upgraded your subscription/i)
+      const manageLink = within(alert).getByRole('link', {
+        name: /manage subscription/i,
+      })
+      expect(manageLink.getAttribute('href')).to.equal('/user/subscription')
+
+      expect(
+        screen
+          .getByText(/the next payment of/i)
+          .textContent?.replace(/\xA0/g, ' ')
+      ).to.equal(
+        `The next payment of ${annualActiveSubscriptionPro.payment.displayPrice} will be collected on ${formatPaymentDateTime(annualActiveSubscriptionPro.payment.periodEnd)}.`
+      )
+      screen.getByText(/taxes may be added, depending on your billing address/i)
+
+      screen.getByText(/full access to every AI tool/i, { exact: false })
+
+      const aiFeaturesLink = screen.getByRole('link', {
+        name: /Overleaf.s AI features/i,
+      })
+      expect(aiFeaturesLink.getAttribute('href')).to.equal(
+        'https://docs.overleaf.com/integrations-and-add-ons/ai-features'
+      )
+      expect(aiFeaturesLink.getAttribute('target')).to.equal('_blank')
+      expect(aiFeaturesLink.getAttribute('rel')).to.equal('noopener noreferrer')
+
+      const backLink = screen.getByRole('link', {
+        name: /back to your projects/i,
+      })
+      expect(backLink.getAttribute('href')).to.equal('/project')
+    })
+
+    it('renders the standard success page when isUpgrade is not set', function () {
+      renderWithSubscriptionDashContext(
+        <UserProvider>
+          <SuccessfulSubscription />
+        </UserProvider>,
+        {
+          metaTags: [
+            {
+              name: 'ol-ExposedSettings',
+              value: {
+                adminEmail: 'foo@example.com',
+              } as ExposedSettings,
+            },
+            { name: 'ol-subscription', value: annualActiveSubscription },
+          ],
+        }
+      )
+
+      screen.getByRole('heading', { name: /thanks for subscribing/i })
+    })
+
+    it('hides tax disclaimer when tax is already included in the price', function () {
+      renderWithSubscriptionDashContext(
+        <UserProvider>
+          <SuccessfulSubscription />
+        </UserProvider>,
+        {
+          metaTags: [
+            {
+              name: 'ol-ExposedSettings',
+              value: {
+                adminEmail: 'foo@example.com',
+              } as ExposedSettings,
+            },
+            { name: 'ol-subscription', value: annualActiveSubscriptionEuro },
+            { name: 'ol-isUpgrade', value: true },
+          ],
+        }
+      )
+
+      expect(screen.queryByText(/taxes may be added/i)).to.be.null
+    })
   })
 })

@@ -1,8 +1,8 @@
-const path = require('path')
+const path = require('node:path')
 const { globSync } = require('glob')
 const webpack = require('webpack')
 const CopyPlugin = require('copy-webpack-plugin')
-const WebpackAssetsManifest = require('webpack-assets-manifest')
+const { WebpackAssetsManifest } = require('webpack-assets-manifest')
 const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 const {
   LezerGrammarCompilerPlugin,
@@ -23,6 +23,7 @@ const entryPoints = {
   'main-style': './frontend/stylesheets/main-style.scss',
   tracking: './frontend/js/infrastructure/tracking.ts',
   'linkedin-insight': './frontend/js/infrastructure/linkedin-insight.ts',
+  highlight: './frontend/js/highlight.js',
 }
 
 // Add entrypoints for each "page"
@@ -50,18 +51,18 @@ globSync(
 })
 
 function getModuleDirectory(moduleName) {
-  const entrypointPath = require.resolve(moduleName)
-  const suffix = `node_modules/${moduleName}`
-  const idx = entrypointPath.indexOf(suffix)
-  if (idx === -1) {
-    throw new Error(`could not find Node module: ${moduleName}`)
+  try {
+    return path.dirname(require.resolve(`${moduleName}/package.json`))
+  } catch (err) {
+    throw new Error(`could not find Node module: ${moduleName}`, { cause: err })
   }
-  return entrypointPath.slice(0, idx + suffix.length)
 }
 
 const mathjaxDir = getModuleDirectory('mathjax')
 const pdfjsDir = getModuleDirectory('pdfjs-dist')
 const dictionariesDir = getModuleDirectory('@overleaf/dictionaries')
+const pyodideDir = getModuleDirectory('pyodide')
+const highlightJsDir = getModuleDirectory('highlight.js')
 
 const vendorDir = path.join(__dirname, 'frontend/js/vendor')
 
@@ -96,10 +97,6 @@ module.exports = {
 
     // By default write into js directory
     filename: 'js/[name]-[contenthash].js',
-
-    // Output as UMD bundle (allows main JS to import with CJS, AMD or global
-    // style code bundles
-    libraryTarget: 'umd',
   },
 
   optimization: {
@@ -126,8 +123,8 @@ module.exports = {
           {
             loader: 'babel-loader',
             options: {
-              cacheDirectory: true,
-              configFile: path.join(__dirname, './babel.config.json'),
+              cacheDirectory: path.join(__dirname, '.cache/babel-loader'),
+              configFile: path.join(__dirname, './babel.config.cjs'),
             },
           },
           {
@@ -145,13 +142,14 @@ module.exports = {
       {
         // Pass application JS/TS files through babel-loader,
         // transpiling to targets defined in browserslist
-        test: /\.([jt]sx?|[cm]js)$/,
+        test: /\.([jt]sx?|[cm][jt]s)$/,
         // Only compile application files and specific dependencies
         // (other npm and vendored dependencies must be in ES5 already)
         exclude: [
           /node_modules\/(?!(react-dnd|chart\.js|@uppy|@writefull|pdfjs-dist|react-resizable-panels)\/)/,
           vendorDir,
           path.resolve(__dirname, 'modules/writefull/frontend/js/integration'),
+          /ort-wasm-simd-threaded\.mjs$/,
         ],
         use: [
           {
@@ -159,8 +157,8 @@ module.exports = {
             options: {
               // Configure babel-loader to cache compiled output so that
               // subsequent compile runs are much faster
-              cacheDirectory: true,
-              configFile: path.join(__dirname, './babel.config.json'),
+              cacheDirectory: path.join(__dirname, '.cache/babel-loader'),
+              configFile: path.join(__dirname, './babel.config.cjs'),
               plugins: [
                 process.env.REACT_REFRESH_ENABLED === 'true' &&
                   'react-refresh/babel',
@@ -172,6 +170,22 @@ module.exports = {
       },
       {
         test: /\.wasm$/,
+        type: 'asset/resource',
+        generator: {
+          filename: 'js/[name]-[contenthash][ext]',
+        },
+      },
+      {
+        // ONNX Runtime model files (symbol-recognition)
+        test: /\.ort$/,
+        type: 'asset/resource',
+        generator: {
+          filename: 'js/[name]-[contenthash][ext]',
+        },
+      },
+      {
+        // The reduced onnxruntime-web wasm glue (symbol-recognition)
+        test: /ort-wasm-simd-threaded\.mjs$/,
         type: 'asset/resource',
         generator: {
           filename: 'js/[name]-[contenthash][ext]',
@@ -310,18 +324,34 @@ module.exports = {
     ],
   },
   resolve: {
+    tsconfig: path.resolve(__dirname, 'tsconfig.json'),
     alias: {
-      // custom prefixes for import paths
-      '@': path.resolve(__dirname, './frontend/js/'),
-      '@modules': path.resolve(__dirname, './modules/'),
-      '@ol-types': path.resolve(__dirname, './types/'),
-      '@wf': path.resolve(
-        __dirname,
-        './modules/writefull/frontend/js/integration/src/'
-      ),
+      // Ensure all packages use the same jQuery instance (prevents duplicate
+      // copies from Yarn hoisting breaking jQuery plugins like daterangepicker)
+      jquery: require.resolve('jquery'),
+      // Under Yarn PnP, babel-injected core-js polyfill imports cannot be
+      // resolved from third-party packages (e.g. @uppy, pdfjs-dist) because
+      // they don't declare core-js as a dependency. Alias to the web
+      // workspace's copy so all packages can resolve it.
+      'core-js': getModuleDirectory('core-js'),
+      // writefull's tsconfig uses importHelpers: true, which emits tslib
+      // imports that must be resolvable from the web workspace.
+      tslib: getModuleDirectory('tslib'),
+      // Under PnP, packages like cypress/react that import react/react-dom
+      // can't resolve them from their own scope. Alias to web's copies.
+      react: getModuleDirectory('react'),
+      'react-dom': getModuleDirectory('react-dom'),
+      // ai-sdk packages declare zod as a peer dep but PnP can't resolve it
+      // from their scope in the Docker build.
+      zod: getModuleDirectory('zod'),
     },
     // symlinks: false, // enable this while using `npm link`
     extensions: ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.json'],
+    // Resolve onnxruntime-web to the variant that doesn't embed
+    // `new URL(...)` references to its own wasm files, as the wasm is
+    // loaded from modules/symbol-recognition via `ort.env.wasm.wasmPaths`
+    // ('...' keeps the default condition names)
+    conditionNames: ['onnxruntime-web-use-extern-wasm', '...'],
     fallback: {
       events: require.resolve('events'),
       // for react-dnd + React 17
@@ -370,37 +400,25 @@ module.exports = {
         // Copy the required files for loading MathJax from MathJax NPM package
         // https://www.npmjs.com/package/mathjax#user-content-hosting-your-own-copy-of-the-mathjax-components
         {
-          from: 'es5/tex-svg-full.js',
-          to: `js/libs/mathjax-${PackageVersions.version.mathjax}/es5`,
-          toType: 'dir',
-          context: mathjaxDir,
-        },
-        {
-          from: 'es5/input/tex/extensions/**/*.js',
+          from: 'tex-svg.js',
           to: `js/libs/mathjax-${PackageVersions.version.mathjax}`,
           toType: 'dir',
           context: mathjaxDir,
         },
         {
-          from: 'es5/ui/**/*',
+          from: 'input/tex/extensions/**/*.js',
           to: `js/libs/mathjax-${PackageVersions.version.mathjax}`,
           toType: 'dir',
           context: mathjaxDir,
         },
         {
-          from: 'es5/a11y/**/*',
+          from: 'ui/**/*',
           to: `js/libs/mathjax-${PackageVersions.version.mathjax}`,
           toType: 'dir',
           context: mathjaxDir,
         },
         {
-          from: 'es5/input/mml.js',
-          to: `js/libs/mathjax-${PackageVersions.version.mathjax}/es5/input`,
-          toType: 'dir',
-          context: mathjaxDir,
-        },
-        {
-          from: 'es5/sre/**/*',
+          from: 'sre/**/*',
           to: `js/libs/mathjax-${PackageVersions.version.mathjax}`,
           toType: 'dir',
           context: mathjaxDir,
@@ -410,6 +428,46 @@ module.exports = {
           to: `js/dictionaries/${PackageVersions.version.dictionaries}`,
           toType: 'dir',
           context: `${dictionariesDir}/dictionaries`,
+        },
+        // Copy Pyodide runtime assets from the npm package so the loader is
+        // always available. Python package wheels are fetched separately by
+        // scripts/fetch-pyodide-packages.mjs into the same directory on disk.
+        {
+          from: 'pyodide.mjs',
+          to: 'js/libs/pyodide',
+          toType: 'dir',
+          context: pyodideDir,
+        },
+        {
+          from: 'pyodide.asm.js',
+          to: 'js/libs/pyodide',
+          toType: 'dir',
+          context: pyodideDir,
+        },
+        {
+          from: 'pyodide.asm.wasm',
+          to: 'js/libs/pyodide',
+          toType: 'dir',
+          context: pyodideDir,
+        },
+        {
+          from: 'python_stdlib.zip',
+          to: 'js/libs/pyodide',
+          toType: 'dir',
+          context: pyodideDir,
+        },
+        {
+          from: 'pyodide-lock.json',
+          to: 'js/libs/pyodide',
+          toType: 'dir',
+          context: pyodideDir,
+        },
+        // Copy highlight.js stylesheet for the Open in Overleaf documentation page
+        {
+          from: 'styles/github.min.css',
+          to: 'js/libs/highlight.js/github.min.css',
+          toType: 'file',
+          context: highlightJsDir,
         },
         // Copy CMap files (used to provide support for non-Latin characters),
         // wasm, ICC profiles, fonts and images from pdfjs-dist package to build output.
@@ -438,7 +496,7 @@ module.exports = {
           to: 'images/pdfjs-dist',
           context: pdfjsDir,
         },
-      ],
+      ].filter(item => !!item),
     }),
   ],
 }

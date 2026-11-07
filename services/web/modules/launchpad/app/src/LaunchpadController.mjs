@@ -2,6 +2,7 @@ import OError from '@overleaf/o-error'
 import { expressify } from '@overleaf/promise-utils'
 import Settings from '@overleaf/settings'
 import Path from 'node:path'
+import crypto from 'node:crypto'
 import logger from '@overleaf/logger'
 import UserRegistrationHandler from '../../../../app/src/Features/User/UserRegistrationHandler.mjs'
 import EmailHandler from '../../../../app/src/Features/Email/EmailHandler.mjs'
@@ -11,6 +12,7 @@ import AuthenticationManager from '../../../../app/src/Features/Authentication/A
 import AuthenticationController from '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
 import AdminAuthorizationHelper from '../../../../app/src/Features/Helpers/AdminAuthorizationHelper.mjs'
+import { z, parseReq } from '../../../../app/src/infrastructure/Validation.mjs'
 
 const { hasAdminAccess } = AdminAuthorizationHelper
 
@@ -76,8 +78,18 @@ async function launchpadPage(req, res) {
   }
 }
 
+const sendTestEmailSchema = z.object({
+  // no hidden _csrf field: this form has no such input (see
+  // views/launchpad.pug), the CSRF token travels only via the
+  // X-Csrf-Token header set by the JSON fetch helper.
+  body: z.strictObject({
+    email: z.string().optional(),
+  }),
+})
+
 async function sendTestEmail(req, res) {
-  const { email } = req.body
+  const { body } = parseReq(req, sendTestEmailSchema, { logOnly: true })
+  const { email } = body
   if (!email) {
     logger.debug({}, 'no email address supplied')
     return res.status(400).json({
@@ -98,6 +110,12 @@ async function sendTestEmail(req, res) {
   }
 }
 
+const registerExternalAuthAdminSchema = z.object({
+  body: z.strictObject({
+    email: z.string().optional(),
+  }),
+})
+
 function registerExternalAuthAdmin(authMethod) {
   return expressify(async function (req, res) {
     if (getAuthMethod() !== authMethod) {
@@ -107,7 +125,10 @@ function registerExternalAuthAdmin(authMethod) {
       )
       return res.sendStatus(403)
     }
-    const { email } = req.body
+    const { body } = parseReq(req, registerExternalAuthAdminSchema, {
+      logOnly: true,
+    })
+    const { email } = body
     if (!email) {
       logger.debug({ authMethod }, 'no email supplied, disallow')
       return res.sendStatus(400)
@@ -122,20 +143,21 @@ function registerExternalAuthAdmin(authMethod) {
       return res.sendStatus(403)
     }
 
-    const body = {
+    const userDetails = {
       email,
-      password: 'password_here',
+      password: crypto.randomBytes(32).toString('hex'),
       first_name: email,
       last_name: '',
+      analyticsId: crypto.randomUUID(),
     }
     logger.debug(
-      { body, authMethod },
+      { email, authMethod },
       'creating admin account for specified external-auth user'
     )
 
     let user
     try {
-      user = await UserRegistrationHandler.promises.registerNewUser(body)
+      user = await UserRegistrationHandler.promises.registerNewUser(userDetails)
     } catch (err) {
       OError.tag(err, 'error with registerNewUser', {
         email,
@@ -173,9 +195,16 @@ function registerExternalAuthAdmin(authMethod) {
   })
 }
 
+const registerAdminSchema = z.object({
+  body: z.strictObject({
+    email: z.string().optional(),
+    password: z.string().optional(),
+  }),
+})
+
 async function registerAdmin(req, res) {
-  const { email } = req.body
-  const { password } = req.body
+  const { body } = parseReq(req, registerAdminSchema, { logOnly: true })
+  const { email, password } = body
   if (!email || !password) {
     logger.debug({}, 'must supply both email and password, disallow')
     return res.sendStatus(400)
@@ -185,10 +214,7 @@ async function registerAdmin(req, res) {
   const exists = await _atLeastOneAdminExists()
 
   if (exists) {
-    logger.debug(
-      { email: req.body.email },
-      'already have at least one admin user, disallow'
-    )
+    logger.debug({ email }, 'already have at least one admin user, disallow')
     return res.status(403).json({
       message: { type: 'error', text: 'admin user already exists' },
     })
@@ -211,9 +237,10 @@ async function registerAdmin(req, res) {
       .json({ message: { type: 'error', text: invalidPassword.message } })
   }
 
-  const body = { email, password }
+  const userDetails = { email, password, analyticsId: crypto.randomUUID() }
 
-  const user = await UserRegistrationHandler.promises.registerNewUser(body)
+  const user =
+    await UserRegistrationHandler.promises.registerNewUser(userDetails)
 
   logger.debug({ userId: user._id }, 'making user an admin')
 

@@ -1,5 +1,8 @@
 extends ../layout-react
 
+block vars
+	- isWebsiteRedesign = true
+
 block entrypointVar
 	- entrypoint = 'pages/user/subscription/dashboard'
 
@@ -44,7 +47,6 @@ block append meta
 		content=currentInstitutionsWithLicence
 	)
 	meta(name='ol-hasSubscription' data-type='boolean' content=hasSubscription)
-	meta(name='ol-fromPlansPage' data-type='boolean' content=fromPlansPage)
 	meta(
 		name='ol-subscriptionPaymentErrorCode'
 		data-type='string'
@@ -81,6 +83,11 @@ block append meta
 		data-type='string'
 		content=aiAssistViaWritefullSource
 	)
+	meta(
+		name='ol-isManagedGroupAdmin'
+		data-type='boolean'
+		content=isManagedGroupAdmin
+	)
 	meta(name='ol-user' data-type='json' content=user)
 	if personalSubscription && personalSubscription.payment
 		meta(name='ol-recurlyApiKey' content=settings.apis.recurly.publicKey)
@@ -91,5 +98,5 @@ block append meta
 		meta(name='ol-groupPlans' data-type='json' content=groupPlans)
 
 block content
-	main#main-content.content.content-alt
+	main#main-content.content
 		#subscription-dashboard-root

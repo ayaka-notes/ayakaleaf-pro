@@ -1,6 +1,4 @@
 import { ChangeEventHandler, useCallback, useRef, useEffect } from 'react'
-import OLFormGroup from '@/shared/components/ol/ol-form-group'
-import OLFormLabel from '@/shared/components/ol/ol-form-label'
 import OLFormSelect from '@/shared/components/ol/ol-form-select'
 
 type PossibleValue = string | number | boolean

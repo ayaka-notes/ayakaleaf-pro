@@ -1,6 +1,5 @@
 export CHAT_HOST=127.0.0.1
 export CLSI_HOST=127.0.0.1
-export CONTACTS_HOST=127.0.0.1
 export DOCSTORE_HOST=127.0.0.1
 export DOCUMENT_UPDATER_HOST=127.0.0.1
 export DOCUPDATER_HOST=127.0.0.1
@@ -17,6 +16,6 @@ export WEB_API_HOST=127.0.0.1
 # we need to set the TEXLIVE_IMAGE_USER to www-data so that the
 # sandboxed compiles container can access the files 
 # created by the web container.
-if [ "$SANDBOXED_COMPILES_SIBLING_CONTAINERS" = "true" ]; then
+if [ "${SANDBOXED_COMPILES_SIBLING_CONTAINERS:-}" = "true" ]; then
   export TEXLIVE_IMAGE_USER=www-data
 fi

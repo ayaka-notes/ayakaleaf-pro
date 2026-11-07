@@ -35,7 +35,7 @@ const SettingsTemplateCategory: React.FC<SettingsTemplateCategoryProps> = ({
   return (
     <SettingsMenuSelect
       name="category"
-      label={`${t('category')}:`}
+      label={`${t('categories')}:`}
       value={value}
       onChange={onChange}
       options={options}

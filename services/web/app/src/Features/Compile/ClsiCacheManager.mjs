@@ -1,3 +1,4 @@
+import Path from 'node:path'
 import _ from 'lodash'
 import { NotFoundError, ResourceGoneError } from '../Errors/Errors.js'
 import ClsiCacheHandler from './ClsiCacheHandler.mjs'
@@ -27,17 +28,21 @@ const ClsiCookieManager = ClsiCookieManagerFactory(
  * @param userId
  * @param filename
  * @param signal
- * @return {Promise<{internal: {location: string}, external: {zone: string, shard: string, isUpToDate: boolean, lastUpdated: Date, size: number, allFiles: string[]}}>}
+ * @return {Promise<{internal: {location: string, imageName: string, compiler: string}, external: {zone: string, shard: string, isUpToDate: boolean, lastUpdated: Date, size: number, allFiles: string[]}}>}
  */
 async function getLatestBuildFromCache(projectId, userId, filename, signal) {
   const [
     { location, lastModified: lastCompiled, zone, shard, size, allFiles },
     lastUpdatedInRedis,
-    { lastUpdated: lastUpdatedInMongo },
+    { lastUpdated: lastUpdatedInMongo, imageName: fullImageName, compiler },
   ] = await Promise.all([
     ClsiCacheHandler.getLatestOutputFile(projectId, userId, filename, signal),
     DocumentUpdaterHandler.promises.getProjectLastUpdatedAt(projectId),
-    ProjectGetter.promises.getProject(projectId, { lastUpdated: 1 }),
+    ProjectGetter.promises.getProject(projectId, {
+      lastUpdated: 1,
+      imageName: 1,
+      compiler: 1,
+    }),
   ])
 
   const lastUpdated =
@@ -45,16 +50,22 @@ async function getLatestBuildFromCache(projectId, userId, filename, signal) {
       ? lastUpdatedInRedis
       : lastUpdatedInMongo
   const isUpToDate = lastCompiled >= lastUpdated
+  // fullImageName is unset for projects outside SaaS (no
+  // Settings.currentImageName to default from on creation)
+  const imageName = fullImageName ? Path.basename(fullImageName) : undefined
 
   return {
     internal: {
       location,
+      imageName,
+      compiler,
     },
     external: {
       isUpToDate,
       lastUpdated,
       size,
-      allFiles,
+      // Hide history snapshot from frontend
+      allFiles: allFiles.filter(f => f !== 'history-resync.json.gz'),
       shard,
       zone,
     },
@@ -80,7 +91,7 @@ async function getLatestCompileResult(projectId, userId) {
 
 async function tryGetLatestCompileResult(projectId, userId, signal) {
   const {
-    internal: { location: metaLocation },
+    internal: { location: metaLocation, imageName, compiler },
     external: {
       isUpToDate,
       allFiles,
@@ -126,6 +137,10 @@ async function tryGetLatestCompileResult(projectId, userId, signal) {
     stats,
     timings,
   } = meta
+
+  if (options.imageName !== imageName || options.compiler !== compiler) {
+    throw new ResourceGoneError()
+  }
 
   let baseURL = `/project/${projectId}`
   if (userId) {
@@ -236,32 +251,56 @@ async function createTemplateClsiCache({
   docEntries,
 }) {
   const compileGroup = Settings.defaultFeatures.compileGroup
-  const compileBackendClass = Settings.apis.clsi.submissionBackendClass
+  const compileBackendClass = Settings.apis.clsi.submissionCompileBackendClass
   const submissionId = new ObjectId().toString()
   const editorId = Crypto.randomUUID()
+  const historyId = project.overleaf.history.id
+  const rawSnapshot = {
+    files: Object.fromEntries(
+      docEntries
+        .map(doc => [doc.path.replace(/^\//, ''), { content: doc.docLines }])
+        .concat(
+          fileEntries.map(file => [
+            file.path.replace(/^\//, ''),
+            { hash: file.file.hash, byteLength: 0 /* stub */ },
+          ])
+        )
+    ),
+  }
+  const globalBlobs = new Set()
+  ClsiManager.collectGlobalBlobsFromRawSnapshot(rawSnapshot, globalBlobs)
+  let rootResourcePath
+  for (const doc of docEntries) {
+    if (project.rootDoc_id.equals(doc.doc._id)) {
+      rootResourcePath = doc.path.replace(/^\//, '')
+      break
+    }
+  }
   const options = {
     editorId,
     compileGroup,
     compileBackendClass,
     timeout: 60,
-    syncType: 'full',
+    syncType: 'history-full',
     compileFromClsiCache: false,
     populateClsiCache: true,
     enablePdfCaching: false,
     pdfCachingMinChunkSize: 0,
     metricsPath: 'clsi-cache-template',
+    rootResourcePath,
+    historyId,
+    rawSnapshot,
+    rawChangeOperations: [],
+    globalBlobs: Array.from(globalBlobs),
+    // Trigger a full sync
+    baseHistoryVersion: Date.now(),
   }
   const req = ClsiManager._finaliseRequest(
     submissionId,
     options,
     project,
-    Object.fromEntries(
-      docEntries.map(doc => [
-        doc.path,
-        { _id: doc.doc._id, lines: doc.docLines.split('\n') },
-      ])
-    ),
-    Object.fromEntries(fileEntries.map(file => [file.path, file.file]))
+    [],
+    []
   )
   let clsiServerId = await ClsiCookieManager.promises.getServerId(
     submissionId,

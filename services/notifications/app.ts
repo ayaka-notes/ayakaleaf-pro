@@ -9,12 +9,10 @@ import express, {
   type ErrorRequestHandler,
   type NextFunction,
 } from 'express'
-import methodOverride from 'method-override'
 import { mongoClient } from './app/js/mongodb.js'
 import NotificationsController from './app/js/NotificationsController.ts'
 import HealthCheckController from './app/js/HealthCheckController.ts'
-import { isZodErrorLike } from 'zod-validation-error'
-import { ParamsError } from '@overleaf/validation-tools'
+import { handleValidationError } from '@overleaf/validation-tools'
 
 const app = express()
 
@@ -23,7 +21,6 @@ logger.initialize('notifications')
 metrics.memory.monitor(logger)
 metrics.open_sockets.monitor()
 
-app.use(methodOverride())
 app.use(express.json())
 app.use(metrics.http.monitor(logger))
 
@@ -49,6 +46,8 @@ app.get('/health_check', HealthCheckController.check)
 
 app.get('*', (req, res) => res.sendStatus(404))
 
+app.use(handleValidationError)
+
 const handleApiError: ErrorRequestHandler = (
   err: Error,
   req: Request,
@@ -56,16 +55,8 @@ const handleApiError: ErrorRequestHandler = (
   next: NextFunction
 ) => {
   req.logger.addFields({ err })
-  if (err instanceof ParamsError) {
-    req.logger.setLevel('warn')
-    res.sendStatus(404)
-  } else if (isZodErrorLike(err)) {
-    req.logger.setLevel('warn')
-    res.sendStatus(400)
-  } else {
-    req.logger.setLevel('error')
-    res.sendStatus(500)
-  }
+  req.logger.setLevel('error')
+  res.sendStatus(500)
 }
 
 app.use(handleApiError)

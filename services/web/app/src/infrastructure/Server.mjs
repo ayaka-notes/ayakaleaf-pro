@@ -14,7 +14,6 @@ import session from 'express-session'
 import CookieMetrics from './CookieMetrics.mjs'
 import CustomSessionStore from './CustomSessionStore.mjs'
 import bodyParser from './BodyParserWrapper.mjs'
-import methodOverride from 'method-override'
 import cookieParser from 'cookie-parser'
 import bearerTokenMiddleware from 'express-bearer-token'
 import passport from 'passport'
@@ -151,7 +150,6 @@ app.use(metrics.http.monitor(logger))
 await Modules.applyMiddleware(app, 'appMiddleware')
 app.use(bodyParser.urlencoded({ extended: true, limit: '2mb' }))
 app.use(bodyParser.json({ limit: Settings.max_json_request_size }))
-app.use(methodOverride())
 // add explicit name for telemetry
 app.use(bearerTokenMiddleware())
 
@@ -234,7 +232,6 @@ await Modules.applyNonCsrfRouter(webRouter, privateApiRouter, publicApiRouter)
 
 webRouter.csrf = new CsrfClass()
 webRouter.use(webRouter.csrf.middleware)
-webRouter.use(translations.i18nMiddleware)
 webRouter.use(translations.setLangBasedOnDomainMiddleware)
 
 if (Settings.cookieRollingSession) {

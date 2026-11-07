@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Usage: services/lib/make-tls DIR HOST...
+#
+# Writes a throwaway CA (ca.crt) and a certificate for the given host names
+# signed by it (tls.key, tls.crt) into DIR, for a mock that impersonates
+# those hosts. The suite points NODE_EXTRA_CA_CERTS at the CA.
+
+set -euo pipefail
+
+dir=$1
+shift
+san=$(printf 'DNS:%s,' "$@")
+
+mkdir -p "$dir"
+cd "$dir"
+openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj "/CN=e2e-mock-ca" \
+  -keyout ca.key -out ca.crt 2>/dev/null
+openssl req -newkey rsa:2048 -nodes -subj "/CN=$1" \
+  -keyout tls.key -out tls.csr 2>/dev/null
+openssl x509 -req -in tls.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 30 \
+  -extfile <(printf 'subjectAltName=%s\nbasicConstraints=CA:FALSE\n' "${san%,}") \
+  -out tls.crt 2>/dev/null
+chmod 644 tls.key tls.crt

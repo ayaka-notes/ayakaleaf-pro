@@ -11,17 +11,7 @@ const connectionPromise = mongoose.connect(
   Settings.mongo.url,
   Settings.mongo.options
 )
-
-connectionPromise
-  .then(mongooseInstance => {
-    Metrics.mongodb.monitor(mongooseInstance.connection.client)
-  })
-  .catch(error => {
-    logger.error(
-      { error },
-      'Failed to connect to MongoDB - cannot set up monitoring'
-    )
-  })
+Metrics.mongodb.monitor(mongoose.connection.client, 'mongoose')
 
 addConnectionDrainer('mongoose', async () => {
   await connectionPromise

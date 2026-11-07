@@ -4,7 +4,8 @@ import OLBadge from '@/shared/components/ol/ol-badge'
 import { postJSON } from '@/infrastructure/fetch-json'
 import OLButton from '@/shared/components/ol/ol-button'
 import getMeta from '@/utils/meta'
-import Notification from '../notification'
+import Notification from '@/shared/components/notification'
+import { LabsEnableButton } from '@/shared/components/labs/labs-enable-button'
 
 export type LabsExperimentWidgetProps = {
   logo: ReactNode
@@ -73,14 +74,14 @@ export function LabsExperimentWidget({
           <h3 className="h4">{title}</h3>
           {optedIn && <OLBadge bg="info">{t('enabled')}</OLBadge>}
         </div>
-        <p className="small">
+        <div className="small">
           {optedIn && optedInDescription ? optedInDescription : description}{' '}
           {helpPath && (
             <a href={helpPath} target="_blank" rel="noreferrer">
               {t('learn_more')}
             </a>
           )}
-        </p>
+        </div>
       </div>
       <div>
         {optedIn && feedbackLink && (
@@ -96,11 +97,11 @@ export function LabsExperimentWidget({
       </div>
       <div>
         {labsEnabled && (
-          <ActionButton
+          <LabsEnableButton
             optedIn={optedIn}
-            handleDisable={handleDisable}
-            handleEnable={handleEnable}
             disabled={disabled}
+            handleEnable={handleEnable}
+            handleDisable={handleDisable}
           />
         )}
       </div>
@@ -117,42 +118,6 @@ export function LabsExperimentWidget({
       )}
     </div>
   )
-}
-
-type ActionButtonProps = {
-  optedIn?: boolean
-  disabled?: boolean
-  handleEnable: () => void
-  handleDisable: () => void
-}
-
-function ActionButton({
-  optedIn,
-  disabled,
-  handleEnable,
-  handleDisable,
-}: ActionButtonProps) {
-  const { t } = useTranslation()
-
-  if (optedIn) {
-    return (
-      <OLButton variant="secondary" onClick={handleDisable}>
-        {t('disable')}
-      </OLButton>
-    )
-  } else if (disabled) {
-    return (
-      <OLButton variant="primary" disabled>
-        {t('enable')}
-      </OLButton>
-    )
-  } else {
-    return (
-      <OLButton variant="primary" onClick={handleEnable}>
-        {t('enable')}
-      </OLButton>
-    )
-  }
 }
 
 export default LabsExperimentWidget

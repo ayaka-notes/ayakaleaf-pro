@@ -94,6 +94,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
             level: SECTION_LEVEL,
             title: 'sec title',
             line: 2,
+            toLine: 2,
           },
           {
             from: 35,
@@ -101,6 +102,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
             level: SUB_SECTION_LEVEL,
             title: 'subsec title',
             line: 4,
+            toLine: 4,
           },
         ])
       })
@@ -127,6 +129,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
             level: SECTION_LEVEL,
             title: 'sec title 1',
             line: 2,
+            toLine: 2,
           },
           {
             from: 37,
@@ -134,6 +137,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
             level: SECTION_LEVEL,
             title: 'sec title 2',
             line: 4,
+            toLine: 4,
           },
         ])
       })
@@ -152,6 +156,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 16,
           title: 'title ',
           line: 1,
+          toLine: 1,
           level: SECTION_LEVEL,
         },
       ])
@@ -170,6 +175,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
             to: 17,
             title: 'title 1',
             line: 1,
+            toLine: 1,
             level: SECTION_LEVEL,
           },
         ])
@@ -189,6 +195,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
             to: 15,
             title: 'title',
             line: 1,
+            toLine: 1,
             level: SECTION_LEVEL,
           },
         ])
@@ -208,6 +215,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 15,
           title: 'title',
           line: 1,
+          toLine: 1,
           level: SECTION_LEVEL,
         },
         {
@@ -215,6 +223,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 37,
           title: 'subtitle',
           line: 2,
+          toLine: 2,
           level: SUB_SECTION_LEVEL,
         },
       ])
@@ -229,6 +238,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 15,
           title: 'title',
           line: 1,
+          toLine: 1,
           level: SECTION_LEVEL,
         },
         {
@@ -236,6 +246,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 38,
           title: 'subtitle',
           line: 3,
+          toLine: 3,
           level: SUB_SECTION_LEVEL,
         },
       ])
@@ -254,6 +265,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 15,
           title: 'title',
           line: 1,
+          toLine: 1,
           level: SECTION_LEVEL,
         },
       ])
@@ -282,6 +294,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 17,
           title: 'section',
           line: 1,
+          toLine: 1,
           level: SECTION_LEVEL,
         },
         {
@@ -289,6 +302,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 72,
           title: 'subsubsection',
           line: 3,
+          toLine: 3,
           level: SUB_SUB_SECTION_LEVEL,
         },
       ])
@@ -304,6 +318,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 17,
           title: 'section',
           line: 1,
+          toLine: 1,
           level: SECTION_LEVEL,
         },
         {
@@ -311,6 +326,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 41,
           title: 'subsection',
           line: 2,
+          toLine: 2,
           level: SUB_SECTION_LEVEL,
         },
         {
@@ -318,6 +334,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 71,
           title: 'subsubsection',
           line: 3,
+          toLine: 3,
           level: SUB_SUB_SECTION_LEVEL,
         },
       ])
@@ -343,6 +360,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 17,
           title: 'section',
           line: 1,
+          toLine: 1,
           level: SECTION_LEVEL,
         },
       ])
@@ -373,6 +391,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 11,
           title: 'book',
           line: 1,
+          toLine: 1,
           level: BOOK_LEVEL,
         },
         {
@@ -380,6 +399,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 23,
           title: 'part',
           line: 2,
+          toLine: 2,
           level: PART_LEVEL,
         },
         {
@@ -387,6 +407,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 41,
           title: 'chapter',
           line: 3,
+          toLine: 3,
           level: CHAPTER_LEVEL,
         },
         {
@@ -394,6 +415,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 59,
           title: 'section',
           line: 4,
+          toLine: 4,
           level: SECTION_LEVEL,
         },
         {
@@ -401,6 +423,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 83,
           title: 'subsection',
           line: 5,
+          toLine: 5,
           level: SUB_SECTION_LEVEL,
         },
         {
@@ -408,6 +431,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 113,
           title: 'subsubsection',
           line: 6,
+          toLine: 6,
           level: SUB_SUB_SECTION_LEVEL,
         },
         {
@@ -415,6 +439,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 135,
           title: 'paragraph',
           line: 7,
+          toLine: 7,
           level: PARAGRAPH_LEVEL,
         },
         {
@@ -422,6 +447,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 163,
           title: 'subparagraph',
           line: 8,
+          toLine: 8,
           level: SUB_PARAGRAPH_LEVEL,
         },
       ])
@@ -443,6 +469,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 30,
           title: 'section',
           line: 1,
+          toLine: 1,
           level: SECTION_LEVEL,
         },
       ])
@@ -466,6 +493,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 113,
           title: 'The function f(x) = x^2: Properties of x.',
           line: 1,
+          toLine: 1,
           level: SECTION_LEVEL,
         },
       ])
@@ -487,6 +515,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 22,
           title: 'test',
           line: 2,
+          toLine: 2,
           level: SECTION_LEVEL,
         },
         {
@@ -494,6 +523,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
           to: 41,
           title: 'test2',
           line: 3,
+          toLine: 3,
           level: SUB_SECTION_LEVEL,
         },
       ])
@@ -516,6 +546,7 @@ describe('CodeMirror LaTeX-FileOutline', function () {
             to: 28,
             title: 'frame title',
             line: 1,
+            toLine: 1,
             level: FRAME_LEVEL,
           },
         ])

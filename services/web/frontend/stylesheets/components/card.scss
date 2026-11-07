@@ -1,3 +1,30 @@
+%card-pattern-shared {
+  border-radius: var(--border-radius-medium);
+  color: var(--white);
+  background-size: cover;
+
+  h2 {
+    @include heading-lg;
+  }
+
+  p {
+    @include body-lg;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  p {
+    color: var(--white);
+  }
+
+  .card-body {
+    padding: var(--spacing-13);
+  }
+}
+
 .card {
   --bs-card-bg: var(--white);
   --bs-card-border-width: 0;
@@ -103,10 +130,9 @@
   }
 
   &.card-pattern {
-    border-radius: var(--border-radius-medium);
-    color: var(--white);
+    @extend %card-pattern-shared;
+
     text-align: center;
-    background-size: cover;
     background-image:
       linear-gradient(
         to right,
@@ -116,33 +142,11 @@
         rgba(0 0 0 / 40%) 100%
       ),
       url('../../../public/img/website-redesign/overleaf-pattern-purple.png');
-
-    h2 {
-      @include heading-lg;
-    }
-
-    p {
-      @include body-lg;
-    }
-
-    h1,
-    h2,
-    h3,
-    h4,
-    h5,
-    p {
-      color: var(--white);
-    }
-
-    .card-body {
-      padding: var(--spacing-13);
-    }
   }
 
   &.card-pattern-left-only {
-    border-radius: var(--border-radius-medium);
-    color: var(--white);
-    background-size: cover;
+    @extend %card-pattern-shared;
+
     background-image:
       linear-gradient(
         to right,
@@ -151,26 +155,23 @@
         var(--dark-jungle-green) 100%
       ),
       url('../../../public/img/website-redesign/overleaf-pattern-purple.png');
+  }
 
-    h2 {
-      @include heading-lg;
-    }
+  &.card-pattern-bottom {
+    @extend %card-pattern-shared;
 
-    p {
-      @include body-lg;
-    }
-
-    h1,
-    h2,
-    h3,
-    h4,
-    h5,
-    p {
-      color: var(--white);
-    }
+    text-align: center;
+    background-image:
+      linear-gradient(
+        to top,
+        rgba($dark-jungle-green, 0.75) 25%,
+        rgba($dark-jungle-green, 1) 50%
+      ),
+      url('../../../public/img/website-redesign/overleaf-pattern-purple.png');
 
     .card-body {
-      padding: var(--spacing-13);
+      color: var(--neutral-20);
+      padding: var(--spacing-11);
     }
   }
 
@@ -181,6 +182,10 @@
 
     .card-body {
       padding: var(--spacing-10);
+    }
+
+    .btn {
+      width: 100%;
     }
   }
 

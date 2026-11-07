@@ -1,4 +1,4 @@
-import { vi, expect } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import path from 'node:path'
 import sinon from 'sinon'
 import mongodb from 'mongodb-legacy'
@@ -41,10 +41,6 @@ describe('TokenAccessHandler', function () {
       Project: (ctx.Project = {}),
     }))
 
-    vi.doMock('@overleaf/metrics', () => ({
-      default: (ctx.Metrics = { inc: sinon.stub() }),
-    }))
-
     vi.doMock('@overleaf/settings', () => ({
       default: (ctx.settings = { disableLinkSharing: false }),
     }))
@@ -63,7 +59,7 @@ describe('TokenAccessHandler', function () {
       '../../../../app/src/Features/Analytics/AnalyticsManager',
       () => ({
         default: (ctx.Analytics = {
-          recordEventForUserInBackground: sinon.stub(),
+          recordEventForSession: sinon.stub(),
         }),
       })
     )
@@ -157,7 +153,8 @@ describe('TokenAccessHandler', function () {
         await ctx.TokenAccessHandler.promises.addReadOnlyUserToProject(
           ctx.userId,
           ctx.projectId,
-          ctx.project.owner_ref
+          ctx.project.owner_ref,
+          ctx.req.session
         )
         expect(ctx.Project.updateOne.callCount).to.equal(1)
         expect(
@@ -169,8 +166,8 @@ describe('TokenAccessHandler', function () {
           'tokenAccessReadOnly_refs'
         )
         sinon.assert.calledWith(
-          ctx.Analytics.recordEventForUserInBackground,
-          ctx.userId,
+          ctx.Analytics.recordEventForSession,
+          ctx.req.session,
           'project-joined',
           {
             mode: 'view',
@@ -520,7 +517,8 @@ describe('TokenAccessHandler', function () {
           ctx.TokenAccessHandler.promises.addReadOnlyUserToProject(
             ctx.userId,
             ctx.projectId,
-            ctx.project.owner_ref
+            ctx.project.owner_ref,
+            ctx.req.session
           )
         ).to.be.rejectedWith('link sharing is disabled')
         expect(ctx.Project.updateOne.callCount).to.equal(0)

@@ -7,8 +7,18 @@ import Settings from '@overleaf/settings'
 import logger from '@overleaf/logger'
 import Metrics from '@overleaf/metrics'
 import OError from '@overleaf/o-error'
-import { File, Range } from 'overleaf-editor-core'
-import { NeedFullProjectStructureResyncError, SyncError } from './Errors.js'
+import { File, Range, TextOperation } from 'overleaf-editor-core'
+import {
+  TooLongError,
+  UnprocessableError,
+} from 'overleaf-editor-core/lib/errors.js'
+import {
+  FileContentEmptyError,
+  NeedFullProjectStructureResyncError,
+  SYNC_ONGOING_ERROR_MESSAGE,
+  SyncError,
+  SyncOngoingError,
+} from './Errors.js'
 import { db, ObjectId } from './mongodb.js'
 import * as SnapshotManager from './SnapshotManager.js'
 import * as LockManager from './LockManager.js'
@@ -30,6 +40,8 @@ import { isInsert, isDelete } from './Utils.js'
  */
 const MAX_RESYNC_HISTORY_RECORDS = 100 // keep this many records of previous resyncs
 const EXPIRE_RESYNC_HISTORY_INTERVAL_MS = 90 * 24 * 3600 * 1000 // 90 days
+const SYNC_STUCK_TIMEOUT_MS = 4 * 60 * 60 * 1000 // 4 hours
+const MAX_STUCK_CLEAR_ATTEMPTS = 5
 
 const keys = Settings.redis.lock.key_schema
 
@@ -75,7 +87,7 @@ async function startHardResync(projectId, options = {}) {
         await clearResyncState(projectId)
         await RedisManager.promises.clearFirstOpTimestamp(projectId)
         await RedisManager.promises.destroyDocUpdatesQueue(projectId)
-        await startResyncWithoutLock(projectId, options)
+        await startResyncWithoutLock(projectId, { ...options, hard: true })
       }
     )
   } catch (error) {
@@ -91,12 +103,54 @@ async function startHardResync(projectId, options = {}) {
 async function startResyncWithoutLock(projectId, options) {
   await ErrorRecorder.promises.recordSyncStart(projectId)
 
-  const syncState = await _getResyncState(projectId)
+  const syncState = await getResyncState(projectId)
   if (syncState.isSyncOngoing()) {
-    throw new OError('sync ongoing')
+    const stuckDocPaths = Array.from(syncState.resyncDocContents)
+    const stuckClearCount = syncState.stuckClearCount
+
+    if (syncState.isSyncStuck()) {
+      if (syncState.isSyncPermanentlyStuck()) {
+        await _recordStuckClearInSyncState(projectId, stuckDocPaths)
+        Metrics.inc('project_history_sync_stuck_permanent')
+        // Log error only on first permanent-stuck detection to avoid spam
+        if (stuckClearCount === MAX_STUCK_CLEAR_ATTEMPTS) {
+          logger.error(
+            {
+              projectId,
+              stuckClearCount: stuckClearCount + 1,
+              stuckDocPaths,
+              resyncPendingSince: syncState.resyncPendingSince,
+            },
+            'sync permanently stuck — exceeded auto-clear limit'
+          )
+        }
+        throw new OError('sync permanently stuck')
+      }
+
+      logger.warn(
+        {
+          projectId,
+          stuckClearCount: stuckClearCount + 1,
+          stuckDocPaths,
+          resyncPendingSince: syncState.resyncPendingSince,
+        },
+        'sync stuck, clearing state and restarting'
+      )
+      Metrics.inc('project_history_sync_stuck_cleared')
+      await _recordStuckClearInSyncState(projectId, stuckDocPaths)
+    } else {
+      throw new SyncOngoingError(SYNC_ONGOING_ERROR_MESSAGE, {
+        projectId,
+        stuckClearCount: stuckClearCount + 1,
+        stuckDocPaths,
+        resyncPendingSince: syncState.resyncPendingSince,
+      })
+    }
   }
   syncState.setOrigin(options.origin || { kind: 'history-resync' })
   syncState.startProjectStructureSync()
+  syncState.hardResync = options.hard === true
+  syncState.recoverCorruptedFiles = options.recoverCorruptedFiles === true
 
   const webOpts = {}
   if (options.historyRangesMigration) {
@@ -109,7 +163,28 @@ async function startResyncWithoutLock(projectId, options) {
   await setResyncState(projectId, syncState)
 }
 
-async function _getResyncState(projectId) {
+/**
+ * @param {string} sourceProjectId
+ * @param {string} targetProjectId
+ * @return {Promise<void>}
+ */
+async function cloneResyncState(sourceProjectId, targetProjectId) {
+  const rawSyncState = await db.projectHistorySyncState.findOne(
+    { project_id: new ObjectId(sourceProjectId) },
+    { projection: { _id: 0, project_id: 0 } }
+  )
+  if (!rawSyncState) return
+  await db.projectHistorySyncState.insertOne({
+    ...rawSyncState,
+    project_id: new ObjectId(targetProjectId),
+  })
+}
+
+/**
+ * @param {string} projectId
+ * @return {Promise<SyncState>}
+ */
+async function getResyncState(projectId) {
   const rawSyncState = await db.projectHistorySyncState.findOne({
     project_id: new ObjectId(projectId.toString()),
   })
@@ -139,12 +214,19 @@ async function setResyncState(projectId, syncState) {
     // starting a new sync; prevent the entry expiring while sync is in ongoing
     update.$inc = { resyncCount: 1 }
     update.$unset = { expiresAt: true }
+    update.$min = { resyncPendingSince: new Date() }
   } else {
     // successful completion of existing sync; set the entry to expire in the
     // future
     update.$set.expiresAt = new Date(
       Date.now() + EXPIRE_RESYNC_HISTORY_INTERVAL_MS
     )
+    update.$unset = {
+      resyncPendingSince: 1,
+      stuckClearCount: 1,
+      lastStuckClearAt: 1,
+      lastStuckDocPaths: 1,
+    }
   }
 
   // apply the update
@@ -153,12 +235,34 @@ async function setResyncState(projectId, syncState) {
     update,
     { upsert: true }
   )
+
+  if (!syncState.isSyncOngoing()) {
+    await db.projects.updateOne(
+      { _id: new ObjectId(projectId) },
+      {
+        $max: {
+          'overleaf.history.lastResyncedAt': new Date(),
+        },
+      }
+    )
+  }
 }
 
 async function clearResyncState(projectId) {
   await db.projectHistorySyncState.deleteOne({
     project_id: new ObjectId(projectId.toString()),
   })
+}
+
+async function _recordStuckClearInSyncState(projectId, stuckDocPaths) {
+  await db.projectHistorySyncState.updateOne(
+    { project_id: new ObjectId(projectId) },
+    {
+      $inc: { stuckClearCount: 1 },
+      $set: { lastStuckClearAt: new Date(), lastStuckDocPaths: stuckDocPaths },
+      $unset: { resyncPendingSince: 1 },
+    }
+  )
 }
 
 /**
@@ -185,7 +289,7 @@ async function clearResyncStateIfAllAfter(projectId, date) {
 }
 
 async function skipUpdatesDuringSync(projectId, updates) {
-  const syncState = await _getResyncState(projectId)
+  const syncState = await getResyncState(projectId)
   if (!syncState.isSyncOngoing()) {
     logger.debug({ projectId }, 'not skipping updates: no resync in progress')
     // don't return syncState when unchanged
@@ -200,6 +304,7 @@ async function skipUpdatesDuringSync(projectId, updates) {
     if (!shouldSkipUpdate) {
       filteredUpdates.push(update)
     } else {
+      Metrics.inc('project_history_sync_update_skipped')
       logger.debug({ projectId, update }, 'skipping update due to resync')
     }
   }
@@ -229,7 +334,7 @@ async function expandSyncUpdates(
     return updates
   }
 
-  const syncState = await _getResyncState(projectId)
+  const syncState = await getResyncState(projectId)
 
   // compute the current snapshot from the most recent chunk
   const snapshotFiles =
@@ -253,7 +358,9 @@ async function expandSyncUpdates(
   const expander = new SyncUpdateExpander(
     projectId,
     snapshotFiles,
-    syncState.origin
+    syncState.origin,
+    syncState.hardResync,
+    syncState.recoverCorruptedFiles
   )
 
   // expand updates asynchronously to avoid blocking
@@ -266,11 +373,34 @@ async function expandSyncUpdates(
 }
 
 class SyncState {
-  constructor(projectId, resyncProjectStructure, resyncDocContents, origin) {
+  constructor(
+    projectId,
+    resyncProjectStructure,
+    resyncDocContents,
+    origin,
+    resyncCount,
+    resyncPendingSince,
+    lastUpdated,
+    history,
+    stuckClearCount,
+    lastStuckClearAt,
+    lastStuckDocPaths,
+    hardResync,
+    recoverCorruptedFiles
+  ) {
     this.projectId = projectId
     this.resyncProjectStructure = resyncProjectStructure
     this.resyncDocContents = resyncDocContents
     this.origin = origin
+    this.resyncCount = resyncCount
+    this.resyncPendingSince = resyncPendingSince
+    this.lastUpdated = lastUpdated
+    this.history = history
+    this.stuckClearCount = stuckClearCount
+    this.lastStuckClearAt = lastStuckClearAt
+    this.lastStuckDocPaths = lastStuckDocPaths
+    this.hardResync = hardResync || false
+    this.recoverCorruptedFiles = recoverCorruptedFiles || false
   }
 
   static fromRaw(projectId, rawSyncState) {
@@ -278,11 +408,47 @@ class SyncState {
     const resyncProjectStructure = rawSyncState.resyncProjectStructure || false
     const resyncDocContents = new Set(rawSyncState.resyncDocContents || [])
     const origin = rawSyncState.origin
+    const resyncCount = rawSyncState.resyncCount || 0
+    let resyncPendingSince = rawSyncState.resyncPendingSince
+    const history = rawSyncState.history || []
+    if (
+      (resyncProjectStructure || resyncDocContents.size > 0) &&
+      !resyncPendingSince &&
+      history.length > 0
+    ) {
+      // The resyncPendingSince field was added later.
+      // Back-fill it as the next ts after a successful sync. History is DESC.
+      for (const other of history.slice().reverse()) {
+        const isSyncOngoing =
+          other.syncState.resyncProjectStructure ||
+          other.syncState.resyncDocContents.length > 0
+        if (isSyncOngoing) {
+          resyncPendingSince = resyncPendingSince || other.timestamp
+        } else {
+          resyncPendingSince = undefined
+        }
+      }
+    }
+    const lastUpdated = rawSyncState.lastUpdated
+    const stuckClearCount = rawSyncState.stuckClearCount ?? 0
+    const lastStuckClearAt = rawSyncState.lastStuckClearAt
+    const lastStuckDocPaths = rawSyncState.lastStuckDocPaths
+    const hardResync = rawSyncState.hardResync || false
+    const recoverCorruptedFiles = rawSyncState.recoverCorruptedFiles || false
     return new SyncState(
       projectId,
       resyncProjectStructure,
       resyncDocContents,
-      origin
+      origin,
+      resyncCount,
+      resyncPendingSince,
+      lastUpdated,
+      history,
+      stuckClearCount,
+      lastStuckClearAt,
+      lastStuckDocPaths,
+      hardResync,
+      recoverCorruptedFiles
     )
   }
 
@@ -291,6 +457,8 @@ class SyncState {
       resyncProjectStructure: this.resyncProjectStructure,
       resyncDocContents: Array.from(this.resyncDocContents),
       origin: this.origin,
+      hardResync: this.hardResync,
+      recoverCorruptedFiles: this.recoverCorruptedFiles,
     }
   }
 
@@ -397,6 +565,24 @@ class SyncState {
   isSyncOngoing() {
     return this.isProjectStructureSyncing() || this.isAnyDocContentSyncing()
   }
+
+  isSyncStuck() {
+    if (!this.isSyncOngoing()) {
+      return false
+    }
+    if (!this.resyncPendingSince) {
+      // No timestamp recorded — treat long-running syncs without a timestamp
+      // as potentially stuck (legacy state from before this field was added)
+      return true
+    }
+    return (
+      Date.now() - this.resyncPendingSince.getTime() > SYNC_STUCK_TIMEOUT_MS
+    )
+  }
+
+  isSyncPermanentlyStuck() {
+    return this.stuckClearCount >= MAX_STUCK_CLEAR_ATTEMPTS
+  }
 }
 
 class SyncUpdateExpander {
@@ -405,13 +591,23 @@ class SyncUpdateExpander {
    *
    * @param {string} projectId
    * @param {Record<string, File>} snapshotFiles
-   * @param {string} origin
+   * @param {import('overleaf-editor-core/lib/types.js').RawOrigin} origin
+   * @param {boolean} hardResync
+   * @param {boolean} recoverCorruptedFiles
    */
-  constructor(projectId, snapshotFiles, origin) {
+  constructor(
+    projectId,
+    snapshotFiles,
+    origin,
+    hardResync,
+    recoverCorruptedFiles
+  ) {
     this.projectId = projectId
     this.files = snapshotFiles
     this.expandedUpdates = /** @type ProjectStructureUpdate[] */ []
     this.origin = origin
+    this.hardResync = hardResync || false
+    this.recoverCorruptedFiles = recoverCorruptedFiles || false
   }
 
   // If there's an expected *file* with the same path and either the same hash
@@ -624,7 +820,7 @@ class SyncUpdateExpander {
         shouldUpdate = Object.entries(file.metadata).some(
           ([k, v]) => metaData[k] !== v
         )
-      } else if (metaData.provider) {
+      } else if ('provider' in metaData && metaData.provider) {
         // overwritten by non-linked-file with same hash
         // or overwritten by doc
         shouldUpdate = true
@@ -731,17 +927,80 @@ class SyncUpdateExpander {
 
     // compute the difference between the expected and persisted content
     const historyId = await WebApiManager.promises.getHistoryId(this.projectId)
-    const file = await snapshotFile.load(
-      'eager',
-      HistoryStoreManager.getBlobStore(historyId)
-    )
-    const persistedContent = file.getContent()
-    if (persistedContent == null) {
-      // This should not happen given that we loaded the file eagerly. We could
-      // probably refine the types in overleaf-editor-core so that this check
-      // wouldn't be necessary.
-      throw new Error('File was not properly loaded')
+
+    let file
+    try {
+      file = await snapshotFile.load(
+        'eager',
+        HistoryStoreManager.getBlobStore(historyId)
+      )
+      const persistedContent = file.getContent()
+      if (persistedContent == null) {
+        throw new FileContentEmptyError('File was not properly loaded')
+      }
+    } catch (err) {
+      // When the recoverCorruptedFiles flag is set (requires hard resync),
+      // recover from known data corruption errors by removing the file and
+      // re-adding it from docstore. For soft resyncs, hard resyncs without
+      // the flag, or transient errors, re-throw so the operation can be retried.
+      // Also bail out if the expected content exceeds the max string length,
+      // as the re-add would fail when applying text operations. This check
+      // must happen here (not in isDataCorruptionError) because the original
+      // error may be a different corruption type — excluding TooLongError
+      // from detection would cause the file to be removed but not re-added.
+      if (!this.recoverCorruptedFiles || !isDataCorruptionError(err)) {
+        logger.error({
+          name: 'failed to load file from history during resync',
+          projectId: this.projectId,
+          pathname,
+          err,
+        })
+        throw err
+      }
+      if (expectedContent.length > TextOperation.MAX_STRING_LENGTH) {
+        throw new TooLongError(null, expectedContent.length)
+          .withInfo({
+            projectId: this.projectId,
+            pathname,
+            maxLength: TextOperation.MAX_STRING_LENGTH,
+          })
+          .withCause(err)
+      }
+
+      logger.warn(
+        { projectId: this.projectId, pathname, err },
+        'failed to load file from history during hard resync, removing and re-adding from docstore'
+      )
+      Metrics.inc('project_history_resync_operation', 1, {
+        status: 'recover corrupted file',
+      })
+
+      this.expandedUpdates.push({
+        pathname,
+        new_pathname: '',
+        meta: {
+          resync: true,
+          origin: this.origin,
+          ts: update.meta.ts,
+        },
+      })
+      this.expandedUpdates.push({
+        pathname,
+        doc: update.doc,
+        docLines: expectedContent,
+        meta: {
+          resync: true,
+          origin: this.origin,
+          ts: update.meta.ts,
+        },
+      })
+      // Replace in-memory file so the range sync below diffs the empty
+      // persisted state against docstore ranges and restores them.
+      this.files[pathname] = File.fromString(expectedContent)
+      file = this.files[pathname]
     }
+
+    const persistedContent = /** @type {string} */ (file.getContent())
 
     if (!hashesMatch) {
       const expandedUpdate = await this.queueUpdateForOutOfSyncContent(
@@ -1282,8 +1541,48 @@ function trackingDirectivesEqual(a, b) {
   }
 }
 
+/**
+ * Determines whether an error from loading a file's blob indicates data
+ * corruption (safe to recover from by removing and re-adding the file) as
+ * opposed to a transient infrastructure failure (which should be retried).
+ *
+ * Known corruption indicators:
+ * - UnprocessableError (and subclasses ApplyError, InvalidInsertionError,
+ *   TooLongError): the stored operations are inconsistent with the blob content
+ * - SyntaxError: the ranges blob contains invalid JSON
+ * - FileContentEmptyError: blob loaded but returned null content
+ *
+ * @param {unknown} err
+ * @returns {boolean}
+ */
+function isDataCorruptionError(err) {
+  if (!(err instanceof Error)) {
+    return false
+  }
+
+  // Operation apply failures (op/content mismatch). This covers ApplyError,
+  // InvalidInsertionError, and TooLongError from overleaf-editor-core.
+  if (err instanceof UnprocessableError) {
+    return true
+  }
+
+  // Corrupted ranges blob (invalid JSON from BlobStore.getObject)
+  if (err instanceof SyntaxError) {
+    return true
+  }
+
+  // Null content after loading
+  if (err instanceof FileContentEmptyError) {
+    return true
+  }
+
+  return false
+}
+
 // EXPORTS
 
+const cloneResyncStateCb = callbackify(cloneResyncState)
+const getResyncStateCb = callbackify(getResyncState)
 const startResyncCb = callbackify(startResync)
 const startResyncWithoutLockCb = callbackify(startResyncWithoutLock)
 const startHardResyncCb = callbackify(startHardResync)
@@ -1327,6 +1626,8 @@ const expandSyncUpdatesCb = (
 }
 
 export {
+  cloneResyncStateCb as cloneResyncState,
+  getResyncStateCb as getResyncState,
   startResyncCb as startResync,
   startResyncWithoutLockCb as startResyncWithoutLock,
   startHardResyncCb as startHardResync,
@@ -1337,6 +1638,8 @@ export {
 }
 
 export const promises = {
+  cloneResyncState,
+  getResyncState,
   startResync,
   startResyncWithoutLock,
   startHardResync,

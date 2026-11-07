@@ -1,0 +1,19 @@
+// Hint tooltip shown inside a \cite{} argument, offering to open the reference
+// picker. Styling mirrors the upstream "advanced reference search" hint.
+.cm-tooltip.ol-cm-references-search-hint {
+  max-width: min(700px, 95vw);
+  margin-left: -4px;
+  padding: var(--spacing-02) var(--spacing-04);
+  color: #fff;
+  cursor: pointer;
+  background-color: var(--bg-info-01, var(--ol-blue));
+  border: none;
+  border-radius: var(--border-radius-base);
+  box-shadow: 2px 2px 3px rgb(0 0 0 / 20%);
+
+  .ol-cm-references-search-hint-inner {
+    display: flex;
+    gap: var(--spacing-04);
+    align-items: center;
+  }
+}

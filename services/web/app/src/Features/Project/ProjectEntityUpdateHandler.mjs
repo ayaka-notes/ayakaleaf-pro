@@ -5,7 +5,7 @@ import Settings from '@overleaf/settings'
 import Path from 'node:path'
 import fs from 'node:fs'
 import { Doc } from '../../models/Doc.mjs'
-import DocstoreManager from '../Docstore/DocstoreManager.mjs'
+import DocstoreManager from '../../Features/Docstore/DocstoreManager.mjs'
 import DocumentUpdaterHandler from '../../Features/DocumentUpdater/DocumentUpdaterHandler.mjs'
 import Errors from '../Errors/Errors.js'
 import FileStoreHandler from '../FileStore/FileStoreHandler.mjs'
@@ -13,6 +13,7 @@ import LockManager from '../../infrastructure/LockManager.mjs'
 import { Project } from '../../models/Project.mjs'
 import ProjectEntityHandler from './ProjectEntityHandler.mjs'
 import ProjectGetter from './ProjectGetter.mjs'
+import ProjectHelper from './ProjectHelper.mjs'
 import ProjectLocator from './ProjectLocator.mjs'
 import ProjectOptionsHandler from './ProjectOptionsHandler.mjs'
 import ProjectUpdateHandler from './ProjectUpdateHandler.mjs'
@@ -201,27 +202,27 @@ async function updateDocLines(
   return { rev, modified }
 }
 
-async function setRootDoc(projectId, newRootDocID) {
-  logger.debug({ projectId, rootDocId: newRootDocID }, 'setting root doc')
-  if (projectId == null || newRootDocID == null) {
+async function setRootDoc(projectId, rootDocId) {
+  logger.debug({ projectId, rootDocId }, 'setting root doc')
+  if (projectId == null || rootDocId == null) {
     throw new Errors.InvalidError('missing arguments (project or doc)')
   }
-  const docPath =
+  const rootResourcePath =
     await ProjectEntityHandler.promises.getDocPathByProjectIdAndDocId(
       projectId,
-      newRootDocID
+      rootDocId
     )
-  if (ProjectEntityUpdateHandler.isPathValidForRootDoc(docPath)) {
+  if (ProjectEntityUpdateHandler.isPathValidForRootDoc(rootResourcePath)) {
     await Project.updateOne(
       { _id: projectId },
-      { rootDoc_id: newRootDocID }
+      { rootDoc_id: rootDocId }
     ).exec()
   } else {
     throw new Errors.UnsupportedFileTypeError(
       'invalid file extension for root doc'
     )
   }
-  return newRootDocID
+  return { rootDocId, rootResourcePath }
 }
 
 async function unsetRootDoc(projectId) {
@@ -388,11 +389,19 @@ const upsertDoc = wrapWithLock(
     if (!SafePath.isCleanFilename(docName)) {
       throw new Errors.InvalidNameError('invalid element name')
     }
+    const project = await ProjectGetter.promises.getProject(projectId, {
+      rootFolder: true,
+      rootDoc_id: true,
+      track_changes: true,
+    })
+    if (project == null) {
+      throw new Errors.NotFoundError('project not found')
+    }
     let element, folderPath
     try {
       ;({ element, path: folderPath } =
         await ProjectLocator.promises.findElement({
-          project_id: projectId,
+          project,
           element_id: folderId,
           type: 'folder',
         }))
@@ -421,7 +430,7 @@ const upsertDoc = wrapWithLock(
       )
 
       doc.rev = rev
-      const project =
+      const updatedProject =
         await ProjectEntityMongoUpdateHandler.promises.replaceFileWithDoc(
           projectId,
           existingFile._id,
@@ -433,15 +442,15 @@ const upsertDoc = wrapWithLock(
         projectId,
         docId: doc._id,
         path: filePath,
-        projectName: project.name,
+        projectName: updatedProject.name,
         rev: existingFile.rev + 1,
         folderId,
       })
 
       const projectHistoryId =
-        project.overleaf &&
-        project.overleaf.history &&
-        project.overleaf.history.id
+        updatedProject.overleaf &&
+        updatedProject.overleaf.history &&
+        updatedProject.overleaf.history.id
       const newDocs = [
         {
           doc,
@@ -459,7 +468,7 @@ const upsertDoc = wrapWithLock(
         projectId,
         projectHistoryId,
         userId,
-        { oldFiles, newDocs, newProject: project },
+        { oldFiles, newDocs, newProject: updatedProject },
         source
       )
 
@@ -471,12 +480,17 @@ const upsertDoc = wrapWithLock(
       )
       return { doc, isNew: true }
     } else if (existingDoc) {
+      const trackChanges = ProjectHelper.isTrackChangesEnabledForUser(
+        project.track_changes,
+        userId
+      )
       const result = await DocumentUpdaterHandler.promises.setDocument(
         projectId,
         existingDoc._id,
         userId,
         docLines,
-        source
+        source,
+        trackChanges
       )
       logger.debug(
         { projectId, docId: existingDoc._id },
@@ -509,18 +523,31 @@ const upsertDoc = wrapWithLock(
 
 const appendToDoc = wrapWithLock(
   async (projectId, docId, lines, source, userId) => {
+    const project = await ProjectGetter.promises.getProject(projectId, {
+      rootFolder: true,
+      rootDoc_id: true,
+      track_changes: true,
+    })
+    if (project == null) {
+      throw new Errors.NotFoundError('project not found')
+    }
     const { element } = await ProjectLocator.promises.findElement({
-      project_id: projectId,
+      project,
       element_id: docId,
       type: 'doc',
     })
 
+    const trackChanges = ProjectHelper.isTrackChangesEnabledForUser(
+      project.track_changes,
+      userId
+    )
     return await DocumentUpdaterHandler.promises.appendToDocument(
       projectId,
       element._id,
       userId,
       lines,
-      source
+      source,
+      trackChanges
     )
   }
 )
@@ -1050,28 +1077,32 @@ const resyncProjectHistory = wrapWithLock(
   LockManager.withTimeout(6 * 60) // use an extended lock for the resync operations
 )
 
-const convertDocToFile = wrapWithLock({
-  async beforeLock(projectId, docId, userId, source) {
-    await DocumentUpdaterHandler.promises.flushDocToMongo(projectId, docId)
-    const { element: doc, path } = await ProjectLocator.promises.findElement({
-      project_id: projectId,
-      element_id: docId,
-      type: 'doc',
-    })
-    const docPath = path.fileSystem
-    const { lines, rev, ranges } = await DocstoreManager.promises.getDoc(
+const convertDocToFile = wrapWithLock(
+  async (projectId, docId, userId, source) => {
+    const { lines, ranges } = await DocumentUpdaterHandler.promises.getDocument(
       projectId,
-      docId
+      docId,
+      -1
     )
     if (!_.isEmpty(ranges)) {
       throw new Errors.DocHasRangesError({})
     }
-    await DocumentUpdaterHandler.promises.deleteDoc(projectId, docId, false)
+
+    const {
+      folder,
+      element: doc,
+      path: { fileSystem: path },
+    } = await ProjectLocator.promises.findElement({
+      project_id: projectId,
+      element_id: docId,
+      type: 'doc',
+    })
+
     const fsPath = await FileWriter.promises.writeLinesToDisk(projectId, lines)
     const { fileRef, createdBlob } =
       await FileStoreHandler.promises.uploadFileFromDisk(
         projectId,
-        { name: doc.name, rev: rev + 1 },
+        { name: doc.name },
         fsPath
       )
     try {
@@ -1079,25 +1110,7 @@ const convertDocToFile = wrapWithLock({
     } catch (err) {
       logger.warn({ err, path: fsPath }, 'failed to clean up temporary file')
     }
-    return {
-      projectId,
-      doc,
-      path: docPath,
-      fileRef,
-      userId,
-      source,
-      createdBlob,
-    }
-  },
-  async withLock({
-    projectId,
-    doc,
-    path,
-    fileRef,
-    userId,
-    source,
-    createdBlob,
-  }) {
+
     const project =
       await ProjectEntityMongoUpdateHandler.promises.replaceDocWithFile(
         projectId,
@@ -1117,11 +1130,7 @@ const convertDocToFile = wrapWithLock({
       },
       source
     )
-    const { folder } = await ProjectLocator.promises.findElement({
-      project_id: projectId,
-      element_id: fileRef._id,
-      type: 'file',
-    })
+
     EditorRealTimeController.emitToRoom(
       projectId,
       'removeEntity',
@@ -1137,9 +1146,28 @@ const convertDocToFile = wrapWithLock({
       null,
       userId
     )
+
+    try {
+      // Mark doc as deleted in docstore
+      await DocstoreManager.promises.deleteDoc(
+        projectId,
+        docId,
+        Path.basename(path),
+        new Date()
+      )
+    } catch (err) {
+      logger.warn(
+        { err, projectId, docId, path },
+        'failed to mark converted doc as deleted in docstore, continuing with document-updater cleanup'
+      )
+    } finally {
+      // Hard delete document in redis now that it has been successfully converted to a file
+      await DocumentUpdaterHandler.promises.deleteDoc(projectId, docId, true)
+    }
+
     return fileRef
-  },
-})
+  }
+)
 
 async function setMainBibliographyDoc(projectId, newBibliographyDocId) {
   logger.debug(

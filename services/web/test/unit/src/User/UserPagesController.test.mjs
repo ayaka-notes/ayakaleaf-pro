@@ -1,6 +1,10 @@
-import { expect, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import assert from 'node:assert'
 import sinon from 'sinon'
+import {
+  InvalidRequestError,
+  setReqValidationModeForTests,
+} from '@overleaf/validation-tools'
 import MockResponse from '../helpers/MockResponse.mjs'
 import MockRequest from '../helpers/MockRequest.mjs'
 
@@ -51,9 +55,6 @@ describe('UserPagesController', function () {
       getLoggedInUserId: sinon.stub().returns(ctx.user._id),
       getSessionUser: sinon.stub().returns(ctx.user),
     }
-    ctx.NewsletterManager = {
-      subscribed: sinon.stub().yields(),
-    }
     ctx.AuthenticationController = {
       getRedirectFromSession: sinon.stub(),
       setRedirectInSession: sinon.stub(),
@@ -94,13 +95,6 @@ describe('UserPagesController', function () {
     vi.doMock('../../../../app/src/Features/User/UserSessionsManager', () => ({
       default: ctx.UserSessionsManager,
     }))
-
-    vi.doMock(
-      '../../../../app/src/Features/Newsletter/NewsletterManager',
-      () => ({
-        default: ctx.NewsletterManager,
-      })
-    )
 
     vi.doMock('../../../../app/src/Features/Errors/ErrorController', () => ({
       default: ctx.ErrorController,
@@ -158,6 +152,10 @@ describe('UserPagesController', function () {
     ctx.req.capabilitySet = new Set()
     ctx.req.session.user = ctx.user
     ctx.res = new MockResponse(vi)
+  })
+
+  afterEach(function () {
+    setReqValidationModeForTests(null)
   })
 
   describe('registerPage', function () {
@@ -250,12 +248,14 @@ describe('UserPagesController', function () {
     })
 
     describe('when an explicit redirect is set via query string', function () {
+      const redir = '/somewhere/in/particular'
+
       beforeEach(function (ctx) {
         ctx.AuthenticationController.getRedirectFromSession = sinon
           .stub()
           .returns(null)
         ctx.AuthenticationController.setRedirectInSession = sinon.stub()
-        ctx.req.query.redir = '/somewhere/in/particular'
+        ctx.req.query = { redir }
       })
 
       it('should set a redirect', async function (ctx) {
@@ -266,7 +266,7 @@ describe('UserPagesController', function () {
             )
             expect(
               ctx.AuthenticationController.setRedirectInSession.lastCall.args[1]
-            ).to.equal(ctx.req.query.redir)
+            ).to.equal(redir)
             resolve()
           }
           ctx.UserPagesController.loginPage(
@@ -275,6 +275,44 @@ describe('UserPagesController', function () {
             ctx.rejectOnError(reject)
           )
         })
+      })
+    })
+
+    describe('request validation', function () {
+      beforeEach(function (ctx) {
+        // a bracketed query param (e.g. ?redir[foo]=bar) parses to a nested
+        // object, which the query schema (string | string[] values only)
+        // rejects
+        ctx.req.query = { redir: { foo: 'bar' } }
+        ctx.AuthenticationController.getRedirectFromSession = sinon
+          .stub()
+          .returns(null)
+      })
+
+      it('should still process the request in log mode', async function (ctx) {
+        setReqValidationModeForTests('log')
+        await new Promise((resolve, reject) => {
+          ctx.res.callback = () => {
+            expect(
+              ctx.AuthenticationController.setRedirectInSession
+            ).to.have.been.calledWith(ctx.req, { foo: 'bar' })
+            resolve()
+          }
+          ctx.UserPagesController.loginPage(
+            ctx.req,
+            ctx.res,
+            ctx.rejectOnError(reject)
+          )
+        })
+      })
+
+      it('should reject the request when enforced', function (ctx) {
+        setReqValidationModeForTests('enforce')
+        expect(() =>
+          ctx.UserPagesController.loginPage(ctx.req, ctx.res)
+        ).to.throw(InvalidRequestError)
+        expect(ctx.AuthenticationController.setRedirectInSession).to.not.have
+          .been.called
       })
     })
   })
@@ -346,46 +384,6 @@ describe('UserPagesController', function () {
           }
           ctx.UserPagesController.sessionsPage(ctx.req, ctx.res, ctx.next)
         })
-      })
-    })
-  })
-
-  describe('emailPreferencesPage', function () {
-    beforeEach(function (ctx) {
-      ctx.UserGetter.getUser = sinon.stub().yields(null, ctx.user)
-    })
-
-    it('render page with subscribed status', async function (ctx) {
-      ctx.NewsletterManager.subscribed.yields(null, true)
-      await new Promise((resolve, reject) => {
-        ctx.res.callback = () => {
-          ctx.res.renderedTemplate.should.equal('user/email-preferences')
-          ctx.res.renderedVariables.title.should.equal('newsletter_info_title')
-          ctx.res.renderedVariables.subscribed.should.equal(true)
-          resolve()
-        }
-        ctx.UserPagesController.emailPreferencesPage(
-          ctx.req,
-          ctx.res,
-          ctx.rejectOnError(reject)
-        )
-      })
-    })
-
-    it('render page with unsubscribed status', async function (ctx) {
-      ctx.NewsletterManager.subscribed.yields(null, false)
-      await new Promise((resolve, reject) => {
-        ctx.res.callback = () => {
-          ctx.res.renderedTemplate.should.equal('user/email-preferences')
-          ctx.res.renderedVariables.title.should.equal('newsletter_info_title')
-          ctx.res.renderedVariables.subscribed.should.equal(false)
-          resolve()
-        }
-        ctx.UserPagesController.emailPreferencesPage(
-          ctx.req,
-          ctx.res,
-          ctx.rejectOnError(reject)
-        )
       })
     })
   })
@@ -468,6 +466,38 @@ describe('UserPagesController', function () {
             'Some Sync Success'
           )
           expect(ctx.req.session.projectSyncSuccessMessage).to.not.exist
+          resolve()
+        }
+        ctx.UserPagesController.settingsPage(
+          ctx.req,
+          ctx.res,
+          ctx.rejectOnError(reject)
+        )
+      })
+    })
+
+    it("should set and clear 'projectSyncErrorMessage'", async function (ctx) {
+      ctx.req.session.projectSyncErrorMessage = 'Some Sync Error'
+      await new Promise((resolve, reject) => {
+        ctx.res.callback = () => {
+          ctx.res.renderedVariables.projectSyncErrorMessage.should.equal(
+            'Some Sync Error'
+          )
+          expect(ctx.req.session.projectSyncErrorMessage).to.not.exist
+          resolve()
+        }
+        ctx.UserPagesController.settingsPage(
+          ctx.req,
+          ctx.res,
+          ctx.rejectOnError(reject)
+        )
+      })
+    })
+
+    it("should leave 'projectSyncErrorMessage' undefined when not set on the session", async function (ctx) {
+      await new Promise((resolve, reject) => {
+        ctx.res.callback = () => {
+          expect(ctx.res.renderedVariables.projectSyncErrorMessage).to.not.exist
           resolve()
         }
         ctx.UserPagesController.settingsPage(
@@ -611,6 +641,61 @@ describe('UserPagesController', function () {
             ctx.res.renderedVariables.shouldAllowEditingDetails.should.equal(
               false
             )
+            resolve()
+          }
+          ctx.UserPagesController.settingsPage(
+            ctx.req,
+            ctx.res,
+            ctx.rejectOnError(reject)
+          )
+        })
+      })
+    })
+
+    describe('request validation', function () {
+      beforeEach(function (ctx) {
+        // an unrecognized query param (e.g. a tracking param on an old
+        // link) is rejected by the strict query schema
+        ctx.req.query = {
+          remove: 'someone@example.com',
+          utm_source: 'newsletter',
+        }
+      })
+
+      it('should still process the request in log mode', async function (ctx) {
+        setReqValidationModeForTests('log')
+        await new Promise((resolve, reject) => {
+          ctx.res.callback = () => {
+            ctx.res.renderedVariables.reconfirmationRemoveEmail.should.equal(
+              'someone@example.com'
+            )
+            resolve()
+          }
+          ctx.UserPagesController.settingsPage(
+            ctx.req,
+            ctx.res,
+            ctx.rejectOnError(reject)
+          )
+        })
+      })
+
+      it('should reject an invalid remove query value', async function (ctx) {
+        setReqValidationModeForTests('enforce')
+        ctx.req.query = { remove: { foo: 'bar' } }
+        await ctx.UserPagesController.settingsPage(
+          ctx.req,
+          ctx.res
+        ).should.be.rejectedWith(InvalidRequestError)
+        expect(ctx.UserGetter.promises.getUser).to.not.have.been.called
+      })
+    })
+
+    describe('with an oauth-complete query param', function () {
+      it('accepts any string value', async function (ctx) {
+        ctx.req.query = { 'oauth-complete': 'github' }
+        await new Promise((resolve, reject) => {
+          ctx.res.callback = () => {
+            ctx.res.renderedTemplate.should.equal('user/settings')
             resolve()
           }
           ctx.UserPagesController.settingsPage(

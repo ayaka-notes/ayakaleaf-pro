@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Usage: services/git-bridge/bin/prepare
+#
+# Runs before the toolkit's bin/up. Builds git-bridge from this checkout, so
+# it matches the Overleaf image built from the same code, and points the
+# toolkit at it with GIT_BRIDGE_IMAGE. The toolkit appends config/version to
+# that name, so the build is tagged with it.
+#
+# Expects TOOLKIT_DIR in the environment.
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+image=overleaf-pro-e2e-git-bridge
+version=$(head -n 1 "$TOOLKIT_DIR/config/version")
+
+docker build --tag "$image:$version" ../../../../../services/git-bridge
+../../bin/apply-config "$TOOLKIT_DIR/config/overleaf.rc" <(echo "GIT_BRIDGE_IMAGE=$image")

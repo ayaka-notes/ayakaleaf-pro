@@ -2,7 +2,9 @@ import logger from '@overleaf/logger'
 import passport from 'passport'
 import Settings from '@overleaf/settings'
 import AuthenticationController from '../../../../../app/src/Features/Authentication/AuthenticationController.mjs'
-import UserController from '../../../../../app/src/Features/User/UserController.mjs'
+import AsyncFormHelper from '../../../../../app/src/Features/Helpers/AsyncFormHelper.mjs'
+import { endSession } from '../../../logout.mjs'
+import { logLogout } from '../../../auditLog.mjs'
 import ThirdPartyIdentityManager from '../../../../../app/src/Features/User/ThirdPartyIdentityManager.mjs'
 import OIDCAuthenticationManager from './OIDCAuthenticationManager.mjs'
 
@@ -41,7 +43,7 @@ const OIDCAuthenticationController = {
           }
         } else {
           if (info.redir != null) {
-            await UserController.doLogout(req)
+            await endSession(req)
             return res.redirect(info.redir)
           } else {
             res.status(info.status || 401)
@@ -53,7 +55,10 @@ const OIDCAuthenticationController = {
       }
     )(req, res, next)
   },
-  async doPassportLogin(req, issuer, profile, context, idToken, accessToken, refreshToken, done) {
+  async doPassportLogin(req, issuer, uiProfile, idProfile, context, idToken, accessToken, refreshToken, params, done) {
+    // The 10-arg form is the only one where passport-openidconnect exposes the raw
+    // userinfo claims (uiProfile._json), which non-standard admin claims live in
+    const profile = { ...idProfile, ...uiProfile }
     let user, info
     try {
       if(req.session.intent === 'link') {
@@ -106,7 +111,7 @@ const OIDCAuthenticationController = {
       return {
         user: false,
         info: {
-          redir: '/register',
+          redir: '/',
           status: 401,
         },
       }
@@ -157,10 +162,11 @@ const OIDCAuthenticationController = {
   async passportLogout(req, res, next) {
 // TODO: instead of storing idToken in session, use refreshToken to obtain a new idToken?
     const idTokenHint = req.session.idToken
-    await UserController.doLogout(req)
+    logLogout(req)
+    await endSession(req)
     const logoutUrl = process.env.OVERLEAF_OIDC_LOGOUT_URL
     const redirectUri = Settings.siteUrl
-    res.redirect(`${logoutUrl}?id_token_hint=${idTokenHint}&post_logout_redirect_uri=${encodeURIComponent(redirectUri)}`)
+    AsyncFormHelper.redirect(req, res, `${logoutUrl}?id_token_hint=${idTokenHint}&post_logout_redirect_uri=${encodeURIComponent(redirectUri)}`)
   },
   passportLogoutCallback(req, res, next) {
     const redirectUri = Settings.siteUrl

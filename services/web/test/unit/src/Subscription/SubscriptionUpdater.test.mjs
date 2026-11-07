@@ -1,4 +1,4 @@
-import { beforeEach, describe, it, vi, assert, expect } from 'vitest'
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest'
 import sinon from 'sinon'
 import mongodb from 'mongodb-legacy'
 const modulePath =
@@ -91,6 +91,7 @@ describe('SubscriptionUpdater', function () {
         getUsersSubscription: sinon.stub(),
         getGroupSubscriptionMemberOf: sinon.stub(),
         getMemberSubscriptions: sinon.stub().resolves([]),
+        getManagedGroupSubscriptions: sinon.stub().resolves([]),
         getSubscription: sinon.stub(),
       },
     }
@@ -283,6 +284,44 @@ describe('SubscriptionUpdater', function () {
       ctx.SubscriptionModel.updateOne.should.have.been.calledWith(query, update)
     })
 
+    it("should fire setUserProperties for both old and new admin's group_role on group subscriptions", async function (ctx) {
+      ctx.subscription.groupPlan = true
+      ctx.SubscriptionLocator.promises.getManagedGroupSubscriptions
+        .withArgs(ctx.otherUserId)
+        .resolves([{ admin_id: { _id: ctx.otherUserId } }])
+      ctx.SubscriptionLocator.promises.getManagedGroupSubscriptions
+        .withArgs(ctx.adminUser._id)
+        .resolves([{ admin_id: { _id: ctx.otherUserId } }])
+
+      await ctx.SubscriptionUpdater.promises.updateAdmin(
+        ctx.subscription,
+        ctx.otherUserId
+      )
+
+      expect(ctx.Modules.promises.hooks.fire).to.have.been.calledWith(
+        'setUserProperties',
+        ctx.adminUser._id,
+        { group_role: 'manager' }
+      )
+      expect(ctx.Modules.promises.hooks.fire).to.have.been.calledWith(
+        'setUserProperties',
+        ctx.otherUserId,
+        { group_role: 'admin' }
+      )
+    })
+
+    it('should not fire setUserProperties for group_role on non-group subscriptions', async function (ctx) {
+      await ctx.SubscriptionUpdater.promises.updateAdmin(
+        ctx.subscription,
+        ctx.otherUserId
+      )
+      expect(ctx.Modules.promises.hooks.fire).to.not.have.been.calledWith(
+        'setUserProperties',
+        sinon.match.any,
+        sinon.match.has('group_role')
+      )
+    })
+
     it('should remove the manager for non-group subscriptions', async function (ctx) {
       await ctx.SubscriptionUpdater.promises.updateAdmin(
         ctx.subscription,
@@ -353,6 +392,46 @@ describe('SubscriptionUpdater', function () {
       ctx.SubscriptionModel.updateOne.should.have.been.calledWith(query, update)
     })
 
+    it("should fire setUserProperties for both old and new admin's group_role on group subscriptions", async function (ctx) {
+      ctx.subscription.groupPlan = true
+      ctx.SubscriptionLocator.promises.getManagedGroupSubscriptions
+        .withArgs(ctx.otherUserId)
+        .resolves([{ admin_id: { _id: ctx.otherUserId } }])
+      ctx.SubscriptionLocator.promises.getManagedGroupSubscriptions
+        .withArgs(ctx.adminUser._id)
+        .resolves([{ admin_id: { _id: ctx.otherUserId } }])
+
+      await ctx.SubscriptionUpdater.promises.transferSubscriptionOwnership(
+        ctx.subscription,
+        ctx.otherUserId,
+        false
+      )
+
+      expect(ctx.Modules.promises.hooks.fire).to.have.been.calledWith(
+        'setUserProperties',
+        ctx.adminUser._id,
+        { group_role: 'manager' }
+      )
+      expect(ctx.Modules.promises.hooks.fire).to.have.been.calledWith(
+        'setUserProperties',
+        ctx.otherUserId,
+        { group_role: 'admin' }
+      )
+    })
+
+    it('should not fire setUserProperties for group_role on non-group subscriptions', async function (ctx) {
+      await ctx.SubscriptionUpdater.promises.transferSubscriptionOwnership(
+        ctx.subscription,
+        ctx.otherUserId,
+        false
+      )
+      expect(ctx.Modules.promises.hooks.fire).to.not.have.been.calledWith(
+        'setUserProperties',
+        sinon.match.any,
+        sinon.match.has('group_role')
+      )
+    })
+
     it('should clear previousPaymentProvider when clearPreviousPaymentProvider is true', async function (ctx) {
       ctx.subscription.paymentProvider = {
         id: 'stripe-123',
@@ -410,6 +489,7 @@ describe('SubscriptionUpdater', function () {
   describe('updateSubscriptionFromRecurly', function () {
     afterEach(function (ctx) {
       ctx.subscription.member_ids = []
+      delete ctx.subscription.paymentProvider
     })
 
     it('should update the subscription with token etc when not expired', async function (ctx) {
@@ -463,6 +543,20 @@ describe('SubscriptionUpdater', function () {
         targetEntityId: ctx.subscription._id,
         createdAt,
       })
+    })
+
+    it('should not update subscription when paymentProvider service contains stripe', async function (ctx) {
+      ctx.subscription.paymentProvider = {
+        service: 'stripe-uk',
+      }
+      await ctx.SubscriptionUpdater.promises.updateSubscriptionFromRecurly(
+        ctx.recurlySubscription,
+        ctx.subscription,
+        {}
+      )
+      ctx.subscription.save.called.should.equal(false)
+      expect(ctx.FeaturesUpdater.promises.scheduleRefreshFeatures).to.not.have
+        .been.called
     })
 
     it('should remove the subscription when expired', async function (ctx) {
@@ -610,6 +704,48 @@ describe('SubscriptionUpdater', function () {
         })
         expectMembersLimit(18)
       })
+    })
+  })
+
+  describe('handleExpiredSubscription', function () {
+    it("should set the admin's previous_plan_type in customer.io to the expired plan when the subscription is deleted", async function (ctx) {
+      await ctx.SubscriptionUpdater.promises.handleExpiredSubscription(
+        ctx.subscription,
+        {}
+      )
+      expect(ctx.Modules.promises.hooks.fire).to.have.been.calledWith(
+        'setUserProperties',
+        ctx.subscription.admin_id,
+        { previous_plan_type: 'student' }
+      )
+    })
+
+    it('should not set previous_plan_type when the subscription is not deleted (managed users)', async function (ctx) {
+      ctx.Features.hasFeature.withArgs('saas').returns(true)
+      ctx.subscription.managedUsersEnabled = true
+      await ctx.SubscriptionUpdater.promises.handleExpiredSubscription(
+        ctx.subscription,
+        {}
+      )
+      expect(ctx.Modules.promises.hooks.fire).to.not.have.been.calledWith(
+        'setUserProperties',
+        ctx.subscription.admin_id,
+        { previous_plan_type: 'student' }
+      )
+    })
+
+    it('should not set previous_plan_type when the subscription is not deleted (group SSO)', async function (ctx) {
+      ctx.Features.hasFeature.withArgs('saas').returns(true)
+      ctx.subscription.ssoConfig = new ObjectId('abc123abc123abc123abc123')
+      await ctx.SubscriptionUpdater.promises.handleExpiredSubscription(
+        ctx.subscription,
+        {}
+      )
+      expect(ctx.Modules.promises.hooks.fire).to.not.have.been.calledWith(
+        'setUserProperties',
+        ctx.subscription.admin_id,
+        { previous_plan_type: 'student' }
+      )
     })
   })
 
@@ -1021,99 +1157,6 @@ describe('SubscriptionUpdater', function () {
       expect(
         ctx.FeaturesUpdater.promises.scheduleRefreshFeatures.callCount
       ).to.equal(4)
-    })
-  })
-  describe('setRestorePoint', function () {
-    it('should set the restore point with the given plan code and add-ons', async function (ctx) {
-      const subscriptionId = new ObjectId()
-      const planCode = 'gold-plan'
-      const addOns = [
-        { addOnCode: 'addon-1', quantity: 2, unitAmountInCents: 500 },
-        { addOnCode: 'addon-2', quantity: 1, unitAmountInCents: 1000 },
-      ]
-      const consumed = false
-
-      await ctx.SubscriptionUpdater.promises.setRestorePoint(
-        subscriptionId,
-        planCode,
-        addOns,
-        consumed
-      )
-
-      sinon.assert.calledWith(
-        ctx.SubscriptionModel.updateOne,
-        { _id: subscriptionId },
-        {
-          $set: {
-            'lastSuccesfulSubscription.planCode': planCode,
-            'lastSuccesfulSubscription.addOns': addOns,
-          },
-        }
-      )
-    })
-
-    it('should increment revertedDueToFailedPayment if consumed is true', async function (ctx) {
-      const consumed = true
-      const subscriptionId = new ObjectId()
-
-      await ctx.SubscriptionUpdater.promises.setRestorePoint(
-        subscriptionId,
-        null,
-        null,
-        consumed
-      )
-
-      sinon.assert.calledWith(
-        ctx.SubscriptionModel.updateOne,
-        { _id: subscriptionId },
-        {
-          $set: {
-            'lastSuccesfulSubscription.planCode': null,
-            'lastSuccesfulSubscription.addOns': null,
-          },
-          $inc: { timesRevertedDueToFailedPayment: 1 },
-        }
-      )
-    })
-  })
-
-  describe('setSubscriptionWasReverted', function () {
-    it('should clear the restore point and mark the subscription as reverted', async function (ctx) {
-      const subscriptionId = new ObjectId().toString()
-
-      await ctx.SubscriptionUpdater.promises.setSubscriptionWasReverted(
-        subscriptionId
-      )
-
-      ctx.SubscriptionModel.updateOne.should.have.been.calledWith(
-        { _id: subscriptionId },
-        {
-          $set: {
-            'lastSuccesfulSubscription.planCode': null,
-            'lastSuccesfulSubscription.addOns': null,
-          },
-          $inc: { timesRevertedDueToFailedPayment: 1 },
-        }
-      )
-    })
-  })
-
-  describe('voidRestorePoint', function () {
-    it('should clear the restore point without marking the subscription as reverted', async function (ctx) {
-      const subscriptionId = new ObjectId().toString()
-
-      await ctx.SubscriptionUpdater.promises.voidRestorePoint(subscriptionId)
-
-      sinon.assert.calledWith(
-        ctx.SubscriptionModel.updateOne,
-        { _id: subscriptionId },
-        {
-          $set: {
-            'lastSuccesfulSubscription.planCode': null,
-            'lastSuccesfulSubscription.addOns': null,
-          },
-        }
-      )
     })
   })
 })

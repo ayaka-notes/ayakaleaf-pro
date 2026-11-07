@@ -95,10 +95,7 @@ const suggestions = {
   sv: ['medecin', 'medicin'],
 }
 
-forEach(Object.keys(suggestions)).describe(
-  'Spell check in client (%s)',
-  (spellCheckLanguage: keyof typeof suggestions) => {
-    const content = `
+const spellCheckerContent = `
 \\documentclass{}
 
 \\title{}
@@ -113,6 +110,79 @@ forEach(Object.keys(suggestions)).describe(
 \\section{}
 
 \\end{document}`
+
+describe('Spell check context menu — Shift+right-click', function () {
+  const spellCheckLanguage = 'en_GB'
+  const [misspelled] = suggestions[spellCheckLanguage]
+
+  beforeEach(function () {
+    cy.window().then(win => {
+      win.metaAttributesCache.set('ol-preventCompileOnLoad', true)
+      win.metaAttributesCache.set('ol-learnedWords', ['baz'])
+      win.metaAttributesCache.set(
+        'ol-dictionariesRoot',
+        `js/dictionaries/${PackageVersions.version.dictionaries}/`
+      )
+      win.metaAttributesCache.set('ol-baseAssetPath', '/__cypress/src/')
+      win.metaAttributesCache.set('ol-languages', languages)
+    })
+
+    cy.interceptEvents()
+
+    const scope = mockScope(spellCheckerContent)
+    const project = mockProject({ spellCheckLanguage })
+
+    cy.mount(
+      <TestContainer>
+        <EditorProviders
+          scope={scope}
+          providers={{ ProjectProvider: makeProjectProvider(project) }}
+        >
+          <CodeMirrorEditor />
+        </EditorProviders>
+      </TestContainer>
+    )
+
+    cy.get('.cm-line').eq(13).as('line')
+    cy.get('@line').click()
+    cy.get('@line').type(misspelled)
+    cy.get('@line')
+      .find('.ol-cm-spelling-error', { timeout: 10000 })
+      .should('have.length', 1)
+  })
+
+  it('should not open spelling menu on Shift+right-click', function () {
+    cy.get('@line').find('.ol-cm-spelling-error').trigger('contextmenu', {
+      button: 2,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+      force: true,
+    })
+
+    cy.get('.ol-cm-spelling-context-menu-tooltip').should('not.exist')
+  })
+
+  it('should close an already-open spelling menu on Shift+right-click', function () {
+    cy.get('@line').find('.ol-cm-spelling-error').rightclick()
+    cy.get('.ol-cm-spelling-context-menu-tooltip').should('be.visible')
+
+    cy.get('@line').find('.ol-cm-spelling-error').trigger('contextmenu', {
+      button: 2,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+      force: true,
+    })
+
+    cy.get('.ol-cm-spelling-context-menu-tooltip').should('not.exist')
+  })
+})
+
+forEach(Object.keys(suggestions)).describe(
+  'Spell check in client (%s)',
+  (spellCheckLanguage: keyof typeof suggestions) => {
+    const content = spellCheckerContent
 
     beforeEach(function () {
       cy.window().then(win => {

@@ -11,6 +11,21 @@ import { db } from './mongodb.js'
  */
 
 /**
+ * @template {{error: string}|{}} T
+ * @param {T} failure
+ * @return {T}
+ */
+function normalizeFailure(failure) {
+  if ('error' in failure && failure.error?.includes('OError:')) {
+    return {
+      ...failure,
+      error: failure.error.replace('OError:', 'Error:'),
+    }
+  }
+  return failure
+}
+
+/**
  * @param {string} projectId
  * @param {number} queueSize
  * @param {Error} error
@@ -47,7 +62,7 @@ async function record(projectId, queueSize, error) {
     // Since we upsert, the result should always have a value
     throw new OError('no value returned when recording an error', { projectId })
   }
-  return result.value
+  return normalizeFailure(result.value)
 }
 
 async function clearError(projectId) {
@@ -87,10 +102,30 @@ async function recordSyncStart(projectId) {
 }
 
 /**
+ * @param {string} sourceProjectId
+ * @param {string} targetProjectId
+ * @return {Promise<void>}
+ */
+async function cloneFailure(sourceProjectId, targetProjectId) {
+  const failure = await db.projectHistoryFailures.findOne(
+    { project_id: sourceProjectId.toString() },
+    { projection: { _id: 0, project_id: 0 } }
+  )
+  if (!failure) return
+  await db.projectHistoryFailures.insertOne({
+    ...failure,
+    project_id: targetProjectId.toString(),
+  })
+}
+
+/**
  * @param projectId
  */
 async function getFailureRecord(projectId) {
-  return await db.projectHistoryFailures.findOne({ project_id: projectId })
+  const result = await db.projectHistoryFailures.findOne({
+    project_id: projectId,
+  })
+  return result && normalizeFailure(result)
 }
 
 async function getLastFailure(projectId) {
@@ -99,25 +134,28 @@ async function getLastFailure(projectId) {
     { $inc: { requestCount: 1 } }, // increment the request count every time we check the last failure
     { projection: { error: 1, ts: 1 } }
   )
-  return result && result.value
+  return result?.value && normalizeFailure(result.value)
 }
 
 async function getFailedProjects() {
-  return await db.projectHistoryFailures.find({}).toArray()
+  return await db.projectHistoryFailures
+    .find({})
+    .map(normalizeFailure)
+    .toArray()
 }
 
 async function getFailuresByType() {
-  const results = await db.projectHistoryFailures.find({}).toArray()
+  const results = await getFailedProjects()
   const failureCounts = {}
   const failureAttempts = {}
   const failureRequests = {}
   const maxQueueSize = {}
   // count all the failures and number of attempts by type
   for (const result of results || []) {
-    const failureType = result.error
+    const failureType = 'error' in result ? result.error : 'resync'
     const attempts = result.attempts || 1 // allow for field to be absent
     const requests = result.requestCount || 0
-    const queueSize = result.queueSize || 0
+    const queueSize = 'queueSize' in result ? result.queueSize : 0
     if (failureCounts[failureType] > 0) {
       failureCounts[failureType]++
       failureAttempts[failureType] += attempts
@@ -134,49 +172,61 @@ async function getFailuresByType() {
   return { failureCounts, failureAttempts, failureRequests, maxQueueSize }
 }
 
+/**
+ * Mapping between error messages and short labels.
+ * @type {Record<string, string>}
+ */
+const SHORT_ERROR_NAMES = {
+  'Error: bad response from filestore: 404': 'filestore-404',
+  'Error: bad response from filestore: 500': 'filestore-500',
+  'NotFoundError: got a 404 from web api': 'web-api-404',
+  'Error: history store a non-success status code: 413': 'history-store-413',
+  'Error: history store a non-success status code: 422': 'history-store-422',
+  'Error: history store a non-success status code: 500': 'history-store-500',
+  'Error: history store a non-success status code: 503': 'history-store-503',
+  'Error: web returned a non-success status code: 500 (attempts: 2)': 'web-500',
+  'Error: ESOCKETTIMEDOUT': 'socket-timeout',
+  'Error: no project found': 'no-project-found',
+  'OpsOutOfOrderError: project structure version out of order on incoming updates':
+    'incoming-project-version-out-of-order',
+  'OpsOutOfOrderError: doc version out of order on incoming updates':
+    'incoming-doc-version-out-of-order',
+  'OpsOutOfOrderError: project structure version out of order':
+    'chunk-project-version-out-of-order',
+  'OpsOutOfOrderError: doc version out of order':
+    'chunk-doc-version-out-of-order',
+  'Error: failed to extend lock': 'lock-overrun',
+  'Error: tried to release timed out lock': 'lock-overrun',
+  'Error: Timeout': 'lock-overrun',
+  'Error: sync ongoing': 'sync-ongoing', // pre-SyncOngoingError entries
+  'SyncOngoingError: sync ongoing': 'sync-ongoing',
+  'SyncError: unexpected resyncProjectStructure update': 'sync-error',
+  '[object Error]': 'unknown-error-object',
+  'UpdateWithUnknownFormatError: update with unknown format': 'unknown-format',
+  'Error: update with unknown format': 'unknown-format',
+  'TextOperationError: The base length of the second operation has to be the target length of the first operation':
+    'text-op-error',
+  'Error: ENOSPC: no space left on device, write': 'ENOSPC',
+  '*': 'other',
+}
+
+async function getFailuresFull() {
+  const results = []
+  for await (const failure of await getFailedProjects()) {
+    results.push({
+      category:
+        'error' in failure ? SHORT_ERROR_NAMES[failure.error] : undefined,
+      ...failure,
+    })
+  }
+  return results
+}
+
 async function getFailures() {
   const { failureCounts, failureAttempts, failureRequests, maxQueueSize } =
     await getFailuresByType()
 
   let attempts, failureType, label, requests
-  const shortNames = {
-    'Error: bad response from filestore: 404': 'filestore-404',
-    'Error: bad response from filestore: 500': 'filestore-500',
-    'NotFoundError: got a 404 from web api': 'web-api-404',
-    'OError: history store a non-success status code: 413': 'history-store-413',
-    'OError: history store a non-success status code: 422': 'history-store-422',
-    'OError: history store a non-success status code: 500': 'history-store-500',
-    'OError: history store a non-success status code: 503': 'history-store-503',
-    'Error: history store a non-success status code: 413': 'history-store-413',
-    'Error: history store a non-success status code: 422': 'history-store-422',
-    'Error: history store a non-success status code: 500': 'history-store-500',
-    'Error: history store a non-success status code: 503': 'history-store-503',
-    'Error: web returned a non-success status code: 500 (attempts: 2)':
-      'web-500',
-    'Error: ESOCKETTIMEDOUT': 'socket-timeout',
-    'Error: no project found': 'no-project-found',
-    'OpsOutOfOrderError: project structure version out of order on incoming updates':
-      'incoming-project-version-out-of-order',
-    'OpsOutOfOrderError: doc version out of order on incoming updates':
-      'incoming-doc-version-out-of-order',
-    'OpsOutOfOrderError: project structure version out of order':
-      'chunk-project-version-out-of-order',
-    'OpsOutOfOrderError: doc version out of order':
-      'chunk-doc-version-out-of-order',
-    'Error: failed to extend lock': 'lock-overrun',
-    'Error: tried to release timed out lock': 'lock-overrun',
-    'Error: Timeout': 'lock-overrun',
-    'Error: sync ongoing': 'sync-ongoing',
-    'SyncError: unexpected resyncProjectStructure update': 'sync-error',
-    '[object Error]': 'unknown-error-object',
-    'UpdateWithUnknownFormatError: update with unknown format':
-      'unknown-format',
-    'Error: update with unknown format': 'unknown-format',
-    'TextOperationError: The base length of the second operation has to be the target length of the first operation':
-      'text-op-error',
-    'Error: ENOSPC: no space left on device, write': 'ENOSPC',
-    '*': 'other',
-  }
 
   // set all the known errors to zero if not present (otherwise gauges stay on their last value)
   const summaryCounts = {}
@@ -184,8 +234,8 @@ async function getFailures() {
   const summaryRequests = {}
   const summaryMaxQueueSize = {}
 
-  for (failureType in shortNames) {
-    label = shortNames[failureType]
+  for (failureType in SHORT_ERROR_NAMES) {
+    label = SHORT_ERROR_NAMES[failureType]
     summaryCounts[label] = 0
     summaryAttempts[label] = 0
     summaryRequests[label] = 0
@@ -195,7 +245,7 @@ async function getFailures() {
   // record a metric for each type of failure
   for (failureType in failureCounts) {
     const failureCount = failureCounts[failureType]
-    label = shortNames[failureType] || shortNames['*']
+    label = SHORT_ERROR_NAMES[failureType] || SHORT_ERROR_NAMES['*']
     summaryCounts[label] += failureCount
     summaryAttempts[label] += failureAttempts[failureType]
     summaryRequests[label] += failureRequests[failureType]
@@ -235,9 +285,11 @@ async function getFailures() {
 
 // EXPORTS
 
+const getFailuresFullCb = callbackify(getFailuresFull)
 const getFailedProjectsCb = callbackify(getFailedProjects)
 const getFailureRecordCb = callbackify(getFailureRecord)
 const getFailuresCb = callbackify(getFailures)
+const cloneFailureCb = callbackify(cloneFailure)
 const getLastFailureCb = callbackify(getLastFailure)
 const recordCb = callbackify(record)
 const clearErrorCb = callbackify(clearError)
@@ -245,6 +297,8 @@ const recordSyncStartCb = callbackify(recordSyncStart)
 const setForceDebugCb = callbackify(setForceDebug)
 
 export {
+  cloneFailureCb as cloneFailure,
+  getFailuresFullCb as getFailuresFull,
   getFailedProjectsCb as getFailedProjects,
   getFailureRecordCb as getFailureRecord,
   getLastFailureCb as getLastFailure,
@@ -257,6 +311,7 @@ export {
 
 export const promises = {
   getFailedProjects,
+  cloneFailure,
   getFailureRecord,
   getLastFailure,
   getFailures,

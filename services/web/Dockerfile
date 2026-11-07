@@ -1,7 +1,13 @@
 # This file was auto-generated, do not edit it directly.
-# Instead run internal$ services/web/build_scripts
+# Instead run bin/update_build_scripts from
+# https://github.com/overleaf/internal/
 
-FROM node:22.18.0 AS base
+FROM node:24.18.1 AS base
+
+# Corepack setup, shared between all the images.
+ENV COREPACK_HOME=/opt/corepack
+RUN corepack enable && corepack install -g yarn@4.18.0
+ENV COREPACK_ENABLE_NETWORK=0
 
 WORKDIR /overleaf/services/web
 
@@ -22,11 +28,17 @@ RUN mkdir -p /overleaf/services/web/data/dumpFolder \
 COPY services/web/certs/DigiCertGlobalG2TLSRSASHA2562020CA1-1.crt.pem /usr/local/share/ca-certificates/DigiCertGlobalG2TLSRSASHA2562020CA1-1.crt
 RUN update-ca-certificates
 
-# the deps image is used for caching npm ci
+# the deps image is used for caching yarn workspaces focus
 FROM base AS deps-prod
 
-COPY package.json package-lock.json /overleaf/
+# Pyodide wheel bundle (~370 MB). Version + SHA-256 are pinned in the fetch
+# script; keep that in sync with the pyodide dep in services/web/package.json.
+COPY services/web/scripts/fetch-pyodide-packages.mjs /overleaf/services/web/scripts/fetch-pyodide-packages.mjs
+RUN cd /overleaf/services/web && node scripts/fetch-pyodide-packages.mjs
+
+COPY package.json yarn.lock .yarnrc.yml .pnp.register.mjs /overleaf/
 COPY libraries/access-token-encryptor/package.json /overleaf/libraries/access-token-encryptor/package.json
+COPY libraries/cypress-pnp-reporter/package.json /overleaf/libraries/cypress-pnp-reporter/package.json
 COPY libraries/eslint-plugin/package.json /overleaf/libraries/eslint-plugin/package.json
 COPY libraries/fetch-utils/package.json /overleaf/libraries/fetch-utils/package.json
 COPY libraries/logger/package.json /overleaf/libraries/logger/package.json
@@ -43,16 +55,19 @@ COPY libraries/stream-utils/package.json /overleaf/libraries/stream-utils/packag
 COPY libraries/validation-tools/package.json /overleaf/libraries/validation-tools/package.json
 COPY services/web/package.json /overleaf/services/web/package.json
 COPY tools/migrations/package.json /overleaf/tools/migrations/package.json
-COPY patches/ /overleaf/patches/
+COPY .yarn/patches/ /overleaf/.yarn/patches/
 
-RUN cd /overleaf && NODE_ENV=production npm ci --quiet
+RUN cd /overleaf && NODE_ENV=production yarn workspaces focus --production @overleaf/web
 
 FROM deps-prod AS deps
 
 ENV CYPRESS_INSTALL_BINARY=0
 
 COPY tsconfig.backend.json /overleaf/
-RUN cd /overleaf && npm install
+RUN cd /overleaf \
+    && printf '%s\n' '"--install.mutex" "file:/tmp/overleaf-yarn-classic-mutex"' > /tmp/.yarnrc \
+    && yarn workspaces focus @overleaf/web overleaf \
+    && rm /tmp/.yarnrc
 
 
 # the dev is suitable for running tests
@@ -61,6 +76,7 @@ FROM deps AS dev
 ARG SENTRY_RELEASE
 ENV SENTRY_RELEASE=$SENTRY_RELEASE
 COPY libraries/access-token-encryptor/ /overleaf/libraries/access-token-encryptor/
+COPY libraries/cypress-pnp-reporter/ /overleaf/libraries/cypress-pnp-reporter/
 COPY libraries/eslint-plugin/ /overleaf/libraries/eslint-plugin/
 COPY libraries/fetch-utils/ /overleaf/libraries/fetch-utils/
 COPY libraries/logger/ /overleaf/libraries/logger/
@@ -79,8 +95,10 @@ COPY services/web/ /overleaf/services/web/
 COPY tools/migrations/ /overleaf/tools/migrations/
 
 # Build the latex parser
-RUN cd /overleaf/services/web && npm run 'lezer-latex:generate' \
-    && chown -R node:node /overleaf/services/web/data
+RUN cd /overleaf/services/web && yarn run 'lezer-latex:generate'
+
+# The module folders are owned as root. The node user cannot create them. Create them in advance.
+RUN cd /overleaf/services/web && make create_module_Makefiles
 
 USER node
 
@@ -88,7 +106,7 @@ USER node
 # the webpack image has deps+src+webpack artifacts
 FROM dev AS webpack
 USER root
-RUN OVERLEAF_CONFIG=/overleaf/services/web/config/settings.webpack.js nice npm run webpack:production
+RUN OVERLEAF_CONFIG=/overleaf/services/web/config/settings.webpack.js nice yarn run webpack:production
 
 
 # intermediate image for removing source maps ahead of copying into final production image
@@ -99,6 +117,7 @@ RUN nice find /overleaf/services/web/public -name '*.js.map' -delete
 # copy source code and precompile pug images
 FROM deps-prod AS pug
 COPY libraries/access-token-encryptor/ /overleaf/libraries/access-token-encryptor/
+COPY libraries/cypress-pnp-reporter/ /overleaf/libraries/cypress-pnp-reporter/
 COPY libraries/eslint-plugin/ /overleaf/libraries/eslint-plugin/
 COPY libraries/fetch-utils/ /overleaf/libraries/fetch-utils/
 COPY libraries/logger/ /overleaf/libraries/logger/
@@ -118,13 +137,14 @@ COPY tools/migrations/ /overleaf/tools/migrations/
 
 # Omit Server Pro/CE specific scripts from SaaS image
 RUN rm /overleaf/services/web/modules/server-ce-scripts -rf
-RUN OVERLEAF_CONFIG=/overleaf/services/web/config/settings.overrides.saas.js nice npm run precompile-pug
+RUN OVERLEAF_CONFIG=/overleaf/services/web/config/settings.overrides.saas.js nice yarn run precompile-pug
 
+ENV NODE_OPTIONS="--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs"
 
 # the web image with only production dependencies but no webpack production build, for development
 FROM pug AS app-only
 USER node
-CMD ["node", "--expose-gc", "app.mjs"]
+CMD ["node", "--expose-gc", "--trace-warnings", "app.mjs"]
 
 
 # the final production image, with webpack production build but without source maps
@@ -134,4 +154,4 @@ ENV SENTRY_RELEASE=$SENTRY_RELEASE
 ENV NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/DigiCertGlobalG2TLSRSASHA2562020CA1-1.crt
 COPY --from=webpack-no-sourcemaps /overleaf/services/web/public /overleaf/services/web/public
 USER node
-CMD ["node", "--expose-gc", "app.mjs"]
+CMD ["node", "--expose-gc", "--trace-warnings", "app.mjs"]

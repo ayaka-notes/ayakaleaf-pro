@@ -6,6 +6,12 @@ import { callbackifyAll } from '@overleaf/promise-utils'
 import OError from '@overleaf/o-error'
 import { iterablePaths } from './IterablePath.mjs'
 
+/** @import {ProjectDoc, ProjectFile} from './types' */
+
+/**
+ * @param {string} projectId
+ * @returns {Promise<Record<string, ProjectDoc>>}
+ */
 async function getAllDocs(projectId) {
   // We get the path and name info from the project, and the lines and
   // version info from the doc store.
@@ -37,6 +43,10 @@ async function getAllDocs(projectId) {
   return docs
 }
 
+/**
+ * @param {string} projectId
+ * @returns {Promise<Record<string, ProjectFile>>}
+ */
 async function getAllFiles(projectId) {
   const folders = await _getAllFolders(projectId)
   const files = {}
@@ -79,8 +89,9 @@ function getAllEntitiesFromProject(project) {
 }
 
 async function getAllDocPathsFromProjectById(projectId) {
-  const project =
-    await ProjectGetter.promises.getProjectWithoutDocLines(projectId)
+  const project = await ProjectGetter.promises.getProject(projectId, {
+    rootFolder: 1,
+  })
   if (project == null) {
     throw new Errors.NotFoundError('no project')
   }
@@ -120,8 +131,9 @@ async function getDoc(projectId, docId, options = {}) {
  * @param {ObjectId | string} docId
  */
 async function getDocPathByProjectIdAndDocId(projectId, docId) {
-  const project =
-    await ProjectGetter.promises.getProjectWithoutDocLines(projectId)
+  const project = await ProjectGetter.promises.getProject(projectId, {
+    rootFolder: 1,
+  })
   if (project == null) {
     throw new Errors.NotFoundError('no project')
   }
@@ -165,8 +177,9 @@ async function getDocPathFromProjectByDocId(project, docId) {
 }
 
 async function _getAllFolders(projectId) {
-  const project =
-    await ProjectGetter.promises.getProjectWithoutDocLines(projectId)
+  const project = await ProjectGetter.promises.getProject(projectId, {
+    rootFolder: 1,
+  })
 
   if (project == null) {
     throw new Errors.NotFoundError('no project')

@@ -10,10 +10,12 @@ export const foldingKeymap = [
   },
   {
     key: 'Alt-Shift-1',
+    mac: 'Alt-Shift-⁄', // Opt-Shift-1 on macOS
     run: foldAll,
   },
   {
     key: 'Alt-Shift-0',
+    mac: 'Alt-Shift-‚', // Opt-Shift-0 on macOS
     run: unfoldAll,
   },
 ]

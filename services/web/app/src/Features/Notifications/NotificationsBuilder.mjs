@@ -238,6 +238,29 @@ function personalAndGroupSubscriptions(userId) {
   }
 }
 
+function oldDebugProjects(userId) {
+  return {
+    key: `old-debug-projects-${userId}`,
+    async create() {
+      return await NotificationsHandler.promises.createNotification(
+        userId,
+        this.key,
+        'notification_old_debug_projects',
+        {},
+        null,
+        true
+      )
+    },
+    async read() {
+      return await NotificationsHandler.promises.markAsReadWithKey(
+        userId,
+        this.key
+      )
+    },
+  }
+}
+
+/** @type {Record<string, any>} */
 const NotificationsBuilder = {
   // Note: notification keys should be url-safe
   dropboxUnlinkedDueToLapsedReconfirmation(userId) {
@@ -269,6 +292,7 @@ const NotificationsBuilder = {
   },
 }
 
+/** @type {Record<string, any>} */
 NotificationsBuilder.promises = {
   dropboxUnlinkedDueToLapsedReconfirmation,
   redundantPersonalSubscription,
@@ -279,6 +303,7 @@ NotificationsBuilder.promises = {
   projectInvite,
   personalAndGroupSubscriptions,
   tpdsFileLimit,
+  oldDebugProjects,
 }
 
 export default NotificationsBuilder

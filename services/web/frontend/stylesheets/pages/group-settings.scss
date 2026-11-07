@@ -31,7 +31,8 @@
   }
 }
 
-.managed-users-enabled {
+.managed-users-enabled,
+.domain-capture-enabled {
   color: var(--content-positive);
 
   .icon {
@@ -317,4 +318,77 @@ h4.group-settings-title {
     flex-grow: 1;
     flex-shrink: 0;
   }
+}
+
+.group-domains-table {
+  table-layout: fixed;
+
+  thead {
+    th {
+      border-bottom-width: var(--bs-border-width) !important;
+    }
+
+    th:first-child {
+      width: 60px;
+    }
+
+    th:last-child {
+      width: 100px;
+    }
+  }
+
+  tr:not(.domain-extra-details-row) {
+    td {
+      border-bottom-width: 0;
+    }
+  }
+
+  .domain-extra-details-row {
+    font-size: var(--font-size-02);
+
+    td {
+      padding: 0;
+    }
+
+    .notification-list {
+      margin-top: var(--spacing-07);
+    }
+
+    .collapse {
+      margin-bottom: var(--spacing-06);
+    }
+  }
+
+  td {
+    overflow-wrap: break-word;
+  }
+
+  .domain-verification-status-table-cell {
+    white-space: nowrap;
+  }
+
+  .domain-verification-failure-reason {
+    margin-bottom: var(--spacing-05);
+  }
+
+  .domain-verification-token-container {
+    margin-bottom: var(--spacing-03);
+  }
+}
+
+.domain-verification-token-container {
+  background-color: var(--bg-light-secondary);
+  padding: var(--spacing-05);
+  border-radius: var(--border-radius-base);
+  border: 1px solid var(--border-disabled);
+  display: flex;
+  justify-content: space-between;
+}
+
+.remove-domain-confirm-name {
+  color: var(--content-danger);
+}
+
+.feature-settings-feature-switch {
+  padding-left: 0;
 }

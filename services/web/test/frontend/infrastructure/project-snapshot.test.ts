@@ -1,5 +1,6 @@
 import { expect } from 'chai'
 import fetchMock from 'fetch-mock'
+import { File } from 'overleaf-editor-core'
 import { ProjectSnapshot } from '@/infrastructure/project-snapshot'
 
 describe('ProjectSnapshot', function () {
@@ -475,6 +476,329 @@ describe('ProjectSnapshot', function () {
       expect(fetchMock.callHistory.calls('latest-chunk')).to.have.length(1)
       expect(fetchMock.callHistory.calls('changes-1')).to.have.length(1)
       expect(fetchMock.callHistory.calls('changes-2')).to.have.length(1)
+    })
+  })
+
+  describe('blob with UTF-8 BOM', function () {
+    // Files uploaded from Windows editors often have a UTF-8 BOM (U+FEFF) at
+    // the start. The server stores the blob as-is and counts the BOM in
+    // stringLength. TextOperations are built against that length.
+    //
+    // Response.text() strips the BOM per the Encoding spec, making the content
+    // 1 char shorter than expected — causing ApplyError on every page load.
+    // The fix uses arrayBuffer() + TextDecoder({ ignoreBOM: true }) to preserve
+    // the BOM, matching how the server counts stringLength.
+
+    const bomHash = '1111111111111111111111111111111111111111'
+    const bomHash2 = '2222222222222222222222222222222222222222'
+    const noBomHash = '3333333333333333333333333333333333333333'
+
+    const bomContent = '\uFEFF@article{Test2020,\n  author = {Smith, J},\n}\n'
+    const bomContent2 = '\uFEFF@article{Other2021,\n  author = {Jones, A},\n}\n'
+    const noBomContent = '@article{NoBom2022,\n  author = {Lee, B},\n}\n'
+
+    afterEach(function () {
+      fetchMock.removeRoutes().clearHistory()
+    })
+
+    it('loads a doc whose blob starts with a UTF-8 BOM', async function () {
+      // The main production bug: upload a BOM file, make one edit, reload.
+      const insertedText = '% comment\n'
+      const bomChunk = {
+        history: {
+          snapshot: { files: {} },
+          changes: [
+            {
+              operations: [
+                {
+                  pathname: 'refs.bib',
+                  file: { hash: bomHash, stringLength: bomContent.length },
+                },
+              ],
+              timestamp: '2025-01-01T12:00:00.000Z',
+            },
+            {
+              operations: [
+                {
+                  pathname: 'refs.bib',
+                  // baseLength includes BOM — matches server stringLength
+                  textOperation: [bomContent.length, insertedText],
+                },
+              ],
+              timestamp: '2025-01-01T12:01:00.000Z',
+            },
+          ],
+        },
+        startVersion: 0,
+      }
+
+      fetchMock.post(`/project/${projectId}/flush`, 200)
+      fetchMock.getOnce(`/project/${projectId}/latest/history`, {
+        chunk: bomChunk,
+      })
+      fetchMock.get(`/project/${projectId}/blob/${bomHash}`, bomContent)
+
+      await snapshot.refresh()
+
+      expect(snapshot.getDocContents('refs.bib')).to.equal(
+        bomContent + insertedText
+      )
+    })
+
+    it('loads multiple BOM files in the same project', async function () {
+      const insert1 = '% first\n'
+      const insert2 = '% second\n'
+      const bomChunk = {
+        history: {
+          snapshot: { files: {} },
+          changes: [
+            {
+              operations: [
+                {
+                  pathname: 'refs1.bib',
+                  file: { hash: bomHash, stringLength: bomContent.length },
+                },
+                {
+                  pathname: 'refs2.bib',
+                  file: { hash: bomHash2, stringLength: bomContent2.length },
+                },
+              ],
+              timestamp: '2025-01-01T12:00:00.000Z',
+            },
+            {
+              operations: [
+                {
+                  pathname: 'refs1.bib',
+                  textOperation: [bomContent.length, insert1],
+                },
+                {
+                  pathname: 'refs2.bib',
+                  textOperation: [bomContent2.length, insert2],
+                },
+              ],
+              timestamp: '2025-01-01T12:01:00.000Z',
+            },
+          ],
+        },
+        startVersion: 0,
+      }
+
+      fetchMock.post(`/project/${projectId}/flush`, 200)
+      fetchMock.getOnce(`/project/${projectId}/latest/history`, {
+        chunk: bomChunk,
+      })
+      fetchMock.get(`/project/${projectId}/blob/${bomHash}`, bomContent)
+      fetchMock.get(`/project/${projectId}/blob/${bomHash2}`, bomContent2)
+
+      await snapshot.refresh()
+
+      expect(snapshot.getDocContents('refs1.bib')).to.equal(
+        bomContent + insert1
+      )
+      expect(snapshot.getDocContents('refs2.bib')).to.equal(
+        bomContent2 + insert2
+      )
+    })
+
+    it('loads a BOM file with multiple accumulated textOps', async function () {
+      // Multiple edits accumulate in the lazy operations list before toEager
+      // is called. All ops use BOM-inclusive baseLengths.
+      const bomChunk = {
+        history: {
+          snapshot: { files: {} },
+          changes: [
+            {
+              operations: [
+                {
+                  pathname: 'refs.bib',
+                  file: { hash: bomHash, stringLength: bomContent.length },
+                },
+              ],
+              timestamp: '2025-01-01T12:00:00.000Z',
+            },
+            {
+              operations: [
+                {
+                  pathname: 'refs.bib',
+                  // first edit: insert text at end
+                  textOperation: [bomContent.length, '% edit1\n'],
+                },
+              ],
+              timestamp: '2025-01-01T12:01:00.000Z',
+            },
+            {
+              operations: [
+                {
+                  pathname: 'refs.bib',
+                  // second edit: insert more text at end
+                  textOperation: [
+                    bomContent.length + '% edit1\n'.length,
+                    '% edit2\n',
+                  ],
+                },
+              ],
+              timestamp: '2025-01-01T12:02:00.000Z',
+            },
+          ],
+        },
+        startVersion: 0,
+      }
+
+      fetchMock.post(`/project/${projectId}/flush`, 200)
+      fetchMock.getOnce(`/project/${projectId}/latest/history`, {
+        chunk: bomChunk,
+      })
+      fetchMock.get(`/project/${projectId}/blob/${bomHash}`, bomContent)
+
+      await snapshot.refresh()
+
+      expect(snapshot.getDocContents('refs.bib')).to.equal(
+        bomContent + '% edit1\n' + '% edit2\n'
+      )
+    })
+
+    it('does not affect files without a BOM', async function () {
+      // BOM handling is per-file; non-BOM files must not be broken.
+      const insertedText = '% added\n'
+      const mixedChunk = {
+        history: {
+          snapshot: { files: {} },
+          changes: [
+            {
+              operations: [
+                {
+                  pathname: 'bom.bib',
+                  file: { hash: bomHash, stringLength: bomContent.length },
+                },
+                {
+                  pathname: 'nobom.bib',
+                  file: {
+                    hash: noBomHash,
+                    stringLength: noBomContent.length,
+                  },
+                },
+              ],
+              timestamp: '2025-01-01T12:00:00.000Z',
+            },
+            {
+              operations: [
+                {
+                  pathname: 'bom.bib',
+                  textOperation: [bomContent.length, insertedText],
+                },
+                {
+                  pathname: 'nobom.bib',
+                  textOperation: [noBomContent.length, insertedText],
+                },
+              ],
+              timestamp: '2025-01-01T12:01:00.000Z',
+            },
+          ],
+        },
+        startVersion: 0,
+      }
+
+      fetchMock.post(`/project/${projectId}/flush`, 200)
+      fetchMock.getOnce(`/project/${projectId}/latest/history`, {
+        chunk: mixedChunk,
+      })
+      fetchMock.get(`/project/${projectId}/blob/${bomHash}`, bomContent)
+      fetchMock.get(`/project/${projectId}/blob/${noBomHash}`, noBomContent)
+
+      await snapshot.refresh()
+
+      expect(snapshot.getDocContents('bom.bib')).to.equal(
+        bomContent + insertedText
+      )
+      expect(snapshot.getDocContents('nobom.bib')).to.equal(
+        noBomContent + insertedText
+      )
+    })
+  })
+
+  describe('blob with the hash of empty content', function () {
+    // Nothing is stored under that hash, on the server or here, so the content is
+    // answered from the hash rather than fetched. A new empty doc references it before
+    // anything has written it, so a fetch would 404 and take the whole snapshot down.
+
+    afterEach(function () {
+      fetchMock.removeRoutes().clearHistory()
+    })
+
+    it('loads an empty doc without fetching the blob', async function () {
+      const emptyChunk = {
+        history: {
+          snapshot: { files: {} },
+          changes: [
+            {
+              operations: [
+                {
+                  pathname: 'fresh.tex',
+                  file: { hash: File.EMPTY_FILE_HASH, stringLength: 0 },
+                },
+              ],
+              timestamp: '2025-01-01T12:00:00.000Z',
+            },
+          ],
+        },
+        startVersion: 0,
+      }
+
+      fetchMock.post(`/project/${projectId}/flush`, 200)
+      fetchMock.getOnce(`/project/${projectId}/latest/history`, {
+        chunk: emptyChunk,
+      })
+      // Served only if the short circuit does not answer first, in which case the
+      // content below is what comes back.
+      fetchMock.get(
+        `/project/${projectId}/blob/${File.EMPTY_FILE_HASH}`,
+        'fetched from the server'
+      )
+
+      await snapshot.refresh()
+
+      expect(snapshot.getDocPaths()).to.have.members(['fresh.tex'])
+      expect(snapshot.getDocContents('fresh.tex')).to.equal('')
+    })
+
+    it('applies edits made on top of an empty doc', async function () {
+      const insertedText = '\\documentclass{article}\n'
+      const emptyChunk = {
+        history: {
+          snapshot: { files: {} },
+          changes: [
+            {
+              operations: [
+                {
+                  pathname: 'fresh.tex',
+                  file: { hash: File.EMPTY_FILE_HASH, stringLength: 0 },
+                },
+              ],
+              timestamp: '2025-01-01T12:00:00.000Z',
+            },
+            {
+              operations: [
+                { pathname: 'fresh.tex', textOperation: [insertedText] },
+              ],
+              timestamp: '2025-01-01T12:01:00.000Z',
+            },
+          ],
+        },
+        startVersion: 0,
+      }
+
+      fetchMock.post(`/project/${projectId}/flush`, 200)
+      fetchMock.getOnce(`/project/${projectId}/latest/history`, {
+        chunk: emptyChunk,
+      })
+      fetchMock.get(
+        `/project/${projectId}/blob/${File.EMPTY_FILE_HASH}`,
+        'fetched from the server'
+      )
+
+      await snapshot.refresh()
+
+      expect(snapshot.getDocContents('fresh.tex')).to.equal(insertedText)
     })
   })
 })

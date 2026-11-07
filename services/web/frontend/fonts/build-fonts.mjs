@@ -1,3 +1,5 @@
+/* eslint-disable no-console */
+
 import fs from 'node:fs/promises'
 import { createWriteStream } from 'node:fs'
 import { basename, join } from 'node:path'
@@ -17,12 +19,6 @@ const families = [
       'https://github.com/googlefonts/dm-mono/raw/refs/heads/main/exports/DMMono-MediumItalic.ttf',
       'https://github.com/googlefonts/dm-mono/raw/refs/heads/main/exports/DMMono-Regular.ttf',
     ],
-  },
-  {
-    folder: 'font-awesome',
-    url: 'https://fontawesome.com/v4/',
-    archive: 'https://fontawesome.com/v4/assets/font-awesome-4.7.0.zip',
-    fonts: ['font-awesome-4.7.0/fonts/fontawesome-webfont.woff2'],
   },
   {
     folder: 'inter',

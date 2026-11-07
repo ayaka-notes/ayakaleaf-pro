@@ -14,6 +14,7 @@ import { Affiliation } from '../../../../../../types/affiliation'
 import withMarkup from '../../../../helpers/with-markup'
 import getMeta from '@/utils/meta'
 import { clearDomainCache } from '../../../../../../frontend/js/features/settings/components/emails/add-email/input'
+import { SplitTestProvider } from '@/shared/context/split-test-context'
 
 const userEmailData: UserEmailData & { affiliation: Affiliation } = {
   affiliation: {
@@ -25,6 +26,7 @@ const userEmailData: UserEmailData & { affiliation: Affiliation } = {
     department: 'Art History',
     institution: {
       commonsAccount: false,
+      enterpriseCommons: false,
       writefullCommonsAccount: false,
       confirmed: true,
       id: 1,
@@ -56,6 +58,14 @@ const institutionDomainData = [
     confirmed: true,
   },
 ] as const
+
+function renderEmailsSection() {
+  return render(<EmailsSection />, {
+    wrapper: ({ children }) => (
+      <SplitTestProvider>{children}</SplitTestProvider>
+    ),
+  })
+}
 
 function resetFetchMock() {
   fetchMock.removeRoutes().clearHistory()
@@ -94,14 +104,14 @@ describe('<EmailsSection />', function () {
 
   it('renders "add another email" button', async function () {
     fetchMock.get('/user/emails?ensureAffiliation=true', [])
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     await screen.findByRole('button', { name: 'Add another email' })
   })
 
   it('renders input', async function () {
     fetchMock.get('/user/emails?ensureAffiliation=true', [])
-    render(<EmailsSection />)
+    renderEmailsSection()
     await fetchMock.callHistory.flush(true)
 
     const button = await screen.findByRole<HTMLButtonElement>('button', {
@@ -116,7 +126,7 @@ describe('<EmailsSection />', function () {
     fetchMock.get('/user/emails?ensureAffiliation=true', [])
     fetchMock.get(`/institutions/domains?hostname=email.com&limit=1`, 200)
     fetchMock.get(`/institutions/domains?hostname=email&limit=1`, 200)
-    render(<EmailsSection />)
+    renderEmailsSection()
     await fetchMock.callHistory.flush(true)
 
     const button = await screen.findByRole<HTMLButtonElement>('button', {
@@ -159,7 +169,7 @@ describe('<EmailsSection />', function () {
 
   it('renders "add new email" button', async function () {
     fetchMock.get('/user/emails?ensureAffiliation=true', [])
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     const button = await screen.findByRole<HTMLButtonElement>('button', {
       name: 'Add another email',
@@ -175,7 +185,7 @@ describe('<EmailsSection />', function () {
       emails.push({ email: `bar${i}@overleaf.com` })
     }
     fetchMock.get('/user/emails?ensureAffiliation=true', emails)
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     const findByTextWithMarkup = withMarkup(screen.findByText)
     await findByTextWithMarkup(
@@ -188,7 +198,7 @@ describe('<EmailsSection />', function () {
 
   it('adds new email address', async function () {
     fetchMock.get('/user/emails?ensureAffiliation=true', [])
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     const addAnotherEmailBtn = await screen.findByRole<HTMLButtonElement>(
       'button',
@@ -232,7 +242,7 @@ describe('<EmailsSection />', function () {
 
   it('fails to add add new email address', async function () {
     fetchMock.get('/user/emails?ensureAffiliation=true', [])
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     const addAnotherEmailBtn = await screen.findByRole<HTMLButtonElement>(
       'button',
@@ -271,7 +281,7 @@ describe('<EmailsSection />', function () {
 
   it('can link email address to an existing SSO institution', async function () {
     fetchMock.get('/user/emails?ensureAffiliation=true', [])
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     const button = await screen.findByRole<HTMLButtonElement>('button', {
       name: 'Add another email',
@@ -295,7 +305,7 @@ describe('<EmailsSection />', function () {
     fetchMock.get('/user/emails?ensureAffiliation=true', [
       { email: 'bar@autocomplete.edu', samlProviderId: '1234' },
     ])
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     const button = await screen.findByRole<HTMLButtonElement>('button', {
       name: 'Add another email',
@@ -321,7 +331,7 @@ describe('<EmailsSection />', function () {
     const country = 'Germany'
     const customDepartment = 'Custom department'
     fetchMock.get('/user/emails?ensureAffiliation=true', [])
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     const button = await screen.findByRole<HTMLButtonElement>('button', {
       name: 'Add another email',
@@ -424,7 +434,7 @@ describe('<EmailsSection />', function () {
 
   it('autocompletes institution name', async function () {
     fetchMock.get('/user/emails?ensureAffiliation=true', [])
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     const button = await screen.findByRole<HTMLButtonElement>('button', {
       name: 'Add another email',
@@ -480,7 +490,7 @@ describe('<EmailsSection />', function () {
     const countryCode = 'de'
     const newUniversity = 'Abcdef'
     fetchMock.get('/user/emails?ensureAffiliation=true', [])
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     const button = await screen.findByRole<HTMLButtonElement>('button', {
       name: 'Add another email',
@@ -596,7 +606,7 @@ describe('<EmailsSection />', function () {
     ]
     const hostnameFirstChar = institutionDomainDataCopy[0].hostname.charAt(0)
     fetchMock.get('/user/emails?ensureAffiliation=true', [])
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     const button = await screen.findByRole<HTMLButtonElement>('button', {
       name: 'Add another email',
@@ -669,7 +679,7 @@ describe('<EmailsSection />', function () {
     ]
     const hostnameFirstChar = institutionDomainDataCopy[0].hostname.charAt(0)
     fetchMock.get('/user/emails?ensureAffiliation=true', [])
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     const button = await screen.findByRole<HTMLButtonElement>('button', {
       name: 'Add another email',
@@ -758,6 +768,7 @@ describe('<EmailsSection />', function () {
               enabled: true,
             },
           },
+          capturedByGroup: true,
         }
 
         fetchMock.get('express:/institutions/domains', [institution])
@@ -766,7 +777,7 @@ describe('<EmailsSection />', function () {
       it('can add email address via SSO', async function () {
         // note: this UI is a WIP
         fetchMock.get('/user/emails?ensureAffiliation=true', [])
-        render(<EmailsSection />)
+        renderEmailsSection()
 
         const button = await screen.findByRole<HTMLButtonElement>('button', {
           name: 'Add another email',
@@ -801,6 +812,7 @@ describe('<EmailsSection />', function () {
               enabled: true,
             },
           },
+          capturedByGroup: true,
         }
 
         fetchMock.get('express:/institutions/domains', [institution])
@@ -809,7 +821,7 @@ describe('<EmailsSection />', function () {
       it('renders error', async function () {
         // note: this UI is a WIP
         fetchMock.get('/user/emails?ensureAffiliation=true', [])
-        render(<EmailsSection />)
+        renderEmailsSection()
 
         const button = await screen.findByRole<HTMLButtonElement>('button', {
           name: 'Add another email',
@@ -830,8 +842,7 @@ describe('<EmailsSection />', function () {
       })
     })
 
-    describe('if Commons SSO then enabled, that takes priority over group UI', function () {
-      // we shouldn't have SSO config in v1 and in v2 but adding test to ensure Commons takes priority
+    describe('if Commons SSO is enabled and managed users is not enabled, Commons takes priority over group UI', function () {
       beforeEach(async function () {
         await fetchMock.callHistory.flush(true)
         fetchMock.removeRoutes().clearHistory()
@@ -856,7 +867,7 @@ describe('<EmailsSection />', function () {
 
       it('renders Commons UI', async function () {
         fetchMock.get('/user/emails?ensureAffiliation=true', [])
-        render(<EmailsSection />)
+        renderEmailsSection()
 
         const button = await screen.findByRole<HTMLButtonElement>('button', {
           name: 'Add another email',
@@ -871,6 +882,236 @@ describe('<EmailsSection />', function () {
 
         await screen.findByRole('button', {
           name: 'Link accounts and add email',
+        })
+      })
+    })
+
+    describe('if Commons SSO is enabled and managed users is enabled, group domain capture takes priority', function () {
+      beforeEach(async function () {
+        await fetchMock.callHistory.flush(true)
+        fetchMock.removeRoutes().clearHistory()
+        const institution = {
+          university: {
+            id: 1234,
+            ssoEnabled: true,
+            name: 'Auto Complete University',
+          },
+          hostname: 'autocomplete.edu',
+          confirmed: true,
+          group: {
+            domainCaptureEnabled: true,
+            managedUsersEnabled: true,
+            ssoConfig: {
+              enabled: true,
+            },
+          },
+          capturedByGroup: true,
+        }
+
+        fetchMock.get('express:/institutions/domains', [institution])
+      })
+
+      it('renders group domain-capture error instead of Commons UI', async function () {
+        fetchMock.get('/user/emails?ensureAffiliation=true', [])
+        renderEmailsSection()
+
+        const button = await screen.findByRole<HTMLButtonElement>('button', {
+          name: 'Add another email',
+        })
+
+        await userEvent.click(button)
+
+        const input = screen.getByRole('textbox', { name: 'Email' })
+        fireEvent.change(input, {
+          target: { value: 'user@autocomplete.edu' },
+        })
+
+        const notification = await screen.findByRole('alert')
+        within(notification).getByText(
+          'Your company email address has been registered under a verified domain, and cannot be added as a secondary email.',
+          { exact: false }
+        )
+        expect(
+          screen.queryByRole('button', {
+            name: 'Link accounts and add email',
+          })
+        ).to.be.null
+      })
+    })
+
+    describe('domain capturedByGroup', function () {
+      describe('and capturedByGroup is true with managedUsersEnabled', function () {
+        beforeEach(async function () {
+          await fetchMock.callHistory.flush(true)
+          fetchMock.removeRoutes().clearHistory()
+          const institution = {
+            university: {
+              id: 1234,
+              ssoEnabled: false,
+              name: 'Auto Complete University',
+            },
+            hostname: 'autocomplete.edu',
+            confirmed: true,
+            capturedByGroup: true,
+            group: {
+              domainCaptureEnabled: true,
+              managedUsersEnabled: true,
+              ssoConfig: { enabled: true },
+            },
+          }
+
+          fetchMock.get('express:/institutions/domains', [institution])
+        })
+
+        it('renders the domain-capture error', async function () {
+          fetchMock.get('/user/emails?ensureAffiliation=true', [])
+          renderEmailsSection()
+
+          const button = await screen.findByRole<HTMLButtonElement>('button', {
+            name: 'Add another email',
+          })
+
+          await userEvent.click(button)
+
+          const input = screen.getByRole('textbox', { name: 'Email' })
+          fireEvent.change(input, {
+            target: { value: 'user@autocomplete.edu' },
+          })
+
+          const notification = await screen.findByRole('alert')
+          within(notification).getByText(
+            'Your company email address has been registered under a verified domain, and cannot be added as a secondary email.',
+            { exact: false }
+          )
+        })
+      })
+
+      describe('and capturedByGroup is false with managedUsersEnabled (domainCaptureEnabled alone is not enough)', function () {
+        beforeEach(async function () {
+          await fetchMock.callHistory.flush(true)
+          fetchMock.removeRoutes().clearHistory()
+          const institution = {
+            university: {
+              id: 1234,
+              ssoEnabled: false,
+              name: 'Auto Complete University',
+            },
+            hostname: 'autocomplete.edu',
+            confirmed: true,
+            capturedByGroup: false,
+            group: {
+              domainCaptureEnabled: true,
+              managedUsersEnabled: true,
+              ssoConfig: { enabled: true },
+            },
+          }
+
+          fetchMock.get('express:/institutions/domains', [institution])
+        })
+
+        it('does not render the domain-capture error and shows regular institution fields', async function () {
+          fetchMock.get('/user/emails?ensureAffiliation=true', [])
+          renderEmailsSection()
+
+          const button = await screen.findByRole<HTMLButtonElement>('button', {
+            name: 'Add another email',
+          })
+
+          await userEvent.click(button)
+
+          const input = screen.getByRole('textbox', { name: 'Email' })
+          fireEvent.change(input, {
+            target: { value: 'user@autocomplete.edu' },
+          })
+
+          await screen.findByRole('button', { name: 'Add new email' })
+          expect(screen.queryByRole('alert')).to.be.null
+        })
+      })
+
+      describe('and capturedByGroup is true with ssoConfig enabled (no managedUsers)', function () {
+        beforeEach(async function () {
+          await fetchMock.callHistory.flush(true)
+          fetchMock.removeRoutes().clearHistory()
+          const institution = {
+            university: {
+              id: 1234,
+              ssoEnabled: false,
+              name: 'Auto Complete University',
+            },
+            hostname: 'autocomplete.edu',
+            confirmed: true,
+            capturedByGroup: true,
+            group: {
+              domainCaptureEnabled: true,
+              managedUsersEnabled: false,
+              ssoConfig: { enabled: true },
+            },
+          }
+
+          fetchMock.get('express:/institutions/domains', [institution])
+        })
+
+        it('renders the group SSO unavailable message', async function () {
+          fetchMock.get('/user/emails?ensureAffiliation=true', [])
+          renderEmailsSection()
+
+          const button = await screen.findByRole<HTMLButtonElement>('button', {
+            name: 'Add another email',
+          })
+
+          await userEvent.click(button)
+
+          const input = screen.getByRole('textbox', { name: 'Email' })
+          fireEvent.change(input, {
+            target: { value: 'user@autocomplete.edu' },
+          })
+
+          await screen.findByText('This feature is currently unavailable.')
+        })
+      })
+
+      describe('and capturedByGroup is false with ssoConfig enabled', function () {
+        beforeEach(async function () {
+          await fetchMock.callHistory.flush(true)
+          fetchMock.removeRoutes().clearHistory()
+          const institution = {
+            university: {
+              id: 1234,
+              ssoEnabled: false,
+              name: 'Auto Complete University',
+            },
+            hostname: 'autocomplete.edu',
+            confirmed: true,
+            capturedByGroup: false,
+            group: {
+              domainCaptureEnabled: true,
+              managedUsersEnabled: false,
+              ssoConfig: { enabled: true },
+            },
+          }
+
+          fetchMock.get('express:/institutions/domains', [institution])
+        })
+
+        it('does not render SSO UI and shows regular institution fields', async function () {
+          fetchMock.get('/user/emails?ensureAffiliation=true', [])
+          renderEmailsSection()
+
+          const button = await screen.findByRole<HTMLButtonElement>('button', {
+            name: 'Add another email',
+          })
+
+          await userEvent.click(button)
+
+          const input = screen.getByRole('textbox', { name: 'Email' })
+          fireEvent.change(input, {
+            target: { value: 'user@autocomplete.edu' },
+          })
+
+          await screen.findByRole('button', { name: 'Add new email' })
+          expect(screen.queryByText('This feature is currently unavailable.'))
+            .to.be.null
         })
       })
     })

@@ -4,6 +4,7 @@ import { placeSelectionInsideBlock } from '../selection'
 
 export class MathWidget extends WidgetType {
   destroyed = false
+  cachedHeight: number | undefined = undefined
 
   constructor(
     public math: string,
@@ -24,14 +25,17 @@ export class MathWidget extends WidgetType {
         view.dispatch(placeSelectionInsideBlock(view, event as MouseEvent))
       })
     }
-    this.renderMath(element)
-      .catch(() => {
-        element.classList.add('ol-cm-math-error')
-      })
-      .finally(() => {
-        view.requestMeasure()
-      })
-
+    // in a timeout so the element can be rendered for metrics
+    window.setTimeout(() => {
+      this.renderMath(element)
+        .catch(() => {
+          element.classList.add('ol-cm-math-error')
+        })
+        .finally(() => {
+          view.requestMeasure()
+        })
+    })
+    // TODO: re-render on element resize
     return element
   }
 
@@ -76,7 +80,7 @@ export class MathWidget extends WidgetType {
   }
 
   get estimatedHeight() {
-    return this.math.split('\n').length * 40
+    return this.cachedHeight ?? this.math.split('\n').length * 40
   }
 
   coordsAt(element: HTMLElement) {
@@ -111,5 +115,6 @@ export class MathWidget extends WidgetType {
     })
     element.replaceChildren(math)
     element.style.height = 'auto'
+    this.cachedHeight = element.offsetHeight
   }
 }

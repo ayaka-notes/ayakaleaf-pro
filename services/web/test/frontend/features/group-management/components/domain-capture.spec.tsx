@@ -125,16 +125,17 @@ describe('<DomainCapture />', function () {
 
       cy.findByRole('alert').should(
         'contain.text',
-        `Your organization’s identity provider returned ${institutionEmail}. ` +
-          `You will need to use this address to create an account via SSO. You can ` +
-          `transfer your existing projects to the new account.`
+        `Your email address ${this.email} was not recognized. ` +
+          `Your organization’s identity provider returned ${institutionEmail}. ` +
+          `You will need to log out of ${this.email} and use ${institutionEmail} to create an account via SSO. ` +
+          `You can transfer your existing projects to the new account.`
       )
       cy.findByRole('link', {
         name: /transfer your existing projects/i,
       }).should(
         'have.attr',
         'href',
-        '/learn/how-to/How_to_Transfer_Project_Ownership'
+        'https://docs.overleaf.com/collaborating/transferring-project-ownership'
       )
     })
 

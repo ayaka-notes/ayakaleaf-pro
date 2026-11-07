@@ -3,7 +3,14 @@ import { beforeEach, describe, it, vi, expect } from 'vitest'
 import path from 'node:path'
 import sinon from 'sinon'
 import mongodb from 'mongodb-legacy'
+import { FileTooLargeError } from '../../../../app/src/Features/Errors/Errors.js'
 const { ObjectId } = mongodb
+
+// Ensure the module under test and this test file share the same
+// FileTooLargeError class, so `instanceof` checks in the controller line up.
+vi.mock('../../../../app/src/Features/Errors/Errors.js', () =>
+  vi.importActual('../../../../app/src/Features/Errors/Errors.js')
+)
 
 const MODULE_PATH = path.join(
   import.meta.dirname,
@@ -36,8 +43,6 @@ describe('ProjectController', function () {
           collaborator: {
             monthly: 15,
             annual: 180,
-            annualDividedByTwelve: 15,
-            monthlyTimesTwelve: 180,
           },
         },
       },
@@ -54,6 +59,8 @@ describe('ProjectController', function () {
       promises: {
         deleteProject: sinon.stub().resolves(),
         restoreProject: sinon.stub().resolves(),
+        archiveProject: sinon.stub().resolves(),
+        unarchiveProject: sinon.stub().resolves(),
       },
       findArchivedProjects: sinon.stub(),
     }
@@ -71,6 +78,7 @@ describe('ProjectController', function () {
     ctx.SubscriptionLocator = {
       promises: {
         getUsersSubscription: sinon.stub().resolves(),
+        getUserActiveProfessionalGroupSubscriptions: sinon.stub().resolves(),
       },
     }
     ctx.SubscriptionController = {
@@ -112,7 +120,9 @@ describe('ProjectController', function () {
       },
     }
     ctx.InactiveProjectManager = {
-      promises: { reactivateProjectIfRequired: sinon.stub() },
+      promises: {
+        reactivateProjectIfRequired: sinon.stub(),
+      },
     }
     ctx.ProjectUpdateHandler = {
       promises: {
@@ -144,6 +154,15 @@ describe('ProjectController', function () {
     }
     ctx.CollaboratorsGetter = {
       promises: {
+        getProjectAccess: sinon.stub().resolves({
+          getStats() {
+            return {
+              namedEditors: 1,
+              pendingEditors: 2,
+              tokenEditors: 3,
+            }
+          },
+        }),
         userIsTokenMember: sinon.stub().resolves(false),
         isUserInvitedMemberOfProject: sinon.stub().resolves(true),
         userIsReadWriteTokenMember: sinon.stub().resolves(false),
@@ -169,7 +188,10 @@ describe('ProjectController', function () {
     ctx.FeaturesUpdater = {
       featuresEpochIsCurrent: sinon.stub().returns(true),
       promises: {
-        refreshFeatures: sinon.stub().resolves(ctx.user),
+        refreshFeatures: sinon.stub().resolves({
+          features: { symbolPalette: true },
+          featuresChanged: true,
+        }),
       },
     }
     ctx.BrandVariationsHandler = {
@@ -182,16 +204,11 @@ describe('ProjectController', function () {
         flushProjectToTpdsIfNeeded: sinon.stub().resolves(),
       },
     }
-    ctx.Metrics = {
-      Timer: class {
-        done() {}
-      },
-      inc: sinon.stub(),
-    }
     ctx.SplitTestHandler = {
       promises: {
         getAssignment: sinon.stub().resolves({ variant: 'default' }),
         getAssignmentForUser: sinon.stub().resolves({ variant: 'default' }),
+        featureFlagEnabledForUser: sinon.stub().resolves(false),
         hasUserBeenAssignedToVariant: sinon.stub().resolves(false),
       },
       getAssignment: sinon.stub().yields(null, { variant: 'default' }),
@@ -230,16 +247,30 @@ describe('ProjectController', function () {
       promises: { hooks: { fire: sinon.stub().resolves() } },
     }
 
+    ctx.AiFeatureUsageRateLimiter = {
+      getRemainingFeatureUses: sinon.stub().resolves({
+        aiFeatureUsage: { remainingUsage: 0 },
+      }),
+    }
+
+    ctx.WorkbenchRateLimiter = {
+      getRemainingTokens: sinon.stub().resolves({
+        aiWorkbench: { remainingTokens: 0 },
+      }),
+    }
+
+    ctx.PermissionsManager = {
+      promises: {
+        checkUserPermissions: sinon.stub().resolves(false),
+      },
+    }
+
     vi.doMock('mongodb-legacy', () => ({
       default: { ObjectId },
     }))
 
     vi.doMock('@overleaf/settings', () => ({
       default: ctx.settings,
-    }))
-
-    vi.doMock('@overleaf/metrics', () => ({
-      default: ctx.Metrics,
     }))
 
     vi.doMock(
@@ -416,7 +447,10 @@ describe('ProjectController', function () {
       '../../../../app/src/Features/Analytics/AnalyticsManager',
       () => ({
         default: {
+          recordEventForSession: () => {},
           recordEventForUserInBackground: () => {},
+          setUserPropertyForUserInBackground: () => {},
+          setUserPropertyForSessionInBackground: () => {},
         },
       })
     )
@@ -484,13 +518,35 @@ describe('ProjectController', function () {
       default: ctx.Modules,
     }))
 
+    vi.doMock(
+      '../../../../app/src/infrastructure/rate-limiters/AiFeatureUsageRateLimiter',
+      () => ({
+        default: ctx.AiFeatureUsageRateLimiter,
+      })
+    )
+
+    vi.doMock(
+      '../../../../app/src/infrastructure/rate-limiters/WorkbenchRateLimiter',
+      () => ({
+        default: ctx.WorkbenchRateLimiter,
+      })
+    )
+
+    vi.doMock(
+      '../../../../app/src/Features/Authorization/PermissionsManager',
+      () => ({
+        default: ctx.PermissionsManager,
+      })
+    )
+
     ctx.ProjectController = (await import(MODULE_PATH)).default
 
     ctx.projectName = '£12321jkj9ujkljds'
     ctx.req = {
       query: {},
       params: {
-        Project_id: ctx.project_id,
+        // real Express req.params are always strings
+        Project_id: ctx.project_id.toString(),
       },
       headers: {},
       connection: {
@@ -599,6 +655,16 @@ describe('ProjectController', function () {
         ctx.ProjectController.updateProjectSettings(ctx.req, ctx.res)
       })
     })
+
+    it('should reject a malformed mainBibliographyDocId', async function (ctx) {
+      await new Promise(resolve => {
+        ctx.req.body = { mainBibliographyDocId: 'not-an-object-id' }
+        ctx.ProjectController.updateProjectSettings(ctx.req, ctx.res, err => {
+          expect(err).to.exist
+          resolve()
+        })
+      })
+    })
   })
 
   describe('updateProjectAdminSettings', function () {
@@ -680,9 +746,10 @@ describe('ProjectController', function () {
       await new Promise(resolve => {
         ctx.res.sendStatus = code => {
           ctx.ProjectDeleter.promises.deleteProject
-            .calledWith(ctx.project_id, {
+            .calledWith(ctx.project_id.toString(), {
               deleterUser: ctx.user,
               ipAddress: ctx.req.ip,
+              deletedReason: 'user',
             })
             .should.equal(true)
           code.should.equal(200)
@@ -693,12 +760,42 @@ describe('ProjectController', function () {
     })
   })
 
+  describe('archiveProject', function () {
+    it('should call the project deleter', async function (ctx) {
+      await new Promise(resolve => {
+        ctx.res.sendStatus = code => {
+          ctx.ProjectDeleter.promises.archiveProject
+            .calledWith(ctx.project_id.toString(), ctx.user._id)
+            .should.equal(true)
+          code.should.equal(200)
+          resolve()
+        }
+        ctx.ProjectController.archiveProject(ctx.req, ctx.res)
+      })
+    })
+  })
+
+  describe('unarchiveProject', function () {
+    it('should call the project deleter', async function (ctx) {
+      await new Promise(resolve => {
+        ctx.res.sendStatus = code => {
+          ctx.ProjectDeleter.promises.unarchiveProject
+            .calledWith(ctx.project_id.toString(), ctx.user._id)
+            .should.equal(true)
+          code.should.equal(200)
+          resolve()
+        }
+        ctx.ProjectController.unarchiveProject(ctx.req, ctx.res)
+      })
+    })
+  })
+
   describe('restoreProject', function () {
     it('should tell the project deleter', async function (ctx) {
       await new Promise(resolve => {
         ctx.res.sendStatus = code => {
           ctx.ProjectDeleter.promises.restoreProject
-            .calledWith(ctx.project_id)
+            .calledWith(ctx.project_id.toString())
             .should.equal(true)
           code.should.equal(200)
           resolve()
@@ -713,12 +810,59 @@ describe('ProjectController', function () {
       await new Promise(resolve => {
         ctx.res.json = json => {
           ctx.ProjectDuplicator.promises.duplicate
-            .calledWith(ctx.user, ctx.project_id, ctx.projectName)
+            .calledWith(ctx.user, ctx.project_id.toString(), ctx.projectName)
             .should.equal(true)
           json.project_id.should.equal(ctx.project_id)
           resolve()
         }
         ctx.ProjectController.cloneProject(ctx.req, ctx.res)
+      })
+    })
+
+    it('should respond with a 413 when a file is too large to copy', async function (ctx) {
+      const err = new FileTooLargeError('file too large', {
+        path: 'huge.pdf',
+        size: 123456789,
+      })
+      ctx.ProjectDuplicator.promises.duplicate = sinon.stub().rejects(err)
+      await new Promise(resolve => {
+        ctx.res.status = sinon.stub().returns(ctx.res)
+        ctx.res.json = json => {
+          ctx.res.status.should.have.been.calledWith(413)
+          expect(json).to.deep.equal({
+            message: {
+              text: 'file too large to copy',
+              key: 'file_too_large_to_copy',
+              info: { path: 'huge.pdf', size: 123456789 },
+            },
+          })
+          resolve()
+        }
+        ctx.ProjectController.cloneProject(ctx.req, ctx.res)
+      })
+    })
+
+    it('should forward a FileTooLargeError without a path to next (e.g. project too large)', async function (ctx) {
+      const err = new FileTooLargeError('Project is too large')
+      ctx.ProjectDuplicator.promises.duplicate = sinon.stub().rejects(err)
+      await new Promise(resolve => {
+        const next = forwardedErr => {
+          expect(forwardedErr).to.equal(err)
+          resolve()
+        }
+        ctx.ProjectController.cloneProject(ctx.req, ctx.res, next)
+      })
+    })
+
+    it('should forward other errors to next', async function (ctx) {
+      const err = new Error('boom')
+      ctx.ProjectDuplicator.promises.duplicate = sinon.stub().rejects(err)
+      await new Promise(resolve => {
+        const next = forwardedErr => {
+          expect(forwardedErr).to.equal(err)
+          resolve()
+        }
+        ctx.ProjectController.cloneProject(ctx.req, ctx.res, next)
       })
     })
   })
@@ -772,7 +916,7 @@ describe('ProjectController', function () {
   describe('renameProject', function () {
     beforeEach(function (ctx) {
       ctx.newProjectName = 'my supper great new project'
-      ctx.req.body.newProjectName = ctx.newProjectName
+      ctx.req.body = { newProjectName: ctx.newProjectName }
       ctx.req.params.Project_id = ctx.project_id.toString()
     })
 
@@ -861,14 +1005,32 @@ describe('ProjectController', function () {
       })
     })
 
+    it('should request compile-with-checkpoint split test assignment', async function (ctx) {
+      await new Promise(resolve => {
+        ctx.res.render = () => {
+          expect(
+            ctx.SplitTestHandler.promises.getAssignment
+          ).to.have.been.calledWith(ctx.req, ctx.res, 'compile-with-checkpoint')
+          resolve()
+        }
+        ctx.ProjectController.loadEditor(ctx.req, ctx.res)
+      })
+    })
+
     it('should redirect to domain capture page', async function (ctx) {
       ctx.Features.hasFeature.withArgs('saas').returns(true)
       ctx.SplitTestHandler.promises.getAssignment
         .withArgs(ctx.req, ctx.res, 'domain-capture-redirect')
         .resolves({ variant: 'enabled' })
       ctx.Modules.promises.hooks.fire
-        .withArgs('findDomainCaptureGroupUserCouldBePartOf', ctx.user._id)
-        .resolves([{ _id: new ObjectId(), managedUsersEnabled: true }])
+        .withArgs('findDomainCaptureGroupsUserCouldBePartOf', ctx.user._id)
+        .resolves([
+          [
+            {
+              subscription: { managedUsersEnabled: true },
+            },
+          ],
+        ])
       await new Promise(resolve => {
         ctx.res.redirect = url => {
           url.should.equal('/domain-capture')
@@ -982,7 +1144,7 @@ describe('ProjectController', function () {
           resCode.should.equal(401)
           ctx.AuthorizationManager.promises.getPrivilegeLevelForProject.should.have.been.calledWith(
             ctx.user._id,
-            ctx.project_id,
+            ctx.project_id.toString(),
             'some-token'
           )
           resolve()
@@ -991,11 +1153,11 @@ describe('ProjectController', function () {
       })
     })
 
-    it('should reactivateProjectIfRequired', async function (ctx) {
+    it('should call reactivateProjectIfRequired', async function (ctx) {
       await new Promise(resolve => {
         ctx.res.render = (pageName, opts) => {
           ctx.InactiveProjectManager.promises.reactivateProjectIfRequired
-            .calledWith(ctx.project_id)
+            .calledWith(ctx.project)
             .should.equal(true)
           resolve()
         }
@@ -1021,7 +1183,7 @@ describe('ProjectController', function () {
       await new Promise(resolve => {
         ctx.res.render = (pageName, opts) => {
           ctx.ProjectUpdateHandler.promises.markAsOpened
-            .calledWith(ctx.project_id)
+            .calledWith(ctx.project_id.toString())
             .should.equal(true)
           resolve()
         }
@@ -1069,7 +1231,7 @@ describe('ProjectController', function () {
       await new Promise(resolve => {
         ctx.res.render = () => {
           ctx.TpdsProjectFlusher.promises.flushProjectToTpdsIfNeeded.should.have.been.calledWith(
-            ctx.project_id
+            ctx.project
           )
           resolve()
         }
@@ -1078,16 +1240,20 @@ describe('ProjectController', function () {
     })
 
     it('should refresh the user features if the epoch is outdated', async function (ctx) {
-      await new Promise(resolve => {
+      ctx.Features.hasFeature.withArgs('saas').returns(true)
+      await new Promise((resolve, reject) => {
         ctx.FeaturesUpdater.featuresEpochIsCurrent = sinon.stub().returns(false)
-        ctx.res.render = () => {
+        ctx.res.render = (_, data) => {
           ctx.FeaturesUpdater.promises.refreshFeatures.should.have.been.calledWith(
             ctx.user._id,
             'load-editor'
           )
+          expect(data.showSymbolPalette).to.equal(true)
           resolve()
         }
-        ctx.ProjectController.loadEditor(ctx.req, ctx.res)
+        ctx.ProjectController.loadEditor(ctx.req, ctx.res, err => {
+          if (err) reject(err)
+        })
       })
     })
 
@@ -1234,13 +1400,13 @@ describe('ProjectController', function () {
           })
           describe('when the projectId does not match (0)', function () {
             beforeEach(function (ctx) {
-              ctx.req.params.Project_id = ObjectId.createFromTime(0)
+              ctx.req.params.Project_id = ObjectId.createFromTime(0).toString()
             })
             checkNonMatch()
           })
           describe('when the projectId does not match (42)', function () {
             beforeEach(function (ctx) {
-              ctx.req.params.Project_id = ObjectId.createFromTime(42)
+              ctx.req.params.Project_id = ObjectId.createFromTime(42).toString()
             })
             checkNonMatch()
           })
@@ -1252,21 +1418,21 @@ describe('ProjectController', function () {
           })
           describe('when the projectId matches (0)', function () {
             beforeEach(function (ctx) {
-              ctx.req.params.Project_id = ObjectId.createFromTime(0)
+              ctx.req.params.Project_id = ObjectId.createFromTime(0).toString()
             })
             checkMatch()
             checkForBetaUser()
           })
           describe('when the projectId does not match (1)', function () {
             beforeEach(function (ctx) {
-              ctx.req.params.Project_id = ObjectId.createFromTime(1)
+              ctx.req.params.Project_id = ObjectId.createFromTime(1).toString()
             })
             checkNonMatch()
             checkForBetaUser()
           })
           describe('when the projectId does not match (42)', function () {
             beforeEach(function (ctx) {
-              ctx.req.params.Project_id = ObjectId.createFromTime(42)
+              ctx.req.params.Project_id = ObjectId.createFromTime(42).toString()
             })
             checkNonMatch()
           })
@@ -1277,26 +1443,26 @@ describe('ProjectController', function () {
           })
           describe('when the projectId matches (0)', function () {
             beforeEach(function (ctx) {
-              ctx.req.params.Project_id = ObjectId.createFromTime(0)
+              ctx.req.params.Project_id = ObjectId.createFromTime(0).toString()
             })
             checkMatch()
           })
           describe('when the projectId matches (9)', function () {
             beforeEach(function (ctx) {
-              ctx.req.params.Project_id = ObjectId.createFromTime(9)
+              ctx.req.params.Project_id = ObjectId.createFromTime(9).toString()
             })
             checkMatch()
             checkForBetaUser()
           })
           describe('when the projectId does not match (10)', function () {
             beforeEach(function (ctx) {
-              ctx.req.params.Project_id = ObjectId.createFromTime(10)
+              ctx.req.params.Project_id = ObjectId.createFromTime(10).toString()
             })
             checkNonMatch()
           })
           describe('when the projectId does not match (42)', function () {
             beforeEach(function (ctx) {
-              ctx.req.params.Project_id = ObjectId.createFromTime(42)
+              ctx.req.params.Project_id = ObjectId.createFromTime(42).toString()
             })
             checkNonMatch()
             checkForBetaUser()
@@ -1308,26 +1474,26 @@ describe('ProjectController', function () {
           })
           describe('when the projectId matches (0)', function () {
             beforeEach(function (ctx) {
-              ctx.req.params.Project_id = ObjectId.createFromTime(0)
+              ctx.req.params.Project_id = ObjectId.createFromTime(0).toString()
             })
             checkMatch()
             checkForBetaUser()
           })
           describe('when the projectId matches (10)', function () {
             beforeEach(function (ctx) {
-              ctx.req.params.Project_id = ObjectId.createFromTime(10)
+              ctx.req.params.Project_id = ObjectId.createFromTime(10).toString()
             })
             checkMatch()
           })
           describe('when the projectId matches (42)', function () {
             beforeEach(function (ctx) {
-              ctx.req.params.Project_id = ObjectId.createFromTime(42)
+              ctx.req.params.Project_id = ObjectId.createFromTime(42).toString()
             })
             checkMatch()
           })
           describe('when the projectId matches (99)', function () {
             beforeEach(function (ctx) {
-              ctx.req.params.Project_id = ObjectId.createFromTime(99)
+              ctx.req.params.Project_id = ObjectId.createFromTime(99).toString()
             })
             checkMatch()
           })
@@ -1447,7 +1613,7 @@ describe('ProjectController', function () {
           ctx.res.render = (pageName, opts) => {
             ctx.Modules.promises.hooks.fire.should.have.been.calledWith(
               'enforceCollaboratorLimit',
-              ctx.project_id
+              ctx.project_id.toString()
             )
             resolve()
           }
@@ -1465,6 +1631,262 @@ describe('ProjectController', function () {
             resolve()
           }
           ctx.ProjectController.loadEditor(ctx.req, ctx.res)
+        })
+      })
+    })
+
+    describe('AI features availability', function () {
+      beforeEach(function (ctx) {
+        ctx.Features.hasFeature.withArgs('saas').returns(true)
+        ctx.Modules.promises.hooks.fire = sinon.stub().resolves([[true]])
+        ctx.settings.localizedAddOnsPricing = {
+          USD: {
+            assistant: {
+              annual: 60,
+              monthly: 5,
+            },
+          },
+        }
+      })
+
+      it('should set showAiFeatures to true when the user has the use-ai permission', async function (ctx) {
+        ctx.PermissionsManager.promises.checkUserPermissions.resolves(true)
+        await new Promise((resolve, reject) => {
+          ctx.res.render = (pageName, opts) => {
+            expect(opts.showAiFeatures).to.equal(true)
+            resolve()
+          }
+          ctx.ProjectController.loadEditor(ctx.req, ctx.res, err => {
+            if (err) reject(err)
+          })
+        })
+      })
+
+      it('should set showAiFeatures to false when the user lacks the use-ai permission', async function (ctx) {
+        ctx.PermissionsManager.promises.checkUserPermissions.resolves(false)
+        await new Promise((resolve, reject) => {
+          ctx.res.render = (pageName, opts) => {
+            expect(opts.showAiFeatures).to.equal(false)
+            resolve()
+          }
+          ctx.ProjectController.loadEditor(ctx.req, ctx.res, err => {
+            if (err) reject(err)
+          })
+        })
+      })
+
+      it('should set showAiFeatures to false when the user has disabled ai features', async function (ctx) {
+        ctx.PermissionsManager.promises.checkUserPermissions.resolves(true)
+        ctx.user.aiFeatures = { enabled: false }
+        ctx.UserModel.findById.returns({
+          exec: sinon.stub().resolves(ctx.user),
+        })
+        await new Promise((resolve, reject) => {
+          ctx.res.render = (pageName, opts) => {
+            expect(opts.showAiFeatures).to.equal(false)
+            resolve()
+          }
+          ctx.ProjectController.loadEditor(ctx.req, ctx.res, err => {
+            if (err) reject(err)
+          })
+        })
+      })
+
+      it('should set showAiFeatures to false when the permission check throws', async function (ctx) {
+        ctx.PermissionsManager.promises.checkUserPermissions.rejects(
+          new Error('permission check failed')
+        )
+        await new Promise((resolve, reject) => {
+          ctx.res.render = (pageName, opts) => {
+            expect(opts.showAiFeatures).to.equal(false)
+            resolve()
+          }
+          ctx.ProjectController.loadEditor(ctx.req, ctx.res, err => {
+            if (err) reject(err)
+          })
+        })
+      })
+
+      it('should set showAiFeatures to false when the project owner permission check throws', async function (ctx) {
+        ctx.PermissionsManager.promises.checkUserPermissions.resolves(true)
+        ctx.PermissionsManager.promises.checkUserPermissions
+          .onSecondCall()
+          .rejects(new Error('permission check failed'))
+        await new Promise((resolve, reject) => {
+          ctx.res.render = (pageName, opts) => {
+            expect(opts.showAiFeatures).to.equal(false)
+            resolve()
+          }
+          ctx.ProjectController.loadEditor(ctx.req, ctx.res, err => {
+            if (err) reject(err)
+          })
+        })
+      })
+
+      it('should set showAiFeatures to false when the user has read-only access', async function (ctx) {
+        ctx.PermissionsManager.promises.checkUserPermissions.resolves(true)
+        ctx.AuthorizationManager.promises.getPrivilegeLevelForProject.resolves(
+          'readOnly'
+        )
+        await new Promise((resolve, reject) => {
+          ctx.res.render = (pageName, opts) => {
+            expect(opts.showAiFeatures).to.equal(false)
+            resolve()
+          }
+          ctx.ProjectController.loadEditor(ctx.req, ctx.res, err => {
+            if (err) reject(err)
+          })
+        })
+      })
+
+      it('should set showAiFeatures to false when the user can use ai but the project disallows it', async function (ctx) {
+        ctx.PermissionsManager.promises.checkUserPermissions.callsFake(
+          subject => Promise.resolve(typeof subject !== 'string')
+        )
+        await new Promise((resolve, reject) => {
+          ctx.res.render = (pageName, opts) => {
+            expect(opts.showAiFeatures).to.equal(false)
+            expect(opts.showAiFeaturesDisabled).to.equal(false)
+            resolve()
+          }
+          ctx.ProjectController.loadEditor(ctx.req, ctx.res, err => {
+            if (err) reject(err)
+          })
+        })
+      })
+
+      it('should set showAiFeaturesDisabled to false when the user can use ai and the project allows it', async function (ctx) {
+        ctx.PermissionsManager.promises.checkUserPermissions.resolves(true)
+        ctx.Modules.promises.hooks.fire = sinon.stub().resolves([true])
+        await new Promise((resolve, reject) => {
+          ctx.res.render = (pageName, opts) => {
+            expect(opts.showAiFeaturesDisabled).to.equal(false)
+            resolve()
+          }
+          ctx.ProjectController.loadEditor(ctx.req, ctx.res, err => {
+            if (err) reject(err)
+          })
+        })
+      })
+
+      it('should set showAiFeaturesDisabled to false when the user lacks the use-ai permission', async function (ctx) {
+        ctx.PermissionsManager.promises.checkUserPermissions.resolves(false)
+        ctx.Modules.promises.hooks.fire = sinon.stub().resolves([[false]])
+        await new Promise((resolve, reject) => {
+          ctx.res.render = (pageName, opts) => {
+            expect(opts.showAiFeaturesDisabled).to.equal(false)
+            resolve()
+          }
+          ctx.ProjectController.loadEditor(ctx.req, ctx.res, err => {
+            if (err) reject(err)
+          })
+        })
+      })
+
+      it('should set showAiFeaturesDisabled to false when the user has disabled ai features', async function (ctx) {
+        ctx.PermissionsManager.promises.checkUserPermissions.resolves(true)
+        ctx.Modules.promises.hooks.fire = sinon.stub().resolves([[false]])
+        ctx.user.aiFeatures = { enabled: false }
+        ctx.UserModel.findById.returns({
+          exec: sinon.stub().resolves(ctx.user),
+        })
+        await new Promise((resolve, reject) => {
+          ctx.res.render = (pageName, opts) => {
+            expect(opts.showAiFeaturesDisabled).to.equal(false)
+            resolve()
+          }
+          ctx.ProjectController.loadEditor(ctx.req, ctx.res, err => {
+            if (err) reject(err)
+          })
+        })
+      })
+
+      describe("when the 'ai-disabled-collaborators' variant is enabled", function () {
+        beforeEach(function (ctx) {
+          ctx.SplitTestHandler.promises.getAssignment
+            .withArgs(ctx.req, ctx.res, 'ai-disabled-collaborators')
+            .resolves({ variant: 'enabled' })
+        })
+
+        it('should set showAiFeatures to true and showAiFeaturesDisabled to true when the user can use ai but the project disallows it', async function (ctx) {
+          ctx.PermissionsManager.promises.checkUserPermissions.callsFake(
+            subject => Promise.resolve(typeof subject !== 'string')
+          )
+          await new Promise((resolve, reject) => {
+            ctx.res.render = (pageName, opts) => {
+              expect(opts.showAiFeatures).to.equal(true)
+              expect(opts.showAiFeaturesDisabled).to.equal(true)
+              resolve()
+            }
+            ctx.ProjectController.loadEditor(ctx.req, ctx.res, err => {
+              if (err) reject(err)
+            })
+          })
+        })
+
+        it('should set showAiFeatures to true and showAiFeaturesDisabled to false when the user can use ai and the project allows it', async function (ctx) {
+          ctx.PermissionsManager.promises.checkUserPermissions.resolves(true)
+          await new Promise((resolve, reject) => {
+            ctx.res.render = (pageName, opts) => {
+              expect(opts.showAiFeatures).to.equal(true)
+              expect(opts.showAiFeaturesDisabled).to.equal(false)
+              resolve()
+            }
+            ctx.ProjectController.loadEditor(ctx.req, ctx.res, err => {
+              if (err) reject(err)
+            })
+          })
+        })
+
+        it('should set showAiFeatures to false and showAiFeaturesDisabled to false when the user lacks the use-ai permission', async function (ctx) {
+          ctx.PermissionsManager.promises.checkUserPermissions.resolves(false)
+          await new Promise((resolve, reject) => {
+            ctx.res.render = (pageName, opts) => {
+              expect(opts.showAiFeatures).to.equal(false)
+              expect(opts.showAiFeaturesDisabled).to.equal(false)
+              resolve()
+            }
+            ctx.ProjectController.loadEditor(ctx.req, ctx.res, err => {
+              if (err) reject(err)
+            })
+          })
+        })
+
+        it('should set showAiFeatures to false and showAiFeaturesDisabled to false when the user has disabled ai features', async function (ctx) {
+          ctx.PermissionsManager.promises.checkUserPermissions.callsFake(
+            subject => Promise.resolve(typeof subject !== 'string')
+          )
+          ctx.user.aiFeatures = { enabled: false }
+          ctx.UserModel.findById.returns({
+            exec: sinon.stub().resolves(ctx.user),
+          })
+          await new Promise((resolve, reject) => {
+            ctx.res.render = (pageName, opts) => {
+              expect(opts.showAiFeatures).to.equal(false)
+              expect(opts.showAiFeaturesDisabled).to.equal(false)
+              resolve()
+            }
+            ctx.ProjectController.loadEditor(ctx.req, ctx.res, err => {
+              if (err) reject(err)
+            })
+          })
+        })
+
+        it('should set showAiFeatures to false and showAiFeaturesDisabled to false when the user has read-only access', async function (ctx) {
+          ctx.PermissionsManager.promises.checkUserPermissions.resolves(true)
+          ctx.AuthorizationManager.promises.getPrivilegeLevelForProject.resolves(
+            'readOnly'
+          )
+          await new Promise((resolve, reject) => {
+            ctx.res.render = (pageName, opts) => {
+              expect(opts.showAiFeatures).to.equal(false)
+              expect(opts.showAiFeaturesDisabled).to.equal(false)
+              resolve()
+            }
+            ctx.ProjectController.loadEditor(ctx.req, ctx.res, err => {
+              if (err) reject(err)
+            })
+          })
         })
       })
     })
@@ -1549,8 +1971,8 @@ describe('ProjectController', function () {
   describe('projectEntitiesJson', function () {
     beforeEach(function (ctx) {
       ctx.SessionManager.getLoggedInUserId = sinon.stub().returns('abc')
-      ctx.req.params = { Project_id: 'abcd' }
-      ctx.project = { _id: 'abcd' }
+      ctx.req.params = { Project_id: '507f191e810c19729de860ea' }
+      ctx.project = { _id: '507f191e810c19729de860ea' }
       ctx.docs = [
         { path: '/things/b.txt', doc: true },
         { path: '/main.tex', doc: true },
@@ -1566,7 +1988,7 @@ describe('ProjectController', function () {
       await new Promise(resolve => {
         ctx.res.json = data => {
           expect(data).to.deep.equal({
-            project_id: 'abcd',
+            project_id: '507f191e810c19729de860ea',
             entities: [
               { path: '/main.tex', type: 'doc' },
               { path: '/things/a.txt', type: 'file' },

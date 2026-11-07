@@ -1,3 +1,7 @@
 #!/usr/bin/env bash
 
 docker compose build --pull "$@"
+
+# Setup development data directories
+sudo mkdir -p data/git-bridge data/redis-insight
+sudo chown 1000:1000 data/git-bridge data/redis-insight

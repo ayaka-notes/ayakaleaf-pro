@@ -284,7 +284,7 @@ describe('<AddSeats />', function () {
           nextInvoice: {
             date: '2025-12-01T00:00:00.000Z',
             plan: {
-              name: 'Overleaf Standard Group',
+              name: 'Standard group',
               amount: 0,
             },
             subtotal: 895,

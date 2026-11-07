@@ -5,6 +5,7 @@ import {
   openSearchPanel,
   searchPanelOpen,
 } from '@codemirror/search'
+import { sendMB } from '@/infrastructure/event-tracking'
 import { toggleRanges, wrapRanges } from '../../commands/ranges'
 import {
   ancestorListType,
@@ -163,17 +164,27 @@ export const toggleSearch: Command = view => {
   return true
 }
 
-export const addComment = () => {
+export const addComment = (location: string) => {
+  sendMB('add-comment', {
+    location,
+  })
   window.dispatchEvent(new Event('add-new-review-comment'))
 }
 
 export const deleteSelection: Command = view => {
-  const { from, to } = view.state.selection.main
-  if (from === to) return false
+  if (view.state.selection.ranges.every(range => range.empty)) return false
 
-  view.dispatch({
-    changes: { from, to, insert: '' },
-    selection: { anchor: from },
+  const transaction = view.state.changeByRange(range => {
+    if (range.empty) {
+      return { changes: [], range }
+    }
+
+    return {
+      changes: { from: range.from, to: range.to, insert: '' },
+      range: EditorSelection.cursor(range.from),
+    }
   })
+
+  view.dispatch(transaction)
   return true
 }

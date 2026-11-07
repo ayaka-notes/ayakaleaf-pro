@@ -1,4 +1,4 @@
-import { vi, expect } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import mongodb from 'mongodb-legacy'
 import sinon from 'sinon'
 import MockRequest from '../helpers/MockRequest.mjs'
@@ -815,22 +815,6 @@ describe('SubscriptionGroupHandler', function () {
             return false
           },
         })
-      ).to.not.be.rejected
-    })
-  })
-
-  describe('ensureSubscriptionHasNoPendingChanges', function () {
-    it('should throw if the subscription has pending change', async function (ctx) {
-      await expect(
-        ctx.Handler.promises.ensureSubscriptionHasNoPendingChanges({
-          pendingChange: {},
-        })
-      ).to.be.rejectedWith('This subscription has a pending change')
-    })
-
-    it('should not throw if the subscription has no pending change', async function (ctx) {
-      await expect(
-        ctx.Handler.promises.ensureSubscriptionHasNoPendingChanges({})
       ).to.not.be.rejected
     })
   })

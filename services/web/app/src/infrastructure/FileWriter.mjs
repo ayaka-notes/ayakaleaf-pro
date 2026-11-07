@@ -10,12 +10,11 @@ import fs from 'node:fs'
 import OError from '@overleaf/o-error'
 import logger from '@overleaf/logger'
 import crypto from 'node:crypto'
-import _ from 'lodash'
 import Settings from '@overleaf/settings'
-import request from 'request'
+import { fetchStream } from '@overleaf/fetch-utils'
 import { Transform, pipeline } from 'node:stream'
 import { FileTooLargeError } from '../Features/Errors/Errors.js'
-import { promisifyAll } from '@overleaf/promise-utils'
+import { callbackify, promisify } from '@overleaf/promise-utils'
 
 export class SizeLimitedStream extends Transform {
   constructor(options) {
@@ -52,6 +51,21 @@ export class SizeLimitedStream extends Transform {
   }
 }
 
+/**
+ * @type {{
+ *   ensureDumpFolderExists: () => void,
+ *   writeLinesToDisk: (identifier: any, lines: any, callback?: any) => void,
+ *   writeContentToDisk: (identifier: any, content: any, callback?: any) => void,
+ *   writeStreamToDisk: (identifier: any, stream: any, options?: any, callback?: any) => void,
+ *   writeUrlToDisk: (identifier: any, url: any, options?: any, callback?: any) => void,
+ *   promises: {
+ *     writeLinesToDisk: (identifier: any, lines: any) => Promise<string>,
+ *     writeContentToDisk: (identifier: any, content: any) => Promise<string>,
+ *     writeStreamToDisk: (identifier: any, stream: any, options?: any) => Promise<string>,
+ *     writeUrlToDisk: (identifier: any, url: any, options?: any) => Promise<string>,
+ *   },
+ * }}
+ */
 const FileWriter = {
   ensureDumpFolderExists() {
     fs.mkdirSync(Settings.path.dumpFolder, { recursive: true })
@@ -146,42 +160,33 @@ const FileWriter = {
       callback(null, fsPath)
     })
   },
-
-  writeUrlToDisk(identifier, url, options, callback) {
-    if (typeof options === 'function') {
-      callback = options
-      options = {}
-    }
-    if (callback == null) {
-      callback = function () {}
-    }
-    options = options || {}
-    callback = _.once(callback)
-
-    const stream = request.get(url)
-    const errorHandler = function (err) {
-      logger.warn(
-        { err, identifier, url },
-        '[writeUrlToDisk] something went wrong with writing to disk'
-      )
-      callback(err)
-    }
-    stream.on('error', errorHandler)
-    stream.on('response', function (response) {
-      stream.removeListener('error', errorHandler)
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        FileWriter.writeStreamToDisk(identifier, stream, options, callback)
-      } else {
-        const err = new Error(`bad response from url: ${response.statusCode}`)
-        logger.warn({ err, identifier, url }, `[writeUrlToDisk] ${err.message}`)
-        return callback(err)
-      }
-    })
-  },
 }
 
-FileWriter.promises = promisifyAll(FileWriter, {
-  without: ['ensureDumpFolderExists'],
-})
+async function writeUrlToDisk(identifier, url, options = {}) {
+  let stream
+  try {
+    stream = await fetchStream(url)
+  } catch (error) {
+    const err = new OError('bad response from url', {
+      statusCode: error.response?.status,
+    })
+    logger.warn({ err, identifier, url }, `[writeUrlToDisk] ${err.message}`)
+    throw err
+  }
+  return await FileWriter.promises.writeStreamToDisk(
+    identifier,
+    stream,
+    options
+  )
+}
+
+FileWriter.writeUrlToDisk = callbackify(writeUrlToDisk)
+
+FileWriter.promises = {
+  writeLinesToDisk: promisify(FileWriter.writeLinesToDisk),
+  writeContentToDisk: promisify(FileWriter.writeContentToDisk),
+  writeStreamToDisk: promisify(FileWriter.writeStreamToDisk),
+  writeUrlToDisk,
+}
 
 export default FileWriter

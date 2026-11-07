@@ -1,17 +1,20 @@
-const express = require('express')
-const {
+import express from 'express'
+import {
   fetchJson,
   fetchNothing,
+  fetchStream,
   fetchString,
-} = require('@overleaf/fetch-utils')
-const fs = require('node:fs')
-const fsPromises = require('node:fs/promises')
-const Settings = require('@overleaf/settings')
+} from '@overleaf/fetch-utils'
+import fs from 'node:fs'
+import fsPromises from 'node:fs/promises'
+import Settings from '@overleaf/settings'
+import FormData from 'form-data'
 
 const host = Settings.apis.clsi.url
 
 function randomId() {
-  return Math.random().toString(16).slice(2)
+  // Avoid ids starting with 0, which get a dummy PDF served.
+  return 'a' + Math.random().toString(16).slice(2)
 }
 
 function compile(projectId, data) {
@@ -27,6 +30,74 @@ function compile(projectId, data) {
   })
 }
 
+async function convertDocument(path, type) {
+  const formData = new FormData()
+  formData.append('qqfile', fs.createReadStream(path))
+  // web's DocumentConversionManager.mjs always appends these two alongside
+  // type, for clsi-lb backend routing -- sent here too so acceptance tests
+  // exercise the same query shape real traffic uses.
+  const url = new URL(`${host}/convert/document-to-latex`)
+  url.searchParams.set('type', type)
+  url.searchParams.set('compileBackendClass', 'e2e-tests')
+  url.searchParams.set('compileGroup', 'standard')
+  try {
+    const stream = await fetchStream(url.href, {
+      method: 'POST',
+      body: formData,
+    })
+    return { status: 200, stream, body: null }
+  } catch (err) {
+    if (!err.response) throw err
+    let body = err.body
+    const contentType = err.response.headers.get?.('content-type') ?? ''
+    if (contentType.includes('application/json')) {
+      body = JSON.parse(body)
+    }
+    return { status: err.response.status, stream: null, body }
+  }
+}
+
+async function convertPdfToJpeg(path, mode, compileBackendClass) {
+  const formData = new FormData()
+  formData.append('qqfile', await fsPromises.readFile(path), 'input.pdf')
+  const url = new URL(`${host}/convert/pdf-to-jpeg`)
+  url.searchParams.set('mode', mode)
+  if (compileBackendClass) {
+    url.searchParams.set('compileBackendClass', compileBackendClass)
+  }
+  return await fetch(url, {
+    method: 'POST',
+    headers: formData.getHeaders(),
+    body: formData.getBuffer(),
+  })
+}
+
+async function convertProjectToDocument(
+  projectId,
+  userId,
+  type,
+  request,
+  responseFormat
+) {
+  const url = new URL(
+    `${host}/project/${projectId}/user/${userId}/download/project-to-document`
+  )
+  url.searchParams.set('type', type)
+  if (responseFormat) {
+    url.searchParams.set('responseFormat', responseFormat)
+  }
+  // web's DocumentConversionManager.mjs always appends these two alongside
+  // type/responseFormat, for clsi-lb backend routing -- sent here too so
+  // acceptance tests exercise the same query shape real traffic uses.
+  url.searchParams.set('compileBackendClass', 'e2e-tests')
+  url.searchParams.set('compileGroup', 'standard')
+  const opts = { method: 'POST', json: { compile: request } }
+  if (responseFormat === 'json') {
+    return await fetchJson(url.href, opts)
+  }
+  return await fetchStream(url.href, opts)
+}
+
 async function stopCompile(projectId) {
   return await fetchNothing(`${host}/project/${projectId}/compile/stop`, {
     method: 'POST',
@@ -34,7 +105,7 @@ async function stopCompile(projectId) {
 }
 
 async function clearCache(projectId) {
-  await fetchNothing(`${host}/project/${projectId}`, {
+  return await fetchNothing(`${host}/project/${projectId}`, {
     method: 'DELETE',
   })
 }
@@ -98,18 +169,24 @@ function syncFromPdfWithImage(projectId, page, h, v, imageName) {
   return fetchJson(url)
 }
 
-function wordcount(projectId, file) {
+function wordcount(projectId, file, compileRequest) {
   const image = undefined
-  return wordcountWithImage(projectId, file, image)
+  return wordcountWithImage(projectId, file, image, compileRequest)
 }
 
-async function wordcountWithImage(projectId, file, image) {
+async function wordcountWithImage(projectId, file, image, compileRequest) {
   const url = new URL(`${host}/project/${projectId}/wordcount`)
   if (image) {
     url.searchParams.append('image', image)
   }
   url.searchParams.append('file', file)
-  return await fetchJson(url)
+  if (!compileRequest) {
+    return await fetchJson(url)
+  }
+  return await fetchJson(url, {
+    method: 'POST',
+    json: { compile: compileRequest },
+  })
 }
 
 async function compileDirectory(projectId, baseDirectory, directory) {
@@ -158,7 +235,7 @@ async function compileDirectory(projectId, baseDirectory, directory) {
         resources.push({
           path: entity,
           url: `http://filestore/${directory}/${entity}`,
-          modified: stat.mtime,
+          modified: stat.mtime.getTime(),
         })
       }
     }
@@ -187,9 +264,12 @@ function smokeTest() {
   })
 }
 
-module.exports = {
+export default {
   randomId,
   compile,
+  convertProjectToDocument,
+  convertDocument,
+  convertPdfToJpeg,
   stopCompile,
   clearCache,
   getOutputFile,

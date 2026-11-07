@@ -15,7 +15,14 @@ describe('MaterialIcon', function () {
   })
 
   describe('Unfilled', function () {
-    it('Contain all unfilled symbol', function () {
+    it('uses a Firefox allowlisted icon font family name', function () {
+      cy.mount(<MaterialIcon type="description" unfilled />)
+      cy.get('.material-symbols.unfilled')
+        .invoke('css', 'font-family')
+        .should('contain', 'Material Symbols Outlined')
+    })
+
+    it('contains all unfilled symbols', function () {
       for (const type of unfilledIconTypes) {
         cy.mount(
           <MaterialIcon type={type} unfilled style={{ fontSize: FONT_SIZE }} />

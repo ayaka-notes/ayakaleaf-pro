@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Usage: services/templates-user/bin/down
+# Nothing to do, the user goes with the toolkit data.

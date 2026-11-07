@@ -9,7 +9,7 @@ const EMAIL_SETTINGS = Settings.email || {}
 
 /**
  * @param {string} emailType
- * @param {opts} any
+ * @param {object} opts
  */
 async function sendEmail(emailType, opts) {
   const email = EmailBuilder.buildEmail(emailType, opts)

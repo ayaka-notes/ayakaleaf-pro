@@ -1,3 +1,4 @@
+import Crypto from 'node:crypto'
 import OError from '@overleaf/o-error'
 import request from './request.js'
 import settings from '@overleaf/settings'
@@ -37,6 +38,7 @@ class User {
     })
     this.signUpDate = options.signUpDate ?? new Date()
     this.labsProgram = options.labsProgram || false
+    this.analyticsId = options.analyticsId || Crypto.randomUUID()
   }
 
   getSession(options, callback) {
@@ -96,37 +98,6 @@ class User {
         }
       )
     })
-  }
-
-  getSplitTestAssignment(splitTestName, query, callback) {
-    if (!callback) {
-      callback = query
-    }
-    const params = new URLSearchParams({
-      splitTestName,
-      ...query,
-    }).toString()
-    this.request.get(
-      {
-        url: `/dev/split_test/get_assignment?${params}`,
-      },
-      (err, response, body) => {
-        if (err != null) {
-          return callback(err)
-        }
-        if (response.statusCode !== 200) {
-          return callback(
-            new Error(
-              `get split test assignment failed: status=${
-                response.statusCode
-              } body=${JSON.stringify(body)}`
-            )
-          )
-        }
-        const assignment = JSON.parse(response.body)
-        callback(null, assignment)
-      }
-    )
   }
 
   doSessionMaintenance(callback) {
@@ -249,6 +220,7 @@ class User {
     this.first_name = user.first_name
     this.referal_id = user.referal_id
     this.enrollment = user.enrollment
+    this.analyticsId = user.analyticsId
   }
 
   get(callback) {
@@ -444,6 +416,7 @@ class User {
               emails: this.emails,
               signUpDate: this.signUpDate,
               labsProgram: this.labsProgram,
+              analyticsId: this.analyticsId,
             },
           },
           options
@@ -580,13 +553,7 @@ class User {
   }
 
   ensureAdminRole(role, callback) {
-    this.mongoUpdate({ $addToSet: { adminRoles: 'engineering' } }, callback)
-  }
-
-  ensureStaffAccess(flag, callback) {
-    const update = { $set: {} }
-    update.$set[`staffAccess.${flag}`] = true
-    this.mongoUpdate(update, callback)
+    this.mongoUpdate({ $addToSet: { adminRoles: role } }, callback)
   }
 
   upgradeSomeFeatures(callback) {
@@ -811,7 +778,7 @@ class User {
           url: `/project/${projectId}/doc`,
           json: {
             name,
-            parentFolderId,
+            parent_folder_id: parentFolderId,
           },
         },
         (error, response, body) => {
@@ -1009,22 +976,26 @@ class User {
   }
 
   addUserToProject(projectId, user, privileges, callback) {
+    // NOTE: user._id is a string; convert it to an ObjectId so that the
+    // stored refs match production data and reverse queries (e.g.
+    // { collaberator_refs: userId }) find the project.
+    const userId = new ObjectId(user._id)
     let updateOp
     if (privileges === 'readAndWrite') {
-      updateOp = { $addToSet: { collaberator_refs: user._id } }
+      updateOp = { $addToSet: { collaberator_refs: userId } }
     } else if (privileges === 'readOnly') {
-      updateOp = { $addToSet: { readOnly_refs: user._id } }
+      updateOp = { $addToSet: { readOnly_refs: userId } }
     } else if (privileges === 'pendingEditor') {
       updateOp = {
-        $addToSet: { readOnly_refs: user._id, pendingEditor_refs: user._id },
+        $addToSet: { readOnly_refs: userId, pendingEditor_refs: userId },
       }
     } else if (privileges === 'pendingReviewer') {
       updateOp = {
-        $addToSet: { readOnly_refs: user._id, pendingReviewer_refs: user._id },
+        $addToSet: { readOnly_refs: userId, pendingReviewer_refs: userId },
       }
     } else if (privileges === 'review') {
       updateOp = {
-        $addToSet: { reviewer_refs: user._id },
+        $addToSet: { reviewer_refs: userId },
       }
     }
     db.projects.updateOne({ _id: new ObjectId(projectId) }, updateOp, callback)
@@ -1334,11 +1305,46 @@ class User {
       )
     })
   }
+
+  /**
+   * Submit a real application/x-www-form-urlencoded body over the shared
+   * session cookie jar, the way a plain HTML form (no JS) does: the csrf
+   * token only ever travels as a `_csrf` field, never as a header. Bypasses
+   * `this.request`, whose defaults bake in an `x-csrf-token` header once
+   * `getCsrfToken` has run, which a genuine native-form submission never
+   * sends.
+   */
+  submitNativeForm(url, fields, callback) {
+    request.post(
+      { url, jar: this.jar, form: { _csrf: this.csrfToken, ...fields } },
+      callback
+    )
+  }
 }
 
 User.promises = promisifyClass(User, {
-  without: ['setExtraAttributes', 'sessionCookie', 'setSessionCookie'],
+  without: [
+    'setExtraAttributes',
+    'sessionCookie',
+    'setSessionCookie',
+    'submitNativeForm',
+  ],
 })
+
+User.promises.prototype.submitNativeForm = async function (url, fields) {
+  return new Promise((resolve, reject) => {
+    request.post(
+      { url, jar: this.jar, form: { _csrf: this.csrfToken, ...fields } },
+      (err, response, body) => {
+        if (err) {
+          reject(err)
+        } else {
+          resolve({ response, body })
+        }
+      }
+    )
+  })
+}
 
 User.promises.prototype.doRequest = async function (method, params) {
   return new Promise((resolve, reject) => {
@@ -1350,6 +1356,31 @@ User.promises.prototype.doRequest = async function (method, params) {
       }
     })
   })
+}
+
+User.promises.prototype.getSplitTestAssignment = async function (
+  splitTestName,
+  query,
+  referer,
+  includeReferer
+) {
+  const params = new URLSearchParams({
+    splitTestName,
+    includeReferer,
+    ...query,
+  }).toString()
+  const { response, body } = await this.doRequest('GET', {
+    url: `/dev/split_test/get_assignment?${params}`,
+    headers: { referer },
+  })
+  if (response.statusCode !== 200) {
+    throw new Error(
+      `get split test assignment failed: status=${
+        response.statusCode
+      } body=${JSON.stringify(body)}`
+    )
+  }
+  return JSON.parse(response.body)
 }
 
 export default User

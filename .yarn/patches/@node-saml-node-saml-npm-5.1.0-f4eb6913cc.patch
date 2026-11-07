@@ -1,0 +1,23 @@
+diff --git a/lib/saml.js b/lib/saml.js
+index 64180fdd7fe6302bf8da7d1ca65c01bb1ea5e2c1..7015c3b73603f624c15195a0a38c2fbf750a4c60 100644
+--- a/lib/saml.js
++++ b/lib/saml.js
+@@ -327,7 +327,8 @@ class SAML {
+         const requestOrResponse = request || response;
+         (0, utility_1.assertRequired)(requestOrResponse, "either request or response is required");
+         let buffer;
+-        if (this.options.skipRequestCompression) {
++       // logout requestOrResponse must be compressed anyway
++        if (this.options.skipRequestCompression && operation !== "logout") {
+             buffer = Buffer.from(requestOrResponse, "utf8");
+         }
+         else {
+@@ -510,7 +511,7 @@ class SAML {
+         try {
+             xml = Buffer.from(container.SAMLResponse, "base64").toString("utf8");
+             doc = await (0, xml_1.parseDomFromString)(xml);
+-            const inResponseToNodes = xml_1.xpath.selectAttributes(doc, "/*[local-name()='Response']/@InResponseTo");
++            const inResponseToNodes = xml_1.xpath.selectAttributes(doc, "/*[local-name()='Response' or local-name()='LogoutResponse']/@InResponseTo");
+             if (inResponseToNodes) {
+                 inResponseTo = inResponseToNodes.length ? inResponseToNodes[0].nodeValue : null;
+                 await this.validateInResponseTo(inResponseTo);

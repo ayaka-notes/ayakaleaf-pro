@@ -258,6 +258,39 @@ describe('RangesManager', function () {
       })
     })
 
+    describe('removedChangeIds', function () {
+      it('should be empty when no tracked changes are removed', function () {
+        const result = this.RangesManager.applyUpdate(
+          this.project_id,
+          this.doc_id,
+          this.ranges,
+          this.updates,
+          this.newDocLines
+        )
+        expect(result.removedChangeIds).to.deep.equal([])
+      })
+
+      it('should report the ids of tracked changes that were removed by the update', function () {
+        // original text is "one [two ]three four five"
+        // [] denotes tracked deletes; rejecting it by re-inserting the
+        // matching text drops the tracked change.
+        const ranges = {
+          changes: makeRanges([{ d: 'two ', p: 4 }]),
+        }
+        const updates = makeUpdates([{ i: 'two ', p: 4, u: true }])
+        const newDocLines = ['one two three four five']
+        const result = this.RangesManager.applyUpdate(
+          this.project_id,
+          this.doc_id,
+          ranges,
+          updates,
+          newDocLines,
+          { historyRangesSupport: true }
+        )
+        expect(result.removedChangeIds).to.deep.equal([ranges.changes[0].id])
+      })
+    })
+
     describe('with history ranges support', function () {
       describe('inserts among tracked deletes', function () {
         beforeEach(function () {

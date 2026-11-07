@@ -1,3 +1,4 @@
+import { SharingPermissions } from '../modules/sharing-permissions/app/src/types'
 import { Brand } from './helpers/brand'
 
 export type RefProviders = {
@@ -9,7 +10,7 @@ export type RefProviders = {
 export type UserId = Brand<string, 'UserId'>
 
 export type Features = {
-  aiErrorAssistant?: boolean
+  aiUsageQuota?: string
   collaborators?: number
   compileGroup?: 'standard' | 'priority'
   compileTimeout?: number
@@ -17,6 +18,7 @@ export type Features = {
   gitBridge?: boolean
   github?: boolean
   mendeley?: boolean
+  offlineMode?: boolean
   papers?: boolean
   references?: boolean
   referencesSearch?: boolean
@@ -28,7 +30,11 @@ export type Features = {
 }
 
 export type FeatureUsage = {
-  [feature: string]: {
+  aiWorkbench: {
+    remainingTokens: number
+    resetDate: string // date string
+  }
+  aiFeatureUsage: {
     remainingUsage: number
     resetDate: string // date string
   }
@@ -49,20 +55,21 @@ export type User = {
   features?: Features
   refProviders?: RefProviders
   writefull?: {
-    enabled: boolean
     autoCreatedAccount: boolean
-    firstAutoLoad: boolean
     premiumSource: string
-  }
-  aiErrorAssistant?: {
-    enabled: boolean
   }
   featureUsage?: FeatureUsage
   planCode?: string
   planName?: string
   isAnnualPlan?: boolean
   isMemberOfGroupSubscription?: boolean
+  isProfessionalGroupPlan?: boolean
   hasInstitutionLicence?: boolean
+  activeProfessionalGroupSubscriptions?: {
+    _id: string
+    teamName?: string
+    sharingPermissions?: SharingPermissions
+  }[]
 }
 
 export type LoggedOutUser = {

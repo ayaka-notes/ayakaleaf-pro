@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Usage: services/gitlab-mock/bin/down
+# Removes the mock container.
+
+docker rm --force "${CONTAINER_PREFIX:-e2e-}gitlab-mock" >/dev/null 2>&1 || true

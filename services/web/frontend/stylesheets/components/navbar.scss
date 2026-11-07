@@ -312,7 +312,8 @@
 }
 
 @include theme('default') {
-  #project-list-root {
+  #project-list-root,
+  #library-root {
     .website-redesign-navbar,
     .website-redesign .navbar-default {
       @include navbar-dark;

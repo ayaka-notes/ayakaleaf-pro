@@ -17,6 +17,7 @@ const Settings = {
     options: {
       monitorCommands: true,
     },
+    hasSecondaries: process.env.MONGO_HAS_SECONDARIES === 'true',
   },
 
   docstore: {

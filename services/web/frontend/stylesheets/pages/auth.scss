@@ -9,8 +9,8 @@
 }
 
 .auth-aux-container {
-  padding-top: calc($header-height + $spacing-11);
-  max-width: 320px;
+  padding: calc($header-height + $spacing-11) var(--spacing-04) 0;
+  max-width: 400px;
   min-height: 100vh;
   margin-left: auto;
   margin-right: auto;
@@ -25,14 +25,6 @@
 
 .auth-aux-new-password ~ .notification {
   margin-top: var(--spacing-04);
-}
-
-.login-overleaf-logo-container {
-  display: block;
-  padding: var(--spacing-06);
-  text-align: center;
-  padding-top: var(--spacing-13);
-  padding-bottom: var(--spacing-09);
 }
 
 .login-register-container {
@@ -95,28 +87,5 @@
 
   &:last-child {
     padding-bottom: 0;
-  }
-}
-
-.sso-auth-login-container {
-  max-width: 400px;
-  margin: 0 auto;
-  padding: 0 var(--spacing-06);
-
-  h1 {
-    font-size: var(--font-size-07);
-    line-height: var(--line-height-06);
-  }
-
-  .login-register-text {
-    font-size: var(--font-size-02);
-  }
-
-  .email-label {
-    padding-top: var(--spacing-06);
-  }
-
-  .login-register-other-links {
-    padding-top: var(--spacing-09);
   }
 }

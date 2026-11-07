@@ -1,6 +1,6 @@
 import logger from '@overleaf/logger'
 import Settings from '@overleaf/settings'
-import { readFilesContentFromEnv, numFromEnv, boolFromEnv } from '../../../utils.mjs'
+import { readFilesContentFromEnv, numFromEnv, boolFromEnv, hasPassword } from '../../../utils.mjs'
 import PermissionsManager from '../../../../../app/src/Features/Authorization/PermissionsManager.mjs'
 import SAMLAuthenticationController from './SAMLAuthenticationController.mjs'
 import { Strategy as SAMLStrategy } from '@node-saml/passport-saml'
@@ -70,9 +70,9 @@ const SAMLModuleManager = {
       logger.info({}, error.message)
     }
     const samlPolicyValidator = async ({ user, subscription }) => {
-// If user is not logged in, user.externalAuth is undefined,
-// in this case allow to change password if the user has a hashedPassword
-      return user.externalAuth === 'saml' || (user.externalAuth === undefined && !user.hashedPassword)
+      // Only an account without a local password may not set one: LDAP and
+      // SAML remove the password on login, OIDC keeps the one of a local account
+      return !(await hasPassword(user._id))
     }
     try {
     PermissionsManager.registerPolicy(

@@ -2,6 +2,7 @@ import SubscriptionGroupHandler from './SubscriptionGroupHandler.mjs'
 
 import OError from '@overleaf/o-error'
 import logger from '@overleaf/logger'
+import Settings from '@overleaf/settings'
 import SubscriptionLocator from './SubscriptionLocator.mjs'
 import SessionManager from '../Authentication/SessionManager.mjs'
 import UserAuditLogHandler from '../User/UserAuditLogHandler.mjs'
@@ -9,17 +10,17 @@ import { expressify } from '@overleaf/promise-utils'
 import Modules from '../../infrastructure/Modules.mjs'
 import UserGetter from '../User/UserGetter.mjs'
 import { Subscription } from '../../models/Subscription.mjs'
-import { z, parseReq } from '../../infrastructure/Validation.mjs'
+import { z, zz, parseReq } from '../../infrastructure/Validation.mjs'
 import { isProfessionalGroupPlan } from './PlansHelper.mjs'
 import {
   MissingBillingInfoError,
   ManuallyCollectedError,
-  PendingChangeError,
   InactiveError,
   SubtotalLimitExceededError,
   HasPastDueInvoiceError,
   HasNoAdditionalLicenseWhenManuallyCollectedError,
   PaymentActionRequiredError,
+  MultiplePendingChangesError,
 } from './Errors.mjs'
 
 const MAX_NUMBER_OF_USERS = 20
@@ -29,14 +30,28 @@ const MAX_NUMBER_OF_PO_NUMBER_CHARACTERS = 50
  * @import { Subscription } from "../../../../types/subscription/dashboard/subscription.js"
  */
 
+const removeUserFromGroupSchema = z.object({
+  // mounted at /manage/groups/:id/user/:user_id -- `id` is consumed
+  // upstream by UserMembershipMiddleware.requireGroupMemberManagement()
+  // (which sets req.entity), but it's still present on req.params, so the
+  // strict schema below has to name it too.
+  params: z.strictObject({
+    id: zz.objectId(),
+    user_id: zz.objectId(),
+  }),
+})
+
 /**
  * @param {import("express").Request} req
  * @param {import("express").Response} res
  * @returns {Promise<void>}
  */
 async function removeUserFromGroup(req, res) {
+  const { params } = parseReq(req, removeUserFromGroupSchema, {
+    logOnly: true,
+  })
   const subscription = req.entity
-  const userToRemoveId = req.params.user_id
+  const userToRemoveId = params.user_id
   const loggedInUserId = SessionManager.getLoggedInUserId(req.session)
   const subscriptionId = subscription._id
   logger.debug(
@@ -51,15 +66,24 @@ async function removeUserFromGroup(req, res) {
   })
 }
 
+const removeSelfFromGroupSchema = z.object({
+  query: z.object({
+    subscriptionId: zz.objectId(),
+  }),
+})
+
 /**
  * @param {import("express").Request} req
  * @param {import("express").Response} res
  * @returns {Promise<void>}
  */
 async function removeSelfFromGroup(req, res) {
+  const { query } = parseReq(req, removeSelfFromGroupSchema, {
+    logOnly: true,
+  })
   const userToRemoveId = SessionManager.getLoggedInUserId(req.session)
   const subscription = await SubscriptionLocator.promises.getSubscription(
-    req.query.subscriptionId
+    query.subscriptionId
   )
 
   await _removeUserFromGroup(req, res, {
@@ -85,10 +109,13 @@ async function _removeUserFromGroup(
 ) {
   const subscriptionId = subscription._id
 
-  const groupSSOActive = (
-    await Modules.promises.hooks.fire('hasGroupSSOEnabled', subscription)
-  )?.[0]
-  if (groupSSOActive) {
+  const userToRemove = await UserGetter.promises.getUser(userToRemoveId, {
+    enrollment: 1,
+  })
+  const isLinkedToGroupSSO = userToRemove?.enrollment?.sso?.some(
+    ssoLink => String(ssoLink.groupId) === String(subscriptionId)
+  )
+  if (isLinkedToGroupSSO) {
     await Modules.promises.hooks.fire(
       'unlinkUserFromGroupSSO',
       userToRemoveId,
@@ -133,12 +160,23 @@ async function _removeUserFromGroup(
   res.sendStatus(200)
 }
 
+const addSeatsToGroupSubscriptionSchema = z.object({
+  query: z.object({
+    // rendered verbatim into the add-seats page; not consumed as a real
+    // error-code enum by this handler.
+    errorCode: z.string().optional(),
+  }),
+})
+
 /**
  * @param {import("express").Request} req
  * @param {import("express").Response} res
  * @returns {Promise<void>}
  */
 async function addSeatsToGroupSubscription(req, res) {
+  const { query } = parseReq(req, addSeatsToGroupSubscriptionSchema, {
+    logOnly: true,
+  })
   try {
     const userId = SessionManager.getLoggedInUserId(req.session)
     const { subscription, paymentProviderSubscription, plan } =
@@ -146,9 +184,6 @@ async function addSeatsToGroupSubscription(req, res) {
         userId
       )
     await SubscriptionGroupHandler.promises.ensureFlexibleLicensingEnabled(plan)
-    await SubscriptionGroupHandler.promises.ensureSubscriptionHasNoPendingChanges(
-      paymentProviderSubscription
-    )
     await SubscriptionGroupHandler.promises.ensureSubscriptionIsActive(
       subscription
     )
@@ -170,7 +205,7 @@ async function addSeatsToGroupSubscription(req, res) {
       isProfessional: isProfessionalGroupPlan(subscription),
       isCollectionMethodManual:
         paymentProviderSubscription.isCollectionMethodManual,
-      redirectedPaymentErrorCode: req.query.errorCode,
+      redirectedPaymentErrorCode: query.errorCode,
     })
   } catch (error) {
     if (error instanceof MissingBillingInfoError) {
@@ -181,12 +216,11 @@ async function addSeatsToGroupSubscription(req, res) {
 
     if (error instanceof HasNoAdditionalLicenseWhenManuallyCollectedError) {
       return res.redirect(
-        '/user/subscription/group/manually-collected-subscription'
+        '/user/subscription/group/manually-collected-subscription?error_type=no-additional-license'
       )
     }
 
     if (
-      error instanceof PendingChangeError ||
       error instanceof InactiveError ||
       error instanceof HasPastDueInvoiceError
     ) {
@@ -202,7 +236,17 @@ async function addSeatsToGroupSubscription(req, res) {
   }
 }
 
+const addSeatsBodySchema = z.strictObject({
+  adding: z.number().int().min(1).max(MAX_NUMBER_OF_USERS),
+  poNumber: z.string().max(MAX_NUMBER_OF_PO_NUMBER_CHARACTERS).optional(),
+})
+
 const previewAddSeatsSubscriptionChangeSchema = z.object({
+  body: addSeatsBodySchema,
+})
+// Rollout-temporary fallback (pre-refinement schema from main); delete
+// when this route's REQ_VALIDATION_MODE instrumentation is removed.
+const previewAddSeatsSubscriptionChangeFallbackSchema = z.object({
   body: z.object({
     adding: z.number().int().min(1).max(MAX_NUMBER_OF_USERS),
     poNumber: z.string().max(MAX_NUMBER_OF_PO_NUMBER_CHARACTERS).optional(),
@@ -215,7 +259,9 @@ const previewAddSeatsSubscriptionChangeSchema = z.object({
  * @returns {Promise<void>}
  */
 async function previewAddSeatsSubscriptionChange(req, res) {
-  const { body } = parseReq(req, previewAddSeatsSubscriptionChangeSchema)
+  const { body } = parseReq(req, previewAddSeatsSubscriptionChangeSchema, {
+    fallbackSchema: previewAddSeatsSubscriptionChangeFallbackSchema,
+  })
   try {
     const userId = SessionManager.getLoggedInUserId(req.session)
     const preview =
@@ -228,7 +274,6 @@ async function previewAddSeatsSubscriptionChange(req, res) {
   } catch (error) {
     if (
       error instanceof MissingBillingInfoError ||
-      error instanceof PendingChangeError ||
       error instanceof InactiveError ||
       error instanceof HasPastDueInvoiceError ||
       error instanceof HasNoAdditionalLicenseWhenManuallyCollectedError
@@ -252,26 +297,33 @@ async function previewAddSeatsSubscriptionChange(req, res) {
   }
 }
 
+const createAddSeatsSubscriptionChangeSchema = z.object({
+  body: addSeatsBodySchema,
+})
+
 /**
  * @param {import("express").Request} req
  * @param {import("express").Response} res
  * @returns {Promise<void>}
  */
 async function createAddSeatsSubscriptionChange(req, res) {
+  const { body } = parseReq(req, createAddSeatsSubscriptionChangeSchema, {
+    logOnly: true,
+  })
   try {
     const userId = SessionManager.getLoggedInUserId(req.session)
     const create =
       await SubscriptionGroupHandler.promises.createAddSeatsSubscriptionChange(
         userId,
-        req.body.adding,
-        req.body.poNumber
+        body.adding,
+        body.poNumber
       )
 
     res.json(create)
   } catch (error) {
     if (
       error instanceof MissingBillingInfoError ||
-      error instanceof PendingChangeError ||
+      error instanceof MultiplePendingChangesError ||
       error instanceof InactiveError ||
       error instanceof HasPastDueInvoiceError ||
       error instanceof HasNoAdditionalLicenseWhenManuallyCollectedError
@@ -282,7 +334,7 @@ async function createAddSeatsSubscriptionChange(req, res) {
     if (error instanceof SubtotalLimitExceededError) {
       return res.status(422).json({
         code: 'subtotal_limit_exceeded',
-        adding: req.body.adding,
+        adding: body.adding,
       })
     }
 
@@ -304,6 +356,14 @@ async function createAddSeatsSubscriptionChange(req, res) {
 }
 
 const submitFormSchema = z.object({
+  body: z.strictObject({
+    adding: z.coerce.number().int().min(MAX_NUMBER_OF_USERS),
+    poNumber: z.string().optional(),
+  }),
+})
+// Rollout-temporary fallback (pre-refinement schema from main); delete
+// when this route's REQ_VALIDATION_MODE instrumentation is removed.
+const submitFormFallbackSchema = z.object({
   body: z.object({
     adding: z.coerce.number().int().min(MAX_NUMBER_OF_USERS),
     poNumber: z.string().optional(),
@@ -311,13 +371,15 @@ const submitFormSchema = z.object({
 })
 
 async function submitForm(req, res) {
-  const { body } = parseReq(req, submitFormSchema)
+  const { body } = parseReq(req, submitFormSchema, {
+    fallbackSchema: submitFormFallbackSchema,
+  })
   const { adding, poNumber } = body
 
   const userId = SessionManager.getLoggedInUserId(req.session)
   const userEmail = await UserGetter.promises.getUserEmail(userId)
 
-  const { paymentProviderSubscription } =
+  const { paymentProviderSubscription, subscription } =
     await SubscriptionGroupHandler.promises.getUsersGroupSubscriptionDetails(
       userId
     )
@@ -332,8 +394,18 @@ async function submitForm(req, res) {
   const messageLines = [`\n**Overleaf Sales Contact Form:**`]
   messageLines.push('**Subject:** Self-Serve Group User Increase Request')
   messageLines.push(`**Estimated Number of Users:** ${adding}`)
+  messageLines.push(
+    `**Subscription:** [${subscription._id}](${Settings.adminUrl}/admin/subscription/${subscription._id})`
+  )
+  messageLines.push(`**Current Number of Seats:** ${subscription.membersLimit}`)
+  messageLines.push(`**Plan Code:** ${subscription.planCode}`)
   if (poNumber) {
     messageLines.push(`**PO Number:** ${poNumber}`)
+  }
+  if (subscription.salesforce_id) {
+    messageLines.push(
+      `**Salesforce ID:** [${subscription.salesforce_id}](https://digitalscience.lightning.force.com/lightning/r/Opportunity/${subscription.salesforce_id}/view)`
+    )
   }
   messageLines.push(
     `**Message:** This email has been generated on behalf of user with email **${userEmail}** ` +
@@ -352,7 +424,18 @@ async function submitForm(req, res) {
   res.sendStatus(204)
 }
 
+const subscriptionUpgradePageSchema = z.object({
+  query: z.object({
+    // rendered verbatim into the upgrade page; not consumed as a real
+    // error-code enum by this handler.
+    errorCode: z.string().optional(),
+  }),
+})
+
 async function subscriptionUpgradePage(req, res) {
+  const { query } = parseReq(req, subscriptionUpgradePageSchema, {
+    logOnly: true,
+  })
   try {
     const userId = SessionManager.getLoggedInUserId(req.session)
     const changePreview =
@@ -364,7 +447,7 @@ async function subscriptionUpgradePage(req, res) {
       changePreview,
       totalLicenses: olSubscription.membersLimit,
       groupName: olSubscription.teamName,
-      redirectedPaymentErrorCode: req.query.errorCode,
+      redirectedPaymentErrorCode: query.errorCode,
     })
   } catch (error) {
     if (error instanceof MissingBillingInfoError) {
@@ -375,7 +458,7 @@ async function subscriptionUpgradePage(req, res) {
 
     if (error instanceof ManuallyCollectedError) {
       return res.redirect(
-        '/user/subscription/group/manually-collected-subscription'
+        '/user/subscription/group/manually-collected-subscription?error_type=plan-upgrade'
       )
     }
 
@@ -383,7 +466,7 @@ async function subscriptionUpgradePage(req, res) {
       return res.redirect('/user/subscription/group/subtotal-limit-exceeded')
     }
 
-    if (error instanceof PendingChangeError || error instanceof InactiveError) {
+    if (error instanceof InactiveError) {
       return res.redirect('/user/subscription')
     }
 
@@ -406,6 +489,13 @@ async function upgradeSubscription(req, res) {
         publicKey: error.info.publicKey,
       })
     }
+    if (error instanceof MultiplePendingChangesError) {
+      return res.status(422).json({
+        code: 'multiple_pending_changes',
+        message:
+          'Cannot upgrade subscription while there are multiple pending subscription changes. Please contact support.',
+      })
+    }
     logger.err({ error }, 'error trying to upgrade subscription')
     return res.sendStatus(500)
   }
@@ -425,11 +515,21 @@ async function missingBillingInformation(req, res) {
       { error },
       'error trying to render missing billing information page'
     )
-    return res.render('/user/subscription')
+    return res.redirect('/user/subscription')
   }
 }
 
+const manuallyCollectedSubscriptionSchema = z.object({
+  query: z.object({
+    // rendered verbatim into the manually-collected-subscription page.
+    error_type: z.string().optional(),
+  }),
+})
+
 async function manuallyCollectedSubscription(req, res) {
+  const { query } = parseReq(req, manuallyCollectedSubscriptionSchema, {
+    logOnly: true,
+  })
   try {
     const userId = SessionManager.getLoggedInUserId(req.session)
     const subscription =
@@ -437,13 +537,14 @@ async function manuallyCollectedSubscription(req, res) {
 
     res.render('subscriptions/manually-collected-subscription', {
       groupName: subscription.teamName,
+      errorType: query.error_type,
     })
   } catch (error) {
     logger.err(
       { error },
       'error trying to render manually collected subscription page'
     )
-    return res.render('/user/subscription')
+    return res.redirect('/user/subscription')
   }
 }
 
@@ -458,17 +559,28 @@ async function subtotalLimitExceeded(req, res) {
     })
   } catch (error) {
     logger.err({ error }, 'error trying to render subtotal limit exceeded page')
-    return res.render('/user/subscription')
+    return res.redirect('/user/subscription')
   }
 }
 
+const getGroupPlanPerUserPricesSchema = z.object({
+  query: z.object({
+    // forwarded to the Stripe client as a currency filter; Stripe itself
+    // rejects an unrecognised code, so no enum is duplicated here.
+    currency: z.string().optional(),
+  }),
+})
+
 async function getGroupPlanPerUserPrices(req, res) {
+  const { query } = parseReq(req, getGroupPlanPerUserPricesSchema, {
+    logOnly: true,
+  })
   try {
     const userId = SessionManager.getLoggedInUserId(req.session)
     const prices = await Modules.promises.hooks.fire(
       'getGroupPlanPerUserPrices',
       userId,
-      req.query.currency
+      query.currency
     )
     return res.json(prices[0])
   } catch (error) {

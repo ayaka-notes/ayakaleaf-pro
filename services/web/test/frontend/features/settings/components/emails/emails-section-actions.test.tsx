@@ -13,6 +13,7 @@ import EmailsSection from '../../../../../../frontend/js/features/settings/compo
 import { Institution } from '../../../../../../types/institution'
 import { Affiliation } from '../../../../../../types/affiliation'
 import getMeta from '@/utils/meta'
+import { SplitTestProvider } from '@/shared/context/split-test-context'
 
 const userEmailData: UserEmailData = {
   confirmedAt: '2022-03-10T10:59:44.139Z',
@@ -32,6 +33,14 @@ const userEmailData2: UserEmailData & { affiliation: Affiliation } = {
   default: false,
 }
 
+function renderEmailsSection() {
+  return render(<EmailsSection />, {
+    wrapper: ({ children }) => (
+      <SplitTestProvider>{children}</SplitTestProvider>
+    ),
+  })
+}
+
 describe('email actions - make primary', function () {
   beforeEach(function () {
     Object.assign(getMeta('ol-ExposedSettings'), {
@@ -49,7 +58,7 @@ describe('email actions - make primary', function () {
       const userEmailDataCopy = { ...userEmailData2 }
       const { confirmedAt: _, ...userEmailData } = userEmailDataCopy
       fetchMock.get('/user/emails?ensureAffiliation=true', [userEmailData])
-      render(<EmailsSection />)
+      renderEmailsSection()
 
       const button = (await screen.findByRole('button', {
         name: /make primary/i,
@@ -66,7 +75,7 @@ describe('email actions - make primary', function () {
         },
       }
       fetchMock.get('/user/emails?ensureAffiliation=true', [userEmailDataCopy])
-      render(<EmailsSection />)
+      renderEmailsSection()
 
       const button = (await screen.findByRole('button', {
         name: /make primary/i,
@@ -86,7 +95,7 @@ describe('email actions - make primary', function () {
       }
 
       fetchMock.get('/user/emails?ensureAffiliation=true', [userEmailDataCopy])
-      render(<EmailsSection />)
+      renderEmailsSection()
 
       const button = (await screen.findByRole('button', {
         name: /make primary/i,
@@ -103,7 +112,7 @@ describe('email actions - make primary', function () {
       const userEmailDataCopy = { ...userEmailData2 }
 
       fetchMock.get('/user/emails?ensureAffiliation=true', [userEmailDataCopy])
-      render(<EmailsSection />)
+      renderEmailsSection()
 
       const button = (await screen.findByRole('button', {
         name: /make primary/i,
@@ -144,7 +153,7 @@ describe('email actions - make primary', function () {
         userEmailDataCopy1,
         userEmailDataCopy2,
       ])
-      render(<EmailsSection />)
+      renderEmailsSection()
 
       const buttons = (await screen.findAllByRole('button', {
         name: /make primary/i,
@@ -177,7 +186,7 @@ describe('email actions - make primary', function () {
 
     it('shows confirmation modal and closes it', async function () {
       fetchMock.get('/user/emails?ensureAffiliation=true', [userEmailData])
-      render(<EmailsSection />)
+      renderEmailsSection()
 
       const button = await screen.findByRole('button', {
         name: /make primary/i,
@@ -205,7 +214,7 @@ describe('email actions - make primary', function () {
       fetchMock
         .get('/user/emails?ensureAffiliation=true', [userEmailData])
         .post('/user/emails/default?delete-unconfirmed-primary', 200)
-      render(<EmailsSection />)
+      renderEmailsSection()
 
       await confirmPrimaryEmail()
 
@@ -221,7 +230,7 @@ describe('email actions - make primary', function () {
       fetchMock
         .get('/user/emails?ensureAffiliation=true', [userEmailData])
         .post('/user/emails/default?delete-unconfirmed-primary', 503)
-      render(<EmailsSection />)
+      renderEmailsSection()
 
       await confirmPrimaryEmail()
 
@@ -241,13 +250,14 @@ describe('email actions - delete', function () {
 
   afterEach(function () {
     fetchMock.removeRoutes().clearHistory()
+    window.metaAttributesCache.set('ol-splitTestVariants', {})
   })
 
   it('shows loader when deleting and removes the row', async function () {
     fetchMock
       .get('/user/emails?ensureAffiliation=true', [userEmailData])
       .post('/user/emails/delete', 200)
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     const button = await screen.findByRole('button', { name: /remove/i })
     fireEvent.click(button)
@@ -261,7 +271,7 @@ describe('email actions - delete', function () {
     fetchMock
       .get('/user/emails?ensureAffiliation=true', [userEmailData])
       .post('/user/emails/delete', 503)
-    render(<EmailsSection />)
+    renderEmailsSection()
 
     const button = await screen.findByRole('button', { name: /remove/i })
     fireEvent.click(button)

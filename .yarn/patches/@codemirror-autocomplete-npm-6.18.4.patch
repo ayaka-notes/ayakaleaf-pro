@@ -1,0 +1,831 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 39215ae..b44cb76 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -187,16 +187,23 @@ Helper function that returns a transaction spec which inserts a
+ completion's text in the main selection range, and any other
+ selection range that has the same text in front of it.
+ */
+-function insertCompletionText(state$1, text, from, to) {
++function insertCompletionText(state$1, text, from, to, extend) {
+     let { main } = state$1.selection, fromOff = from - main.from, toOff = to - main.from;
+     return Object.assign(Object.assign({}, state$1.changeByRange(range => {
+         if (range != main && from != to &&
+             state$1.sliceDoc(range.from + fromOff, range.from + toOff) != state$1.sliceDoc(from, to))
+             return { range };
+-        let lines = state$1.toText(text);
++        let change = {
++            from: range.from + fromOff,
++            to: to == main.from ? range.to : range.from + toOff,
++            insert: text instanceof state.Text ? text : state$1.toText(text),
++        };
++        if (extend) {
++            extend(state$1, change);
++        }
+         return {
+-            changes: { from: range.from + fromOff, to: to == main.from ? range.to : range.from + toOff, insert: lines },
+-            range: state.EditorSelection.cursor(range.from + fromOff + lines.length)
++            changes: change,
++            range: state.EditorSelection.cursor(change.from + change.insert.length)
+         };
+     })), { scrollIntoView: true, userEvent: "input.complete" });
+ }
+@@ -389,7 +396,9 @@ const completionConfig = state.Facet.define({
+             filterStrict: false,
+             compareCompletions: (a, b) => a.label.localeCompare(b.label),
+             interactionDelay: 75,
+-            updateSyncTime: 100
++            updateSyncTime: 100,
++            // overleaf: default to at top which is default CM6 behaviour
++            unfilteredResultsAtEnd: false
+         }, {
+             defaultKeymap: (a, b) => a && b,
+             closeOnBlur: (a, b) => a && b,
+@@ -744,6 +753,7 @@ function score(option) {
+         (option.type ? 1 : 0);
+ }
+ function sortOptions(active, state) {
++    var _a;
+     let options = [];
+     let sections = null;
+     let addOption = (option) => {
+@@ -763,7 +773,8 @@ function sortOptions(active, state) {
+             let getMatch = a.result.getMatch;
+             if (a.result.filter === false) {
+                 for (let option of a.result.options) {
+-                    addOption(new Option(option, a.source, getMatch ? getMatch(option) : [], 1e9 - options.length));
++                    let defaultScore = conf.unfilteredResultsAtEnd ? -1e9 : 1e9;
++                    addOption(new Option(option, a.source, getMatch ? getMatch(option) : [], defaultScore - options.length));
+                 }
+             }
+             else {
+@@ -790,15 +801,42 @@ function sortOptions(active, state) {
+         }
+     }
+     let result = [], prev = null;
++    const priorityIndices = new Map();
+     let compare = conf.compareCompletions;
+     for (let opt of options.sort((a, b) => (b.score - a.score) || compare(a.completion, b.completion))) {
++        // overleaf: Deduplicate results with dedup options
++        //           The goal is to keep only the highest priority option, in the
++        //           highest scoring position.
++        const key = (_a = opt.completion.deduplicate) === null || _a === void 0 ? void 0 : _a.key;
++        if (key) {
++            // Handle merging specifically for deduplicated items item
++            const currentOptionIndex = priorityIndices.get(key);
++            if (currentOptionIndex === undefined) {
++                priorityIndices.set(key, result.length);
++                result.push(opt);
++                prev = opt.completion;
++            }
++            else {
++                if (result[currentOptionIndex].completion.deduplicate.priority < opt.completion.deduplicate.priority) {
++                    result[currentOptionIndex] = opt;
++                    if (currentOptionIndex === result.length - 1) {
++                        prev = opt.completion;
++                    }
++                }
++            }
++            continue;
++        }
++        // overleaf: end
+         let cur = opt.completion;
+-        if (!prev || prev.label != cur.label || prev.detail != cur.detail ||
+-            (prev.type != null && cur.type != null && prev.type != cur.type) ||
+-            prev.apply != cur.apply || prev.boost != cur.boost)
++        if (!prev || prev.label != cur.label)
++            result.push(opt);
++        // overleaf: we're already handling deduplication, so skip extra merges
++        else if (prev.deduplicate)
+             result.push(opt);
+         else if (score(opt.completion) > score(prev))
+             result[result.length - 1] = opt;
++        else if (opt.completion.info)
++            result[result.length - 1] = opt;
+         prev = opt.completion;
+     }
+     return result;
+@@ -817,8 +855,9 @@ class CompletionDialog {
+             : new CompletionDialog(this.options, makeAttrs(id, selected), this.tooltip, this.timestamp, selected, this.disabled);
+     }
+     static build(active, state, id, prev, conf, didSetActive) {
+-        if (prev && !didSetActive && active.some(s => s.isPending))
+-            return prev.setDisabled();
++        // Overleaf: avoid setting the previous completion state to disabled while completion sources are pending
++        // if (prev && !didSetActive && active.some(s => s.isPending))
++        //   return prev.setDisabled()
+         let options = sortOptions(active, state);
+         if (!options.length)
+             return prev && active.some(a => a.isPending) ? prev.setDisabled() : null;
+@@ -1017,13 +1056,14 @@ const completionState = state.StateField.define({
+         view.EditorView.contentAttributes.from(f, state => state.attrs)
+     ]
+ });
++const getCompletionTooltip = (state) => { var _a; return (_a = state.field(completionState, false)) === null || _a === void 0 ? void 0 : _a.tooltip; };
+ function applyCompletion(view, option) {
+     const apply = option.completion.apply || option.completion.label;
+     let result = view.state.field(completionState).active.find(a => a.source == option.source);
+     if (!(result instanceof ActiveResult))
+         return false;
+     if (typeof apply == "string")
+-        view.dispatch(Object.assign(Object.assign({}, insertCompletionText(view.state, apply, result.from, result.to)), { annotations: pickedCompletion.of(option.completion) }));
++        view.dispatch(Object.assign(Object.assign({}, insertCompletionText(view.state, apply, result.from, result.to, option.completion.extend)), { annotations: pickedCompletion.of(option.completion) }));
+     else
+         apply(view, option.completion, result.from, result.to);
+     return true;
+@@ -1559,20 +1599,42 @@ interpreted as indicating a placeholder.
+ function snippet(template) {
+     let snippet = Snippet.parse(template);
+     return (editor, completion, from, to) => {
+-        let { text, ranges } = snippet.instantiate(editor.state, from);
+-        let { main } = editor.state.selection;
+-        let spec = {
+-            changes: { from, to: to == main.from ? main.to : to, insert: state.Text.of(text) },
+-            scrollIntoView: true,
+-            annotations: completion ? [pickedCompletion.of(completion), state.Transaction.userEvent.of("input.complete")] : undefined
+-        };
++        let { main } = editor.state.selection, fromOff = from - main.from, toOff = to - main.from;
++        let ranges = [];
++        let totalOffset = 0;
++        let spec = Object.assign(Object.assign({}, editor.state.changeByRange(range => {
++            if (range != main && from != to &&
++                editor.state.sliceDoc(range.from + fromOff, range.from + toOff) != editor.state.sliceDoc(from, to))
++                return { range };
++            let { text, ranges: fieldRanges } = snippet.instantiate(editor.state, range.from + fromOff);
++            let change = {
++                from: range.from + fromOff,
++                to: range.from + toOff,
++                insert: state.Text.of(text)
++            };
++            let originalTo = change.to;
++            let offset = change.insert.length + fromOff;
++            if (completion.extend) {
++                completion.extend(editor.state, change);
++                offset += originalTo - change.to;
++            }
++            for (const fieldRange of fieldRanges) {
++                ranges.push(new FieldRange(fieldRange.field, fieldRange.from + totalOffset, fieldRange.to + totalOffset));
++            }
++            totalOffset += offset;
++            return {
++                changes: change,
++                range: state.EditorSelection.cursor(change.from + change.insert.length)
++            };
++        })), { scrollIntoView: true, annotations: completion ? [pickedCompletion.of(completion), state.Transaction.userEvent.of("input.complete")] : undefined, effects: [] });
+         if (ranges.length)
+             spec.selection = fieldSelection(ranges, 0);
+         if (ranges.some(r => r.field > 0)) {
+             let active = new ActiveSnippet(ranges, 0);
+-            let effects = spec.effects = [setActive.of(active)];
+-            if (editor.state.field(snippetState, false) === undefined)
+-                effects.push(state.StateEffect.appendConfig.of([snippetState, addSnippetKeymap, snippetPointerHandler, baseTheme]));
++            spec.effects.push(setActive.of(active));
++            if (editor.state.field(snippetState, false) === undefined) {
++                spec.effects.push(state.StateEffect.appendConfig.of([snippetState, addSnippetKeymap, snippetPointerHandler, baseTheme]));
++            }
+         }
+         editor.dispatch(editor.state.update(spec));
+     };
+@@ -1746,7 +1808,8 @@ const completeAnyWord = context => {
+ const defaults = {
+     brackets: ["(", "[", "{", "'", '"'],
+     before: ")]}:;>",
+-    stringPrefixes: []
++    stringPrefixes: [],
++    buildInsert: (state, range, open, close) => open + close,
+ };
+ const closeBracketEffect = state.StateEffect.define({
+     map(value, mapping) {
+@@ -1854,8 +1917,8 @@ function insertBracket(state$1, bracket) {
+     for (let tok of tokens) {
+         let closed = closing(state.codePointAt(tok, 0));
+         if (bracket == tok)
+-            return closed == tok ? handleSame(state$1, tok, tokens.indexOf(tok + tok + tok) > -1, conf)
+-                : handleOpen(state$1, tok, closed, conf.before || defaults.before);
++            return closed == tok ? handleSame(state$1, tok, tokens.indexOf(tok + tok) > -1, tokens.indexOf(tok + tok + tok) > -1, conf)
++                : handleOpen(state$1, tok, closed, conf.before || defaults.before, conf);
+         if (bracket == closed && closedBracketAt(state$1, state$1.selection.main.from))
+             return handleClose(state$1, tok, closed);
+     }
+@@ -1877,17 +1940,21 @@ function prevChar(doc, pos) {
+     let prev = doc.sliceString(pos - 2, pos);
+     return state.codePointSize(state.codePointAt(prev, 0)) == prev.length ? prev : prev.slice(1);
+ }
+-function handleOpen(state$1, open, close, closeBefore) {
++function handleOpen(state$1, open, close, closeBefore, config) {
++    let buildInsert = config.buildInsert || defaults.buildInsert;
+     let dont = null, changes = state$1.changeByRange(range => {
++        var _a;
+         if (!range.empty)
+             return { changes: [{ insert: open, from: range.from }, { insert: close, from: range.to }],
+                 effects: closeBracketEffect.of(range.to + open.length),
+                 range: state.EditorSelection.range(range.anchor + open.length, range.head + open.length) };
+         let next = nextChar(state$1.doc, range.head);
+-        if (!next || /\s/.test(next) || closeBefore.indexOf(next) > -1)
+-            return { changes: { insert: open + close, from: range.head },
+-                effects: closeBracketEffect.of(range.head + open.length),
++        if (!next || /\s/.test(next) || closeBefore.indexOf(next) > -1) {
++            const insert = (_a = buildInsert(state$1, range, open, close)) !== null && _a !== void 0 ? _a : open + close;
++            return { changes: { insert, from: range.head },
++                effects: insert === open ? [] : closeBracketEffect.of(range.head + open.length),
+                 range: state.EditorSelection.cursor(range.head + open.length) };
++        }
+         return { range: dont = range };
+     });
+     return dont ? null : state$1.update(changes, {
+@@ -1909,18 +1976,36 @@ function handleClose(state$1, _open, close) {
+ }
+ // Handles cases where the open and close token are the same, and
+ // possibly triple quotes (as in `"""abc"""`-style quoting).
+-function handleSame(state$1, token, allowTriple, config) {
++function handleSame(state$1, token, allowDouble, allowTriple, config) {
+     let stringPrefixes = config.stringPrefixes || defaults.stringPrefixes;
++    let buildInsert = config.buildInsert || defaults.buildInsert;
+     let dont = null, changes = state$1.changeByRange(range => {
++        var _a, _b, _c;
+         if (!range.empty)
+             return { changes: [{ insert: token, from: range.from }, { insert: token, from: range.to }],
+                 effects: closeBracketEffect.of(range.to + token.length),
+                 range: state.EditorSelection.range(range.anchor + token.length, range.head + token.length) };
+         let pos = range.head, next = nextChar(state$1.doc, pos), start;
+-        if (next == token) {
++        if (allowTriple && state$1.sliceDoc(pos - 2 * token.length, pos) == token + token &&
++            (start = canStartStringAt(state$1, pos - 2 * token.length, stringPrefixes)) > -1 &&
++            nodeStart(state$1, start)) {
++            return { changes: { insert: token + token + token + token, from: pos },
++                effects: closeBracketEffect.of(pos + token.length),
++                range: state.EditorSelection.cursor(pos + token.length) };
++        }
++        else if (allowDouble && state$1.sliceDoc(pos - token.length, pos) == token &&
++            (start = canStartStringAt(state$1, pos - token.length, stringPrefixes)) > -1 &&
++            nodeStart(state$1, start)) {
++            let insert = (_a = buildInsert(state$1, range, token, token)) !== null && _a !== void 0 ? _a : token + token;
++            return { changes: { insert, from: pos },
++                effects: insert === token ? [] : closeBracketEffect.of(pos + token.length),
++                range: state.EditorSelection.cursor(pos + token.length) };
++        }
++        else if (next == token) {
+             if (nodeStart(state$1, pos)) {
+-                return { changes: { insert: token + token, from: pos },
+-                    effects: closeBracketEffect.of(pos + token.length),
++                let insert = (_b = buildInsert(state$1, range, token, token)) !== null && _b !== void 0 ? _b : token + token;
++                return { changes: { insert, from: pos },
++                    effects: insert === token ? [] : closeBracketEffect.of(pos + token.length),
+                     range: state.EditorSelection.cursor(pos + token.length) };
+             }
+             else if (closedBracketAt(state$1, pos)) {
+@@ -1930,18 +2015,13 @@ function handleSame(state$1, token, allowTriple, config) {
+                     range: state.EditorSelection.cursor(pos + content.length) };
+             }
+         }
+-        else if (allowTriple && state$1.sliceDoc(pos - 2 * token.length, pos) == token + token &&
+-            (start = canStartStringAt(state$1, pos - 2 * token.length, stringPrefixes)) > -1 &&
+-            nodeStart(state$1, start)) {
+-            return { changes: { insert: token + token + token + token, from: pos },
+-                effects: closeBracketEffect.of(pos + token.length),
+-                range: state.EditorSelection.cursor(pos + token.length) };
+-        }
+         else if (state$1.charCategorizer(pos)(next) != state.CharCategory.Word) {
+-            if (canStartStringAt(state$1, pos, stringPrefixes) > -1 && !probablyInString(state$1, pos, token, stringPrefixes))
+-                return { changes: { insert: token + token, from: pos },
+-                    effects: closeBracketEffect.of(pos + token.length),
++            if (canStartStringAt(state$1, pos, stringPrefixes) > -1 && !probablyInString(state$1, pos, token, stringPrefixes)) {
++                const insert = (_c = buildInsert(state$1, range, token, token)) !== null && _c !== void 0 ? _c : token + token;
++                return { changes: { insert, from: pos },
++                    effects: insert === token ? [] : closeBracketEffect.of(pos + token.length),
+                     range: state.EditorSelection.cursor(pos + token.length) };
++            }
+         }
+         return { range: dont = range };
+     });
+@@ -2086,6 +2166,7 @@ exports.completionKeymap = completionKeymap;
+ exports.completionStatus = completionStatus;
+ exports.currentCompletions = currentCompletions;
+ exports.deleteBracketPair = deleteBracketPair;
++exports.getCompletionTooltip = getCompletionTooltip;
+ exports.hasNextSnippetField = hasNextSnippetField;
+ exports.hasPrevSnippetField = hasPrevSnippetField;
+ exports.ifIn = ifIn;
+@@ -2093,8 +2174,10 @@ exports.ifNotIn = ifNotIn;
+ exports.insertBracket = insertBracket;
+ exports.insertCompletionText = insertCompletionText;
+ exports.moveCompletionSelection = moveCompletionSelection;
++exports.nextChar = nextChar;
+ exports.nextSnippetField = nextSnippetField;
+ exports.pickedCompletion = pickedCompletion;
++exports.prevChar = prevChar;
+ exports.prevSnippetField = prevSnippetField;
+ exports.selectedCompletion = selectedCompletion;
+ exports.selectedCompletionIndex = selectedCompletionIndex;
+diff --git a/dist/index.d.cts b/dist/index.d.cts
+index b57b8f6..fce47ab 100644
+--- a/dist/index.d.cts
++++ b/dist/index.d.cts
+@@ -1,6 +1,6 @@
+ import * as _codemirror_state from '@codemirror/state';
+-import { EditorState, ChangeDesc, TransactionSpec, Transaction, StateCommand, Facet, Extension, StateEffect } from '@codemirror/state';
+-import { EditorView, Rect, KeyBinding, Command } from '@codemirror/view';
++import { EditorState, Text, ChangeDesc, TransactionSpec, StateCommand, Transaction, Facet, SelectionRange, Extension, StateEffect } from '@codemirror/state';
++import { EditorView, Rect, KeyBinding, Tooltip, Command } from '@codemirror/view';
+ import * as _lezer_common from '@lezer/common';
+ 
+ /**
+@@ -73,6 +73,19 @@ interface Completion {
+     a `{name}` object.
+     */
+     section?: string | CompletionSection;
++    /**
++    Can be used to alter the change created when the completion is applied
++    */
++    extend?: ExtendCompletion;
++    /**
++    If multiple sources return the same result, use this field to specifiy a
++    deduplication key as well as a priority. For each unique key, only the
++    completion with the highest priority will be shown.
++    */
++    deduplicate?: {
++        key: string;
++        priority: number;
++    };
+ }
+ /**
+ The type returned from
+@@ -306,12 +319,17 @@ This annotation is added to transactions that are produced by
+ picking a completion.
+ */
+ declare const pickedCompletion: _codemirror_state.AnnotationType<Completion>;
++type ExtendCompletion = (state: EditorState, change: {
++    from: number;
++    to: number;
++    insert: string | Text;
++}) => void;
+ /**
+ Helper function that returns a transaction spec which inserts a
+ completion's text in the main selection range, and any other
+ selection range that has the same text in front of it.
+ */
+-declare function insertCompletionText(state: EditorState, text: string, from: number, to: number): TransactionSpec;
++declare function insertCompletionText(state: EditorState, text: string | Text, from: number, to: number, extend?: ExtendCompletion): TransactionSpec;
+ 
+ interface CompletionConfig {
+     /**
+@@ -441,6 +459,10 @@ interface CompletionConfig {
+     milliseconds.
+     */
+     updateSyncTime?: number;
++    /**
++    overleaf: Move unfiltered results after the filtered ones
++    */
++    unfilteredResultsAtEnd?: boolean;
+ }
+ 
+ /**
+@@ -514,6 +536,8 @@ applies the snippet.
+ */
+ declare function snippetCompletion(template: string, completion: Completion): Completion;
+ 
++declare const getCompletionTooltip: (state: EditorState) => Tooltip | undefined | null;
++
+ /**
+ Returns a command that moves the completion selection forward or
+ backward by the given amount.
+@@ -562,6 +586,11 @@ interface CloseBracketConfig {
+     these prefixes before the opening quote.
+     */
+     stringPrefixes?: string[];
++    /**
++    An optional callback for overriding the content that's inserted
++    based on surrounding characters
++    */
++    buildInsert?: (state: EditorState, range: SelectionRange, open: string, close: string) => string;
+ }
+ /**
+ Extension to enable bracket-closing behavior. When a closeable
+@@ -593,6 +622,8 @@ to programmatically insert brackets—the
+ take care of running this for user input.)
+ */
+ declare function insertBracket(state: EditorState, bracket: string): Transaction | null;
++declare function nextChar(doc: Text, pos: number): string;
++declare function prevChar(doc: Text, pos: number): string;
+ 
+ /**
+ Returns an extension that enables autocompletion.
+@@ -636,4 +667,5 @@ the currently selected completion.
+ */
+ declare function setSelectedCompletion(index: number): StateEffect<unknown>;
+ 
+-export { type CloseBracketConfig, type Completion, CompletionContext, type CompletionInfo, type CompletionResult, type CompletionSection, type CompletionSource, acceptCompletion, autocompletion, clearSnippet, closeBrackets, closeBracketsKeymap, closeCompletion, completeAnyWord, completeFromList, completionKeymap, completionStatus, currentCompletions, deleteBracketPair, hasNextSnippetField, hasPrevSnippetField, ifIn, ifNotIn, insertBracket, insertCompletionText, moveCompletionSelection, nextSnippetField, pickedCompletion, prevSnippetField, selectedCompletion, selectedCompletionIndex, setSelectedCompletion, snippet, snippetCompletion, snippetKeymap, startCompletion };
++export { CompletionContext, acceptCompletion, autocompletion, clearSnippet, closeBrackets, closeBracketsKeymap, closeCompletion, completeAnyWord, completeFromList, completionKeymap, completionStatus, currentCompletions, deleteBracketPair, getCompletionTooltip, hasNextSnippetField, hasPrevSnippetField, ifIn, ifNotIn, insertBracket, insertCompletionText, moveCompletionSelection, nextChar, nextSnippetField, pickedCompletion, prevChar, prevSnippetField, selectedCompletion, selectedCompletionIndex, setSelectedCompletion, snippet, snippetCompletion, snippetKeymap, startCompletion };
++export type { CloseBracketConfig, Completion, CompletionInfo, CompletionResult, CompletionSection, CompletionSource };
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index b57b8f6..fce47ab 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -1,6 +1,6 @@
+ import * as _codemirror_state from '@codemirror/state';
+-import { EditorState, ChangeDesc, TransactionSpec, Transaction, StateCommand, Facet, Extension, StateEffect } from '@codemirror/state';
+-import { EditorView, Rect, KeyBinding, Command } from '@codemirror/view';
++import { EditorState, Text, ChangeDesc, TransactionSpec, StateCommand, Transaction, Facet, SelectionRange, Extension, StateEffect } from '@codemirror/state';
++import { EditorView, Rect, KeyBinding, Tooltip, Command } from '@codemirror/view';
+ import * as _lezer_common from '@lezer/common';
+ 
+ /**
+@@ -73,6 +73,19 @@ interface Completion {
+     a `{name}` object.
+     */
+     section?: string | CompletionSection;
++    /**
++    Can be used to alter the change created when the completion is applied
++    */
++    extend?: ExtendCompletion;
++    /**
++    If multiple sources return the same result, use this field to specifiy a
++    deduplication key as well as a priority. For each unique key, only the
++    completion with the highest priority will be shown.
++    */
++    deduplicate?: {
++        key: string;
++        priority: number;
++    };
+ }
+ /**
+ The type returned from
+@@ -306,12 +319,17 @@ This annotation is added to transactions that are produced by
+ picking a completion.
+ */
+ declare const pickedCompletion: _codemirror_state.AnnotationType<Completion>;
++type ExtendCompletion = (state: EditorState, change: {
++    from: number;
++    to: number;
++    insert: string | Text;
++}) => void;
+ /**
+ Helper function that returns a transaction spec which inserts a
+ completion's text in the main selection range, and any other
+ selection range that has the same text in front of it.
+ */
+-declare function insertCompletionText(state: EditorState, text: string, from: number, to: number): TransactionSpec;
++declare function insertCompletionText(state: EditorState, text: string | Text, from: number, to: number, extend?: ExtendCompletion): TransactionSpec;
+ 
+ interface CompletionConfig {
+     /**
+@@ -441,6 +459,10 @@ interface CompletionConfig {
+     milliseconds.
+     */
+     updateSyncTime?: number;
++    /**
++    overleaf: Move unfiltered results after the filtered ones
++    */
++    unfilteredResultsAtEnd?: boolean;
+ }
+ 
+ /**
+@@ -514,6 +536,8 @@ applies the snippet.
+ */
+ declare function snippetCompletion(template: string, completion: Completion): Completion;
+ 
++declare const getCompletionTooltip: (state: EditorState) => Tooltip | undefined | null;
++
+ /**
+ Returns a command that moves the completion selection forward or
+ backward by the given amount.
+@@ -562,6 +586,11 @@ interface CloseBracketConfig {
+     these prefixes before the opening quote.
+     */
+     stringPrefixes?: string[];
++    /**
++    An optional callback for overriding the content that's inserted
++    based on surrounding characters
++    */
++    buildInsert?: (state: EditorState, range: SelectionRange, open: string, close: string) => string;
+ }
+ /**
+ Extension to enable bracket-closing behavior. When a closeable
+@@ -593,6 +622,8 @@ to programmatically insert brackets—the
+ take care of running this for user input.)
+ */
+ declare function insertBracket(state: EditorState, bracket: string): Transaction | null;
++declare function nextChar(doc: Text, pos: number): string;
++declare function prevChar(doc: Text, pos: number): string;
+ 
+ /**
+ Returns an extension that enables autocompletion.
+@@ -636,4 +667,5 @@ the currently selected completion.
+ */
+ declare function setSelectedCompletion(index: number): StateEffect<unknown>;
+ 
+-export { type CloseBracketConfig, type Completion, CompletionContext, type CompletionInfo, type CompletionResult, type CompletionSection, type CompletionSource, acceptCompletion, autocompletion, clearSnippet, closeBrackets, closeBracketsKeymap, closeCompletion, completeAnyWord, completeFromList, completionKeymap, completionStatus, currentCompletions, deleteBracketPair, hasNextSnippetField, hasPrevSnippetField, ifIn, ifNotIn, insertBracket, insertCompletionText, moveCompletionSelection, nextSnippetField, pickedCompletion, prevSnippetField, selectedCompletion, selectedCompletionIndex, setSelectedCompletion, snippet, snippetCompletion, snippetKeymap, startCompletion };
++export { CompletionContext, acceptCompletion, autocompletion, clearSnippet, closeBrackets, closeBracketsKeymap, closeCompletion, completeAnyWord, completeFromList, completionKeymap, completionStatus, currentCompletions, deleteBracketPair, getCompletionTooltip, hasNextSnippetField, hasPrevSnippetField, ifIn, ifNotIn, insertBracket, insertCompletionText, moveCompletionSelection, nextChar, nextSnippetField, pickedCompletion, prevChar, prevSnippetField, selectedCompletion, selectedCompletionIndex, setSelectedCompletion, snippet, snippetCompletion, snippetKeymap, startCompletion };
++export type { CloseBracketConfig, Completion, CompletionInfo, CompletionResult, CompletionSection, CompletionSource };
+diff --git a/dist/index.js b/dist/index.js
+index 4729223..9361a53 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1,4 +1,4 @@
+-import { Annotation, StateEffect, EditorSelection, codePointAt, codePointSize, fromCodePoint, Facet, combineConfig, StateField, Prec, Text, Transaction, MapMode, RangeValue, RangeSet, CharCategory } from '@codemirror/state';
++import { Annotation, StateEffect, Text, EditorSelection, codePointAt, codePointSize, fromCodePoint, Facet, combineConfig, StateField, Prec, Transaction, MapMode, RangeValue, RangeSet, CharCategory } from '@codemirror/state';
+ import { Direction, logException, showTooltip, EditorView, ViewPlugin, getTooltip, Decoration, WidgetType, keymap } from '@codemirror/view';
+ import { syntaxTree, indentUnit } from '@codemirror/language';
+ 
+@@ -185,16 +185,23 @@ Helper function that returns a transaction spec which inserts a
+ completion's text in the main selection range, and any other
+ selection range that has the same text in front of it.
+ */
+-function insertCompletionText(state, text, from, to) {
++function insertCompletionText(state, text, from, to, extend) {
+     let { main } = state.selection, fromOff = from - main.from, toOff = to - main.from;
+     return Object.assign(Object.assign({}, state.changeByRange(range => {
+         if (range != main && from != to &&
+             state.sliceDoc(range.from + fromOff, range.from + toOff) != state.sliceDoc(from, to))
+             return { range };
+-        let lines = state.toText(text);
++        let change = {
++            from: range.from + fromOff,
++            to: to == main.from ? range.to : range.from + toOff,
++            insert: text instanceof Text ? text : state.toText(text),
++        };
++        if (extend) {
++            extend(state, change);
++        }
+         return {
+-            changes: { from: range.from + fromOff, to: to == main.from ? range.to : range.from + toOff, insert: lines },
+-            range: EditorSelection.cursor(range.from + fromOff + lines.length)
++            changes: change,
++            range: EditorSelection.cursor(change.from + change.insert.length)
+         };
+     })), { scrollIntoView: true, userEvent: "input.complete" });
+ }
+@@ -387,7 +394,9 @@ const completionConfig = /*@__PURE__*/Facet.define({
+             filterStrict: false,
+             compareCompletions: (a, b) => a.label.localeCompare(b.label),
+             interactionDelay: 75,
+-            updateSyncTime: 100
++            updateSyncTime: 100,
++            // overleaf: default to at top which is default CM6 behaviour
++            unfilteredResultsAtEnd: false
+         }, {
+             defaultKeymap: (a, b) => a && b,
+             closeOnBlur: (a, b) => a && b,
+@@ -742,6 +751,7 @@ function score(option) {
+         (option.type ? 1 : 0);
+ }
+ function sortOptions(active, state) {
++    var _a;
+     let options = [];
+     let sections = null;
+     let addOption = (option) => {
+@@ -761,7 +771,8 @@ function sortOptions(active, state) {
+             let getMatch = a.result.getMatch;
+             if (a.result.filter === false) {
+                 for (let option of a.result.options) {
+-                    addOption(new Option(option, a.source, getMatch ? getMatch(option) : [], 1e9 - options.length));
++                    let defaultScore = conf.unfilteredResultsAtEnd ? -1e9 : 1e9;
++                    addOption(new Option(option, a.source, getMatch ? getMatch(option) : [], defaultScore - options.length));
+                 }
+             }
+             else {
+@@ -788,15 +799,42 @@ function sortOptions(active, state) {
+         }
+     }
+     let result = [], prev = null;
++    const priorityIndices = new Map();
+     let compare = conf.compareCompletions;
+     for (let opt of options.sort((a, b) => (b.score - a.score) || compare(a.completion, b.completion))) {
++        // overleaf: Deduplicate results with dedup options
++        //           The goal is to keep only the highest priority option, in the
++        //           highest scoring position.
++        const key = (_a = opt.completion.deduplicate) === null || _a === void 0 ? void 0 : _a.key;
++        if (key) {
++            // Handle merging specifically for deduplicated items item
++            const currentOptionIndex = priorityIndices.get(key);
++            if (currentOptionIndex === undefined) {
++                priorityIndices.set(key, result.length);
++                result.push(opt);
++                prev = opt.completion;
++            }
++            else {
++                if (result[currentOptionIndex].completion.deduplicate.priority < opt.completion.deduplicate.priority) {
++                    result[currentOptionIndex] = opt;
++                    if (currentOptionIndex === result.length - 1) {
++                        prev = opt.completion;
++                    }
++                }
++            }
++            continue;
++        }
++        // overleaf: end
+         let cur = opt.completion;
+-        if (!prev || prev.label != cur.label || prev.detail != cur.detail ||
+-            (prev.type != null && cur.type != null && prev.type != cur.type) ||
+-            prev.apply != cur.apply || prev.boost != cur.boost)
++        if (!prev || prev.label != cur.label)
++            result.push(opt);
++        // overleaf: we're already handling deduplication, so skip extra merges
++        else if (prev.deduplicate)
+             result.push(opt);
+         else if (score(opt.completion) > score(prev))
+             result[result.length - 1] = opt;
++        else if (opt.completion.info)
++            result[result.length - 1] = opt;
+         prev = opt.completion;
+     }
+     return result;
+@@ -815,8 +853,9 @@ class CompletionDialog {
+             : new CompletionDialog(this.options, makeAttrs(id, selected), this.tooltip, this.timestamp, selected, this.disabled);
+     }
+     static build(active, state, id, prev, conf, didSetActive) {
+-        if (prev && !didSetActive && active.some(s => s.isPending))
+-            return prev.setDisabled();
++        // Overleaf: avoid setting the previous completion state to disabled while completion sources are pending
++        // if (prev && !didSetActive && active.some(s => s.isPending))
++        //   return prev.setDisabled()
+         let options = sortOptions(active, state);
+         if (!options.length)
+             return prev && active.some(a => a.isPending) ? prev.setDisabled() : null;
+@@ -1015,13 +1054,14 @@ const completionState = /*@__PURE__*/StateField.define({
+         EditorView.contentAttributes.from(f, state => state.attrs)
+     ]
+ });
++const getCompletionTooltip = (state) => { var _a; return (_a = state.field(completionState, false)) === null || _a === void 0 ? void 0 : _a.tooltip; };
+ function applyCompletion(view, option) {
+     const apply = option.completion.apply || option.completion.label;
+     let result = view.state.field(completionState).active.find(a => a.source == option.source);
+     if (!(result instanceof ActiveResult))
+         return false;
+     if (typeof apply == "string")
+-        view.dispatch(Object.assign(Object.assign({}, insertCompletionText(view.state, apply, result.from, result.to)), { annotations: pickedCompletion.of(option.completion) }));
++        view.dispatch(Object.assign(Object.assign({}, insertCompletionText(view.state, apply, result.from, result.to, option.completion.extend)), { annotations: pickedCompletion.of(option.completion) }));
+     else
+         apply(view, option.completion, result.from, result.to);
+     return true;
+@@ -1557,20 +1597,42 @@ interpreted as indicating a placeholder.
+ function snippet(template) {
+     let snippet = Snippet.parse(template);
+     return (editor, completion, from, to) => {
+-        let { text, ranges } = snippet.instantiate(editor.state, from);
+-        let { main } = editor.state.selection;
+-        let spec = {
+-            changes: { from, to: to == main.from ? main.to : to, insert: Text.of(text) },
+-            scrollIntoView: true,
+-            annotations: completion ? [pickedCompletion.of(completion), Transaction.userEvent.of("input.complete")] : undefined
+-        };
++        let { main } = editor.state.selection, fromOff = from - main.from, toOff = to - main.from;
++        let ranges = [];
++        let totalOffset = 0;
++        let spec = Object.assign(Object.assign({}, editor.state.changeByRange(range => {
++            if (range != main && from != to &&
++                editor.state.sliceDoc(range.from + fromOff, range.from + toOff) != editor.state.sliceDoc(from, to))
++                return { range };
++            let { text, ranges: fieldRanges } = snippet.instantiate(editor.state, range.from + fromOff);
++            let change = {
++                from: range.from + fromOff,
++                to: range.from + toOff,
++                insert: Text.of(text)
++            };
++            let originalTo = change.to;
++            let offset = change.insert.length + fromOff;
++            if (completion.extend) {
++                completion.extend(editor.state, change);
++                offset += originalTo - change.to;
++            }
++            for (const fieldRange of fieldRanges) {
++                ranges.push(new FieldRange(fieldRange.field, fieldRange.from + totalOffset, fieldRange.to + totalOffset));
++            }
++            totalOffset += offset;
++            return {
++                changes: change,
++                range: EditorSelection.cursor(change.from + change.insert.length)
++            };
++        })), { scrollIntoView: true, annotations: completion ? [pickedCompletion.of(completion), Transaction.userEvent.of("input.complete")] : undefined, effects: [] });
+         if (ranges.length)
+             spec.selection = fieldSelection(ranges, 0);
+         if (ranges.some(r => r.field > 0)) {
+             let active = new ActiveSnippet(ranges, 0);
+-            let effects = spec.effects = [setActive.of(active)];
+-            if (editor.state.field(snippetState, false) === undefined)
+-                effects.push(StateEffect.appendConfig.of([snippetState, addSnippetKeymap, snippetPointerHandler, baseTheme]));
++            spec.effects.push(setActive.of(active));
++            if (editor.state.field(snippetState, false) === undefined) {
++                spec.effects.push(StateEffect.appendConfig.of([snippetState, addSnippetKeymap, snippetPointerHandler, baseTheme]));
++            }
+         }
+         editor.dispatch(editor.state.update(spec));
+     };
+@@ -1744,7 +1806,8 @@ const completeAnyWord = context => {
+ const defaults = {
+     brackets: ["(", "[", "{", "'", '"'],
+     before: ")]}:;>",
+-    stringPrefixes: []
++    stringPrefixes: [],
++    buildInsert: (state, range, open, close) => open + close,
+ };
+ const closeBracketEffect = /*@__PURE__*/StateEffect.define({
+     map(value, mapping) {
+@@ -1852,8 +1915,8 @@ function insertBracket(state, bracket) {
+     for (let tok of tokens) {
+         let closed = closing(codePointAt(tok, 0));
+         if (bracket == tok)
+-            return closed == tok ? handleSame(state, tok, tokens.indexOf(tok + tok + tok) > -1, conf)
+-                : handleOpen(state, tok, closed, conf.before || defaults.before);
++            return closed == tok ? handleSame(state, tok, tokens.indexOf(tok + tok) > -1, tokens.indexOf(tok + tok + tok) > -1, conf)
++                : handleOpen(state, tok, closed, conf.before || defaults.before, conf);
+         if (bracket == closed && closedBracketAt(state, state.selection.main.from))
+             return handleClose(state, tok, closed);
+     }
+@@ -1875,17 +1938,21 @@ function prevChar(doc, pos) {
+     let prev = doc.sliceString(pos - 2, pos);
+     return codePointSize(codePointAt(prev, 0)) == prev.length ? prev : prev.slice(1);
+ }
+-function handleOpen(state, open, close, closeBefore) {
++function handleOpen(state, open, close, closeBefore, config) {
++    let buildInsert = config.buildInsert || defaults.buildInsert;
+     let dont = null, changes = state.changeByRange(range => {
++        var _a;
+         if (!range.empty)
+             return { changes: [{ insert: open, from: range.from }, { insert: close, from: range.to }],
+                 effects: closeBracketEffect.of(range.to + open.length),
+                 range: EditorSelection.range(range.anchor + open.length, range.head + open.length) };
+         let next = nextChar(state.doc, range.head);
+-        if (!next || /\s/.test(next) || closeBefore.indexOf(next) > -1)
+-            return { changes: { insert: open + close, from: range.head },
+-                effects: closeBracketEffect.of(range.head + open.length),
++        if (!next || /\s/.test(next) || closeBefore.indexOf(next) > -1) {
++            const insert = (_a = buildInsert(state, range, open, close)) !== null && _a !== void 0 ? _a : open + close;
++            return { changes: { insert, from: range.head },
++                effects: insert === open ? [] : closeBracketEffect.of(range.head + open.length),
+                 range: EditorSelection.cursor(range.head + open.length) };
++        }
+         return { range: dont = range };
+     });
+     return dont ? null : state.update(changes, {
+@@ -1907,18 +1974,36 @@ function handleClose(state, _open, close) {
+ }
+ // Handles cases where the open and close token are the same, and
+ // possibly triple quotes (as in `"""abc"""`-style quoting).
+-function handleSame(state, token, allowTriple, config) {
++function handleSame(state, token, allowDouble, allowTriple, config) {
+     let stringPrefixes = config.stringPrefixes || defaults.stringPrefixes;
++    let buildInsert = config.buildInsert || defaults.buildInsert;
+     let dont = null, changes = state.changeByRange(range => {
++        var _a, _b, _c;
+         if (!range.empty)
+             return { changes: [{ insert: token, from: range.from }, { insert: token, from: range.to }],
+                 effects: closeBracketEffect.of(range.to + token.length),
+                 range: EditorSelection.range(range.anchor + token.length, range.head + token.length) };
+         let pos = range.head, next = nextChar(state.doc, pos), start;
+-        if (next == token) {
++        if (allowTriple && state.sliceDoc(pos - 2 * token.length, pos) == token + token &&
++            (start = canStartStringAt(state, pos - 2 * token.length, stringPrefixes)) > -1 &&
++            nodeStart(state, start)) {
++            return { changes: { insert: token + token + token + token, from: pos },
++                effects: closeBracketEffect.of(pos + token.length),
++                range: EditorSelection.cursor(pos + token.length) };
++        }
++        else if (allowDouble && state.sliceDoc(pos - token.length, pos) == token &&
++            (start = canStartStringAt(state, pos - token.length, stringPrefixes)) > -1 &&
++            nodeStart(state, start)) {
++            let insert = (_a = buildInsert(state, range, token, token)) !== null && _a !== void 0 ? _a : token + token;
++            return { changes: { insert, from: pos },
++                effects: insert === token ? [] : closeBracketEffect.of(pos + token.length),
++                range: EditorSelection.cursor(pos + token.length) };
++        }
++        else if (next == token) {
+             if (nodeStart(state, pos)) {
+-                return { changes: { insert: token + token, from: pos },
+-                    effects: closeBracketEffect.of(pos + token.length),
++                let insert = (_b = buildInsert(state, range, token, token)) !== null && _b !== void 0 ? _b : token + token;
++                return { changes: { insert, from: pos },
++                    effects: insert === token ? [] : closeBracketEffect.of(pos + token.length),
+                     range: EditorSelection.cursor(pos + token.length) };
+             }
+             else if (closedBracketAt(state, pos)) {
+@@ -1928,18 +2013,13 @@ function handleSame(state, token, allowTriple, config) {
+                     range: EditorSelection.cursor(pos + content.length) };
+             }
+         }
+-        else if (allowTriple && state.sliceDoc(pos - 2 * token.length, pos) == token + token &&
+-            (start = canStartStringAt(state, pos - 2 * token.length, stringPrefixes)) > -1 &&
+-            nodeStart(state, start)) {
+-            return { changes: { insert: token + token + token + token, from: pos },
+-                effects: closeBracketEffect.of(pos + token.length),
+-                range: EditorSelection.cursor(pos + token.length) };
+-        }
+         else if (state.charCategorizer(pos)(next) != CharCategory.Word) {
+-            if (canStartStringAt(state, pos, stringPrefixes) > -1 && !probablyInString(state, pos, token, stringPrefixes))
+-                return { changes: { insert: token + token, from: pos },
+-                    effects: closeBracketEffect.of(pos + token.length),
++            if (canStartStringAt(state, pos, stringPrefixes) > -1 && !probablyInString(state, pos, token, stringPrefixes)) {
++                const insert = (_c = buildInsert(state, range, token, token)) !== null && _c !== void 0 ? _c : token + token;
++                return { changes: { insert, from: pos },
++                    effects: insert === token ? [] : closeBracketEffect.of(pos + token.length),
+                     range: EditorSelection.cursor(pos + token.length) };
++            }
+         }
+         return { range: dont = range };
+     });
+@@ -2071,4 +2151,4 @@ function setSelectedCompletion(index) {
+     return setSelectedEffect.of(index);
+ }
+ 
+-export { CompletionContext, acceptCompletion, autocompletion, clearSnippet, closeBrackets, closeBracketsKeymap, closeCompletion, completeAnyWord, completeFromList, completionKeymap, completionStatus, currentCompletions, deleteBracketPair, hasNextSnippetField, hasPrevSnippetField, ifIn, ifNotIn, insertBracket, insertCompletionText, moveCompletionSelection, nextSnippetField, pickedCompletion, prevSnippetField, selectedCompletion, selectedCompletionIndex, setSelectedCompletion, snippet, snippetCompletion, snippetKeymap, startCompletion };
++export { CompletionContext, acceptCompletion, autocompletion, clearSnippet, closeBrackets, closeBracketsKeymap, closeCompletion, completeAnyWord, completeFromList, completionKeymap, completionStatus, currentCompletions, deleteBracketPair, getCompletionTooltip, hasNextSnippetField, hasPrevSnippetField, ifIn, ifNotIn, insertBracket, insertCompletionText, moveCompletionSelection, nextChar, nextSnippetField, pickedCompletion, prevChar, prevSnippetField, selectedCompletion, selectedCompletionIndex, setSelectedCompletion, snippet, snippetCompletion, snippetKeymap, startCompletion };

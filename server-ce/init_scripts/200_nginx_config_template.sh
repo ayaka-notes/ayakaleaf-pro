@@ -20,6 +20,7 @@ if [ -f "${nginx_template_file}" ]; then
   export NGINX_KEEPALIVE_TIMEOUT="${NGINX_KEEPALIVE_TIMEOUT:-65}"
   export NGINX_WORKER_CONNECTIONS="${NGINX_WORKER_CONNECTIONS:-768}"
   export NGINX_WORKER_PROCESSES="${NGINX_WORKER_PROCESSES:-4}"
+  export MAX_UPLOAD_SIZE_NGINX="${MAX_UPLOAD_SIZE:-50}m"
 
   echo "Nginx: generating config file from template"
 
@@ -31,6 +32,7 @@ if [ -f "${nginx_template_file}" ]; then
     ${NGINX_KEEPALIVE_TIMEOUT}
     ${NGINX_WORKER_CONNECTIONS}
     ${NGINX_WORKER_PROCESSES}
+    ${MAX_UPLOAD_SIZE_NGINX}
   ' \
     < "${nginx_template_file}" \
     > "${nginx_config_file}"

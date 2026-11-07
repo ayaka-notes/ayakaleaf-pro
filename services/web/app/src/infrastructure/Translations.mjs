@@ -1,12 +1,48 @@
 import i18n from 'i18next'
-import fsBackend from 'i18next-fs-backend'
-import middleware from 'i18next-http-middleware'
-import path from 'node:path'
 import Settings from '@overleaf/settings'
 import { URL } from 'node:url'
 import pug from 'pug-runtime'
 import logger from '@overleaf/logger'
 import SafeHTMLSubstitution from '../Features/Helpers/SafeHTMLSubstitution.mjs'
+import cs from '../../../locales/cs.json' with { type: 'json' }
+import da from '../../../locales/da.json' with { type: 'json' }
+import de from '../../../locales/de.json' with { type: 'json' }
+import en from '../../../locales/en.json' with { type: 'json' }
+import es from '../../../locales/es.json' with { type: 'json' }
+import fi from '../../../locales/fi.json' with { type: 'json' }
+import fr from '../../../locales/fr.json' with { type: 'json' }
+import it from '../../../locales/it.json' with { type: 'json' }
+import ja from '../../../locales/ja.json' with { type: 'json' }
+import ko from '../../../locales/ko.json' with { type: 'json' }
+import nl from '../../../locales/nl.json' with { type: 'json' }
+import no from '../../../locales/no.json' with { type: 'json' }
+import pl from '../../../locales/pl.json' with { type: 'json' }
+import pt from '../../../locales/pt.json' with { type: 'json' }
+import ru from '../../../locales/ru.json' with { type: 'json' }
+import sv from '../../../locales/sv.json' with { type: 'json' }
+import tr from '../../../locales/tr.json' with { type: 'json' }
+import zhCN from '../../../locales/zh-CN.json' with { type: 'json' }
+
+const locales = {
+  cs,
+  da,
+  de,
+  en,
+  es,
+  fi,
+  fr,
+  it,
+  ja,
+  ko,
+  nl,
+  no,
+  pl,
+  pt,
+  ru,
+  sv,
+  tr,
+  'zh-CN': zhCN,
+}
 
 const fallbackLanguageCode = Settings.i18n.defaultLng || 'en'
 const availableLanguageCodes = []
@@ -31,27 +67,18 @@ if (!availableLanguageCodes.includes(fallbackLanguageCode)) {
   availableLanguageCodes.push(fallbackLanguageCode)
 }
 
-// The "node --watch" flag is not easy to detect.
-if (process.argv.includes('--watch-locales')) {
-  // Dummy imports for setting up watching of locales files.
-  for (const lngCode of availableLanguageCodes) {
-    await import(`../../../locales/${lngCode}.json`, { with: { type: 'json' } })
-  }
-}
+const resources = Object.fromEntries(
+  Object.entries(locales)
+    .filter(([lngCode]) => availableLanguageCodes.includes(lngCode))
+    .map(([lngCode, translations]) => [lngCode, { translation: translations }])
+)
 
 i18n
-  .use(fsBackend)
-  .use(middleware.LanguageDetector)
   .init({
-    backend: {
-      loadPath: path.join(import.meta.dirname, '../../../locales/__lng__.json'),
-    },
+    resources,
 
     // still using the v3 plural suffixes
     compatibilityJSON: 'v3',
-
-    // Load translation files synchronously: https://www.i18next.com/overview/configuration-options#initimmediate
-    initImmediate: false,
 
     // We use the legacy v1 JSON format, so configure interpolator to use
     // underscores instead of curly braces
@@ -72,7 +99,6 @@ i18n
       },
     },
 
-    preload: availableLanguageCodes,
     supportedLngs: availableLanguageCodes,
     fallbackLng: fallbackLanguageCode,
   })
@@ -80,25 +106,26 @@ i18n
     logger.error({ err }, 'failed to initialize i18next library')
   })
 
-// Make custom language detector for Accept-Language header
-const headerLangDetector = new middleware.LanguageDetector(i18n.services, {
-  order: ['header'],
-})
-
 function setLangBasedOnDomainMiddleware(req, res, next) {
   // Determine language from subdomain
-  const lang = availableHosts.get(req.headers.host)
-  if (lang) {
-    req.i18n.changeLanguage(lang)
+  const lang = availableHosts.get(req.headers.host) ?? fallbackLanguageCode
+
+  req.i18n = {
+    language: lang,
   }
 
-  // expose the language code to pug
-  res.locals.currentLngCode = req.language
+  req.language =
+    req.locale =
+    req.lng =
+    res.locals.currentLngCode =
+    res.locals.language =
+      lang
 
   // If the set language is different from the language detection (based on
   // the Accept-Language header), then set flag which will show a banner
   // offering to switch to the appropriate library
-  const detectedLanguageCode = headerLangDetector.detect(req, res)
+  const detectedLanguageCode =
+    req.acceptsLanguages(availableLanguageCodes) || fallbackLanguageCode
   if (req.language !== detectedLanguageCode) {
     res.locals.suggestedLanguageSubdomainConfig =
       subdomainConfigs.get(detectedLanguageCode)
@@ -106,32 +133,35 @@ function setLangBasedOnDomainMiddleware(req, res, next) {
 
   // Decorate req.i18n with translate function alias for backwards
   // compatibility usage in requests
-  req.i18n.translate = (key, vars, components) => {
-    vars = vars || {}
+  req.i18n.translate =
+    res.locals.t =
+    req.i18n.t =
+      (key, vars, components) => {
+        vars = { lng: lang, ...(vars ?? {}) }
 
-    if (Settings.i18n.checkForHTMLInVars) {
-      Object.entries(vars).forEach(([field, value]) => {
-        if (pug.escape(value) !== value) {
-          const violationsKey = key + field
-          // do not flood the logs, log one sample per pod + key + field
-          if (!I18N_HTML_INJECTIONS.has(violationsKey)) {
-            logger.warn(
-              { key, field, value },
-              'html content in translations context vars'
-            )
-            I18N_HTML_INJECTIONS.add(violationsKey)
-          }
+        if (Settings.i18n.checkForHTMLInVars) {
+          Object.entries(vars).forEach(([field, value]) => {
+            if (pug.escape(value) !== value) {
+              const violationsKey = key + field
+              // do not flood the logs, log one sample per pod + key + field
+              if (!I18N_HTML_INJECTIONS.has(violationsKey)) {
+                logger.warn(
+                  { key, field, value },
+                  'html content in translations context vars'
+                )
+                I18N_HTML_INJECTIONS.add(violationsKey)
+              }
+            }
+          })
         }
-      })
-    }
 
-    const locale = req.i18n.t(key, vars)
-    if (components) {
-      return SafeHTMLSubstitution.render(locale, components)
-    } else {
-      return locale
-    }
-  }
+        const locale = i18n.t(key, vars)
+        if (components) {
+          return SafeHTMLSubstitution.render(locale, components)
+        } else {
+          return locale
+        }
+      }
 
   next()
 }
@@ -141,7 +171,6 @@ function setLangBasedOnDomainMiddleware(req, res, next) {
 i18n.translate = i18n.t
 
 export default {
-  i18nMiddleware: middleware.handle(i18n),
   setLangBasedOnDomainMiddleware,
   i18n,
 }

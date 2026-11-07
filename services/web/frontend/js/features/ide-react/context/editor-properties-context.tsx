@@ -6,18 +6,24 @@ import {
   SetStateAction,
   useCallback,
   useContext,
+  useEffect,
   useState,
 } from 'react'
 import customLocalStorage from '@/infrastructure/local-storage'
-import usePersistedState from '@/shared/hooks/use-persisted-state'
 import getMeta from '@/utils/meta'
 import { useUnstableStoreSync } from '@/shared/hooks/use-unstable-store-sync'
 import { sendMB } from '@/infrastructure/event-tracking'
+import { useEditorOpenDocContext } from '@/features/ide-react/context/editor-open-doc-context'
+import {
+  getVisualEditorDefault,
+  getVisualEditorStorageKey,
+} from '@/features/source-editor/utils/visual-editor'
 
 // Context value type
 export type EditorPropertiesContextValue = {
   showVisual: boolean
   setShowVisual: Dispatch<SetStateAction<boolean>>
+  showVisualForFile: (filename: string) => boolean
   showSymbolPalette: boolean
   setShowSymbolPalette: Dispatch<SetStateAction<boolean>>
   toggleSymbolPalette: () => void
@@ -35,31 +41,58 @@ export const EditorPropertiesContext = createContext<
   EditorPropertiesContextValue | undefined
 >(undefined)
 
-function showVisualFallbackValue() {
+function migrateTexVisualMode(): boolean {
   const projectId = getMeta('ol-project_id')
   const editorModeKey = `editor.mode.${projectId}`
   const editorModeVal = customLocalStorage.getItem(editorModeKey)
 
   if (editorModeVal) {
-    // clean up the old key
     customLocalStorage.removeItem(editorModeKey)
+    return editorModeVal === 'rich-text'
   }
 
-  return editorModeVal === 'rich-text'
+  return false
+}
+
+export function showVisualForFile(filename: string): boolean {
+  const key = getVisualEditorStorageKey(filename)
+  const stored = customLocalStorage.getItem(key)
+  if (stored !== null) {
+    return stored === 'visual'
+  }
+  if (key === 'editor.lastUsedMode') {
+    return migrateTexVisualMode()
+  }
+  return getVisualEditorDefault(filename)
 }
 
 export const EditorPropertiesProvider: FC<PropsWithChildren> = ({
   children,
 }) => {
-  const [showVisual, setShowVisual] = usePersistedState(
-    `editor.lastUsedMode`,
-    showVisualFallbackValue(),
-    {
-      converter: {
-        toPersisted: showVisual => (showVisual ? 'visual' : 'code'),
-        fromPersisted: mode => mode === 'visual',
-      },
-    }
+  const { openDocName } = useEditorOpenDocContext()
+
+  const [showVisual, setShowVisualState] = useState(() =>
+    openDocName != null ? showVisualForFile(openDocName) : false
+  )
+
+  useEffect(() => {
+    setShowVisualState(
+      openDocName != null ? showVisualForFile(openDocName) : false
+    )
+  }, [openDocName])
+
+  const setShowVisual: Dispatch<SetStateAction<boolean>> = useCallback(
+    value => {
+      setShowVisualState(prev => {
+        const actual = typeof value === 'function' ? value(prev) : value
+        if (openDocName != null) {
+          const key = getVisualEditorStorageKey(openDocName)
+          customLocalStorage.setItem(key, actual ? 'visual' : 'code')
+        }
+        return actual
+      })
+    },
+    [openDocName]
   )
 
   // Sync the showVisual state with the exposed store
@@ -83,6 +116,7 @@ export const EditorPropertiesProvider: FC<PropsWithChildren> = ({
   const value = {
     showVisual,
     setShowVisual,
+    showVisualForFile,
     showSymbolPalette,
     setShowSymbolPalette,
     toggleSymbolPalette,

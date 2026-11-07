@@ -15,12 +15,12 @@ import AccountMappingHelper from '../Analytics/AccountMappingHelper.mjs'
 import { SSOConfig } from '../../models/SSOConfig.mjs'
 import mongoose from '../../infrastructure/Mongoose.mjs'
 import Modules from '../../infrastructure/Modules.mjs'
+import CustomerIoPlanHelpers from './CustomerIoPlanHelpers.mjs'
 
 /**
  * @typedef {import('../../../../types/subscription/dashboard/subscription').Subscription} Subscription
  * @typedef {import('../../../../types/subscription/dashboard/subscription').PaymentProvider} PaymentProvider
  * @typedef {import('../../../../types/group-management/group-audit-log').GroupAuditLog} GroupAuditLog
- * @import { AddOn } from '../../../../types/subscription/plan'
  * @typedef {InstanceType<Subscription>} MongoSubscription
  */
 
@@ -74,6 +74,13 @@ async function updateAdmin(subscription, adminId) {
     update.$set.manager_ids = [new ObjectId(adminId)]
   }
   await Subscription.updateOne(query, update).exec()
+  if (subscription.groupPlan) {
+    const previousAdminId = subscription.admin_id?.toString()
+    if (previousAdminId && previousAdminId !== adminId.toString()) {
+      await sendGroupRoleUserProperty(previousAdminId)
+    }
+    await sendGroupRoleUserProperty(adminId)
+  }
 }
 
 async function syncSubscription(
@@ -333,6 +340,17 @@ async function updateSubscriptionFromRecurly(
   subscription,
   requesterData
 ) {
+  if (
+    subscription?.paymentProvider?.service &&
+    subscription.paymentProvider.service.includes('stripe')
+  ) {
+    logger.warn(
+      { subscriptionId: subscription._id },
+      'attempted to update non-recurly subscription from Recurly data'
+    )
+    return
+  }
+
   if (recurlySubscription.state === 'expired') {
     await handleExpiredSubscription(subscription, requesterData)
     return
@@ -435,6 +453,30 @@ async function _sendUserGroupPlanCodeUserProperty(userId) {
   }
 }
 
+async function sendGroupRoleUserProperty(userId) {
+  try {
+    const [memberSubscriptions, managedSubscriptions] = await Promise.all([
+      SubscriptionLocator.promises.getMemberSubscriptions(userId),
+      SubscriptionLocator.promises.getManagedGroupSubscriptions(userId),
+    ])
+
+    const groupRole = CustomerIoPlanHelpers.getGroupRole(
+      memberSubscriptions,
+      managedSubscriptions,
+      userId
+    )
+
+    await Modules.promises.hooks.fire('setUserProperties', userId, {
+      group_role: groupRole,
+    })
+  } catch (error) {
+    logger.error(
+      { err: error, userId },
+      'Failed to update group_role user property in customer.io'
+    )
+  }
+}
+
 async function handleExpiredSubscription(subscription, requesterData) {
   const hasManagedUsersFeature =
     Features.hasFeature('saas') && subscription?.managedUsersEnabled
@@ -466,8 +508,31 @@ async function handleExpiredSubscription(subscription, requesterData) {
       )
     } else {
       await deleteSubscription(subscription, requesterData)
+      _setPreviousPlanTypeOnExpiry(subscription)
     }
   }
+}
+
+function _setPreviousPlanTypeOnExpiry(subscription) {
+  const previousPlanType = CustomerIoPlanHelpers.normalizePlanType({
+    plan: {
+      planCode: subscription.planCode,
+      groupPlan: subscription.groupPlan,
+    },
+  })
+  if (!previousPlanType) {
+    return
+  }
+  Modules.promises.hooks
+    .fire('setUserProperties', subscription.admin_id, {
+      previous_plan_type: previousPlanType,
+    })
+    .catch(err => {
+      logger.warn(
+        { err, userId: subscription.admin_id },
+        'Failed to set previous_plan_type in customer.io'
+      )
+    })
 }
 
 async function _sendSubscriptionEvent(userId, subscriptionId, event) {
@@ -508,28 +573,6 @@ async function _sendSubscriptionEventForAllMembers(subscriptionId, event) {
 }
 
 /**
- * Sets the plan code and addon state to revert the plan to in case of failed upgrades, or clears the last restore point if it was used/ voided
- * @param {ObjectId} subscriptionId the mongo ID of the subscription to set the restore point for
- * @param {string} planCode the plan code to revert to
- * @param {Array<AddOn>} addOns the addOns to revert to
- * @param {Boolean} consumed whether the restore point was used to revert a subscription
- */
-async function setRestorePoint(subscriptionId, planCode, addOns, consumed) {
-  const update = {
-    $set: {
-      'lastSuccesfulSubscription.planCode': planCode,
-      'lastSuccesfulSubscription.addOns': addOns,
-    },
-  }
-
-  if (consumed) {
-    update.$inc = { timesRevertedDueToFailedPayment: 1 }
-  }
-
-  await Subscription.updateOne({ _id: subscriptionId }, update).exec()
-}
-
-/**
  * Change the ownershiop of the given subscription.
  * @param {MongoSubscription} subscription
  * @param {string} adminId
@@ -559,31 +602,13 @@ async function transferSubscriptionOwnership(
     update.$set.previousPaymentProvider = subscription.paymentProvider
   }
   await Subscription.updateOne(query, update).exec()
-}
-
-/**
- * Clears the restore point for a given subscription, and signals that the subscription was sucessfully reverted.
- *
- * @async
- * @function setSubscriptionWasReverted
- * @param {ObjectId} subscriptionId the mongo ID of the subscription to set the restore point for
- * @returns {Promise<void>} Resolves when the restore point has been cleared.
- */
-async function setSubscriptionWasReverted(subscriptionId) {
-  // consume the backup and flag that the subscription was reverted due to failed payment
-  await setRestorePoint(subscriptionId, null, null, true)
-}
-
-/**
- * Clears the restore point for a given subscription, and signals that the subscription was not reverted.
- *
- * @async
- * @function voidRestorePoint
- * @param {string} subscriptionId - The unique identifier of the subscription.
- * @returns {Promise<void>} Resolves when the restore point has been cleared.
- */
-async function voidRestorePoint(subscriptionId) {
-  await setRestorePoint(subscriptionId, null, null, false)
+  if (subscription.groupPlan) {
+    const previousAdminId = subscription.admin_id?.toString()
+    if (previousAdminId && previousAdminId !== adminId.toString()) {
+      await sendGroupRoleUserProperty(previousAdminId)
+    }
+    await sendGroupRoleUserProperty(adminId)
+  }
 }
 
 export default {
@@ -600,9 +625,6 @@ export default {
   restoreSubscription: callbackify(restoreSubscription),
   updateSubscriptionFromRecurly: callbackify(updateSubscriptionFromRecurly),
   scheduleRefreshFeatures: callbackify(scheduleRefreshFeatures),
-  setSubscriptionRestorePoint: callbackify(setRestorePoint),
-  setSubscriptionWasReverted: callbackify(setSubscriptionWasReverted),
-  voidRestorePoint: callbackify(voidRestorePoint),
   promises: {
     updateAdmin,
     syncSubscription,
@@ -617,10 +639,8 @@ export default {
     restoreSubscription,
     updateSubscriptionFromRecurly,
     scheduleRefreshFeatures,
-    setRestorePoint,
-    setSubscriptionWasReverted,
-    voidRestorePoint,
     handleExpiredSubscription,
     transferSubscriptionOwnership,
+    sendGroupRoleUserProperty,
   },
 }

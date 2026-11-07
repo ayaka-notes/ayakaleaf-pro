@@ -4,7 +4,6 @@ import Settings from '@overleaf/settings'
 import { User } from '../../models/User.mjs'
 import { DeletedUser } from '../../models/DeletedUser.mjs'
 import { UserAuditLogEntry } from '../../models/UserAuditLogEntry.mjs'
-import NewsletterManager from '../Newsletter/NewsletterManager.mjs'
 import ProjectDeleter from '../Project/ProjectDeleter.mjs'
 import SubscriptionHandler from '../Subscription/SubscriptionHandler.mjs'
 import SubscriptionUpdater from '../Subscription/SubscriptionUpdater.mjs'
@@ -140,6 +139,13 @@ async function expireDeletedUsersAfterDuration() {
       await expireDeletedUser(deletedUserId)
       logger.info({ deletedUserId }, 'removing deleted user audit log entries')
       await UserAuditLogEntry.deleteMany({ userId: deletedUserId }).exec()
+      if (Settings.shuttingDown) {
+        logger.warn(
+          { userCount: deletedUsers.length, processedCount: i + 1 },
+          'graceful shutdown in progress, stopping batch of deleted users early'
+        )
+        return
+      }
     }
     logger.info(
       { deletedUsers: deletedUsers.length },
@@ -212,8 +218,6 @@ async function _cleanupUser(user) {
   logger.info({ userId }, '[cleanupUser] removing user sessions from Redis')
   await UserSessionsManager.promises.removeSessionsFromRedis(user)
   if (Features.hasFeature('saas')) {
-    logger.info({ userId }, '[cleanupUser] unsubscribing from newsletters')
-    await NewsletterManager.promises.unsubscribe(user, { delete: true })
     logger.info({ userId }, '[cleanupUser] cancelling subscription')
     await SubscriptionHandler.promises.cancelSubscription(user)
     logger.info({ userId }, '[cleanupUser] deleting affiliations')

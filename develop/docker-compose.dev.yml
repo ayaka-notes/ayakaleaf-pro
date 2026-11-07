@@ -2,18 +2,19 @@ services:
   clsi:
     command: ["node", "--watch", "app.js"]
     environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
     ports:
       - "127.0.0.1:9230:9229"
     volumes:
       - ../services/clsi/app:/overleaf/services/clsi/app
       - ../services/clsi/app.js:/overleaf/services/clsi/app.js
       - ../services/clsi/config:/overleaf/services/clsi/config
+      - ../services/clsi/seccomp:/overleaf/services/clsi/seccomp
 
   chat:
     command: ["node", "--watch", "app.js"]
     environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
     ports:
       - "127.0.0.1:9231:9229"
     volumes:
@@ -21,21 +22,10 @@ services:
       - ../services/chat/app.js:/overleaf/services/chat/app.js
       - ../services/chat/config:/overleaf/services/chat/config
 
-  contacts:
-    command: ["node", "--watch", "app.js"]
-    environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
-    ports:
-      - "127.0.0.1:9232:9229"
-    volumes:
-      - ../services/contacts/app:/overleaf/services/contacts/app
-      - ../services/contacts/app.js:/overleaf/services/contacts/app.js
-      - ../services/contacts/config:/overleaf/services/contacts/config
-
   docstore:
     command: ["node", "--watch", "app.js"]
     environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
     ports:
       - "127.0.0.1:9233:9229"
     volumes:
@@ -46,7 +36,7 @@ services:
   document-updater:
     command: ["node", "--watch", "app.js"]
     environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
     ports:
       - "127.0.0.1:9234:9229"
     volumes:
@@ -57,7 +47,7 @@ services:
   filestore:
     command: ["node", "--watch", "app.js"]
     environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
     ports:
       - "127.0.0.1:9235:9229"
     volumes:
@@ -68,7 +58,7 @@ services:
   history-v1:
     command: ["node", "--watch", "app.js"]
     environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
     ports:
       - "127.0.0.1:9239:9229"
     volumes:
@@ -82,7 +72,7 @@ services:
   linked-url-proxy:
     command: ["node", "--watch", "app.mjs"]
     environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
     ports:
       - "127.0.0.1:9241:9229"
     volumes:
@@ -93,7 +83,7 @@ services:
   notifications:
     command: ["node", "--watch", "app.ts"]
     environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
     ports:
       - "127.0.0.1:9236:9229"
     volumes:
@@ -104,7 +94,7 @@ services:
   project-history:
     command: ["node", "--watch", "app.js"]
     environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
     ports:
       - "127.0.0.1:9240:9229"
     volumes:
@@ -115,7 +105,7 @@ services:
   real-time:
     command: ["node", "--watch", "app.js"]
     environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
     ports:
       - "127.0.0.1:9237:9229"
     volumes:
@@ -123,10 +113,21 @@ services:
       - ../services/real-time/app.js:/overleaf/services/real-time/app.js
       - ../services/real-time/config:/overleaf/services/real-time/config
 
+  third-party-datastore:
+    command: ["node", "--watch", "app.mjs"]
+    environment:
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
+    ports:
+      - "127.0.0.1:9242:9229"
+    volumes:
+      - ../services/third-party-datastore/app:/overleaf/services/third-party-datastore/app
+      - ../services/third-party-datastore/app.mjs:/overleaf/services/third-party-datastore/app.mjs
+      - ../services/third-party-datastore/config:/overleaf/services/third-party-datastore/config
+
   web:
     command: ["node", "--watch", "app.mjs", "--watch-locales"]
     environment:
-      - NODE_OPTIONS=--inspect=0.0.0.0:9229
+      - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs --inspect=0.0.0.0:9229
     ports:
       - "127.0.0.1:9229:9229"
     volumes:
@@ -136,6 +137,7 @@ services:
       - ../services/web/locales:/overleaf/services/web/locales
       - ../services/web/modules:/overleaf/services/web/modules
       - ../services/web/public:/overleaf/services/web/public
+      - ../services/web/shared:/overleaf/services/web/shared
 
   webpack:
     volumes:
@@ -145,6 +147,10 @@ services:
       - ../services/web/locales:/overleaf/services/web/locales
       - ../services/web/modules:/overleaf/services/web/modules
       - ../services/web/public:/overleaf/services/web/public
+      - ../services/web/shared:/overleaf/services/web/shared
       - ../services/web/transform:/overleaf/services/web/transform
       - ../services/web/types:/overleaf/services/web/types
       - ../services/web/webpack-plugins:/overleaf/services/web/webpack-plugins
+      - ../services/web/webpack.config.js:/overleaf/services/web/webpack.config.js
+      - ../services/web/webpack.config.dev.js:/overleaf/services/web/webpack.config.dev.js
+      - ../services/web/babel.config.cjs:/overleaf/services/web/babel.config.cjs

@@ -5,10 +5,11 @@ export function resetMeta() {
     appName: 'Overleaf',
     validRootDocExtensions: ['tex', 'Rtex', 'ltx', 'Rnw'],
     fileIgnorePattern:
-      '**/{{__MACOSX,.git,.texpadtmp,.R}{,/**},.!(latexmkrc),*.{dvi,aux,log,toc,out,pdfsync,synctex,synctex(busy),fdb_latexmk,fls,nlo,ind,glo,gls,glg,bbl,blg,doc,docx,gz,swp}}',
+      '**/{{__MACOSX,.git,.texpadtmp,.R,.venv,venv}{,/**},.!(latexmkrc),*.{dvi,aux,log,toc,out,pdfsync,synctex,synctex(busy),fdb_latexmk,fls,nlo,ind,glo,gls,glg,bbl,blg,doc,docx,gz,swp}}',
     hasLinkedProjectFileFeature: true,
     hasLinkedProjectOutputFileFeature: true,
     hasLinkUrlFeature: true,
+    enablePandocConversions: true,
   })
 }
 

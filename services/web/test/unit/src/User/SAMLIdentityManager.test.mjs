@@ -1,4 +1,4 @@
-import { vi, expect } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import mongodb from 'mongodb-legacy'
 import sinon from 'sinon'
 import Errors from '../../../../app/src/Features/Errors/Errors.js'
@@ -152,9 +152,12 @@ describe('SAMLIdentityManager', function () {
         error = e
       } finally {
         expect(error).to.exist
-        expect(error.message).to.equal(
-          'invalid arguments: providerId: undefined, externalUserId: undefined, userIdAttribute: undefined'
-        )
+        expect(error.message).to.equal('invalid arguments')
+        expect(error.info).to.deep.equal({
+          providerId: undefined,
+          externalUserId: undefined,
+          userIdAttribute: undefined,
+        })
       }
     })
     it('should throw an error if missing provider ID', async function (ctx) {
@@ -165,9 +168,12 @@ describe('SAMLIdentityManager', function () {
         error = e
       } finally {
         expect(error).to.exist
-        expect(error.message).to.equal(
-          'invalid arguments: providerId: undefined, externalUserId: id123, userIdAttribute: someAttr'
-        )
+        expect(error.message).to.equal('invalid arguments')
+        expect(error.info).to.deep.equal({
+          providerId: undefined,
+          externalUserId: 'id123',
+          userIdAttribute: 'someAttr',
+        })
       }
     })
     it('should throw an error if missing external user ID', async function (ctx) {
@@ -178,6 +184,12 @@ describe('SAMLIdentityManager', function () {
         error = e
       } finally {
         expect(error).to.exist
+        expect(error.message).to.equal('invalid arguments')
+        expect(error.info).to.deep.equal({
+          providerId: '123',
+          externalUserId: null,
+          userIdAttribute: 'someAttr',
+        })
       }
     })
     it('should throw an error if missing attribute', async function (ctx) {
@@ -188,9 +200,12 @@ describe('SAMLIdentityManager', function () {
         error = e
       } finally {
         expect(error).to.exist
-        expect(error.message).to.equal(
-          'invalid arguments: providerId: 123, externalUserId: id123, userIdAttribute: undefined'
-        )
+        expect(error.message).to.equal('invalid arguments')
+        expect(error.info).to.deep.equal({
+          providerId: '123',
+          externalUserId: 'id123',
+          userIdAttribute: undefined,
+        })
       }
     })
   })
@@ -551,7 +566,7 @@ describe('SAMLIdentityManager', function () {
         }
       )
     })
-    it('should remove the identifier', async function (ctx) {
+    it('should remove the identifier with a single update', async function (ctx) {
       await ctx.SAMLIdentityManager.unlinkAccounts(
         ctx.user._id,
         linkedEmail,
@@ -560,19 +575,21 @@ describe('SAMLIdentityManager', function () {
         'Overleaf University',
         ctx.auditLog
       )
-      const query = {
-        _id: ctx.user._id,
-      }
-      const update = {
-        $pull: {
-          samlIdentifiers: {
-            providerId: '1',
+
+      expect(ctx.User.updateOne).to.have.been.calledOnce
+      expect(ctx.User.updateOne.getCall(0)).to.have.been.calledWithMatch(
+        { _id: ctx.user._id },
+        {
+          $pull: {
+            samlIdentifiers: { providerId: '1' },
+          },
+          $unset: {
+            'emails.$[email].samlProviderId': 1,
           },
         },
-      }
-      expect(ctx.User.updateOne).to.have.been.calledOnce.and.calledWithMatch(
-        query,
-        update
+        {
+          arrayFilters: [{ 'email.samlProviderId': '1' }],
+        }
       )
     })
     it('should send an email notification', async function (ctx) {

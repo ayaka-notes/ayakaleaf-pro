@@ -15,6 +15,8 @@ import crypto from 'node:crypto'
 import Errors from '../Errors/Errors.js'
 import { pipeline } from 'node:stream/promises'
 import ClsiCacheManager from '../Compile/ClsiCacheManager.mjs'
+import Path from 'node:path'
+import OError from '@overleaf/o-error'
 
 const { promises: ProjectRootDocManager } = ProjectRootDocManagerModule
 const { promises: ProjectOptionsHandler } = ProjectOptionsHandlerModule
@@ -30,7 +32,9 @@ const TemplatesManager = {
     userId,
     imageName
   ) {
-    compiler = ProjectOptionsHandler.normalizeCompiler(compiler || 'pdflatex')
+    compiler = ProjectOptionsHandler.normalizeCompiler(
+      compiler || settings.defaultLatexCompiler
+    )
     imageName = ProjectOptionsHandler.normalizeImageName(
       imageName || 'wl_texlive:2018.1'
     )
@@ -45,7 +49,7 @@ const TemplatesManager = {
     })
 
     const projectName = ProjectDetailsHandler.fixProjectName(templateName)
-    const dumpPath = `${settings.path.dumpFolder}/${crypto.randomUUID()}`
+    const dumpPath = `${settings.path.dumpFolder}/${crypto.randomUUID()}_templates-manager`
     const writeStream = fs.createWriteStream(dumpPath)
     try {
       const attributes = {
@@ -63,7 +67,7 @@ const TemplatesManager = {
           { uri: zipUrl, statusCode: zipReq.response.status },
           'non-success code getting zip from template API'
         )
-        throw new Error(`get zip failed: ${zipReq.response.status}`)
+        throw new OError('get zip failed', { status: zipReq.response.status })
       }
       const { fileEntries, docEntries, project } =
         await ProjectUploadManager.promises.createProjectFromZipArchiveWithName(
@@ -76,7 +80,7 @@ const TemplatesManager = {
       const prepareClsiCacheInBackground = ClsiCacheManager.prepareClsiCache(
         project._id,
         userId,
-        { templateVersionId, imageName }
+        { templateVersionId, imageName: imageName && Path.basename(imageName) }
       ).catch(err => {
         logger.warn(
           { err, templateVersionId, projectId: project._id },
@@ -112,11 +116,11 @@ const TemplatesManager = {
     if (mainFile == null) {
       return
     }
-    const rootDocId = await ProjectRootDocManager.setRootDocFromName(
+    const result = await ProjectRootDocManager.setRootDocFromName(
       project._id,
       mainFile
     )
-    if (rootDocId) project.rootDoc_id = rootDocId
+    if (result) project.rootDoc_id = result.rootDocId
   },
 
   async fetchFromV1(templateId) {

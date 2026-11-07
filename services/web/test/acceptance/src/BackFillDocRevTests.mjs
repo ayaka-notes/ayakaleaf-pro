@@ -21,7 +21,7 @@ describe('BackFillDocRevTests', function () {
     let result
     try {
       result = await promisify(exec)(
-        'cd ../../tools/migrations && VERBOSE_LOGGING=true east migrate -t server-ce --force 20230315170739_back_fill_doc_rev'
+        'cd ../../tools/migrations && VERBOSE_LOGGING=true yarn run migrations migrate -t server-ce --force 20230315170739_back_fill_doc_rev'
       )
     } catch (error) {
       // dump details like exit code, stdErr and stdOut

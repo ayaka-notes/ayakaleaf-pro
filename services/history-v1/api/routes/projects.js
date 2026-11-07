@@ -15,6 +15,12 @@ const {
 router.post('/projects', handleBasicAuth, projectsController.initializeProject)
 
 router.post(
+  '/projects/:project_id/clone',
+  handleBasicAuth,
+  projectsController.cloneProject
+)
+
+router.post(
   '/projects/blob-stats',
   handleBasicAuth,
   projectsController.getProjectBlobsStats
@@ -96,6 +102,12 @@ router.get(
   '/projects/:project_id/timestamp/:timestamp/history',
   handleJWTAuth,
   projectsController.getHistoryBefore
+)
+
+router.get(
+  '/projects/:project_id/latest/zip',
+  handleTokenAuth,
+  projectsController.getLatestZip
 )
 
 router.get(

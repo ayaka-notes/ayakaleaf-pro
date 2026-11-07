@@ -1,8 +1,9 @@
-import { vi, expect } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import path from 'node:path'
 import sinon from 'sinon'
 import mongodb from 'mongodb-legacy'
 import Errors from '../../../../app/src/Features/Errors/Errors.js'
+import { RequestFailedError } from '@overleaf/fetch-utils'
 
 const modulePath = path.join(
   import.meta.dirname,
@@ -12,6 +13,11 @@ const { ObjectId } = mongodb
 vi.mock('../../../../app/src/Features/Errors/Errors.js', () =>
   vi.importActual('../../../../app/src/Features/Errors/Errors.js')
 )
+
+// build the error that fetch-utils throws for a failure status code
+function requestFailedError(status, body = null) {
+  return new RequestFailedError('v1.url', { method: 'POST' }, { status }, body)
+}
 
 describe('InstitutionsAPI', function () {
   beforeEach(async function (ctx) {
@@ -35,6 +41,7 @@ describe('InstitutionsAPI', function () {
     vi.doMock('@overleaf/fetch-utils', () => ({
       fetchNothing: ctx.fetchNothing,
       fetchJson: (ctx.fetchJson = sinon.stub()),
+      RequestFailedError,
     }))
 
     vi.doMock(
@@ -148,6 +155,7 @@ describe('InstitutionsAPI', function () {
           foo: 'bar',
           institution: {
             commonsAccount: true,
+            confirmed: true,
           },
         },
       ]
@@ -173,6 +181,7 @@ describe('InstitutionsAPI', function () {
           foo: 'bar',
           institution: {
             commonsAccount: false,
+            confirmed: true,
           },
         },
       ]
@@ -208,6 +217,37 @@ describe('InstitutionsAPI', function () {
           group: {
             ...groupResponse,
           },
+        },
+      ])
+    })
+
+    it('does not query for group with domain capture if domain is not confirmed', async function (ctx) {
+      const responseBody = [
+        {
+          id: '123abc',
+          foo: 'bar',
+          institution: {
+            commonsAccount: false,
+            confirmed: false,
+          },
+        },
+      ]
+      ctx.request.callsArgWith(1, null, { statusCode: 201 }, responseBody)
+
+      const body = await ctx.InstitutionsAPI.promises.getUserAffiliations(
+        ctx.stubbedUser._id
+      )
+      ctx.request.calledOnce.should.equal(true)
+      const requestOptions = ctx.request.lastCall.args[0]
+      const expectedUrl = `v1.url/api/v2/users/${ctx.stubbedUser._id}/affiliations`
+      requestOptions.url.should.equal(expectedUrl)
+      requestOptions.method.should.equal('GET')
+      requestOptions.maxAttempts.should.equal(3)
+      ctx.Modules.promises.hooks.fire.should.not.have.been.called
+      expect(requestOptions.body).not.to.exist
+      expect(body).to.deep.equal([
+        {
+          ...responseBody[0],
         },
       ])
     })
@@ -255,6 +295,22 @@ describe('InstitutionsAPI', function () {
         ctx.InstitutionsAPI.promises.getUsersNeedingReconfirmationsLapsedProcessed()
       ).to.be.rejected
     })
+
+    it('handle a client-side timeout/abort with no response', async function (ctx) {
+      const timeoutError = new Error('The operation was aborted')
+      timeoutError.name = 'TimeoutError'
+      ctx.fetchJson.throws(timeoutError)
+
+      let error
+      try {
+        await ctx.InstitutionsAPI.promises.getUsersNeedingReconfirmationsLapsedProcessed()
+      } catch (err) {
+        error = err
+      }
+
+      expect(error).to.be.instanceOf(Errors.V1ConnectionError)
+      expect(error.cause).to.equal(timeoutError)
+    })
   })
 
   describe('addAffiliation', function () {
@@ -295,7 +351,7 @@ describe('InstitutionsAPI', function () {
     it('handles 422 error', async function (ctx) {
       const messageFromApi = 'affiliation error message'
       const body = JSON.stringify({ errors: messageFromApi })
-      ctx.fetchNothing.throws({ response: { status: 422 }, body })
+      ctx.fetchNothing.throws(requestFailedError(422, body))
       let error
 
       try {
@@ -314,7 +370,7 @@ describe('InstitutionsAPI', function () {
 
     it('handles 500 error', async function (ctx) {
       const body = { errors: 'affiliation error message' }
-      ctx.fetchNothing.throws({ response: { status: 500 }, body })
+      ctx.fetchNothing.throws(requestFailedError(500, body))
       let error
 
       try {
@@ -336,7 +392,7 @@ describe('InstitutionsAPI', function () {
     })
 
     it('uses default error message when no error body in response', async function (ctx) {
-      ctx.fetchNothing.throws({ response: { status: 429 } })
+      ctx.fetchNothing.throws(requestFailedError(429))
       let error
 
       try {
@@ -373,7 +429,7 @@ describe('InstitutionsAPI', function () {
 
   describe('removeAffiliation', function () {
     beforeEach(function (ctx) {
-      ctx.fetchNothing.throws({ response: { status: 404 } })
+      ctx.fetchNothing.throws(requestFailedError(404))
     })
 
     it('remove affiliation', async function (ctx) {
@@ -390,7 +446,7 @@ describe('InstitutionsAPI', function () {
     })
 
     it('handle error', async function (ctx) {
-      ctx.fetchNothing.throws({ response: { status: 500 } })
+      ctx.fetchNothing.throws(requestFailedError(500))
       let error
 
       try {

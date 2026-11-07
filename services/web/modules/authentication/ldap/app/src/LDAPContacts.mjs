@@ -4,7 +4,7 @@ import { promisify } from 'util'
 import passport from 'passport'
 import ldapjs from 'ldapjs'
 import UserGetter from '../../../../../app/src/Features/User/UserGetter.mjs'
-import { splitFullName } from '../../../utils.mjs'
+import { splitFullName, firstValue } from '../../../utils.mjs'
 
 function _searchLDAP(client, baseDN, options) {
   return new Promise((resolve, reject) => {
@@ -96,10 +96,10 @@ async function fetchLDAPContacts(userId, contacts) {
     if (!contacts.some(contact => contact.email === email)) {
       let nameParts = ["", ""]
       if ((!attFirstName || !attLastName) && attName) {
-        nameParts = splitFullName(ldapUser[attName] || "")
+        nameParts = splitFullName(firstValue(ldapUser[attName]) || "")
       }
-      const firstName = attFirstName ? (ldapUser[attFirstName] || "") : nameParts[0]
-      const lastName  = attLastName  ? (ldapUser[attLastName]  || "") : nameParts[1]
+      const firstName = attFirstName ? (firstValue(ldapUser[attFirstName]) || "") : nameParts[0]
+      const lastName  = attLastName  ? (firstValue(ldapUser[attLastName])  || "") : nameParts[1]
       acc.push({
         first_name: firstName,
         last_name: lastName,

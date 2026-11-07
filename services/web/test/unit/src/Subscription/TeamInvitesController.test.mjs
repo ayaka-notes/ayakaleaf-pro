@@ -1,5 +1,10 @@
-import { expect, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import sinon from 'sinon'
+import {
+  InvalidParamsError,
+  InvalidRequestError,
+  setReqValidationModeForTests,
+} from '@overleaf/validation-tools'
 import MockResponse from '../helpers/MockResponse.mjs'
 
 const modulePath =
@@ -146,6 +151,10 @@ describe('TeamInvitesController', function () {
     ctx.Controller = (await import(modulePath)).default
   })
 
+  afterEach(function () {
+    setReqValidationModeForTests(null)
+  })
+
   describe('acceptInvite', function () {
     it('should add an audit log entry', async function (ctx) {
       await new Promise(resolve => {
@@ -242,7 +251,7 @@ describe('TeamInvitesController', function () {
             },
           }
           ctx.Controller.viewInvite(
-            { params: { token: 'token123' }, session: {} },
+            { params: { token: 'token123' }, query: {}, session: {} },
             res
           )
         })
@@ -258,7 +267,7 @@ describe('TeamInvitesController', function () {
             },
           }
           ctx.Controller.viewInvite(
-            { params: { token: 'token123' }, session: {} },
+            { params: { token: 'token123' }, query: {}, session: {} },
             res
           )
         })
@@ -281,8 +290,12 @@ describe('TeamInvitesController', function () {
   describe('resendInvite', function () {
     const email = 'user@example.com'
     const initPath = '/saml/ukamf/init?group_id=12345'
+    const token = 'token123'
     beforeEach(function (ctx) {
-      ctx.subscription = { teamInvites: [{ email }], populate: sinon.stub() }
+      ctx.subscription = {
+        teamInvites: [{ email, token }],
+        populate: sinon.stub(),
+      }
       ctx.req = {
         entity: ctx.subscription,
         body: {
@@ -327,6 +340,88 @@ describe('TeamInvitesController', function () {
           }
 
           ctx.Controller.resendInvite(ctx.req, res, ctx.next)
+        })
+      })
+    })
+
+    describe('when invite was created with domain capture enabled but domain capture is now disabled', function () {
+      beforeEach(function (ctx) {
+        ctx.subscription = {
+          teamInvites: [
+            { email, inviterName: 'Test Inviter', domainCapture: true },
+          ],
+          populate: sinon.stub(),
+          save: sinon.stub().resolves(),
+        }
+        ctx.req.entity = ctx.subscription
+        ctx.req.entity.domainCaptureEnabled = false
+      })
+
+      it('generates a token and saves the subscription', async function (ctx) {
+        await new Promise(resolve => {
+          const res = new MockResponse(vi)
+          res.callback = () => {
+            expect(ctx.subscription.teamInvites[0].token).to.be.a('string')
+            expect(ctx.subscription.teamInvites[0].token).to.have.length(64)
+            sinon.assert.calledOnce(ctx.subscription.save)
+            res.statusCode.should.equal(200)
+            resolve()
+          }
+
+          ctx.Controller.resendInvite(ctx.req, res, ctx.next)
+        })
+      })
+    })
+  })
+
+  describe('request validation', function () {
+    beforeEach(function () {
+      setReqValidationModeForTests('enforce')
+    })
+
+    it('createInvite rejects a request missing the email', async function (ctx) {
+      ctx.req.body = {}
+      await new Promise(resolve => {
+        ctx.Controller.createInvite(ctx.req, new MockResponse(vi), err => {
+          expect(err).to.be.instanceof(InvalidRequestError)
+          resolve()
+        })
+      })
+    })
+
+    it('viewInvite rejects a request missing the token param', async function (ctx) {
+      ctx.req.params = {}
+      await new Promise(resolve => {
+        ctx.Controller.viewInvite(ctx.req, new MockResponse(vi), err => {
+          expect(err).to.be.instanceof(InvalidParamsError)
+          resolve()
+        })
+      })
+    })
+
+    it('acceptInvite rejects a request missing the token param', async function (ctx) {
+      ctx.req.params = {}
+      await new Promise(resolve => {
+        ctx.Controller.acceptInvite(ctx.req, new MockResponse(vi), err => {
+          expect(err).to.be.instanceof(InvalidParamsError)
+          resolve()
+        })
+      })
+    })
+
+    it('revokeInvite rejects a malformed group id param', function (ctx) {
+      ctx.req.params = { id: 'not-an-object-id', email: 'user@example.com' }
+      expect(() =>
+        ctx.Controller.revokeInvite(ctx.req, new MockResponse(vi), sinon.stub())
+      ).to.throw(InvalidParamsError)
+    })
+
+    it('resendInvite rejects a non-string email in the body', async function (ctx) {
+      ctx.req.body = { email: 12345 }
+      await new Promise(resolve => {
+        ctx.Controller.resendInvite(ctx.req, new MockResponse(vi), err => {
+          expect(err).to.be.instanceof(InvalidRequestError)
+          resolve()
         })
       })
     })

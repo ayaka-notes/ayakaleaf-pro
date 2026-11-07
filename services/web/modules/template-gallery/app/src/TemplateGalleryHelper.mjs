@@ -8,11 +8,10 @@ import ProjectLocator from '../../../../app/src/Features/Project/ProjectLocator.
 import ProjectZipStreamManager from '../../../../app/src/Features/Downloads/ProjectZipStreamManager.mjs'
 import DocumentUpdaterHandler from '../../../../app/src/Features/DocumentUpdater/DocumentUpdaterHandler.mjs'
 import ClsiManager from '../../../../app/src/Features/Compile/ClsiManager.mjs'
-import CompileManager from '../../../../app/src/Features/Compile/CompileManager.mjs'
 import UserGetter from '../../../../app/src/Features/User/UserGetter.mjs'
 import { fetchStreamWithResponse } from '@overleaf/fetch-utils'
 import { Template } from './models/Template.mjs'
-import { RecompileRequiredError } from './TemplateErrors.mjs'
+import { RecompileRequiredError, MainFileRequiredError } from './TemplateErrors.mjs'
 import { cleanHtml }  from './CleanHtml.mjs'
 
 const TIMEOUT = 30000
@@ -37,7 +36,7 @@ marked.use({
 
 function _createZipStreamForProjectAsync(projectId) {
   return new Promise((resolve, reject) => {
-    ProjectZipStreamManager.createZipStreamForProject(projectId, (err, archive) => {
+    ProjectZipStreamManager.createZipStreamForProject(projectId, false, null, (err, archive) => {
       if (err) {
         return reject(err)
       }
@@ -63,21 +62,20 @@ export function validateTemplateInput({ name, descriptionMD, authorMD, license }
 }
 
 export async function canUserOverrideTemplate(template, userId) {
-  let templateOwnerId = template.owner
+  const templateOwnerId = template.owner
   let templateOwnerName = 'you'
-  let userIsOwner = true
-  let userIsAdmin
+  let userIsAdmin = false
+  try {
+    userIsAdmin = (await UserGetter.promises.getUser(userId, { isAdmin: 1 })).isAdmin
+  } catch (error) {
+    logger.error({ error, userId }, 'Logged in user does not exist, strange...')
+  }
   if (templateOwnerId != userId) {
-    userIsOwner = false
-    try {
-      userIsAdmin = (await UserGetter.promises.getUser(userId, { isAdmin: 1 })).isAdmin
-    } catch (error) {
-      logger.error({ error, userId }, 'Logged in user does not exist, strange...')
-      userIsAdmin = false
-    }
     templateOwnerName = await getUserName(templateOwnerId) || 'unknown'
   }
-  const canOverride = userIsOwner || userIsAdmin
+  // Reachable only after ensureUserCanManageTemplates; override authority is
+  // exactly the two sanctioned sources: site admin, or the configured templates user.
+  const canOverride = userIsAdmin || settings.templates?.user_id === userId
   return { canOverride, templateOwnerName }
 }
 
@@ -112,6 +110,7 @@ export async function generateTemplateData(projectId, {
     })
 
     const { path } = await ProjectLocator.promises.findRootDoc({ project })
+    if (!path) throw new MainFileRequiredError()
     const mainFile = path.fileSystem.replace(/^\/+/, '')
     const template = {
       name,
@@ -139,11 +138,7 @@ export async function uploadTemplateAssets(projectId, userId, build, template) {
   try {
     [zipStream, pdfStream] = await Promise.all([
       _createZipStreamForProjectAsync(projectId),
-      CompileManager.promises
-        .getProjectCompileLimits(projectId)
-        .then((limits) =>
-          ClsiManager.promises.getOutputFileStream(projectId, userId, limits, undefined, build, 'output.pdf')
-        )
+      ClsiManager.promises.getOutputFileStream(projectId, userId, undefined, build, 'output.pdf')
     ])
   } catch (error) {
     logger.error({ error, projectId }, 'No output.pdf?')
@@ -193,7 +188,7 @@ export async function deleteTemplateAssets(templateId, version, deleteFromDb) {
     try {
       await Template.deleteOne({ _id: templateId }).exec()
     } catch (error) {
-      logger.error({ err, templateId }, 'Failed to delete template from MongoDB')
+      logger.error({ error, templateId }, 'Failed to delete template from MongoDB')
       throw error
     }
   }

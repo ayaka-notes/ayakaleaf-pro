@@ -1,4 +1,4 @@
-import { ElementType, memo, useRef, useState } from 'react'
+import { ElementType, Suspense, memo, useRef, useState } from 'react'
 import useIsMounted from '../../../shared/hooks/use-is-mounted'
 import { EditorView } from '@codemirror/view'
 import { EditorState } from '@codemirror/state'
@@ -11,7 +11,11 @@ import importOverleafModules from '../../../../macros/import-overleaf-module.mac
 import { FigureModal } from './figure-modal/figure-modal'
 import { ReviewPanelProviders } from '@/features/review-panel/context/review-panel-providers'
 import { ReviewPanelRoot } from '@/features/review-panel/components/review-panel-root'
+import ReviewPanelTabsHeaderPortal from '@/features/review-panel/components/review-panel-tabs-header-portal'
 import ReviewTooltipMenu from '@/features/review-panel/components/review-tooltip-menu'
+import DeepLink from '@/features/review-panel/components/deep-link'
+import EditorFloatingMenu from '@/features/editor-floating-menu/editor-floating-menu'
+import AddCommentCommand from '@/features/editor-floating-menu/components/add-comment-command'
 import {
   CodeMirrorStateContext,
   CodeMirrorViewContext,
@@ -19,11 +23,12 @@ import {
 import MathPreviewTooltip from './math-preview-tooltip'
 import { getVisualEditorComponent } from '../utils/visual-editor'
 import EditorContextMenu from './editor-context-menu'
-import { useToolbarMenuBarEditorCommands } from '@/features/ide-redesign/hooks/use-toolbar-menu-editor-commands'
+import { useToolbarMenuBarEditorCommands } from '@/features/source-editor/hooks/use-toolbar-menu-editor-commands'
 import { useProjectContext } from '@/shared/context/project-context'
 import { useFeatureFlag } from '@/shared/context/split-test-context'
 import { useEditorOpenDocContext } from '@/features/ide-react/context/editor-open-doc-context'
 import { useEditorPropertiesContext } from '@/features/ide-react/context/editor-properties-context'
+import UpgradeTrackChangesModal from '@/features/review-panel/components/upgrade-track-changes-modal'
 
 // TODO: remove this when definitely no longer used
 export * from './codemirror-context'
@@ -40,6 +45,13 @@ function CodeMirrorEditor() {
 
   const isMounted = useIsMounted()
   const editContextEnabled = useFeatureFlag('edit-context')
+  const { openDocName } = useEditorOpenDocContext()
+  const { showVisual } = useEditorPropertiesContext()
+
+  const VisualEditor =
+    showVisual && openDocName != null
+      ? getVisualEditorComponent(openDocName)
+      : null
 
   // create the view using the initial state and intercept transactions
   const viewRef = useRef<EditorView | null>(null)
@@ -64,27 +76,33 @@ function CodeMirrorEditor() {
   return (
     <CodeMirrorStateContext.Provider value={state}>
       <CodeMirrorViewContext.Provider value={viewRef.current}>
-        <CodeMirrorEditorComponents />
+        <CodeMirrorEditorComponents
+          hidden={VisualEditor != null}
+          VisualEditor={VisualEditor}
+        />
       </CodeMirrorViewContext.Provider>
     </CodeMirrorStateContext.Provider>
   )
 }
 
-function CodeMirrorEditorComponents() {
+type CodeMirrorEditorComponentsProps = {
+  hidden: boolean
+  VisualEditor: ElementType | null
+}
+
+function CodeMirrorEditorComponents({
+  hidden = false,
+  VisualEditor,
+}: CodeMirrorEditorComponentsProps) {
   useToolbarMenuBarEditorCommands()
   const { features } = useProjectContext()
-  const { openDocName } = useEditorOpenDocContext()
-  const { showVisual } = useEditorPropertiesContext()
-
-  const VisualEditor =
-    showVisual && openDocName != null
-      ? getVisualEditorComponent(openDocName)
-      : null
-
+  const writefullToolbarMigrationEnabled = useFeatureFlag(
+    'writefull-toolbar-migration'
+  )
   return (
     <ReviewPanelProviders>
       <CodemirrorOutline />
-      <CodeMirrorView />
+      <CodeMirrorView hidden={hidden} />
       <FigureModal />
       <CodeMirrorSearch />
       <CodeMirrorToolbar />
@@ -92,16 +110,30 @@ function CodeMirrorEditorComponents() {
 
       <MathPreviewTooltip />
       <EditorContextMenu />
-      {features.trackChangesVisible && <ReviewTooltipMenu />}
+      <DeepLink />
+      {features.trackChangesVisible &&
+        (writefullToolbarMigrationEnabled ? (
+          <>
+            <AddCommentCommand />
+            <EditorFloatingMenu />
+          </>
+        ) : (
+          <ReviewTooltipMenu />
+        ))}
+      {features.trackChangesVisible && <ReviewPanelTabsHeaderPortal />}
       {features.trackChangesVisible && <ReviewPanelRoot />}
+      {features.trackChangesVisible && <UpgradeTrackChangesModal />}
 
       {sourceEditorComponents.map(
         ({ import: { default: Component }, path }) => (
           <Component key={path} />
         )
       )}
-
-      {VisualEditor && <VisualEditor />}
+      {VisualEditor && (
+        <Suspense fallback={null}>
+          <VisualEditor />
+        </Suspense>
+      )}
     </ReviewPanelProviders>
   )
 }

@@ -13,6 +13,8 @@ import OError from '@overleaf/o-error'
 import TagsHandler from '../Tags/TagsHandler.mjs'
 import { promiseMapWithLimit } from '@overleaf/promise-utils'
 import LimitationsManager from '../Subscription/LimitationsManager.mjs'
+import AsyncLocalStorage from '../../infrastructure/AsyncLocalStorage.mjs'
+import Modules from '../../infrastructure/Modules.mjs'
 
 export default {
   promises: {
@@ -141,6 +143,21 @@ async function transferOwnership(projectId, newOwnerId, options = {}) {
     pendingPrivilegeLevel
   )
 
+  // Update notification preferences for both new and previous owner
+  try {
+    await Modules.promises.hooks.fire(
+      'projectOwnershipTransferred',
+      projectId,
+      previousOwnerId,
+      newOwnerId
+    )
+  } catch (err) {
+    logger.error(
+      { err, projectId, previousOwnerId, newOwnerId },
+      'failed to update notification preferences on ownership transfer'
+    )
+  }
+
   // Flush project to TPDS
   await TpdsProjectFlusher.promises.flushProjectToTpds(projectId)
 
@@ -212,6 +229,7 @@ async function _determinePrivilegeLevelForPreviousOwner(projectId) {
 }
 
 async function _transferOwnership(projectId, previousOwnerId, newOwnerId) {
+  AsyncLocalStorage.removeItem(`projectAccess:${projectId}`)
   // Remove new owner from collaborators list
   await CollaboratorsHandler.promises.removeUserFromProject(
     projectId,

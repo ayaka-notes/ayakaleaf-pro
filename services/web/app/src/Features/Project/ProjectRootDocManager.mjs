@@ -129,36 +129,25 @@ async function setRootDocFromName(projectId, rootDocName) {
   }
 }
 
-async function ensureRootDocumentIsSet(projectId) {
+/**
+ * @param {ObjectId | string} projectId
+ */
+async function ensureRootDocumentIsValid(projectId) {
   const project = await ProjectGetter.promises.getProject(projectId, {
+    rootFolder: 1,
     rootDoc_id: 1,
   })
   if (!project) {
     throw new Error('project not found')
   }
   if (project.rootDoc_id != null) {
-    return
-  }
-  return await ProjectRootDocManager.promises.setRootDocAutomatically(projectId)
-}
-
-/**
- * @param {ObjectId | string} projectId
- */
-async function ensureRootDocumentIsValid(projectId) {
-  const project =
-    await ProjectGetter.promises.getProjectWithoutDocLines(projectId)
-  if (!project) {
-    throw new Error('project not found')
-  }
-  if (project.rootDoc_id != null) {
-    const docPath =
+    const rootResourcePath =
       await ProjectEntityHandler.promises.getDocPathFromProjectByDocId(
         project,
         project.rootDoc_id
       )
-    if (docPath) {
-      return
+    if (rootResourcePath) {
+      return { rootDocId: project.rootDoc_id, rootResourcePath }
     }
     await ProjectEntityUpdateHandler.promises.unsetRootDoc(projectId)
   }
@@ -212,13 +201,11 @@ const ProjectRootDocManager = {
     ['path', 'content']
   ),
   setRootDocFromName: callbackify(setRootDocFromName),
-  ensureRootDocumentIsSet: callbackify(ensureRootDocumentIsSet),
   ensureRootDocumentIsValid: callbackify(ensureRootDocumentIsValid),
   promises: {
     setRootDocAutomatically,
     findRootDocFileFromDirectory,
     setRootDocFromName,
-    ensureRootDocumentIsSet,
     ensureRootDocumentIsValid,
   },
 }

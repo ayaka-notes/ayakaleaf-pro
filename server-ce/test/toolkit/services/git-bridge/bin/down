@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Usage: services/git-bridge/bin/down
+# Nothing to do, the toolkit runs the git-bridge container.

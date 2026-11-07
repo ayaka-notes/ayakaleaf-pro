@@ -3,7 +3,7 @@
 import classNames from 'classnames'
 import React, { ReactElement, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import MaterialIcon from './material-icon'
+import MaterialIcon from '@/shared/components/material-icon'
 
 export type NotificationType =
   | 'info'
@@ -23,7 +23,7 @@ export type NotificationProps = {
   isDismissible?: boolean
   isActionBelowContent?: boolean
   onDismiss?: () => void
-  title?: string
+  title?: React.ReactNode
   type: NotificationType
   id?: string
 }
@@ -62,7 +62,7 @@ export function NotificationIcon({
   )
 }
 
-function Notification({
+export default function Notification({
   action,
   ariaLive,
   className = '',
@@ -93,8 +93,6 @@ function Notification({
     if (onDismiss) onDismiss()
   }
 
-  // return null
-
   if (!show) {
     return null
   }
@@ -116,11 +114,14 @@ function Notification({
 
       <div className="notification-content-and-cta">
         <div className="notification-content">
-          {title && (
-            <p>
-              <b>{title}</b>
-            </p>
-          )}
+          {title &&
+            (typeof title === 'string' ? (
+              <p>
+                <b>{title}</b>
+              </p>
+            ) : (
+              title
+            ))}
           {content}
         </div>
         {action && <div className="notification-cta">{action}</div>}
@@ -139,5 +140,3 @@ function Notification({
     </div>
   )
 }
-
-export default Notification

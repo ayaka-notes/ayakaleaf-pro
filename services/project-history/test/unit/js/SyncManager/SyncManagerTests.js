@@ -2,8 +2,19 @@ import sinon from 'sinon'
 import { expect } from 'chai'
 import mongodb from 'mongodb-legacy'
 import tk from 'timekeeper'
-import { File, Comment, TrackedChange, Range } from 'overleaf-editor-core'
+import {
+  File,
+  Comment,
+  TrackedChange,
+  Range,
+  TrackingProps,
+} from 'overleaf-editor-core'
+import { UnprocessableError } from 'overleaf-editor-core/lib/errors.js'
 import { strict as esmock } from 'esmock'
+import {
+  FileContentEmptyError,
+  SyncOngoingError,
+} from '../../../../app/js/Errors.js'
 const { ObjectId } = mongodb
 
 const MODULE_PATH = '../../../../app/js/SyncManager.js'
@@ -71,6 +82,9 @@ describe('SyncManager', function () {
     this.db = {
       projectHistorySyncState: {
         findOne: sinon.stub().resolves(this.syncState),
+        updateOne: sinon.stub().resolves(),
+      },
+      projects: {
         updateOne: sinon.stub().resolves(),
       },
     }
@@ -141,20 +155,29 @@ describe('SyncManager', function () {
       },
     }
 
-    this.SyncManager = await esmock(MODULE_PATH, {
-      '../../../../app/js/LockManager.js': this.LockManager,
-      '../../../../app/js/UpdateCompressor.js': this.UpdateCompressor,
-      '../../../../app/js/UpdateTranslator.js': this.UpdateTranslator,
-      '../../../../app/js/mongodb.js': { ObjectId, db: this.db },
-      '../../../../app/js/WebApiManager.js': this.WebApiManager,
-      '../../../../app/js/ErrorRecorder.js': this.ErrorRecorder,
-      '../../../../app/js/RedisManager.js': this.RedisManager,
-      '../../../../app/js/SnapshotManager.js': this.SnapshotManager,
-      '../../../../app/js/HistoryStoreManager.js': this.HistoryStoreManager,
-      '../../../../app/js/HashManager.js': this.HashManager,
-      '@overleaf/metrics': this.Metrics,
-      '@overleaf/settings': this.Settings,
-    })
+    this.SyncManager = await esmock(
+      MODULE_PATH,
+      {
+        '../../../../app/js/LockManager.js': this.LockManager,
+        '../../../../app/js/UpdateCompressor.js': this.UpdateCompressor,
+        '../../../../app/js/UpdateTranslator.js': this.UpdateTranslator,
+        '../../../../app/js/mongodb.js': { ObjectId, db: this.db },
+        '../../../../app/js/WebApiManager.js': this.WebApiManager,
+        '../../../../app/js/ErrorRecorder.js': this.ErrorRecorder,
+        '../../../../app/js/RedisManager.js': this.RedisManager,
+        '../../../../app/js/SnapshotManager.js': this.SnapshotManager,
+        '../../../../app/js/HistoryStoreManager.js': this.HistoryStoreManager,
+        '../../../../app/js/HashManager.js': this.HashManager,
+        '@overleaf/metrics': this.Metrics,
+        '@overleaf/settings': this.Settings,
+      },
+      {
+        'overleaf-editor-core/lib/errors.js':
+          await import('overleaf-editor-core/lib/errors.js'),
+        '../../../../app/js/Errors.js':
+          await import('../../../../app/js/Errors.js'),
+      }
+    )
   })
 
   afterEach(function () {
@@ -194,11 +217,11 @@ describe('SyncManager', function () {
             project_id: new ObjectId(this.projectId),
           },
           sinon.match({
-            $set: {
+            $set: sinon.match({
               resyncProjectStructure: true,
               resyncDocContents: [],
               origin: { kind: 'history-resync' },
-            },
+            }),
             $currentDate: { lastUpdated: true },
             $inc: { resyncCount: 1 },
             $unset: { expiresAt: true },
@@ -212,28 +235,177 @@ describe('SyncManager', function () {
 
     describe('if project structure sync is in progress', function () {
       beforeEach(function () {
-        const syncState = { resyncProjectStructure: true }
+        const syncState = {
+          resyncProjectStructure: true,
+          resyncPendingSince: new Date(),
+        }
         this.db.projectHistorySyncState.findOne.resolves(syncState)
       })
 
       it('returns an error if already syncing', async function () {
         await expect(
           this.SyncManager.promises.startResync(this.projectId)
-        ).to.be.rejectedWith('sync ongoing')
+        ).to.be.rejectedWith(SyncOngoingError, 'sync ongoing')
       })
     })
 
     describe('if doc content sync in is progress', function () {
       beforeEach(async function () {
-        const syncState = { resyncDocContents: ['/foo.tex'] }
+        this.resyncPendingSince = new Date()
+        const syncState = {
+          resyncDocContents: ['/foo.tex'],
+          resyncPendingSince: this.resyncPendingSince,
+        }
         this.db.projectHistorySyncState.findOne.resolves(syncState)
       })
 
       it('returns an error if already syncing', async function () {
         await expect(
           this.SyncManager.promises.startResync(this.projectId)
-        ).to.be.rejectedWith('sync ongoing')
+        ).to.be.rejectedWith(SyncOngoingError, 'sync ongoing')
       })
+
+      it('includes the stuck context in the error', async function () {
+        const error = await this.SyncManager.promises
+          .startResync(this.projectId)
+          .catch(err => err)
+        expect(error.info).to.deep.equal({
+          projectId: this.projectId,
+          stuckClearCount: 1,
+          stuckDocPaths: ['/foo.tex'],
+          resyncPendingSince: this.resyncPendingSince,
+        })
+      })
+    })
+
+    describe('if sync is stuck (no resyncPendingSince — legacy state)', function () {
+      beforeEach(function () {
+        const syncState = { resyncDocContents: ['/foo.tex'] }
+        this.db.projectHistorySyncState.findOne.resolves(syncState)
+      })
+
+      it('records the stuck clear, does not delete state, and starts a new resync', async function () {
+        await this.SyncManager.promises.startResync(this.projectId)
+        expect(
+          this.db.projectHistorySyncState.updateOne
+        ).to.have.been.calledWith(
+          { project_id: new ObjectId(this.projectId) },
+          sinon.match({
+            $inc: { stuckClearCount: 1 },
+            $unset: { resyncPendingSince: 1 },
+          })
+        )
+        expect(this.WebApiManager.promises.requestResync.calledOnce).to.be.true
+        expect(
+          this.Metrics.inc.calledWith('project_history_sync_stuck_cleared')
+        ).to.be.true
+      })
+    })
+
+    describe('if sync is stuck (resyncPendingSince older than timeout)', function () {
+      beforeEach(function () {
+        const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000)
+        const syncState = {
+          resyncDocContents: ['/foo.tex'],
+          resyncPendingSince: fiveHoursAgo,
+        }
+        this.db.projectHistorySyncState.findOne.resolves(syncState)
+      })
+
+      it('records the stuck clear and starts a new resync', async function () {
+        await this.SyncManager.promises.startResync(this.projectId)
+        expect(
+          this.db.projectHistorySyncState.updateOne
+        ).to.have.been.calledWith(
+          { project_id: new ObjectId(this.projectId) },
+          sinon.match({
+            $inc: { stuckClearCount: 1 },
+            $unset: { resyncPendingSince: 1 },
+          })
+        )
+        expect(this.WebApiManager.promises.requestResync.calledOnce).to.be.true
+      })
+    })
+
+    describe('if sync is not stuck (resyncPendingSince within timeout)', function () {
+      beforeEach(function () {
+        const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000)
+        const syncState = {
+          resyncDocContents: ['/foo.tex'],
+          resyncPendingSince: threeHoursAgo,
+        }
+        this.db.projectHistorySyncState.findOne.resolves(syncState)
+      })
+
+      it('throws sync ongoing and does not clear', async function () {
+        await expect(
+          this.SyncManager.promises.startResync(this.projectId)
+        ).to.be.rejectedWith(SyncOngoingError, 'sync ongoing')
+        expect(
+          this.Metrics.inc.calledWith('project_history_sync_stuck_cleared')
+        ).to.be.false
+        expect(
+          this.Metrics.inc.calledWith('project_history_sync_stuck_permanent')
+        ).to.be.false
+      })
+    })
+
+    describe('if sync is permanently stuck (exceeded retry limit)', function () {
+      beforeEach(function () {
+        const syncState = {
+          resyncDocContents: ['/foo.tex'],
+          stuckClearCount: 5,
+        }
+        this.db.projectHistorySyncState.findOne.resolves(syncState)
+      })
+
+      it('throws permanently stuck, emits metric, and records the attempt', async function () {
+        await expect(
+          this.SyncManager.promises.startResync(this.projectId)
+        ).to.be.rejectedWith('sync permanently stuck')
+        expect(
+          this.Metrics.inc.calledWith('project_history_sync_stuck_permanent')
+        ).to.be.true
+        expect(
+          this.db.projectHistorySyncState.updateOne
+        ).to.have.been.calledWith(
+          { project_id: new ObjectId(this.projectId) },
+          sinon.match({ $inc: { stuckClearCount: 1 } })
+        )
+      })
+
+      it('does not attempt a resync', async function () {
+        try {
+          await this.SyncManager.promises.startResync(this.projectId)
+        } catch (e) {
+          // expected
+        }
+        expect(this.WebApiManager.promises.requestResync.called).to.be.false
+      })
+    })
+  })
+
+  describe('isSyncPermanentlyStuck', function () {
+    it('is false below the auto-clear limit', async function () {
+      this.db.projectHistorySyncState.findOne.resolves({
+        resyncDocContents: ['/foo.tex'],
+        stuckClearCount: 4,
+      })
+      const syncState = await this.SyncManager.promises.getResyncState(
+        this.projectId
+      )
+      expect(syncState.isSyncPermanentlyStuck()).to.be.false
+    })
+
+    it('is true at the auto-clear limit', async function () {
+      this.db.projectHistorySyncState.findOne.resolves({
+        resyncDocContents: ['/foo.tex'],
+        stuckClearCount: 5,
+      })
+      const syncState = await this.SyncManager.promises.getResyncState(
+        this.projectId
+      )
+      expect(syncState.isSyncPermanentlyStuck()).to.be.true
     })
   })
 
@@ -265,7 +437,11 @@ describe('SyncManager', function () {
         ).to.have.been.calledWith(
           { project_id: new ObjectId(this.projectId) },
           sinon.match({
-            $set: this.syncState.toRaw(),
+            $set: sinon.match({
+              resyncProjectStructure: true,
+              resyncDocContents: [],
+              origin: { kind: 'history-resync' },
+            }),
             $currentDate: { lastUpdated: true },
             $inc: { resyncCount: 1 },
             $unset: { expiresAt: true },
@@ -289,7 +465,7 @@ describe('SyncManager', function () {
         }
       })
 
-      it('sets the sync state entry in mongo to expire', async function () {
+      it('sets the sync state entry in mongo to expire and clears stuck fields', async function () {
         await this.SyncManager.promises.setResyncState(
           this.projectId,
           this.syncState
@@ -307,6 +483,12 @@ describe('SyncManager', function () {
               expiresAt: new Date(this.now.getTime() + 90 * 24 * 3600 * 1000),
             },
             $currentDate: { lastUpdated: true },
+            $unset: {
+              resyncPendingSince: 1,
+              stuckClearCount: 1,
+              lastStuckClearAt: 1,
+              lastStuckDocPaths: 1,
+            },
           }),
           { upsert: true }
         )
@@ -408,6 +590,8 @@ describe('SyncManager', function () {
           resyncProjectStructure: false,
           resyncDocContents: ['new.tex'],
           origin: { kind: 'history-resync' },
+          hardResync: false,
+          recoverCorruptedFiles: false,
         })
       })
 
@@ -424,6 +608,8 @@ describe('SyncManager', function () {
           resyncProjectStructure: false,
           resyncDocContents: ['new.tex'],
           origin: { kind: 'history-resync' },
+          hardResync: false,
+          recoverCorruptedFiles: false,
         })
       })
 
@@ -441,6 +627,8 @@ describe('SyncManager', function () {
           resyncProjectStructure: false,
           resyncDocContents: [],
           origin: { kind: 'history-resync' },
+          hardResync: false,
+          recoverCorruptedFiles: false,
         })
       })
 
@@ -460,6 +648,8 @@ describe('SyncManager', function () {
           resyncProjectStructure: false,
           resyncDocContents: ['new.tex'],
           origin: { kind: 'history-resync' },
+          hardResync: false,
+          recoverCorruptedFiles: false,
         })
       })
 
@@ -483,6 +673,8 @@ describe('SyncManager', function () {
           resyncProjectStructure: false,
           resyncDocContents: [],
           origin: { kind: 'history-resync' },
+          hardResync: false,
+          recoverCorruptedFiles: false,
         })
       })
 
@@ -507,6 +699,8 @@ describe('SyncManager', function () {
           resyncProjectStructure: false,
           resyncDocContents: [],
           origin: { kind: 'history-resync' },
+          hardResync: false,
+          recoverCorruptedFiles: false,
         })
       })
     })
@@ -1446,6 +1640,116 @@ describe('SyncManager', function () {
           expect(this.extendLock).to.have.been.called
         })
       })
+
+      describe('when the blob content is corrupted during hard resync', function () {
+        describe('and the recoverCorruptedFiles flag is true', function () {
+          beforeEach(function () {
+            this.syncState.recoverCorruptedFiles = true
+          })
+
+          async function assertRecovery(ctx, err) {
+            ctx.fileMap['main.tex'].load.rejects(err)
+            const updates = [
+              resyncProjectStructureUpdate(
+                [ctx.persistedDoc],
+                [ctx.persistedFile]
+              ),
+              docContentSyncUpdate(ctx.persistedDoc, ctx.persistedDocContent),
+            ]
+            const expandedUpdates =
+              await ctx.SyncManager.promises.expandSyncUpdates(
+                ctx.projectId,
+                ctx.historyId,
+                ctx.mostRecentChunk,
+                updates,
+                ctx.extendLock
+              )
+            expect(expandedUpdates).to.deep.equal([
+              {
+                pathname: 'main.tex',
+                new_pathname: '',
+                meta: {
+                  resync: true,
+                  origin: { kind: 'history-resync' },
+                  ts: TIMESTAMP,
+                },
+              },
+              {
+                pathname: 'main.tex',
+                doc: ctx.persistedDoc.doc,
+                docLines: ctx.persistedDocContent,
+                meta: {
+                  resync: true,
+                  origin: { kind: 'history-resync' },
+                  ts: TIMESTAMP,
+                },
+              },
+            ])
+          }
+
+          it('queues REMOVE + ADD for UnprocessableError', async function () {
+            await assertRecovery(this, new UnprocessableError('apply failed'))
+          })
+
+          it('queues REMOVE + ADD for SyntaxError', async function () {
+            await assertRecovery(this, new SyntaxError('bad JSON'))
+          })
+
+          it('queues REMOVE + ADD for FileContentEmptyError', async function () {
+            await assertRecovery(
+              this,
+              new FileContentEmptyError('null content')
+            )
+          })
+
+          it('propagates non-corruption errors during hard resync', async function () {
+            this.fileMap['main.tex'].load.rejects(
+              new Error('connection timeout')
+            )
+            const updates = [
+              resyncProjectStructureUpdate(
+                [this.persistedDoc],
+                [this.persistedFile]
+              ),
+              docContentSyncUpdate(this.persistedDoc, this.persistedDocContent),
+            ]
+            await expect(
+              this.SyncManager.promises.expandSyncUpdates(
+                this.projectId,
+                this.historyId,
+                this.mostRecentChunk,
+                updates,
+                this.extendLock
+              )
+            ).to.be.rejectedWith('connection timeout')
+          })
+        })
+
+        describe('and the recoverCorruptedFiles flag is false', function () {
+          it('propagates corruption errors', async function () {
+            this.syncState.recoverCorruptedFiles = false
+            this.fileMap['main.tex'].load.rejects(
+              new UnprocessableError('apply failed')
+            )
+            const updates = [
+              resyncProjectStructureUpdate(
+                [this.persistedDoc],
+                [this.persistedFile]
+              ),
+              docContentSyncUpdate(this.persistedDoc, this.persistedDocContent),
+            ]
+            await expect(
+              this.SyncManager.promises.expandSyncUpdates(
+                this.projectId,
+                this.historyId,
+                this.mostRecentChunk,
+                updates,
+                this.extendLock
+              )
+            ).to.be.rejectedWith('apply failed')
+          })
+        })
+      })
     })
 
     describe('syncing comments', function () {
@@ -1755,32 +2059,44 @@ describe('SyncManager', function () {
     describe('syncing tracked changes', function () {
       beforeEach(function () {
         this.loadedSnapshotDoc.getTrackedChanges().add(
-          new TrackedChange(new Range(4, 6), {
-            type: 'delete',
-            userId: USER_ID,
-            ts: new Date(TIMESTAMP),
-          })
+          new TrackedChange(
+            new Range(4, 6),
+            TrackingProps.fromRaw({
+              type: 'delete',
+              userId: USER_ID,
+              ts: new Date(TIMESTAMP).toISOString(),
+            })
+          )
         )
         this.loadedSnapshotDoc.getTrackedChanges().add(
-          new TrackedChange(new Range(10, 6), {
-            type: 'insert',
-            userId: USER_ID,
-            ts: new Date(TIMESTAMP),
-          })
+          new TrackedChange(
+            new Range(10, 6),
+            TrackingProps.fromRaw({
+              type: 'insert',
+              userId: USER_ID,
+              ts: new Date(TIMESTAMP).toISOString(),
+            })
+          )
         )
         this.loadedSnapshotDoc.getTrackedChanges().add(
-          new TrackedChange(new Range(20, 6), {
-            type: 'delete',
-            userId: USER_ID,
-            ts: new Date(TIMESTAMP),
-          })
+          new TrackedChange(
+            new Range(20, 6),
+            TrackingProps.fromRaw({
+              type: 'delete',
+              userId: USER_ID,
+              ts: new Date(TIMESTAMP).toISOString(),
+            })
+          )
         )
         this.loadedSnapshotDoc.getTrackedChanges().add(
-          new TrackedChange(new Range(40, 3), {
-            type: 'insert',
-            userId: USER_ID,
-            ts: new Date(TIMESTAMP),
-          })
+          new TrackedChange(
+            new Range(40, 3),
+            TrackingProps.fromRaw({
+              type: 'insert',
+              userId: USER_ID,
+              ts: new Date(TIMESTAMP).toISOString(),
+            })
+          )
         )
         this.changes = [
           makeTrackedChange('td1', { p: 4, d: 'quick ' }),
@@ -2002,6 +2318,49 @@ describe('SyncManager', function () {
             },
           },
         ])
+      })
+    })
+  })
+
+  describe('stuck sync state reproduction', function () {
+    describe('when resyncDocContents has entries but no resyncDocContent update arrives', function () {
+      beforeEach(function () {
+        // Simulate the stuck state: project structure sync is done,
+        // but doc content sync never completed for /main.tex
+        const stuckSyncState = {
+          resyncProjectStructure: false,
+          resyncDocContents: ['/main.tex'],
+          origin: { kind: 'history-resync' },
+        }
+        this.db.projectHistorySyncState.findOne.resolves(stuckSyncState)
+      })
+
+      it('should skip text updates for a doc stuck in resyncDocContents', async function () {
+        const textUpdate = {
+          doc: new ObjectId(),
+          op: [{ i: 'hello', p: 0 }],
+          meta: {
+            pathname: '/main.tex',
+            doc_length: 0,
+          },
+        }
+        this.UpdateTranslator.isTextUpdate.returns(false)
+        this.UpdateTranslator.isTextUpdate.withArgs(textUpdate).returns(true)
+
+        const { updates: filteredUpdates, syncState } =
+          await this.SyncManager.promises.skipUpdatesDuringSync(
+            this.projectId,
+            [textUpdate]
+          )
+
+        // The text update is silently dropped — this is the stuck state bug
+        expect(filteredUpdates).to.deep.equal([])
+        // Sync state still shows /main.tex as syncing
+        expect(syncState.toRaw().resyncDocContents).to.deep.equal(['/main.tex'])
+        // Metric is emitted for the skipped update
+        expect(
+          this.Metrics.inc.calledWith('project_history_sync_update_skipped')
+        ).to.be.true
       })
     })
   })

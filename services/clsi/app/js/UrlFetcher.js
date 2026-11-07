@@ -1,19 +1,10 @@
-const fs = require('node:fs')
-const logger = require('@overleaf/logger')
-const Settings = require('@overleaf/settings')
-const {
-  CustomHttpAgent,
-  CustomHttpsAgent,
-  fetchStream,
-  RequestFailedError,
-} = require('@overleaf/fetch-utils')
-const { URL } = require('node:url')
-const { pipeline } = require('node:stream/promises')
-const Metrics = require('@overleaf/metrics')
-
-const MAX_CONNECT_TIME = 1000
-const httpAgent = new CustomHttpAgent({ connectTimeout: MAX_CONNECT_TIME })
-const httpsAgent = new CustomHttpsAgent({ connectTimeout: MAX_CONNECT_TIME })
+import fs from 'node:fs'
+import logger from '@overleaf/logger'
+import Settings from '@overleaf/settings'
+import { fetchStream, RequestFailedError } from '@overleaf/fetch-utils'
+import { URL } from 'node:url'
+import { pipeline } from 'node:stream/promises'
+import Metrics from '@overleaf/metrics'
 
 async function pipeUrlToFileWithRetry(url, fallbackURL, filePath) {
   let remainingAttempts = 3
@@ -60,10 +51,6 @@ async function pipeUrlToFile(url, fallbackURL, filePath) {
   try {
     stream = await fetchStream(url, {
       signal: AbortSignal.timeout(60 * 1000),
-      // provide a function to get the agent for each request
-      // as there may be multiple requests with different protocols
-      // due to redirects.
-      agent: _url => (_url.protocol === 'https:' ? httpsAgent : httpAgent),
     })
   } catch (err) {
     if (
@@ -73,10 +60,6 @@ async function pipeUrlToFile(url, fallbackURL, filePath) {
     ) {
       stream = await fetchStream(fallbackURL, {
         signal: AbortSignal.timeout(60 * 1000),
-        // provide a function to get the agent for each request
-        // as there may be multiple requests with different protocols
-        // due to redirects.
-        agent: _url => (_url.protocol === 'https:' ? httpsAgent : httpAgent),
       })
       url = fallbackURL
     } else {
@@ -85,16 +68,20 @@ async function pipeUrlToFile(url, fallbackURL, filePath) {
   }
 
   const source = inferSource(url)
-  Metrics.inc('url_source', 1, { path: source })
+  if (source !== 'clsi-perf') {
+    Metrics.inc('url_source', 1, { path: source })
+  }
 
   const atomicWrite = filePath + '~'
   try {
     const output = fs.createWriteStream(atomicWrite)
     await pipeline(stream, output)
     await fs.promises.rename(atomicWrite, filePath)
-    Metrics.count('UrlFetcher.downloaded_bytes', output.bytesWritten, {
-      path: source,
-    })
+    if (source !== 'clsi-perf') {
+      Metrics.count('UrlFetcher.downloaded_bytes', output.bytesWritten, {
+        path: source,
+      })
+    }
   } catch (err) {
     try {
       await fs.promises.unlink(atomicWrite)
@@ -117,6 +104,8 @@ function inferSource(url) {
   return 'unknown'
 }
 
-module.exports.promises = {
-  pipeUrlToFileWithRetry,
+export default {
+  promises: {
+    pipeUrlToFileWithRetry,
+  },
 }

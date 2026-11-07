@@ -4,16 +4,13 @@ const _ = require('lodash')
 const logger = require('@overleaf/logger')
 const OError = require('@overleaf/o-error')
 const Errors = require('../app/js/Errors')
-const LockManager = require('../app/js/LockManager')
+const ProjectLockManager = require('../app/js/ProjectLockManager')
 const PersistenceManager = require('../app/js/PersistenceManager')
 const ProjectFlusher = require('../app/js/ProjectFlusher')
 const ProjectManager = require('../app/js/ProjectManager')
 const RedisManager = require('../app/js/RedisManager')
 const Settings = require('@overleaf/settings')
-const request = require('requestretry').defaults({
-  maxAttempts: 2,
-  retryDelay: 10,
-})
+const { fetchNothing, fetchJson } = require('@overleaf/fetch-utils')
 
 const ONLY_PROJECT_ID = process.env.ONLY_PROJECT_ID
 const AUTO_FIX_VERSION_MISMATCH =
@@ -46,13 +43,16 @@ const COMPARE_AND_SET =
 class TryAgainError extends Error {}
 
 /**
+ * @param {string} projectId
  * @param {string} docId
  * @param {Doc} redisDoc
  * @param {Doc} mongoDoc
  * @return {Promise<void>}
  */
-async function updateDocVersionInRedis(docId, redisDoc, mongoDoc) {
-  const lockValue = await LockManager.promises.getLock(docId)
+async function updateDocVersionInRedis(projectId, docId, redisDoc, mongoDoc) {
+  // Take the project lock to serialise with document-updater, which now
+  // processes all of a project's docs under the project lock.
+  const lockValue = await ProjectLockManager.promises.getLock(projectId)
   try {
     const key = Settings.redis.documentupdater.key_schema.docVersion({
       doc_id: docId,
@@ -71,38 +71,27 @@ async function updateDocVersionInRedis(docId, redisDoc, mongoDoc) {
       )
     }
   } finally {
-    await LockManager.promises.releaseLock(docId, lockValue)
+    await ProjectLockManager.promises.releaseLock(projectId, lockValue)
   }
 }
 
 async function fixPartiallyDeletedDocMetadata(projectId, docId, pathname) {
-  await new Promise((resolve, reject) => {
-    request(
+  try {
+    await fetchNothing(
+      `http://${process.env.DOCSTORE_HOST || '127.0.0.1'}:3016/project/${projectId}/doc/${docId}`,
       {
         method: 'PATCH',
-        url: `http://${process.env.DOCSTORE_HOST || '127.0.0.1'}:3016/project/${projectId}/doc/${docId}`,
-        timeout: 60 * 1000,
+        signal: AbortSignal.timeout(60_000),
         json: {
           name: Path.basename(pathname),
           deleted: true,
           deletedAt: new Date(),
         },
-      },
-      (err, res, body) => {
-        if (err) return reject(err)
-        const { statusCode } = res
-        if (statusCode !== 204) {
-          return reject(
-            new OError('patch request to docstore failed', {
-              statusCode,
-              body,
-            })
-          )
-        }
-        resolve()
       }
     )
-  })
+  } catch (error) {
+    throw OError.tag(error, 'patch request to docstore failed')
+  }
 }
 
 async function getDocFromMongo(projectId, docId) {
@@ -113,50 +102,25 @@ async function getDocFromMongo(projectId, docId) {
       throw err
     }
   }
-  const docstoreDoc = await new Promise((resolve, reject) => {
-    request(
-      {
-        url: `http://${process.env.DOCSTORE_HOST || '127.0.0.1'}:3016/project/${projectId}/doc/${docId}/peek`,
-        timeout: 60 * 1000,
-        json: true,
-      },
-      (err, res, body) => {
-        if (err) return reject(err)
-        const { statusCode } = res
-        if (statusCode !== 200) {
-          return reject(
-            new OError('fallback request to docstore failed', {
-              statusCode,
-              body,
-            })
-          )
-        }
-        resolve(body)
-      }
+  let docstoreDoc
+  try {
+    docstoreDoc = await fetchJson(
+      `http://${process.env.DOCSTORE_HOST || '127.0.0.1'}:3016/project/${projectId}/doc/${docId}/peek`,
+      { signal: AbortSignal.timeout(60_000) }
     )
-  })
-  const deletedDocName = await new Promise((resolve, reject) => {
-    request(
-      {
-        url: `http://${process.env.DOCSTORE_HOST || '127.0.0.1'}:3016/project/${projectId}/doc-deleted`,
-        timeout: 60 * 1000,
-        json: true,
-      },
-      (err, res, body) => {
-        if (err) return reject(err)
-        const { statusCode } = res
-        if (statusCode !== 200) {
-          return reject(
-            new OError('list deleted docs request to docstore failed', {
-              statusCode,
-              body,
-            })
-          )
-        }
-        resolve(body.find(doc => doc._id === docId)?.name)
-      }
+  } catch (err) {
+    throw OError.tag(err, 'fallback request to docstore failed')
+  }
+  let deletedDocName
+  try {
+    const body = await fetchJson(
+      `http://${process.env.DOCSTORE_HOST || '127.0.0.1'}:3016/project/${projectId}/doc-deleted`,
+      { signal: AbortSignal.timeout(60_000) }
     )
-  })
+    deletedDocName = body.find(doc => doc._id === docId)?.name
+  } catch (err) {
+    throw OError.tag(err, 'list deleted docs request to docstore failed')
+  }
   if (docstoreDoc.deleted && deletedDocName) {
     return {
       ...docstoreDoc,
@@ -214,7 +178,7 @@ async function processDoc(projectId, docId) {
         console.log(
           `Fixing out of sync doc version for doc ${docId} in project ${projectId}: mongo=${mongoDoc.version} > redis=${redisDoc.version}`
         )
-        await updateDocVersionInRedis(docId, redisDoc, mongoDoc)
+        await updateDocVersionInRedis(projectId, docId, redisDoc, mongoDoc)
         return false
       } else {
         console.error(

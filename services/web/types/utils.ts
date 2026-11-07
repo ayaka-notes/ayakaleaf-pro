@@ -21,6 +21,10 @@ export type MergeAndOverride<Parent, Own> = Own & Omit<Parent, keyof Own>
 
 export type Keys<T extends object> = (keyof T)[]
 
+export type ExcludeStrict<T, U extends T> = Exclude<T, U>
+
+export type ExtractStrict<T, U extends T> = Extract<T, U>
+
 /**
  * Helper to create type guards for literal unions
  *

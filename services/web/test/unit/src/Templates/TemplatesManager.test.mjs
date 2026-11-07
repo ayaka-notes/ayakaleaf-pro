@@ -18,7 +18,7 @@ describe('TemplatesManager', function () {
     ctx.user_id = 'user-id'
     ctx.dumpFolder = 'dump/path'
     ctx.uuid = '1234'
-    ctx.dumpPath = `${ctx.dumpFolder}/${ctx.uuid}`
+    ctx.dumpPath = `${ctx.dumpFolder}/${ctx.uuid}_templates-manager`
     ctx.callback = sinon.stub()
     ctx.pipeline = sinon.stub().callsFake(async (stream, res) => {
       if (res.callback) res.callback()
@@ -112,6 +112,7 @@ describe('TemplatesManager', function () {
           dumpFolder: ctx.dumpFolder,
         },
         siteUrl: (ctx.siteUrl = 'http://127.0.0.1:3000'),
+        defaultLatexCompiler: 'pdflatex',
         apis: {
           v1: {
             url: (ctx.v1Url = 'http://overleaf.com'),

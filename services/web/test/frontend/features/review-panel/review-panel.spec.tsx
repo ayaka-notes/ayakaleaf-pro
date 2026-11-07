@@ -197,6 +197,9 @@ describe('<ReviewPanel />', function () {
     cy.mount(
       <TestContainer className="rp-size-expanded">
         <EditorProviders
+          // Disable tabs since the review panel is rendered differently
+          // when tabs are enabled
+          userSettings={{ editorTabs: false }}
           scope={scope}
           providers={{ ProjectProvider: makeProjectProvider(project) }}
         >
@@ -204,6 +207,9 @@ describe('<ReviewPanel />', function () {
         </EditorProviders>
       </TestContainer>
     )
+
+    // Wait for the editor to be ready before interacting with it
+    cy.get('.cm-content').should('have.css', 'opacity', '1')
 
     // Open the review panel with keyboard shortcut
     cy.findByText('contentLine 0').type('{command}j', { scrollBehavior: false })
@@ -274,9 +280,7 @@ describe('<ReviewPanel />', function () {
 
   describe('toggler', function () {
     it('should close panel when pressing close button', function () {
-      cy.get('@review-panel').within(() => {
-        cy.findByLabelText('Close').click({ scrollBehavior: false })
-      })
+      cy.findByLabelText('Close').click({ scrollBehavior: false })
       // We should collapse to the mini state
       cy.get('.review-panel-mini').should('exist')
     })
@@ -338,10 +342,14 @@ describe('<ReviewPanel />', function () {
             cy.findByRole('menu').within(() => {
               cy.findByText('Edit').click({ scrollBehavior: false })
             })
-            cy.findByRole('textbox').type(
-              '{selectAll}edited comment text{enter}',
-              { scrollBehavior: false }
-            )
+            // The edit input is mounted in a shadow root, so pierce it to
+            // reach the CodeMirror content.
+            cy.get('.review-panel-comment-edit')
+              .shadow()
+              .find('.cm-content')
+              .type('{selectAll}edited comment text{enter}', {
+                scrollBehavior: false,
+              })
             cy.wait('@editComment')
             // TODO: Figure out a way to plumb the websocket response back through
             // to the test so we can verify the comment is resolved
@@ -421,9 +429,14 @@ describe('<ReviewPanel />', function () {
 
     it('adds new comment (replies) to a thread', function () {
       cy.get('@review-panel').within(() => {
-        cy.findByRole('textbox').type('a new reply{enter}', {
-          scrollBehavior: false,
-        })
+        // The reply input is mounted in a shadow root, so pierce it to reach
+        // the CodeMirror content.
+        cy.get('.review-panel-add-comment-editor.review-panel-comment-input')
+          .shadow()
+          .find('.cm-content')
+          .type('a new reply{enter}', {
+            scrollBehavior: false,
+          })
       })
       cy.wait('@addReply')
     })
@@ -492,10 +505,10 @@ describe('<ReviewPanel />', function () {
   })
 
   describe('aggregate change entries', function () {
-    // eslint-disable-next-line mocha/no-skipped-tests
+    // eslint-disable-next-line mocha/no-pending-tests
     it.skip('renders changed entries in current file mode', function () {})
 
-    // eslint-disable-next-line mocha/no-skipped-tests
+    // eslint-disable-next-line mocha/no-pending-tests
     it.skip('renders changed entries in overview mode', function () {})
   })
 
@@ -516,13 +529,17 @@ describe('<ReviewPanel />', function () {
     it('can add comment', function () {
       cy.get('@add-comment-button').click({ scrollBehavior: false })
       cy.get('@review-panel').within(() => {
-        // TODO: Fix selector
-        cy.get('.review-panel-add-comment-textarea').type(
-          'a new comment{enter}',
-          {
-            scrollBehavior: false,
-          }
+        // The add-comment editor is the CM6 input that is not a reply/edit
+        // input (those also carry the review-panel-comment-input class). It is
+        // mounted in a shadow root, so pierce it to reach the content.
+        cy.get(
+          '.review-panel-add-comment-editor:not(.review-panel-comment-input)'
         )
+          .shadow()
+          .find('.cm-content')
+          .type('a new comment{enter}', {
+            scrollBehavior: false,
+          })
       })
       cy.wait('@addNewComment')
       // TODO : Figure out a way to plumb the websocket response back through
@@ -536,6 +553,37 @@ describe('<ReviewPanel />', function () {
         cy.findByRole('button', { name: 'Cancel' }).click({
           scrollBehavior: false,
         })
+      })
+    })
+  })
+
+  describe('add comment tooltip visibility', function () {
+    beforeEach(function () {
+      cy.findByText('contentLine 12').type(
+        '{home}{shift}' + '{rightArrow}'.repeat(6),
+        { scrollBehavior: false }
+      )
+      cy.get('.review-tooltip-menu').should('exist')
+    })
+
+    it('hides the tooltip when clicking a toolbar button', function () {
+      cy.findByRole('button', { name: 'Undo' }).click({ scrollBehavior: false })
+      cy.get('.review-tooltip-menu').should('not.exist')
+    })
+
+    it('hides the tooltip when clicking outside the editor', function () {
+      cy.get('@review-panel').click({ scrollBehavior: false })
+      cy.get('.review-tooltip-menu').should('not.exist')
+    })
+
+    it('keeps the add comment button functional when clicked', function () {
+      cy.get('.review-tooltip-add-comment-button').click({
+        scrollBehavior: false,
+      })
+      cy.get('@review-panel').within(() => {
+        cy.get(
+          '.review-panel-add-comment-editor:not(.review-panel-comment-input)'
+        ).should('exist')
       })
     })
   })
@@ -592,6 +640,26 @@ describe('<ReviewPanel />', function () {
         ])
       })
     })
+
+    it('keeps the tooltip visible when cancelling the accept confirmation modal', function () {
+      cy.get('@accept-selected-changes').click({ scrollBehavior: false })
+      cy.findByRole('dialog').within(() => {
+        cy.findByRole('button', { name: 'Cancel' }).click({
+          scrollBehavior: false,
+        })
+      })
+      cy.get('.review-tooltip-menu').should('exist')
+    })
+
+    it('keeps the tooltip visible when cancelling the reject confirmation modal', function () {
+      cy.get('@reject-selected-changes').click({ scrollBehavior: false })
+      cy.findByRole('dialog').within(() => {
+        cy.findByRole('button', { name: 'Cancel' }).click({
+          scrollBehavior: false,
+        })
+      })
+      cy.get('.review-tooltip-menu').should('exist')
+    })
   })
 
   describe('overview mode', function () {
@@ -631,6 +699,440 @@ describe('<ReviewPanel />', function () {
         cy.get('.review-panel-entry').should('exist')
       })
     })
+  })
+})
+
+describe('<ReviewPanel /> resolved comment in another file', function () {
+  const otherDocId = 'fake-nested-doc-id'
+  const otherDocThreadId = 'other-doc-thread-id'
+
+  beforeEach(function () {
+    window.metaAttributesCache.set('ol-preventCompileOnLoad', true)
+    cy.interceptEvents()
+    cy.intercept('GET', '/project/*/changes/users', [])
+
+    cy.intercept('GET', '/project/*/threads', {
+      [otherDocThreadId]: {
+        messages: [
+          {
+            content: 'comment in another file',
+            id: `${otherDocThreadId}-1`,
+            timestamp: new Date('2025-01-01T00:00:00.000Z'),
+            user: userData,
+            user_id: USER_ID,
+          },
+        ],
+        resolved: true,
+        resolved_at: new Date('2025-01-02T00:00:00.000Z').toISOString(),
+        resolved_by_user_id: USER_ID,
+        resolved_by_user: userData,
+      },
+    })
+
+    cy.intercept('GET', '/project/*/ranges', [
+      {
+        id: otherDocId,
+        ranges: {
+          changes: [],
+          comments: [
+            {
+              id: 'other-doc-op-id',
+              op: { p: 161, c: 'Your introduction', t: otherDocThreadId },
+            },
+          ],
+          docId: otherDocId,
+        },
+      },
+    ])
+
+    cy.intercept(
+      'POST',
+      `/project/*/doc/${otherDocId}/thread/${otherDocThreadId}/reopen`,
+      {}
+    ).as('reopenThreadInOtherDoc')
+
+    cy.intercept(
+      'DELETE',
+      `/project/*/doc/${otherDocId}/thread/${otherDocThreadId}`,
+      {}
+    ).as('deleteThreadInOtherDoc')
+
+    const scope = mockScope(undefined, {
+      docOptions: {
+        rangesOptions: { removeCommentId: cy.stub().as('removeCommentId') },
+      },
+    })
+    const project = mockProject({
+      projectOwner: { _id: USER_ID },
+      projectFeatures: { trackChanges: false, trackChangesVisible: true },
+    })
+
+    cy.mount(
+      <TestContainer className="rp-size-expanded">
+        <EditorProviders
+          // Disable tabs since the review panel is rendered differently
+          // when tabs are enabled
+          userSettings={{ editorTabs: false }}
+          scope={scope}
+          providers={{ ProjectProvider: makeProjectProvider(project) }}
+        >
+          <CodeMirrorEditor />
+        </EditorProviders>
+      </TestContainer>
+    )
+
+    cy.get('.cm-content').should('have.css', 'opacity', '1')
+
+    // Open the review panel with keyboard shortcut
+    cy.findByText('contentLine 0').type('{command}j', { scrollBehavior: false })
+    cy.findByText('contentLine 1').type('{ctrl}j', { scrollBehavior: false })
+
+    cy.findByTestId('review-panel').should('exist')
+  })
+
+  it('names the other file in the resolved comments dropdown', function () {
+    cy.findByLabelText('Resolved comments').click()
+    cy.findByRole('tooltip').within(() => {
+      cy.findByText('foo.tex').should('exist')
+      cy.findByText('comment in another file').should('exist')
+    })
+  })
+
+  it('deletes the comment using the doc id of the thread', function () {
+    cy.findByLabelText('Resolved comments').click()
+    cy.findByRole('tooltip').within(() => {
+      cy.findByText('Delete').click({ force: true })
+    })
+    cy.wait('@deleteThreadInOtherDoc')
+      .its('request.url')
+      .should('contain', `/doc/${otherDocId}/thread/${otherDocThreadId}`)
+  })
+
+  it('leaves the ranges of the open document alone when deleting', function () {
+    cy.findByLabelText('Resolved comments').click()
+    cy.findByRole('tooltip').within(() => {
+      cy.findByText('Delete').click({ force: true })
+    })
+    cy.wait('@deleteThreadInOtherDoc')
+    cy.get('@removeCommentId').should('not.have.been.called')
+  })
+
+  it('reopens the comment using the doc id of the thread', function () {
+    cy.findByLabelText('Resolved comments').click()
+    cy.findByRole('tooltip').within(() => {
+      cy.findByText('Re-open').click({ force: true })
+    })
+    cy.wait('@reopenThreadInOtherDoc')
+      .its('request.url')
+      .should('contain', `/doc/${otherDocId}/thread/${otherDocThreadId}/reopen`)
+  })
+})
+
+describe('<ReviewPanel /> unresolved comment in another file', function () {
+  const otherDocId = 'fake-nested-doc-id'
+  const otherDocThreadId = 'other-doc-thread-id'
+
+  beforeEach(function () {
+    window.metaAttributesCache.set('ol-preventCompileOnLoad', true)
+    cy.interceptEvents()
+    cy.intercept('GET', '/project/*/changes/users', [])
+
+    cy.intercept('GET', '/project/*/threads', {
+      [otherDocThreadId]: {
+        messages: [
+          {
+            content: 'comment in another file',
+            id: `${otherDocThreadId}-1`,
+            timestamp: new Date('2025-01-01T00:00:00.000Z'),
+            user: userData,
+            user_id: USER_ID,
+          },
+        ],
+      },
+    })
+
+    cy.intercept('GET', '/project/*/ranges', [
+      {
+        id: otherDocId,
+        ranges: {
+          changes: [],
+          comments: [
+            {
+              id: 'other-doc-op-id',
+              op: { p: 161, c: 'Your introduction', t: otherDocThreadId },
+            },
+          ],
+          docId: otherDocId,
+        },
+      },
+    ])
+
+    cy.intercept(
+      'POST',
+      `/project/*/doc/${otherDocId}/thread/${otherDocThreadId}/resolve`,
+      {}
+    ).as('resolveThreadInOtherDoc')
+
+    cy.intercept(
+      'DELETE',
+      `/project/*/doc/${otherDocId}/thread/${otherDocThreadId}`,
+      {}
+    ).as('deleteThreadInOtherDoc')
+
+    const scope = mockScope()
+    const project = mockProject({
+      projectOwner: { _id: USER_ID },
+      projectFeatures: { trackChanges: false, trackChangesVisible: true },
+    })
+
+    cy.mount(
+      <TestContainer className="rp-size-expanded">
+        <EditorProviders
+          scope={scope}
+          providers={{ ProjectProvider: makeProjectProvider(project) }}
+        >
+          <CodeMirrorEditor />
+        </EditorProviders>
+      </TestContainer>
+    )
+
+    cy.get('.cm-content').should('have.css', 'opacity', '1')
+
+    // Open the review panel with keyboard shortcut
+    cy.findByText('contentLine 0').type('{command}j', { scrollBehavior: false })
+    cy.findByText('contentLine 1').type('{ctrl}j', { scrollBehavior: false })
+
+    cy.findByTestId('review-panel').should('exist')
+
+    // Overview mode lists the comments of every file, not just the open one
+    cy.findByRole('tab', { name: /overview/i }).click()
+    cy.findByText('comment in another file').should('exist')
+  })
+
+  it('resolves the comment using the doc id of the thread', function () {
+    // Find the resolve icon button using the hidden label
+    cy.findByText('Resolve comment').click({ force: true })
+    cy.wait('@resolveThreadInOtherDoc')
+      .its('request.url')
+      .should(
+        'contain',
+        `/doc/${otherDocId}/thread/${otherDocThreadId}/resolve`
+      )
+  })
+
+  it('deletes the comment using the doc id of the thread', function () {
+    // Find the options icon button using the hidden label
+    cy.findByText('More options')
+      .first()
+      .click({ force: true, scrollBehavior: false })
+    cy.findByRole('menu').within(() => {
+      cy.findByText('Delete').click({ scrollBehavior: false })
+    })
+    cy.findByRole('dialog').within(() => {
+      cy.findByRole('button', { name: 'Delete' }).click()
+    })
+    cy.wait('@deleteThreadInOtherDoc')
+      .its('request.url')
+      .should('contain', `/doc/${otherDocId}/thread/${otherDocThreadId}`)
+  })
+})
+
+describe('<ReviewPanel /> resolved comment in another file (history OT)', function () {
+  const otherDocId = 'fake-nested-doc-id'
+  const otherDocPath = 'figures/foo.tex'
+  const otherDocThreadId = 'other-doc-thread-id'
+  const quotedText = 'Your introduction'
+
+  beforeEach(function () {
+    window.metaAttributesCache.set('ol-preventCompileOnLoad', true)
+    window.metaAttributesCache.set('ol-otMigrationStage', 1)
+    cy.interceptEvents()
+    cy.intercept('GET', '/project/*/changes/users', [])
+
+    cy.intercept('GET', '/project/*/threads', {
+      [otherDocThreadId]: {
+        messages: [
+          {
+            content: 'comment in another file',
+            id: `${otherDocThreadId}-1`,
+            timestamp: new Date('2025-01-01T00:00:00.000Z'),
+            user: userData,
+            user_id: USER_ID,
+          },
+        ],
+        resolved: true,
+        resolved_at: new Date('2025-01-02T00:00:00.000Z').toISOString(),
+        resolved_by_user_id: USER_ID,
+        resolved_by_user: userData,
+      },
+    })
+
+    // In history OT the resolved comments menu reads project ranges from the
+    // project snapshot rather than from /project/:id/ranges. Inline the file
+    // content in the chunk so no blobs need fetching.
+    cy.intercept('POST', '/project/*/flush', { statusCode: 204 })
+    cy.intercept('GET', '/project/*/changes?*', { body: [] })
+    cy.intercept('GET', '/project/*/latest/history', {
+      body: {
+        chunk: {
+          history: {
+            snapshot: {
+              files: {
+                [otherDocPath]: {
+                  content: quotedText,
+                  comments: [
+                    {
+                      id: otherDocThreadId,
+                      ranges: [{ pos: 0, length: quotedText.length }],
+                      resolved: true,
+                    },
+                  ],
+                },
+              },
+            },
+            changes: [],
+          },
+          startVersion: 0,
+        },
+      },
+    })
+
+    cy.intercept(
+      'POST',
+      `/project/*/doc/${otherDocId}/thread/${otherDocThreadId}/reopen`,
+      {}
+    ).as('reopenThreadInOtherDoc')
+
+    cy.intercept(
+      'DELETE',
+      `/project/*/doc/${otherDocId}/thread/${otherDocThreadId}`,
+      {}
+    ).as('deleteThreadInOtherDoc')
+
+    const scope = mockScope(undefined, { docOptions: { historyOT: true } })
+    const project = mockProject({
+      projectOwner: { _id: USER_ID },
+      projectFeatures: { trackChanges: false, trackChangesVisible: true },
+    })
+
+    cy.mount(
+      <TestContainer className="rp-size-expanded">
+        <EditorProviders
+          // Disable tabs since the review panel is rendered differently
+          // when tabs are enabled
+          userSettings={{ editorTabs: false }}
+          scope={scope}
+          providers={{ ProjectProvider: makeProjectProvider(project) }}
+        >
+          <CodeMirrorEditor />
+        </EditorProviders>
+      </TestContainer>
+    )
+
+    cy.get('.cm-content').should('have.css', 'opacity', '1')
+
+    // Open the review panel with keyboard shortcut
+    cy.findByText('contentLine 0').type('{command}j', { scrollBehavior: false })
+    cy.findByText('contentLine 1').type('{ctrl}j', { scrollBehavior: false })
+
+    cy.findByTestId('review-panel').should('exist')
+  })
+
+  it('names the other file in the resolved comments dropdown', function () {
+    cy.findByLabelText('Resolved comments').click()
+    cy.findByRole('tooltip').within(() => {
+      cy.findByText('foo.tex').should('exist')
+      cy.findByText('comment in another file').should('exist')
+    })
+  })
+
+  it('deletes the comment over HTTP rather than submitting an op', function () {
+    // Opening the panel edits the doc, which submits ops of its own
+    cy.get('@historyOTSubmitOp').invoke('resetHistory')
+    cy.findByLabelText('Resolved comments').click()
+    cy.findByRole('tooltip').within(() => {
+      cy.findByText('Delete').click({ force: true })
+    })
+    cy.wait('@deleteThreadInOtherDoc')
+      .its('request.url')
+      .should('contain', `/doc/${otherDocId}/thread/${otherDocThreadId}`)
+    cy.get('@historyOTSubmitOp').should('not.have.been.called')
+  })
+
+  it('reopens the comment over HTTP rather than submitting an op', function () {
+    // Opening the panel edits the doc, which submits ops of its own
+    cy.get('@historyOTSubmitOp').invoke('resetHistory')
+    cy.findByLabelText('Resolved comments').click()
+    cy.findByRole('tooltip').within(() => {
+      cy.findByText('Re-open').click({ force: true })
+    })
+    cy.wait('@reopenThreadInOtherDoc')
+      .its('request.url')
+      .should('contain', `/doc/${otherDocId}/thread/${otherDocThreadId}/reopen`)
+    cy.get('@historyOTSubmitOp').should('not.have.been.called')
+  })
+})
+
+describe('<ReviewPanel /> review tooltip without write permission', function () {
+  beforeEach(function () {
+    window.metaAttributesCache.set('ol-preventCompileOnLoad', true)
+    cy.interceptEvents()
+    cy.intercept('GET', '/project/*/changes/users', [])
+    cy.intercept('GET', '/project/*/threads', {})
+
+    const changes = [
+      {
+        metadata: {
+          user_id: USER_ID,
+          ts: new Date('2025-01-01T00:00:00.000Z'),
+        },
+        id: 'inserted-op-id',
+        op: { p: 166, t: 'inserted-op-id', i: 'introduction' },
+      },
+      {
+        metadata: {
+          user_id: USER_ID,
+          ts: new Date('2025-01-01T01:00:00.000Z'),
+        },
+        id: 'deleted-op-id',
+        op: { p: 110, t: 'deleted-op-id', d: 'beautiful ' },
+      },
+    ]
+
+    const scope = mockScope(undefined, {
+      docOptions: { rangesOptions: { changes } },
+      permissionsLevel: 'review',
+    })
+    const project = mockProject({
+      projectOwner: { _id: USER_ID },
+      projectFeatures: { trackChanges: true, trackChangesVisible: true },
+    })
+
+    cy.mount(
+      <TestContainer className="rp-size-expanded">
+        <EditorProviders
+          scope={scope}
+          providers={{ ProjectProvider: makeProjectProvider(project) }}
+        >
+          <CodeMirrorEditor />
+        </EditorProviders>
+      </TestContainer>
+    )
+
+    cy.get('.cm-content').should('have.css', 'opacity', '1')
+
+    // Select a deletion and an insertion so the tooltip's bulk actions would appear
+    cy.findByText('\\maketitle').type(
+      '{home}{shift}' + '{downArrow}'.repeat(10),
+      { scrollBehavior: false }
+    )
+  })
+
+  it('shows the comment action but hides accept and reject for a reviewer', function () {
+    cy.get('.review-tooltip-menu').should('exist')
+    cy.get('.review-tooltip-add-comment-button').should('exist')
+    cy.findByLabelText('Accept selected changes').should('not.exist')
+    cy.findByLabelText('Reject selected changes').should('not.exist')
   })
 })
 
@@ -679,7 +1181,7 @@ describe('<ReviewPanel /> in mini mode', function () {
       },
     ])
 
-    cy.intercept('GET', '/project/*/threads', threads)
+    cy.intercept('GET', '/project/*/threads', threads).as('loadThreads')
 
     cy.intercept('POST', `/project/*/doc/${docId}/metadata`, {})
 
@@ -697,6 +1199,10 @@ describe('<ReviewPanel /> in mini mode', function () {
     )
     // Wait for editor
     cy.get('.cm-content').should('have.css', 'opacity', '1')
+
+    // Wait for the threads to load, since mini mode renders conditionally on
+    // the threads/ranges data being present
+    cy.wait('@loadThreads')
 
     // Toggle the review panel twice to ensure data is loaded
     cy.findByText('contentLine 0').type('{command}jj', {
@@ -835,6 +1341,9 @@ describe('<ReviewPanel /> for free users', function () {
       </TestContainer>
     )
 
+    // Wait for the editor to be ready before interacting with it
+    cy.get('.cm-content').should('have.css', 'opacity', '1')
+
     cy.findByLabelText('Editing').click()
     cy.findByRole('menu').within(() => {
       cy.findByText(/Reviewing/).click()
@@ -851,7 +1360,7 @@ describe('<ReviewPanel /> for free users', function () {
   it('renders modal', function () {
     mountEditor()
     cy.findByRole('dialog').within(() => {
-      cy.findByText('Upgrade to Review').should('exist')
+      cy.findByText('Upgrade to review').should('exist')
     })
   })
 
@@ -871,7 +1380,7 @@ describe('<ReviewPanel /> for free users', function () {
     })
   })
 
-  // eslint-disable-next-line mocha/no-skipped-tests
+  // eslint-disable-next-line mocha/no-pending-tests
   it.skip('opens subscription page after clicking on `try it for free`', function () {})
 
   it('shows `ask project owner to upgrade` message', function () {

@@ -34,6 +34,7 @@ const Features = {
     return (
       (Boolean(Settings.ldap) && Boolean(Settings.ldap.enable)) ||
       (Boolean(Settings.saml) && Boolean(Settings.saml.enable)) ||
+      (Boolean(Settings.oidc) && Boolean(Settings.oidc.enable)) ||
       Boolean(Settings.overleaf)
     )
   },
@@ -77,8 +78,6 @@ const Features = {
       case 'affiliations':
       case 'analytics':
         return Boolean(_.get(Settings, ['apis', 'v1', 'url']))
-      case 'references':
-        return Boolean(_.get(Settings, ['apis', 'references', 'url']))
       case 'saml':
         return Boolean(Settings.enableSaml)
       case 'linked-project-file':

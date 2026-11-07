@@ -5,7 +5,6 @@ import path from 'node:path'
 import mongodb from 'mongodb-legacy'
 import Settings from '@overleaf/settings'
 import OError from '@overleaf/o-error'
-import CooldownManager from '../Cooldown/CooldownManager.mjs'
 import Errors from '../Errors/Errors.js'
 import { Folder } from '../../models/Folder.mjs'
 import LockManager from '../../infrastructure/LockManager.mjs'
@@ -269,8 +268,10 @@ async function mkdirp(projectId, path, userId, options = {}) {
   // to make matching case-sensitive
   const folders = path.split('/').filter(folder => folder.length !== 0)
 
-  const project =
-    await ProjectGetter.promises.getProjectWithOnlyFolders(projectId)
+  const project = await ProjectGetter.promises.getProjectWithoutLock(
+    projectId,
+    { rootFolder: 1 }
+  )
   if (path === '/') {
     return { newFolders: [], folder: project.rootFolder[0] }
   }
@@ -554,8 +555,7 @@ async function _putElement(project, folderId, element, type, userId) {
       { projectId: project._id },
       'project too big, stopping insertions'
     )
-    await CooldownManager.putProjectOnCooldown(project._id)
-    throw new Error('project_has_too_many_files')
+    throw new Errors.TooManyFilesError('project has too many files')
   }
 
   const { element: folder, path } = await ProjectLocator.promises.findElement({

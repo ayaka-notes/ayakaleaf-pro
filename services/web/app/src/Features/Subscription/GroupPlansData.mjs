@@ -16,8 +16,6 @@ const data = fs.readFileSync(
 )
 const groups = JSON.parse(data.toString())
 
-const capitalize = string => string.charAt(0).toUpperCase() + string.slice(1)
-
 // With group accounts in Recurly, we end up with a lot of plans to manage.
 // Rather than hand coding them in the settings file, and then needing to keep
 // that data in sync with the data in groups.json, we can auto generate the
@@ -35,17 +33,16 @@ for (const [usage, planData] of Object.entries(groups)) {
       }
     }
 
-    const planName =
-      planCode === 'collaborator' ? 'Standard' : capitalize(planCode)
+    const planName = planCode === 'collaborator' ? 'Standard' : 'Pro'
 
     // Generate plans in settings
     for (const size of sizes) {
       const plan = {
         planCode: `group_${planCode}_${size}_${usage}`,
         name:
-          usage === 'enterprise'
-            ? `Group ${planName} Plan (${size} licenses)`
-            : `Group ${planName} Plan (${size} licenses) - ${capitalize(usage)}`,
+          usage === 'educational'
+            ? `${planName} group with edu discount (${size} licenses)`
+            : `${planName} group (${size} licenses)`,
         hideFromUsers: true,
         price_in_cents: groups[usage][planCode].USD[size].price_in_cents,
         annual: true,

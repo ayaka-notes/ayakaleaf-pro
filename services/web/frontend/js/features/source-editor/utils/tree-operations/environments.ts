@@ -45,6 +45,7 @@ export const enterNode = (
       from: envNameNode.from,
       to: envNameNode.to,
       line: state.doc.lineAt(envNameNode.from).number,
+      toLine: state.doc.lineAt(envNameNode.to).number,
       type: 'usage',
       raw: state.sliceDoc(node.from, node.to),
     }
@@ -74,6 +75,7 @@ export const enterNode = (
       from: envNameNode.from,
       to: envNameNode.to,
       line: state.doc.lineAt(envNameNode.from).number,
+      toLine: state.doc.lineAt(envNameNode.to).number,
       type: 'definition',
       raw: state.sliceDoc(node.from, node.to),
     }

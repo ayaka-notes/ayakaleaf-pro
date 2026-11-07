@@ -13,6 +13,7 @@ import ProjectEntityMongoUpdateHandler from '../Project/ProjectEntityMongoUpdate
 import ProjectRootDocManager from '../Project/ProjectRootDocManager.mjs'
 import ProjectDetailsHandler from '../Project/ProjectDetailsHandler.mjs'
 import ProjectDeleter from '../Project/ProjectDeleter.mjs'
+import { DeletedProjectReasons } from '../Project/DeletedProjectReasons.mjs'
 import TpdsProjectFlusher from '../ThirdPartyDataStore/TpdsProjectFlusher.mjs'
 import logger from '@overleaf/logger'
 import OError from '@overleaf/o-error'
@@ -55,7 +56,9 @@ async function createProjectFromZipArchive(ownerId, defaultName, zipPath) {
     } catch (err) {
       // no need to wait for the cleanup here
       ProjectDeleter.promises
-        .deleteProject(project._id)
+        .deleteProject(project._id, {
+          deletedReason: DeletedProjectReasons.ZIP_IMPORT_FAILURE,
+        })
         .catch(err =>
           logger.error(
             { err, projectId: project._id },
@@ -88,16 +91,18 @@ async function createProjectFromZipArchiveWithName(
     try {
       const { fileEntries, docEntries } =
         await _initializeProjectWithZipContents(ownerId, project, contentsPath)
-      const rootDocId =
+      const result =
         await ProjectRootDocManager.promises.setRootDocAutomatically(
           project._id
         )
-      if (rootDocId) project.rootDoc_id = rootDocId
+      if (result) project.rootDoc_id = result.rootDocId
       return { fileEntries, docEntries, project }
     } catch (err) {
       // no need to wait for the cleanup here
       ProjectDeleter.promises
-        .deleteProject(project._id)
+        .deleteProject(project._id, {
+          deletedReason: DeletedProjectReasons.ZIP_IMPORT_FAILURE,
+        })
         .catch(err =>
           logger.error(
             { err, projectId: project._id },
@@ -163,35 +168,89 @@ async function _initializeProjectWithZipContents(
   return { fileEntries, docEntries }
 }
 
+/**
+ * Create project docs and files using concurrent workers.
+ * Returns the created entries grouped by type, in the correct order.
+ */
 async function _createEntriesFromImports(project, importEntries) {
-  const fileEntries = []
-  const docEntries = []
-  for (const importEntry of importEntries) {
-    switch (importEntry.type) {
-      case 'doc': {
-        const docEntry = await _createDoc(
-          project,
-          importEntry.projectPath,
-          importEntry.lines
-        )
-        docEntries.push(docEntry)
-        break
+  const createdEntries = new Array(importEntries.length)
+  let nextIndex = 0
+  let firstError
+
+  async function worker() {
+    while (firstError == null) {
+      const currentIndex = nextIndex
+      nextIndex++
+
+      if (currentIndex >= importEntries.length) {
+        return
       }
-      case 'file': {
-        const fileEntry = await _createFile(
+
+      try {
+        createdEntries[currentIndex] = await _createEntryFromImport(
           project,
-          importEntry.projectPath,
-          importEntry.fsPath
+          importEntries[currentIndex]
         )
-        fileEntries.push(fileEntry)
-        break
-      }
-      default: {
-        throw new Error(`Invalid import type: ${importEntry.type}`)
+      } catch (error) {
+        firstError = firstError ?? error
+        return
       }
     }
   }
+
+  await Promise.allSettled(
+    Array.from({ length: Math.min(5, importEntries.length) }, () => worker())
+  )
+
+  if (firstError != null) {
+    throw firstError
+  }
+
+  const fileEntries = []
+  const docEntries = []
+
+  for (const createdEntry of createdEntries) {
+    switch (createdEntry.type) {
+      case 'doc': {
+        docEntries.push(createdEntry.entry)
+        break
+      }
+      case 'file': {
+        fileEntries.push(createdEntry.entry)
+        break
+      }
+    }
+  }
+
   return { fileEntries, docEntries }
+}
+
+async function _createEntryFromImport(project, importEntry) {
+  switch (importEntry.type) {
+    case 'doc': {
+      return {
+        type: 'doc',
+        entry: await _createDoc(
+          project,
+          importEntry.projectPath,
+          importEntry.lines
+        ),
+      }
+    }
+    case 'file': {
+      return {
+        type: 'file',
+        entry: await _createFile(
+          project,
+          importEntry.projectPath,
+          importEntry.fsPath
+        ),
+      }
+    }
+    default: {
+      throw new Error(`Invalid import type: ${importEntry.type}`)
+    }
+  }
 }
 
 async function _createDoc(project, projectPath, docLines) {

@@ -1,32 +1,36 @@
-const fsPromises = require('node:fs/promises')
-const os = require('node:os')
-const Path = require('node:path')
-const { callbackify } = require('node:util')
+import fsPromises from 'node:fs/promises'
+import os from 'node:os'
+import Path from 'node:path'
+import { callbackify } from 'node:util'
+import Settings from '@overleaf/settings'
+import logger from '@overleaf/logger'
+import Metrics from '@overleaf/metrics'
+import OError from '@overleaf/o-error'
+import ResourceWriter from './ResourceWriter.js'
+import LatexRunner from './LatexRunner.js'
+import OutputFileFinder from './OutputFileFinder.js'
+import OutputCacheManager from './OutputCacheManager.js'
+import ClsiMetrics from './Metrics.js'
+import DraftModeManager from './DraftModeManager.js'
+import TikzManager from './TikzManager.js'
+import LockManager from './LockManager.js'
+import Errors from './Errors.js'
+import CommandRunner from './CommandRunner.js'
+import ContentCacheMetrics from './ContentCacheMetrics.js'
+import SynctexOutputParser from './SynctexOutputParser.js'
+import CLSICacheHandler from './CLSICacheHandler.js'
+import StatsManager from './StatsManager.js'
+import SafeReader from './SafeReader.js'
+import LatexMetrics from './LatexMetrics.js'
+import { callbackifyMultiResult } from '@overleaf/promise-utils'
+import * as HistoryResourceWriter from './HistoryResourceWriter.js'
+import Png2Pdf from './Png2Pdf.js'
 
-const Settings = require('@overleaf/settings')
-const logger = require('@overleaf/logger')
-const OError = require('@overleaf/o-error')
-
-const ResourceWriter = require('./ResourceWriter')
-const LatexRunner = require('./LatexRunner')
-const OutputFileFinder = require('./OutputFileFinder')
-const OutputCacheManager = require('./OutputCacheManager')
-const ClsiMetrics = require('./Metrics')
-const DraftModeManager = require('./DraftModeManager')
-const TikzManager = require('./TikzManager')
-const LockManager = require('./LockManager')
-const Errors = require('./Errors')
-const CommandRunner = require('./CommandRunner')
-const { emitPdfStats } = require('./ContentCacheMetrics')
-const SynctexOutputParser = require('./SynctexOutputParser')
-const {
-  downloadLatestCompileCache,
-  downloadOutputDotSynctexFromCompileCache,
-} = require('./CLSICacheHandler')
-const StatsManager = require('./StatsManager')
-const SafeReader = require('./SafeReader')
-const { enableLatexMkMetrics, addLatexFdbMetrics } = require('./LatexMetrics')
-const { callbackifyMultiResult } = require('@overleaf/promise-utils')
+const { downloadLatestCompileCache, downloadOutputDotSynctexFromCompileCache } =
+  CLSICacheHandler
+const { emitPdfStats } = ContentCacheMetrics
+const { enableLatexMkMetrics, addLatexFdbMetrics } = LatexMetrics
+const { shouldSkipMetrics } = ClsiMetrics
 
 const KNOWN_LATEXMK_RULES = new Set([
   'biber',
@@ -103,13 +107,44 @@ async function doCompile(request, stats, timings) {
     'syncing resources to disk'
   )
 
-  let resourceList
+  let resourceList, baseHistoryVersion
   try {
-    // NOTE: resourceList is insecure, it should only be used to exclude files from the output list
-    resourceList = await ResourceWriter.promises.syncResourcesToDisk(
-      request,
-      compileDir
-    )
+    if (request.isCompileFromHistory) {
+      ;({ resourceList, baseHistoryVersion } =
+        await HistoryResourceWriter.syncResourcesToDisk(
+          projectId,
+          userId,
+          request,
+          compileDir,
+          timings,
+          stats
+        ))
+    } else {
+      // NOTE: resourceList is insecure, it should only be used to exclude files from the output list
+      resourceList = await ResourceWriter.promises.syncResourcesToDisk(
+        request,
+        compileDir
+      )
+
+      // apply a series of file modifications/creations for draft mode and tikz
+      if (request.draft) {
+        await DraftModeManager.promises.injectDraftMode(
+          Path.join(compileDir, request.rootResourcePath)
+        )
+      }
+
+      const needsMainFile = await TikzManager.promises.checkMainFile(
+        compileDir,
+        request.rootResourcePath,
+        resourceList
+      )
+      if (needsMainFile) {
+        await TikzManager.promises.injectOutputFile(
+          compileDir,
+          request.rootResourcePath
+        )
+      }
+    }
   } catch (error) {
     if (error instanceof Errors.FilesOutOfSyncError) {
       OError.tag(error, 'files out of sync, please retry', {
@@ -136,7 +171,7 @@ async function doCompile(request, stats, timings) {
   )
 
   // set up environment variables for chktex
-  const env = {
+  let env = {
     OVERLEAF_PROJECT_ID: request.project_id,
   }
   if (Settings.texliveOpenoutAny && Settings.texliveOpenoutAny !== '') {
@@ -160,24 +195,11 @@ async function doCompile(request, stats, timings) {
     }
   }
 
-  // apply a series of file modifications/creations for draft mode and tikz
-  if (request.draft) {
-    await DraftModeManager.promises.injectDraftMode(
-      Path.join(compileDir, request.rootResourcePath)
-    )
-  }
-
-  const needsMainFile = await TikzManager.promises.checkMainFile(
-    compileDir,
-    request.rootResourcePath,
-    resourceList
-  )
-  if (needsMainFile) {
-    await TikzManager.promises.injectOutputFile(
-      compileDir,
-      request.rootResourcePath
-    )
-  }
+  // the requested compile options may need a variant of the requested image,
+  // which brings its own environment
+  const imageVariantSettings = _getImageVariantSettings(request)
+  request.imageName = imageVariantSettings.imageName
+  env = { ...env, ...imageVariantSettings.env }
 
   const compileStart = Date.now()
 
@@ -247,7 +269,7 @@ async function doCompile(request, stats, timings) {
       )
     }
 
-    if (!_shouldSkipMetrics(request)) {
+    if (!shouldSkipMetrics(request)) {
       const status = error.timedout
         ? 'timeout'
         : error.terminated
@@ -260,6 +282,24 @@ async function doCompile(request, stats, timings) {
   }
 
   timings.compile = Date.now() - compileStart
+
+  // Record the PNGs this compile flagged as "slow" so the next sync can convert
+  // them to PDFs (see HistoryResourceWriter).
+  // todo: generated for every project for analytics, filter to only  request.png2pdf once rollout completes
+  if (request.isCompileFromHistory && Png2Pdf.isEnabled()) {
+    try {
+      const slowPngs = stats.latexmk?.['latexmk-png-slow'] || []
+      await HistoryResourceWriter.saveSlowPngList(
+        Path.basename(compileDir),
+        slowPngs
+      )
+    } catch (err) {
+      logger.warn(
+        { err, projectId, userId },
+        'failed to save png2pdf slow-png list'
+      )
+    }
+  }
 
   logger.debug(
     {
@@ -284,7 +324,7 @@ async function doCompile(request, stats, timings) {
   const status = stats['latexmk-errors'] ? 'error' : 'success'
   _emitMetrics(request, status, stats, timings)
 
-  if (stats['pdf-size']) {
+  if (stats['pdf-size'] && !shouldSkipMetrics(request)) {
     emitPdfStats(stats, timings, request)
   }
 
@@ -324,8 +364,7 @@ async function doCompile(request, stats, timings) {
       'sampled performance log'
     )
   }
-
-  return { outputFiles, buildId }
+  return { outputFiles, buildId, baseHistoryVersion }
 }
 
 async function _saveOutputFiles({
@@ -370,7 +409,17 @@ async function _readFdbFile(compileDir) {
 
 async function stopCompile(projectId, userId) {
   const compileName = getCompileName(projectId, userId)
+  const lock = LockManager.getExistingLock(getCompileDir(projectId, userId))
+  let lockReleased
+  if (lock) {
+    lockReleased = lock.waitForRelease()
+  } else {
+    if (!LatexRunner.isRunning(compileName)) return
+    logger.warn({ projectId, userId }, 'found running compile without lock')
+    lockReleased = Promise.resolve()
+  }
   await LatexRunner.promises.killLatex(compileName)
+  await lockReleased
 }
 
 async function clearProject(projectId, userId) {
@@ -521,6 +570,7 @@ async function _checkFileExists(dir, filename) {
     if (error.code === 'ENOENT') {
       throw new Errors.NotFoundError('no output file')
     }
+    throw error
   }
   if (!stats.isFile()) {
     throw new Error('not a file')
@@ -603,7 +653,8 @@ async function _runSynctex(projectId, userId, command, opts) {
           imageName || defaultImageName,
           timeout,
           {},
-          compileGroup
+          compileGroup,
+          null
         )
         return {
           stdout,
@@ -620,7 +671,43 @@ async function _runSynctex(projectId, userId, command, opts) {
   )
 }
 
-async function wordcount(projectId, userId, filename, image) {
+async function _syncResourcesForWordcount(
+  projectId,
+  userId,
+  filename,
+  compileDir,
+  request
+) {
+  // Always write, rather than skipping when the root file is already there:
+  // texcount reads every included file, so they all have to be current.
+  const lock = LockManager.acquire(compileDir)
+  try {
+    Metrics.inc('wordcount_sync_resources')
+    if (request.isCompileFromHistory) {
+      await HistoryResourceWriter.syncResourcesToDisk(
+        projectId,
+        userId,
+        request,
+        compileDir,
+        {}, // timings
+        {} // stats
+      )
+    } else {
+      await ResourceWriter.promises.syncResourcesToDisk(request, compileDir)
+    }
+  } catch (err) {
+    if (err instanceof Errors.MissingUpdatesError) throw err
+    throw OError.tag(err, 'error syncing resources for wordcount', {
+      projectId,
+      userId,
+      filename,
+    })
+  } finally {
+    lock.release()
+  }
+}
+
+async function wordcount(projectId, userId, filename, image, request) {
   logger.debug({ projectId, userId, filename, image }, 'running wordcount')
   const filePath = `$COMPILE_DIR/${filename}`
   const command = ['texcount', '-nocol', '-inc', filePath]
@@ -633,14 +720,39 @@ async function wordcount(projectId, userId, filename, image) {
     throw new Errors.InvalidParameter('invalid image')
   }
 
+  let isNewCompileDir
   try {
-    await fsPromises.mkdir(compileDir, { recursive: true })
+    isNewCompileDir =
+      (await fsPromises.mkdir(compileDir, { recursive: true })) === compileDir
   } catch (err) {
     throw OError.tag(err, 'error ensuring dir for wordcount', {
       projectId,
       userId,
       filename,
     })
+  }
+
+  if (isNewCompileDir && request?.compileFromClsiCache) {
+    // We are bootstrapping the compile dir on this clsi. Restore the cached
+    // outputs too, so the next compile does not start from scratch.
+    try {
+      await downloadLatestCompileCache(projectId, userId, compileDir)
+    } catch (err) {
+      logger.warn(
+        { err, projectId, userId },
+        'failed to populate compile dir from cache'
+      )
+    }
+  }
+
+  if (request) {
+    await _syncResourcesForWordcount(
+      projectId,
+      userId,
+      filename,
+      compileDir,
+      request
+    )
   }
 
   try {
@@ -651,7 +763,8 @@ async function wordcount(projectId, userId, filename, image) {
       image,
       timeout,
       {},
-      compileGroup
+      compileGroup,
+      null
     )
     const results = _parseWordcountFromOutput(stdout)
     logger.debug(
@@ -720,18 +833,55 @@ function _parseWordcountFromOutput(output) {
   return results
 }
 
-function _isImageNameAllowed(imageName) {
-  const ALLOWED_IMAGES =
-    Settings.clsi && Settings.clsi.docker && Settings.clsi.docker.allowedImages
-  return !ALLOWED_IMAGES || ALLOWED_IMAGES.includes(imageName)
+function _getAllowedImages() {
+  return Settings.clsi?.docker?.allowedImages
 }
 
-function _shouldSkipMetrics(request) {
-  return ['clsi-perf', 'health-check'].includes(request.metricsOpts.path)
+function _isImageNameAllowed(imageName) {
+  const allowedImages = _getAllowedImages()
+  return !allowedImages || allowedImages.includes(imageName)
+}
+
+// Variants are images built on top of a base image, tagged with a suffix, eg
+// texlive-full:2026.1.checkpointing is the checkpointing variant of
+// texlive-full:2026.1. Returns the settings needed to compile the request on
+// the variant its options call for: the image to run and the environment that
+// image needs. Falls back to the requested image when no variant applies, or
+// when the variant is not available on this host.
+function _getImageVariantSettings(request) {
+  const { imageName } = request
+
+  // checkpointing compiles run on the checkpointing variant of the image
+  if (request.enableCheckpoint) {
+    const checkpointingImageName = `${imageName}.checkpointing`
+    if (imageName && _getAllowedImages()?.includes(checkpointingImageName)) {
+      return {
+        imageName: checkpointingImageName,
+        env: { ENABLE_CHECKPOINT: '1' },
+      }
+    }
+    // variant either doesnt exist when it should, or user was able to make a request they shouldnt be able to
+    logger.error(
+      {
+        projectId: request.project_id,
+        userId: request.user_id,
+        imageName,
+      },
+      'no checkpointing variant available for image, compiling without it'
+    )
+  }
+
+  return { imageName, env: {} }
 }
 
 function _emitMetrics(request, status, stats, timings) {
-  if (_shouldSkipMetrics(request)) {
+  if (request.metricsOpts.path === 'clsi-perf') {
+    ClsiMetrics.e2eCompileDurationClsiPerfSeconds.set(
+      { variant: request.metricsOpts.method },
+      timings.compileE2E / 1000
+    )
+  }
+  if (shouldSkipMetrics(request)) {
     return
   }
 
@@ -795,6 +945,8 @@ function _emitMetrics(request, status, stats, timings) {
     draft: request.draft ? 'true' : 'false',
     stop_on_first_error: request.stopOnFirstError ? 'true' : 'false',
     passes,
+    type: request.syncType,
+    png2pdf: request.png2pdf ? 'true' : 'false',
   })
 
   if (timings.sync != null) {
@@ -832,11 +984,18 @@ function _emitMetrics(request, status, stats, timings) {
   }
 
   if (timings.compileE2E != null) {
-    ClsiMetrics.e2eCompileDurationSeconds.observe(timings.compileE2E / 1000)
+    ClsiMetrics.e2eCompileDurationSeconds.observe(
+      {
+        compileFromHistory: request.isCompileFromHistory,
+        compile: request.metricsOpts.compile,
+        group: request.compileGroup,
+      },
+      timings.compileE2E / 1000
+    )
   }
 }
 
-module.exports = {
+export default {
   doCompileWithLock: callbackify(doCompileWithLock),
   stopCompile: callbackify(stopCompile),
   clearProject: callbackify(clearProject),

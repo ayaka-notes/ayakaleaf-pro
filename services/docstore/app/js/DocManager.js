@@ -6,6 +6,7 @@ import DocArchive from './DocArchiveManager.js'
 import RangeManager from './RangeManager.js'
 import Settings from '@overleaf/settings'
 import { setTimeout } from 'node:timers/promises'
+import Metrics from '@overleaf/metrics'
 
 /**
  * @import { Document } from 'mongodb'
@@ -76,15 +77,17 @@ const DocManager = {
   },
 
   // returns the doc without any version information
-  async _peekRawDoc(projectId, docId) {
-    const doc = await MongoManager.findDoc(projectId, docId, {
-      lines: true,
-      rev: true,
-      deleted: true,
-      version: true,
-      ranges: true,
-      inS3: true,
-    })
+  async _peekRawDoc(projectId, docId, projection, useSecondary) {
+    const doc = await MongoManager.findDoc(
+      projectId,
+      docId,
+      {
+        ...projection,
+        rev: true,
+        inS3: true,
+      },
+      useSecondary
+    )
 
     if (doc == null) {
       throw new Errors.NotFoundError(
@@ -96,6 +99,8 @@ const DocManager = {
       // skip the unarchiving to mongo when getting a doc
       const archivedDoc = await DocArchive.getDoc(projectId, docId)
       Object.assign(doc, archivedDoc)
+      // Always use the primary for the rev-check.
+      await MongoManager.checkRevUnchanged(doc)
     }
 
     return doc
@@ -103,10 +108,21 @@ const DocManager = {
 
   // get the doc from mongo if possible, or from the persistent store otherwise,
   // without unarchiving it (avoids unnecessary writes to mongo)
-  async peekDoc(projectId, docId) {
-    const doc = await DocManager._peekRawDoc(projectId, docId)
-    await MongoManager.checkRevUnchanged(doc)
-    return doc
+  async peekDoc(projectId, docId, projection, useSecondary = false) {
+    try {
+      return await DocManager._peekRawDoc(
+        projectId,
+        docId,
+        projection,
+        useSecondary
+      )
+    } catch (err) {
+      if (err instanceof Errors.DocModifiedError) {
+        // Try again once on rev mismatch. Always use the primary for retries.
+        return await DocManager._peekRawDoc(projectId, docId, projection, false)
+      }
+      throw err
+    }
   },
 
   async getDocLines(projectId, docId) {
@@ -141,6 +157,15 @@ const DocManager = {
     return docs
   },
 
+  async getAllDocVersions(projectId) {
+    // Do not unarchive all the docs: The version of archived docs is retained in mongo.
+    return await MongoManager.getProjectsDocs(
+      projectId,
+      { include_deleted: false },
+      { _id: true, version: true }
+    )
+  },
+
   async getCommentThreadIds(projectId) {
     const docs = await DocManager.getAllNonDeletedDocs(projectId, {
       _id: true,
@@ -171,11 +196,20 @@ const DocManager = {
     return Array.from(userIds)
   },
 
-  async projectHasRanges(projectId) {
-    const docs = await MongoManager.getProjectsDocs(projectId, {}, { _id: 1 })
+  async projectHasRanges(projectId, useSecondary) {
+    const docs = await MongoManager.getProjectsDocs(
+      projectId,
+      { useSecondary },
+      { _id: 1 }
+    )
     const docIds = docs.map(doc => doc._id)
     for (const docId of docIds) {
-      const doc = await DocManager.peekDoc(projectId, docId)
+      const doc = await DocManager.peekDoc(
+        projectId,
+        docId,
+        { ranges: true },
+        useSecondary
+      )
       if (
         (doc.ranges?.comments != null && doc.ranges.comments.length > 0) ||
         (doc.ranges?.changes != null && doc.ranges.changes.length > 0)
@@ -255,6 +289,19 @@ const DocManager = {
         })
       }
       updateLines = !_.isEqual(doc.lines, lines)
+      if (doc.lines.length === lines.length) {
+        Metrics.inc('mongo_docs_update_delta', 1, {
+          status: 'same-line-length',
+        })
+      } else if (doc.lines.length > lines.length) {
+        Metrics.inc('mongo_docs_update_delta', 1, {
+          status: 'smaller-line-length',
+        })
+      } else if (doc.lines.length < lines.length) {
+        Metrics.inc('mongo_docs_update_delta', 1, {
+          status: 'larger-line-length',
+        })
+      }
       updateVersion = doc.version !== version
       updateRanges = RangeManager.shouldUpdateRanges(doc.ranges, ranges)
     }

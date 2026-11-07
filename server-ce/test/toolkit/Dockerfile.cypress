@@ -1,0 +1,29 @@
+# syntax=docker/dockerfile:1-labs
+# Cypress runner for the toolkit e2e tests. Build context is the monorepo root.
+# The dependencies of server-ce/test are installed into the image, so the
+# checkout on the host never gets Yarn PnP files written into it.
+FROM cypress/included:15.12.0
+ARG USER_UID=1000
+ARG USER_GID=1000
+
+# Corepack setup, shared between all the images.
+ENV COREPACK_HOME=/opt/corepack
+RUN corepack enable && corepack install -g yarn@4.18.0
+ENV COREPACK_ENABLE_NETWORK=0
+
+WORKDIR /overleaf
+
+RUN sed -i s/node:x:1000:/node:x:${USER_GID}:/ /etc/group \
+&&  sed -i s_node:x:1000:1000::/home/node:/bin/bash_node:x:${USER_UID}:${USER_GID}::/home/node:/bin/bash_ /etc/passwd \
+&&  chown -R node:node /home/node \
+&&  chown node:node /overleaf
+
+COPY --chown=node:node --parents package.json yarn.lock .yarnrc.yml .yarn/patches/ libraries/*/package.json server-ce/test/package.json /overleaf/
+
+USER node
+
+# The binary already ships with cypress/included.
+ENV CYPRESS_INSTALL_BINARY=0
+# yarn.lock does not track server-ce/test, regenerate it like develop/bin/sync.
+RUN yarn install --mode=update-lockfile \
+&&  yarn workspaces focus @overleaf/server-ce-test

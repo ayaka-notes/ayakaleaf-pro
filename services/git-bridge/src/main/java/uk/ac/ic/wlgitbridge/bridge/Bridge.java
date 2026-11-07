@@ -3,6 +3,9 @@ package uk.ac.ic.wlgitbridge.bridge;
 import com.google.api.client.auth.oauth2.Credential;
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -162,7 +165,7 @@ public class Bridge {
       SwapStore swapStore,
       SnapshotApi snapshotApi) {
     ProjectLock lock =
-        new ProjectLockImpl((int threads) -> Log.info("Waiting for " + threads + " projects..."));
+        new ProjectLockImpl((int threads) -> Log.debug("Waiting for " + threads + " projects..."));
     return new Bridge(
         config,
         lock,
@@ -241,12 +244,29 @@ public class Bridge {
     gcJob.start();
   }
 
-  public boolean healthCheck() {
+  // synchronized so concurrent health checks (e.g. liveness and readiness
+  // probes) don't race on the shared probe file and observe partial writes
+  public synchronized boolean healthCheck() {
     try {
       dbStore.getNumProjects();
-      File rootDirectory = new File("/");
-      if (!rootDirectory.exists()) {
-        throw new Exception("bad filesystem state, root directory does not exist");
+      // Check the repo store volume, not the container root filesystem, so a
+      // read-only or detached volume fails the check.
+      File rootDirectory = repoStore.getRootDirectory();
+      if (rootDirectory == null || !rootDirectory.isDirectory()) {
+        throw new Exception("repo store root directory does not exist: " + rootDirectory);
+      }
+      // Confirm the volume is writable: overwrite a fixed probe file in .wlgb
+      // (outside project storage) and read it back.
+      File wlgbDirectory = new File(rootDirectory, ".wlgb");
+      if (!wlgbDirectory.isDirectory()) {
+        throw new Exception("repo store .wlgb directory does not exist: " + wlgbDirectory);
+      }
+      Path probeFile = new File(wlgbDirectory, ".health_check").toPath();
+      byte[] payload = "ok".getBytes(StandardCharsets.UTF_8);
+      Files.write(probeFile, payload);
+      byte[] readBack = Files.readAllBytes(probeFile);
+      if (!Arrays.equals(payload, readBack)) {
+        throw new Exception("repo store health check file content mismatch: " + probeFile);
       }
       Log.debug("[HealthCheck] passed");
       return true;
@@ -261,7 +281,7 @@ public class Bridge {
    * the schema.
    */
   public void checkDB() {
-    Log.info("Checking DB");
+    Log.debug("Checking DB");
     File rootDir = repoStore.getRootDirectory();
     for (File f : rootDir.listFiles()) {
       if (f.getName().equals(".wlgb")) {
@@ -342,7 +362,7 @@ public class Bridge {
     ProjectState state = dbStore.getProjectState(projectName);
     switch (state) {
       case NOT_PRESENT:
-        Log.info("[{}] Repo not present", projectName);
+        Log.debug("[{}] Repo not present", projectName);
         repo = repoStore.initRepo(projectName);
         break;
       case SWAPPED:
@@ -391,7 +411,7 @@ public class Bridge {
           CannotAcquireLockException {
     Log.debug("[{}] pushing to Overleaf", projectName);
     try (LockGuard __ = lock.lockGuard(projectName)) {
-      Log.info("[{}] got project lock", projectName);
+      Log.debug("[{}] got project lock", projectName);
       pushCritical(oauth2, projectName, directoryContents, oldDirectoryContents);
     } catch (SevereSnapshotPostException e) {
       Log.warn("[" + projectName + "] Failed to put to Overleaf", e);

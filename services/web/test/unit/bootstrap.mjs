@@ -2,6 +2,7 @@ import { afterEach, beforeEach, chai, vi } from 'vitest'
 import 'sinon-mongoose'
 import sinon from 'sinon'
 import logger from '@overleaf/logger'
+import Metrics from '@overleaf/metrics'
 import sinonChai from 'sinon-chai'
 import chaiAsPromised from 'chai-as-promised'
 import mongoose from 'mongoose'
@@ -39,6 +40,33 @@ vi.mock('@overleaf/logger', async () => {
   }
 })
 
+// Mock metrics in unit tests, can be overridden
+vi.mock('@overleaf/metrics', () => {
+  return {
+    default: {
+      inc: sinon.stub(),
+      count: sinon.stub(),
+      timing: sinon.stub(),
+      summary: sinon.stub(),
+      gauge: sinon.stub(),
+      Timer: class {
+        constructor() {
+          this.labels = {}
+        }
+
+        done() {
+          return 1
+        }
+      },
+      http: {
+        getRoutePath: sinon.stub().returns('project_Project_id'),
+      },
+      prom: { Counter: sinon.stub(), Histogram: sinon.stub() },
+      mongodb: { monitor: sinon.stub() },
+    },
+  }
+})
+
 beforeEach(ctx => {
   // This function is a utility to duplicate the behaviour of passing `done` in place of `next` in an express route handler.
   ctx.rejectOnError = reject => {
@@ -49,12 +77,14 @@ beforeEach(ctx => {
     }
   }
   ctx.logger = logger
+  ctx.Metrics = Metrics
 })
 
 afterEach(() => {
   vi.resetAllMocks()
   vi.resetModules()
   sinon.restore()
+  sinon.resetHistory()
   const modelNames = mongoose.modelNames()
   modelNames.forEach(name => {
     delete mongoose.connection.models[name]

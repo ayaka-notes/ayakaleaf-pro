@@ -7,8 +7,8 @@ import UserGetter from '../User/UserGetter.mjs'
 import ClsiManager from './ClsiManager.mjs'
 import Metrics from '@overleaf/metrics'
 import { RateLimiter } from '../../infrastructure/RateLimiter.mjs'
-import UserAnalyticsIdCache from '../Analytics/UserAnalyticsIdCache.mjs'
 import { callbackify, callbackifyMultiResult } from '@overleaf/promise-utils'
+import Errors from '../Errors/Errors.js'
 let CompileManager
 const rclient = RedisWrapper.client('clsi_recently_compiled')
 
@@ -48,10 +48,38 @@ async function compile(projectId, userId, options = {}) {
     return { status: 'autocompile-backoff', outputFiles: [] }
   }
 
-  await ProjectRootDocManager.promises.ensureRootDocumentIsSet(projectId)
+  if (!options.rootResourcePath) {
+    const result =
+      await ProjectRootDocManager.promises.ensureRootDocumentIsValid(projectId)
+    if (result) {
+      options.rootDoc_id = result.rootDocId
+      options.rootResourcePath = result.rootResourcePath.replace(/^\//, '')
+    } else {
+      return {
+        status: 'validation-problems',
+        validationProblems: { mainFile: 'no main file specified' },
+        outputFiles: [],
+      }
+    }
+  }
 
-  const limits =
-    await CompileManager.promises.getProjectCompileLimits(projectId)
+  // Generate the buildId ahead of fetching the project content from redis/mongo so that the buildId's timestamp is before any lastUpdated date.
+  options.buildId = generateBuildId()
+
+  const project = await ProjectGetter.promises.getProject(projectId, {
+    // _getProjectCompileLimits
+    owner_ref: 1,
+    fromV1TemplateId: 1,
+    // _build_request
+    compiler: 1,
+    imageName: 1,
+    'overleaf.history.id': 1,
+    ...(options.compileFromHistory ? {} : { rootDoc_id: 1, rootFolder: 1 }),
+  })
+  if (project == null) {
+    throw new Errors.NotFoundError(`project does not exist: ${projectId}`)
+  }
+  const limits = await _getProjectCompileLimits(project)
   for (const key in limits) {
     const value = limits[key]
     options[key] = value
@@ -69,9 +97,6 @@ async function compile(projectId, userId, options = {}) {
     return { message: 'autocompile-backoff', outputFiles: [] }
   }
 
-  // Generate the buildId ahead of fetching the project content from redis/mongo so that the buildId's timestamp is before any lastUpdated date.
-  options.buildId = generateBuildId()
-
   // only pass userId down to clsi if this is a per-user compile
   const compileAsUser = Settings.disablePerUserCompiles ? undefined : userId
   const {
@@ -84,7 +109,14 @@ async function compile(projectId, userId, options = {}) {
     outputUrlPrefix,
     buildId,
     clsiCacheShard,
-  } = await ClsiManager.promises.sendRequest(projectId, compileAsUser, options)
+    baseHistoryVersion,
+    instanceType,
+  } = await ClsiManager.promises.sendRequest(
+    project,
+    projectId,
+    compileAsUser,
+    options
+  )
 
   return {
     status,
@@ -97,6 +129,8 @@ async function compile(projectId, userId, options = {}) {
     outputUrlPrefix,
     buildId,
     clsiCacheShard,
+    baseHistoryVersion,
+    instanceType,
   }
 }
 
@@ -114,7 +148,15 @@ async function _getProjectCompileLimits(project) {
   if (!project) {
     throw new Error('project not found')
   }
-  const owner = await UserGetter.promises.getUser(project.owner_ref, {
+  const limits = await _getUserCompileLimits(project.owner_ref)
+  if (project.fromV1TemplateId === Settings.overrideCompileTimeForTemplate) {
+    limits.timeout = Math.max(limits.timeout, 20)
+  }
+  return limits
+}
+
+async function _getUserCompileLimits(userId) {
+  const owner = await UserGetter.promises.getUser(userId, {
     _id: 1,
     alphaProgram: 1,
     analyticsId: 1,
@@ -128,24 +170,29 @@ async function _getProjectCompileLimits(project) {
     ownerFeatures.compileGroup = 'alpha'
   }
 
-  const analyticsId = await UserAnalyticsIdCache.get(owner._id)
-
   const compileGroup =
     ownerFeatures.compileGroup || Settings.defaultFeatures.compileGroup
   const limits = {
     timeout:
       ownerFeatures.compileTimeout || Settings.defaultFeatures.compileTimeout,
     compileGroup,
-    compileBackendClass: compileGroup === 'standard' ? 'c3d' : 'c4d',
-    ownerAnalyticsId: analyticsId,
+    compileBackendClass:
+      compileGroup === 'standard'
+        ? Settings.apis.clsi.standardCompileBackendClass
+        : Settings.apis.clsi.priorityCompileBackendClass,
+    ownerAnalyticsId: owner.analyticsId,
   }
-  if (project.fromV1TemplateId === Settings.overrideCompileTimeForTemplate) {
-    limits.timeout = Math.max(limits.timeout, 20)
-  }
+
   return limits
 }
 
-async function wordCount(projectId, userId, file, clsiserverid) {
+async function wordCount(
+  projectId,
+  userId,
+  file,
+  clsiserverid,
+  rootResourcePath
+) {
   const limits =
     await CompileManager.promises.getProjectCompileLimits(projectId)
   return await ClsiManager.promises.wordCount(
@@ -153,7 +200,8 @@ async function wordCount(projectId, userId, file, clsiserverid) {
     userId,
     file,
     limits,
-    clsiserverid
+    clsiserverid,
+    { rootResourcePath }
   )
 }
 
@@ -206,6 +254,7 @@ export default CompileManager = {
     stopCompile,
     wordCount,
     syncTeX,
+    _getUserCompileLimits,
   },
   compile: callbackifyMultiResult(instrumentedCompile, [
     'status',
@@ -218,6 +267,7 @@ export default CompileManager = {
     'outputUrlPrefix',
     'buildId',
     'clsiCacheShard',
+    'instanceType',
   ]),
 
   stopCompile: callbackify(stopCompile),

@@ -4,6 +4,7 @@ import async from 'async'
 import logger from '@overleaf/logger'
 import Settings from '@overleaf/settings'
 import redis from '@overleaf/redis-wrapper'
+import path from 'node:path'
 import { db, ObjectId } from '../app/js/mongodb.js'
 
 logger.logger.level('fatal')
@@ -118,7 +119,7 @@ main().catch(error => {
 })
 
 function processFailures(results) {
-  if (argv.length === 0) {
+  if (limit === null) {
     console.log(`
 Usage: node clear_deleted.js [QUEUES] [FORCE]
 
@@ -126,11 +127,28 @@ where
     QUEUES is the number of queues to process
     FORCE is the string "force" when we're ready to delete the queues. Without it, this script does a dry-run
 `)
+    process.exit(0)
   }
   console.log('number of stuck projects', results.length)
+  console.log('force mode', force ? 'enabled' : 'disabled (dry run)')
+  const projectsToProcess = results.slice(0, limit)
+  const unprocessedProjects = results.length - projectsToProcess.length
+  const scriptFileName = path.basename(process.argv[1])
+  const limitOrPlaceholder = limit ?? 100
+  const forceExampleCommand = `node scripts/${scriptFileName} ${limitOrPlaceholder} force`
   // now check if the project is truly deleted in mongo
-  async.eachSeries(results.slice(0, limit), checkAndClear, err => {
+  async.eachSeries(projectsToProcess, checkAndClear, err => {
     console.log('DONE', err)
+    if (unprocessedProjects > 0) {
+      console.warn(
+        `WARNING: ${unprocessedProjects} project(s) were not processed in this run`
+      )
+    }
+    if (!force) {
+      console.warn(
+        `Dry run only. Rerun with force to apply changes, for example: ${forceExampleCommand}`
+      )
+    }
     process.exit()
   })
 }

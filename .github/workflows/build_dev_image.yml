@@ -13,6 +13,10 @@ on:
   schedule:
     - cron: '0 0 * * *'
 
+permissions:
+  contents: read
+  packages: write
+
 env:
   GHCR_REGISTRY: ghcr.io
 
@@ -29,19 +33,21 @@ jobs:
             real-time,
             project-history,
             linked-url-proxy,
+            third-party-datastore,
             notifications,
             history-v1,
             filestore,
             document-updater,
             docstore,
-            contacts,
             chat,
-            clsi
+            clsi,
+            ldap,
+            saml
           ]
         platform: [linux/amd64, linux/arm64]
         include:
           - platform: linux/amd64
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
             platform_pair: amd64
           - platform: linux/arm64
             runner: ubuntu-24.04-arm
@@ -49,22 +55,33 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - name: "Checkout Current Repository"
-        uses: actions/checkout@main
+        uses: actions/checkout@v7
         with:
           ref: server-pro
       - name: "Setup node environment"
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v7
         with:
-          node-version: "22.x"
-      - name: "Sync package-lock.json"
+          node-version: "24.18.1"
+      - name: "Sync yarn.lock"
         run: |
-          npm install --package-lock-only --ignore-scripts
+          corepack enable
+          yarn install --mode=update-lockfile
       - name: "Login to GitHub Container Registry"
-        uses: docker/login-action@v3.0.0
+        uses: docker/login-action@v4
         with:
           registry: ${{env.GHCR_REGISTRY}}
           username: ${{github.actor}}
           password: ${{secrets.GITHUB_TOKEN}}
+      # OCI manifests are needed so the merged index can carry annotations
+      - name: Set up Docker (enable containerd image store)
+        uses: docker/setup-docker-action@v5
+        with:
+          daemon-config: |
+            {
+              "features": {
+                "containerd-snapshotter": true
+              }
+            }
       - name: Disable buildx default attestations
         run: |
           echo "BUILDX_NO_DEFAULT_ATTESTATIONS=1" >> $GITHUB_ENV
@@ -75,11 +92,13 @@ jobs:
           export BUILDX_NO_DEFAULT_ATTESTATIONS=1
           cd ./develop/
           bin/build ${{matrix.image-name}}
-          docker tag develop-${{matrix.image-name}}:latest ${{env.GHCR_REGISTRY}}/ayaka-notes/overleaf-pro/dev:${{matrix.image-name}}-${PLATFORM_PAIR}
-          docker push ${{env.GHCR_REGISTRY}}/ayaka-notes/overleaf-pro/dev:${{matrix.image-name}}-${PLATFORM_PAIR}
+          # GHCR image names must be lowercase
+          image=${{env.GHCR_REGISTRY}}/${GITHUB_REPOSITORY_OWNER,,}/overleaf-pro/dev
+          docker tag develop-${{matrix.image-name}}:latest $image:${{matrix.image-name}}-${PLATFORM_PAIR}
+          docker push $image:${{matrix.image-name}}-${PLATFORM_PAIR}
   
   merge:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: build-image
     strategy:
       fail-fast: false
@@ -90,48 +109,96 @@ jobs:
           real-time,
           project-history,
           linked-url-proxy,
+          third-party-datastore,
           notifications,
           history-v1,
           filestore,
           document-updater,
           docstore,
-          contacts,
           chat,
-          clsi
+          clsi,
+          ldap,
+          saml
         ]
 
     steps:
       - name: Login to GHCR (org token recommended for manifest)
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.GHCR_REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.ORGTOKEN }}
+          password: ${{ secrets.ORGTOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Create and push manifest list (multi-arch tag)
         run: |
+          image=${{ env.GHCR_REGISTRY }}/${GITHUB_REPOSITORY_OWNER,,}/overleaf-pro/dev
           docker buildx imagetools create \
-            -t ghcr.io/ayaka-notes/overleaf-pro/dev:${{ matrix.image-name }} \
-            ghcr.io/ayaka-notes/overleaf-pro/dev:${{ matrix.image-name }}-amd64 \
-            ghcr.io/ayaka-notes/overleaf-pro/dev:${{ matrix.image-name }}-arm64
+            --annotation "index:org.opencontainers.image.title=overleaf-pro-dev-${{ matrix.image-name }}" \
+            --annotation "index:org.opencontainers.image.description=Overleaf Pro development image for the ${{ matrix.image-name }} service, rebuilt nightly from server-pro, maintained by ayaka-notes." \
+            --annotation "index:org.opencontainers.image.source=https://github.com/ayaka-notes/ayakaleaf-pro" \
+            --annotation "index:org.opencontainers.image.version=${{ github.sha }}" \
+            -t $image:${{ matrix.image-name }} \
+            $image:${{ matrix.image-name }}-amd64 \
+            $image:${{ matrix.image-name }}-arm64
 
       - name: Inspect manifest
         run: |
-          docker buildx imagetools inspect ghcr.io/ayaka-notes/overleaf-pro/dev:${{ matrix.image-name }}
+          docker buildx imagetools inspect ${{ env.GHCR_REGISTRY }}/${GITHUB_REPOSITORY_OWNER,,}/overleaf-pro/dev:${{ matrix.image-name }}
+
+  # Start the dev env from the images just published, like bin/setup,
+  # and wait for the launchpad
+  test-dev-env:
+    runs-on: ${{ matrix.runner }}
+    needs: merge
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    env:
+      COMPOSE: docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.image.yml
+      # git-bridge and the debug tools are left out: git-bridge has no arm64 image
+      SERVICES: >-
+        mongo redis chat clsi clsi-nginx docstore document-updater filestore
+        history-v1 linked-url-proxy notifications project-history real-time
+        third-party-datastore web webpack ldap saml
+    steps:
+      - name: "Checkout Current Repository"
+        uses: actions/checkout@v7
+        with:
+          ref: server-pro
+      - name: "Start the dev env"
+        working-directory: develop
+        run: |
+          $COMPOSE pull $SERVICES
+          $COMPOSE up --no-deps --detach $SERVICES
+      # A fresh dev env has no admin, so the launchpad page renders without login
+      - name: "Wait for the launchpad"
+        run: |
+          timeout 900 bash -c 'until curl -sf http://127.0.0.1/launchpad | grep -q "name=\"ol-adminUserExists\""; do sleep 5; done'
+      - name: "Show the service logs"
+        if: failure()
+        working-directory: develop
+        run: |
+          $COMPOSE ps -a
+          $COMPOSE logs --tail 200 web webpack ldap saml
 
   clean-image:
-    runs-on: ubuntu-latest
+    if: github.repository_owner == 'ayaka-notes'
+    runs-on: ubuntu-24.04
     needs: merge
     steps:
       - name: Delete old images
-        uses: snok/container-retention-policy@v2
+        uses: snok/container-retention-policy@v3.1.0
         with:
           image-names: overleaf-pro/dev*
-          cut-off: 7 days ago UTC
-          account-type: org
-          org-name: ayaka-notes
-          untagged-only: true
+          cut-off: 7d
+          account: ayaka-notes
+          tag-selection: untagged
           token: ${{ secrets.ORGTOKEN }}

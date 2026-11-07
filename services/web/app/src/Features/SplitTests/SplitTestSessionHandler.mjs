@@ -114,6 +114,16 @@ function getCachedVariant(session, splitTestName, currentVersion) {
   return session.cachedSplitTestAssignments[cacheKey]
 }
 
+function clearCachedVariant(session, splitTestName) {
+  if (!session.cachedSplitTestAssignments) return
+  for (const cacheKey of Object.keys(session.cachedSplitTestAssignments)) {
+    const name = cacheKey.split('-').slice(0, -1).join('-')
+    if (name === splitTestName) {
+      delete session.cachedSplitTestAssignments[cacheKey]
+    }
+  }
+}
+
 function setVariantInCache({
   session,
   splitTestName,
@@ -154,7 +164,13 @@ async function sessionMaintenance(req, user) {
 
   Metrics.inc('split_test_session_maintenance', 1, { status: 'start' })
   if (sessionUser) {
-    user = user || (await SplitTestUserGetter.promises.getUser(sessionUser._id))
+    user =
+      user ||
+      (await SplitTestUserGetter.promises.getUser(
+        sessionUser._id,
+        null,
+        `sessionMaintenance:${Metrics.http.getRoutePath(req)}`
+      ))
     if (
       Boolean(sessionUser.alphaProgram) !== Boolean(user.alphaProgram) ||
       Boolean(sessionUser.betaProgram) !== Boolean(user.betaProgram)
@@ -248,6 +264,7 @@ export default {
   getAssignments: callbackify(getAssignments),
   appendAssignment: callbackify(appendAssignment),
   getCachedVariant,
+  clearCachedVariant,
   setVariantInCache,
   sessionMaintenance: callbackify(sessionMaintenance),
   collectSessionStats,

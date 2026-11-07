@@ -1,4 +1,4 @@
-import { expect, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import path from 'node:path'
 
 import sinon from 'sinon'
@@ -22,12 +22,6 @@ describe('BetaProgramHandler', function () {
       save: sinon.stub().callsArgWith(0, null),
     }
 
-    vi.doMock('@overleaf/metrics', () => ({
-      default: {
-        inc: sinon.stub(),
-      },
-    }))
-
     vi.doMock('../../../../app/src/Features/User/UserUpdater', () => ({
       default: (ctx.UserUpdater = {
         promises: {
@@ -40,11 +34,22 @@ describe('BetaProgramHandler', function () {
       '../../../../app/src/Features/Analytics/AnalyticsManager',
       () => ({
         default: (ctx.AnalyticsManager = {
-          setUserPropertyForUserInBackground: sinon.stub(),
+          setUserPropertyForSessionInBackground: sinon.stub(),
         }),
       })
     )
 
+    vi.doMock('../../../../app/src/infrastructure/Modules', () => ({
+      default: (ctx.Modules = {
+        promises: {
+          hooks: {
+            fire: sinon.stub().resolves(),
+          },
+        },
+      }),
+    }))
+
+    ctx.session = {}
     ctx.handler = (await import(modulePath)).default
   })
 
@@ -52,7 +57,7 @@ describe('BetaProgramHandler', function () {
     beforeEach(function (ctx) {
       ctx.user.betaProgram = false
       ctx.call = callback => {
-        ctx.handler.optIn(ctx.user_id, callback)
+        ctx.handler.optIn(ctx.session, ctx.user_id, callback)
       }
     })
 
@@ -71,10 +76,25 @@ describe('BetaProgramHandler', function () {
         ctx.call(err => {
           expect(err).to.not.exist
           sinon.assert.calledWith(
-            ctx.AnalyticsManager.setUserPropertyForUserInBackground,
-            ctx.user_id,
+            ctx.AnalyticsManager.setUserPropertyForSessionInBackground,
+            ctx.session,
             'beta-program',
             true
+          )
+          resolve()
+        })
+      })
+    })
+
+    it('should set beta_program=true user property in customer.io', async function (ctx) {
+      await new Promise(resolve => {
+        ctx.call(err => {
+          expect(err).to.not.exist
+          sinon.assert.calledWith(
+            ctx.Modules.promises.hooks.fire,
+            'setUserProperties',
+            ctx.user_id,
+            { beta_program: true }
           )
           resolve()
         })
@@ -111,7 +131,7 @@ describe('BetaProgramHandler', function () {
     beforeEach(function (ctx) {
       ctx.user.betaProgram = true
       ctx.call = callback => {
-        ctx.handler.optOut(ctx.user_id, callback)
+        ctx.handler.optOut(ctx.session, ctx.user_id, callback)
       }
     })
 
@@ -130,10 +150,25 @@ describe('BetaProgramHandler', function () {
         ctx.call(err => {
           expect(err).to.not.exist
           sinon.assert.calledWith(
-            ctx.AnalyticsManager.setUserPropertyForUserInBackground,
-            ctx.user_id,
+            ctx.AnalyticsManager.setUserPropertyForSessionInBackground,
+            ctx.session,
             'beta-program',
             false
+          )
+          resolve()
+        })
+      })
+    })
+
+    it('should set beta_program=false user property in customer.io', async function (ctx) {
+      await new Promise(resolve => {
+        ctx.call(err => {
+          expect(err).to.not.exist
+          sinon.assert.calledWith(
+            ctx.Modules.promises.hooks.fire,
+            'setUserProperties',
+            ctx.user_id,
+            { beta_program: false }
           )
           resolve()
         })

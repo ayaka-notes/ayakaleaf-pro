@@ -9,5 +9,5 @@ fi
 
 echo "Running migrations for $environment"
 cd /overleaf/tools/migrations
-/sbin/setuser www-data npm run migrations -- migrate -t "$environment"
+/sbin/setuser www-data yarn run migrations migrate -t "$environment"
 echo "Finished migrations"

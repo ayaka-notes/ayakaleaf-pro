@@ -1,4 +1,4 @@
-import { vi, expect } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import sinon from 'sinon'
 import mongodb, { ReadPreference } from 'mongodb-legacy'
 
@@ -10,7 +10,6 @@ const modulePath =
 describe('InactiveProjectManager', function () {
   beforeEach(async function (ctx) {
     ctx.settings = {}
-    ctx.metrics = { inc: sinon.stub() }
     ctx.DocstoreManager = {
       promises: {
         unarchiveProject: sinon.stub(),
@@ -39,10 +38,6 @@ describe('InactiveProjectManager', function () {
       default: ctx.settings,
     }))
 
-    vi.doMock('@overleaf/metrics', () => ({
-      default: ctx.metrics,
-    }))
-
     vi.doMock('../../../../app/src/Features/Docstore/DocstoreManager', () => ({
       default: ctx.DocstoreManager,
     }))
@@ -60,10 +55,6 @@ describe('InactiveProjectManager', function () {
         default: ctx.ProjectUpdateHandler,
       })
     )
-
-    vi.doMock('../../../../app/src/Features/Project/ProjectGetter', () => ({
-      default: ctx.ProjectGetter,
-    }))
 
     vi.doMock('../../../../app/src/models/Project', () => ({}))
 
@@ -84,15 +75,14 @@ describe('InactiveProjectManager', function () {
 
   describe('reactivateProjectIfRequired', function () {
     beforeEach(function (ctx) {
-      ctx.project = { active: false }
-      ctx.ProjectGetter.promises.getProject.resolves(ctx.project)
+      ctx.project = { _id: ctx.project_id, active: false }
       ctx.ProjectUpdateHandler.promises.markAsActive.resolves()
     })
 
     it('should call unarchiveProject', async function (ctx) {
       ctx.DocstoreManager.promises.unarchiveProject.resolves()
       await ctx.InactiveProjectManager.promises.reactivateProjectIfRequired(
-        ctx.project_id
+        ctx.project
       )
 
       ctx.DocstoreManager.promises.unarchiveProject
@@ -107,7 +97,7 @@ describe('InactiveProjectManager', function () {
       ctx.DocstoreManager.promises.unarchiveProject.rejects()
       await expect(
         ctx.InactiveProjectManager.promises.reactivateProjectIfRequired(
-          ctx.project_id
+          ctx.project
         )
       ).to.be.rejected
 
@@ -123,7 +113,7 @@ describe('InactiveProjectManager', function () {
       ctx.project.active = true
       ctx.DocstoreManager.promises.unarchiveProject.resolves()
       await ctx.InactiveProjectManager.promises.reactivateProjectIfRequired(
-        ctx.project_id
+        ctx.project
       )
       ctx.DocstoreManager.promises.unarchiveProject
         .calledWith(ctx.project_id)

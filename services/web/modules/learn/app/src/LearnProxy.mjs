@@ -5,6 +5,7 @@ import fs from 'node:fs'
 import logger from '@overleaf/logger'
 import Path from 'node:path'
 import { expressify } from '@overleaf/promise-utils'
+import HttpErrorHandler from '../../../../app/src/Features/Errors/HttpErrorHandler.mjs'
 import scrape from './scrape.mjs'
 const { scrapeAndCachePage } = scrape
 
@@ -35,6 +36,7 @@ async function checkFileCache(learnPagesFolder, pageName) {
     }, `out of date cache detected for file: ${path}`)
 
     const BASE_URL = Settings.apis.wiki.url
+    const stale = stat && (await fs.promises.readFile(path))
 
     try {
       await fs.promises.unlink(path)
@@ -42,65 +44,81 @@ async function checkFileCache(learnPagesFolder, pageName) {
     } catch (e) {
       logger.error({ err: e }, `error deleting cached page file: ${path}`)
     }
-    await scrapeAndCachePage(BASE_URL, pageName)
+    try {
+      await scrapeAndCachePage(BASE_URL, pageName)
+    } catch (e) {
+      if (!stale) throw e
+      // The wiki is unreachable: keep serving the stale copy, which is
+      // tried again after maxCacheAge
+      logger.warn({ err: e }, `error refreshing cached page file: ${path}`)
+      await fs.promises.writeFile(path, stale)
+    }
   }
 
 }
 
+// Map the request mount path + page name to a MediaWiki page title.
+//   /learn/how-to/<Page> -> "Kb/<Page>"   (Knowledge Base namespace)
+//   /learn/latex/<Page>  -> "<Page>"
+//   /learn[/<Page>]      -> "Main Page" / "<Page>"
+function wikiTitleFor(req) {
+  const section = req.baseUrl.slice('/learn'.length).replace(/^\//, '')
+  const page = decodeURIComponent(req.path)
+    .replace(/^\//, '')
+    .replace(/_/g, ' ')
+    .trim()
+  if (page === '') {
+    return section === 'how-to' ? 'Kb/Knowledge Base' : 'Main Page'
+  }
+  return section === 'how-to' ? `Kb/${page}` : page
+}
+
+// Load a page's parsed content: serve from the pre-built cache (refreshing
+// stale entries), or fetch uncached pages on demand. The wiki API follows
+// redirects, so redirect aliases resolve to their target content. Returns null
+// when the page does not exist upstream.
+async function loadPage(wikiTitle) {
+  const folder = Settings.path.learnPagesFolder
+  const pageFilePath = Path.resolve(
+    folder,
+    `${encodeURIComponent(wikiTitle)}.json`
+  )
+  if (fs.existsSync(pageFilePath)) {
+    await checkFileCache(folder, wikiTitle)
+    return JSON.parse(await fs.promises.readFile(pageFilePath, 'utf-8'))
+  }
+  try {
+    return await scrapeAndCachePage(Settings.apis.wiki.url, wikiTitle)
+  } catch (e) {
+    logger.debug({ err: e, wikiTitle }, 'learn page not found upstream')
+    return null
+  }
+}
+
 async function learnPage(req, res) {
-  let reqPath = req.path
-  // Trim leading '/', only show the path after '/'
-  if (reqPath.startsWith('/')) {
-    reqPath = reqPath.slice(1)
-  } else {
-    res.status(400).send('Bad Request')
-    return
-  }
-  let learnPath = reqPath
+  const folder = Settings.path.learnPagesFolder
+  const wikiTitle = wikiTitleFor(req)
+  logger.debug({ wikiTitle }, 'Learn proxy requested page')
 
-  if (learnPath === '') {
-    logger.debug({}, 'Learn proxy requested root path, redirecting to Main/Page')
-    learnPath = 'Main Page'
+  const pageJson = await loadPage(wikiTitle)
+  // Unknown page: return a real 404 instead of silently serving the home page.
+  if (!pageJson) {
+    return HttpErrorHandler.notFound(req, res)
   }
 
-  // Encode the path for file system usage
-  learnPath = encodeURIComponent(decodeURIComponent(learnPath.replace(/_/g, ' ')))
-  logger.debug({}, `Learn proxy requested path: ${learnPath}`)
+  await checkFileCache(folder, 'Contents')
+  const contentsJson = JSON.parse(
+    await fs.promises.readFile(Path.resolve(folder, 'Contents.json'), 'utf-8')
+  )
 
-  // Contents.json Should be sidebarHtml
-  let contentsFilePath = Path.resolve(Settings.path.learnPagesFolder, `Contents.json`)
-
-  // If Contents.json does not exist, return 500
-  if (!fs.existsSync(contentsFilePath)) {
-    await checkFileCache(Settings.path.learnPagesFolder, 'Contents')
-    return
-  }
-
-  await checkFileCache(Settings.path.learnPagesFolder, 'Contents')
-  const raw = await fs.promises.readFile(contentsFilePath, 'utf-8')
-  const json = JSON.parse(raw)
-  const sidebarHtml = json.text['*']
-
-  let pageFilePath = Path.resolve(Settings.path.learnPagesFolder, `${learnPath}.json`)
-  // If the page does not exist, fallback to "Learn LaTeX in 30 minutes"
-  if (!fs.existsSync(pageFilePath)) {
-    learnPath = 'Learn%20LaTeX%20in%2030%20minutes'
-    pageFilePath = Path.resolve(Settings.path.learnPagesFolder, `${learnPath}.json`)
-  }
-
-  await checkFileCache(Settings.path.learnPagesFolder, decodeURIComponent(learnPath))  
-  const pageRaw = await fs.promises.readFile(pageFilePath, 'utf-8')
-  const pageJson = JSON.parse(pageRaw)
-  const pageTitle = pageJson.title
-  const pageHtml = pageJson.text['*']
+  // Strip any namespace prefix (e.g. "Kb/") from the displayed title.
+  const pageTitle = pageJson.title.slice(pageJson.title.lastIndexOf('/') + 1)
 
   res.render(Path.resolve(import.meta.dirname, '../views/learn'), {
-    sidebarHtml: sanitizeHtml(sidebarHtml, sanitizeOptions),
-    pageTitle: pageTitle,
-    pageHtml: sanitizeHtml(pageHtml, sanitizeOptions),
+    sidebarHtml: sanitizeHtml(contentsJson.text['*'], sanitizeOptions),
+    pageTitle,
+    pageHtml: sanitizeHtml(pageJson.text['*'], sanitizeOptions),
   })
-
-
 }
 
 const LearnProxyController = {

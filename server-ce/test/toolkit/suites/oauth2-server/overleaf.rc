@@ -1,0 +1,3 @@
+# The settings only show the Git authentication tokens with git-bridge on,
+# and the toolkit starts the git-bridge container that checks them
+GIT_BRIDGE_ENABLED=true

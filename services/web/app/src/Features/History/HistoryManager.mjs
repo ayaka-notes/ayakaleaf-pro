@@ -1,7 +1,8 @@
-import { callbackify } from 'node:util'
+import { callbackify, callbackifyMultiResult } from '@overleaf/promise-utils'
 import {
   fetchJson,
   fetchNothing,
+  fetchStream,
   fetchStreamWithResponse,
   RequestFailedError,
 } from '@overleaf/fetch-utils'
@@ -13,7 +14,7 @@ import ProjectGetter from '../Project/ProjectGetter.mjs'
 import HistoryBackupDeletionHandler from './HistoryBackupDeletionHandler.mjs'
 import { db, waitForDb } from '../../infrastructure/mongodb.mjs'
 import Metrics from '@overleaf/metrics'
-import { NotFoundError } from '../Errors/Errors.js'
+import { NotFoundError, FileTooLargeError } from '../Errors/Errors.js'
 
 const HISTORY_V1_URL = settings.apis.v1_history.url
 const HISTORY_V1_BASIC_AUTH = {
@@ -35,6 +36,10 @@ async function loadGlobalBlobs() {
 
 // END copy from services/history-v1/storage/lib/blob_store/index.js
 
+function isGlobalBlob(hash) {
+  return GLOBAL_BLOBS.has(hash)
+}
+
 function getFilestoreBlobURL(historyId, hash) {
   if (GLOBAL_BLOBS.has(hash)) {
     return `${settings.apis.filestore.url}/history/global/hash/${hash}`
@@ -46,7 +51,7 @@ function getFilestoreBlobURL(historyId, hash) {
 async function initializeProject(projectId) {
   const body = await fetchJson(`${settings.apis.project_history.url}/project`, {
     method: 'POST',
-    json: { historyId: projectId.toString() },
+    json: { historyId: projectId },
   })
   const historyId = body && body.project && body.project.id
   if (!historyId) {
@@ -55,11 +60,22 @@ async function initializeProject(projectId) {
   return historyId
 }
 
+async function cloneProject(sourceProjectId, targetProjectId) {
+  return await fetchStream(
+    `${settings.apis.project_history.url}/project/${sourceProjectId}/clone`,
+    {
+      method: 'POST',
+      json: { targetProjectId },
+      signal: AbortSignal.timeout(10 * 60_000),
+    }
+  )
+}
+
 async function flushProject(projectId) {
   try {
     await fetchNothing(
       `${settings.apis.project_history.url}/project/${projectId}/flush`,
-      { method: 'POST' }
+      { method: 'POST', signal: AbortSignal.timeout(60_000) }
     )
   } catch (err) {
     throw OError.tag(err, 'failed to flush project to project history', {
@@ -122,7 +138,7 @@ async function _deleteProjectInProjectHistory(projectId) {
   try {
     await fetchNothing(
       `${settings.apis.project_history.url}/project/${projectId}`,
-      { method: 'DELETE' }
+      { method: 'DELETE', signal: AbortSignal.timeout(5 * 60_000) }
     )
   } catch (err) {
     throw OError.tag(
@@ -138,6 +154,7 @@ async function _deleteProjectInFullProjectHistory(historyId) {
     await fetchNothing(`${HISTORY_V1_URL}/projects/${historyId}`, {
       method: 'DELETE',
       basicAuth: HISTORY_V1_BASIC_AUTH,
+      signal: AbortSignal.timeout(5 * 60_000),
     })
   } catch (err) {
     throw OError.tag(err, 'failed to clear project history', { historyId })
@@ -157,15 +174,27 @@ async function uploadBlobFromDisk(historyId, hash, byteLength, fsPath) {
   })
 }
 
-async function copyBlob(sourceHistoryId, targetHistoryId, hash) {
-  const url = `${HISTORY_V1_URL}/projects/${targetHistoryId}/blobs/${hash}`
-  await fetchNothing(
-    `${url}?${new URLSearchParams({ copyFrom: sourceHistoryId })}`,
-    {
+async function copyBlob(sourceHistoryId, targetHistoryId, hash, sizeLimit) {
+  const url = new URL(
+    `${HISTORY_V1_URL}/projects/${targetHistoryId}/blobs/${hash}`
+  )
+  url.searchParams.set('copyFrom', sourceHistoryId)
+  if (sizeLimit) url.searchParams.set('sizeLimit', sizeLimit)
+  try {
+    await fetchNothing(url, {
       method: 'POST',
       basicAuth: HISTORY_V1_BASIC_AUTH,
+    })
+  } catch (err) {
+    if (err instanceof RequestFailedError && err.response.status === 413) {
+      let size
+      try {
+        ;({ size } = JSON.parse(err.body))
+      } catch {}
+      throw new FileTooLargeError('file too large', { size })
     }
-  )
+    throw err
+  }
 }
 
 async function requestBlobWithProjectId(
@@ -190,6 +219,7 @@ async function requestBlob(historyId, hash, method = 'GET', range = '') {
   try {
     ;({ stream, response } = await fetchStreamWithResponse(url, {
       ...opts,
+      signal: AbortSignal.timeout(10 * 60 * 1000),
       basicAuth: {
         user: settings.apis.v1_history.user,
         password: settings.apis.v1_history.pass,
@@ -269,11 +299,48 @@ async function getContentAtVersion(projectId, version) {
 async function getLatestHistory(projectId) {
   const historyId = await getHistoryId(projectId)
 
+  return await getLatestHistoryWithHistoryId(historyId)
+}
+
+/**
+ * Get the latest chunk from history using already resolved historyId
+ *
+ * @param {string} historyId
+ */
+async function getLatestHistoryWithHistoryId(historyId) {
   return await fetchJson(
     `${HISTORY_V1_URL}/projects/${historyId}/latest/history`,
     {
       basicAuth: HISTORY_V1_BASIC_AUTH,
     }
+  )
+}
+
+/**
+ * Get the latest chunk from history using already resolved historyId
+ *
+ * @param {string} historyId
+ */
+async function getLatestZipWithHistoryId(historyId) {
+  const { response, stream } = await fetchStreamWithResponse(
+    `${HISTORY_V1_URL}/projects/${historyId}/latest/zip`,
+    {
+      basicAuth: HISTORY_V1_BASIC_AUTH,
+      signal: AbortSignal.timeout(10 * 60 * 1000),
+    }
+  )
+  return { stream, historyVersion: response.headers.get('X-History-Version') }
+}
+
+async function getDebugInfo(projectId) {
+  return await fetchJson(
+    `${settings.apis.project_history.url}/project/${projectId}/debug-info`
+  )
+}
+
+async function getHistoryFailures() {
+  return await fetchJson(
+    `${settings.apis.project_history.url}/status/failures-full`
   )
 }
 
@@ -286,7 +353,17 @@ async function getLatestHistory(projectId) {
  */
 async function getChanges(projectId, opts = {}) {
   const historyId = await getHistoryId(projectId)
+  return await getChangesWithHistoryId(historyId, opts)
+}
 
+/**
+ * Get history changes since a given version and historyId
+ *
+ * @param {string} historyId
+ * @param {object} [opts]
+ * @param {number} [opts.since] - The start version of changes to get
+ */
+async function getChangesWithHistoryId(historyId, opts = {}) {
   const url = new URL(`${HISTORY_V1_URL}/projects/${historyId}/changes`)
   if (opts.since) {
     url.searchParams.set('since', opts.since)
@@ -405,6 +482,7 @@ function _userView(user) {
 const loadGlobalBlobsPromise = loadGlobalBlobs()
 
 export default {
+  isGlobalBlob,
   getFilestoreBlobURL,
   loadGlobalBlobsPromise,
   initializeProject: callbackify(initializeProject),
@@ -419,9 +497,14 @@ export default {
   requestBlob: callbackify(requestBlob),
   requestBlobWithProjectId: callbackify(requestBlobWithProjectId),
   getLatestHistory: callbackify(getLatestHistory),
+  getLatestZipWithHistoryId: callbackifyMultiResult(getLatestZipWithHistoryId, [
+    'stream',
+    'historyVersion',
+  ]),
   getChanges: callbackify(getChanges),
   promises: {
     initializeProject,
+    cloneProject,
     flushProject,
     resyncProject,
     deleteProject,
@@ -434,8 +517,13 @@ export default {
     requestBlob,
     requestBlobWithProjectId,
     getLatestHistory,
+    getLatestZipWithHistoryId,
     getChanges,
+    getChangesWithHistoryId,
     getProjectBlobStats,
     getBlobStats,
+    getLatestHistoryWithHistoryId,
+    getDebugInfo,
+    getHistoryFailures,
   },
 }

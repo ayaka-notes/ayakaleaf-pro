@@ -109,7 +109,7 @@ describe('BackFillDummyDocMeta', function () {
     let result
     try {
       result = await promisify(exec)(
-        'cd ../../tools/migrations && east migrate -t saas --force 20210728115327_ce_sp_backfill_dummy_doc_meta'
+        'cd ../../tools/migrations && yarn run migrations migrate -t saas --force 20210728115327_ce_sp_backfill_dummy_doc_meta'
       )
     } catch (error) {
       // dump details like exit code, stdErr and stdOut

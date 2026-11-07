@@ -9,6 +9,7 @@ export type Affiliation = {
   cachedPastReconfirmDate: boolean
   cachedReconfirmedAt: Nullable<string>
   department: Nullable<string>
+  domainCapturedByGroup?: boolean
   inReconfirmNotificationPeriod: boolean
   inferred: boolean
   institution: Institution

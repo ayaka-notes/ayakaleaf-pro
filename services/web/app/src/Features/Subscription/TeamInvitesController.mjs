@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import settings from '@overleaf/settings'
 import logger from '@overleaf/logger'
 import OError from '@overleaf/o-error'
@@ -16,6 +17,13 @@ import { RateLimiter } from '../../infrastructure/RateLimiter.mjs'
 import Modules from '../../infrastructure/Modules.mjs'
 import UserAuditLogHandler from '../User/UserAuditLogHandler.mjs'
 import { sanitizeSessionUserForFrontEnd } from '../../infrastructure/FrontEndUser.mjs'
+import { z, zz, parseReq } from '../../infrastructure/Validation.mjs'
+
+/**
+ * @typedef {import('express').Request} Request
+ * @typedef {import('express').Response} Response
+ * @typedef {import('express').NextFunction} NextFunction
+ */
 
 const rateLimiters = {
   resendGroupInvite: new RateLimiter('resend-group-invite', {
@@ -24,10 +32,24 @@ const rateLimiters = {
   }),
 }
 
+// non-strict: evidence of scripts interacting with this that harmlessly send
+// extra, ignored fields, see https://github.com/overleaf/internal/issues/36577
+const createInviteSchema = z.object({
+  body: z.object({
+    email: z.string(),
+  }),
+})
+
+/**
+ * @param {Request} req
+ * @param {Response} res
+ * @param {NextFunction} next
+ */
 async function createInvite(req, res, next) {
+  const { body } = parseReq(req, createInviteSchema, { logOnly: true })
   const teamManagerId = SessionManager.getLoggedInUserId(req.session)
   const subscription = req.entity
-  const email = EmailHelper.parseEmail(req.body.email)
+  const email = EmailHelper.parseEmail(body.email)
   if (!email) {
     return res.status(422).json({
       error: {
@@ -69,8 +91,28 @@ async function createInvite(req, res, next) {
   }
 }
 
+const viewInviteSchema = z.object({
+  params: z.strictObject({
+    token: z.string(),
+  }),
+  query: z.object({
+    // rendered verbatim into a `data-type='boolean'` meta tag (Pug
+    // auto-escapes); the frontend, not this handler, interprets it as a
+    // boolean, so it is not constrained to z.stringbool() here.
+    expired: z.string().optional(),
+  }),
+})
+
+/**
+ * @param {Request} req
+ * @param {Response} res
+ * @param {NextFunction} next
+ */
 async function viewInvite(req, res, next) {
-  const { token } = req.params
+  const { params, query } = parseReq(req, viewInviteSchema, {
+    logOnly: true,
+  })
+  const { token } = params
   const sessionUser = SessionManager.getSessionUser(req.session)
   const userId = sessionUser?._id
   const { invite, subscription } =
@@ -139,7 +181,7 @@ async function viewInvite(req, res, next) {
       return res.render('subscriptions/team/invite-managed', {
         inviterName: invite.inviterName,
         inviteToken: invite.token,
-        expired: req.query.expired,
+        expired: query.expired,
         validationStatus: Object.fromEntries(validationStatus),
         currentManagedUserAdminEmail,
         groupSSOActive,
@@ -160,7 +202,7 @@ async function viewInvite(req, res, next) {
         inviterName: invite.inviterName,
         inviteToken: invite.token,
         hasIndividualPaidSubscription,
-        expired: req.query.expired,
+        expired: query.expired,
         userRestrictions: Array.from(req.userRestrictions || []),
         currentManagedUserAdminEmail,
         groupSSOActive,
@@ -185,6 +227,11 @@ async function viewInvite(req, res, next) {
   }
 }
 
+/**
+ * @param {Request} req
+ * @param {Response} res
+ * @param {NextFunction} next
+ */
 async function viewInvites(req, res, next) {
   const user = SessionManager.getSessionUser(req.session)
   const groupSubscriptions =
@@ -200,8 +247,20 @@ async function viewInvites(req, res, next) {
   })
 }
 
+const acceptInviteSchema = z.object({
+  params: z.strictObject({
+    token: z.string(),
+  }),
+})
+
+/**
+ * @param {Request} req
+ * @param {Response} res
+ * @param {NextFunction} next
+ */
 async function acceptInvite(req, res, next) {
-  const { token } = req.params
+  const { params } = parseReq(req, acceptInviteSchema, { logOnly: true })
+  const { token } = params
   const userId = SessionManager.getLoggedInUserId(req.session)
 
   const subscription = await TeamInvitesHandler.promises.acceptInvite(
@@ -231,9 +290,26 @@ async function acceptInvite(req, res, next) {
   res.json({ groupSSOActive })
 }
 
+const revokeInviteSchema = z.object({
+  // mounted at /manage/groups/:id/invites/:email -- `id` is consumed
+  // upstream by UserMembershipMiddleware.requireGroupMemberManagement()
+  // (which sets req.entity), but it's still present on req.params, so the
+  // strict schema below has to name it too.
+  params: z.strictObject({
+    id: zz.objectId(),
+    email: z.string(),
+  }),
+})
+
+/**
+ * @param {Request} req
+ * @param {Response} res
+ * @param {NextFunction} next
+ */
 function revokeInvite(req, res, next) {
+  const { params } = parseReq(req, revokeInviteSchema, { logOnly: true })
   const subscription = req.entity
-  const email = EmailHelper.parseEmail(req.params.email)
+  const email = EmailHelper.parseEmail(params.email)
   const teamManagerId = SessionManager.getLoggedInUserId(req.session)
   if (!email) {
     return res.sendStatus(400)
@@ -243,6 +319,10 @@ function revokeInvite(req, res, next) {
     teamManagerId,
     subscription,
     email,
+    /**
+     * @param {any} err
+     * @param {any} results
+     */
     function (err, results) {
       if (err) {
         return next(err)
@@ -252,9 +332,21 @@ function revokeInvite(req, res, next) {
   )
 }
 
+const resendInviteSchema = z.object({
+  body: z.strictObject({
+    email: z.string(),
+  }),
+})
+
+/**
+ * @param {Request} req
+ * @param {Response} res
+ * @param {NextFunction} next
+ */
 async function resendInvite(req, res, next) {
+  const { body } = parseReq(req, resendInviteSchema, { logOnly: true })
   const { entity: subscription } = req
-  const userEmail = EmailHelper.parseEmail(req.body.email)
+  const userEmail = EmailHelper.parseEmail(body.email)
   await subscription.populate('admin_id', ['email', 'first_name', 'last_name'])
 
   if (!userEmail) {
@@ -280,6 +372,11 @@ async function resendInvite(req, res, next) {
     )?.[0]
     acceptInviteUrl = `${settings.siteUrl}${samlInitPath}`
   } else {
+    if (!currentInvite.token) {
+      currentInvite.token = crypto.randomBytes(32).toString('hex')
+      currentInvite.domainCapture = false
+      await subscription.save()
+    }
     acceptInviteUrl = `${settings.siteUrl}/subscription/invites/${currentInvite.token}/`
   }
 

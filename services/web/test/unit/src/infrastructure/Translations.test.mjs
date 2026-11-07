@@ -1,19 +1,18 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import express from 'express'
 
 const MODULE_PATH = '../../../../app/src/infrastructure/Translations.mjs'
 
 describe('Translations', function () {
   let req, res, translations
-  async function runMiddlewares(cb) {
+  async function runMiddlewares() {
     return await new Promise((resolve, reject) =>
-      translations.i18nMiddleware(req, res, () => {
-        translations.setLangBasedOnDomainMiddleware(req, res, (err, result) => {
-          if (err) {
-            reject(err)
-          } else {
-            resolve(result)
-          }
-        })
+      translations.setLangBasedOnDomainMiddleware(req, res, (err, result) => {
+        if (err) {
+          reject(err)
+        } else {
+          resolve(result)
+        }
       })
     )
   }
@@ -39,6 +38,7 @@ describe('Translations', function () {
       headers: {
         'accept-language': '',
       },
+      acceptsLanguages: express.request.acceptsLanguages,
     }
     res = {
       locals: {},
@@ -58,6 +58,15 @@ describe('Translations', function () {
 
     it('has translate alias', function () {
       expect(req.i18n.translate('give_feedback')).to.equal('Give feedback')
+    })
+
+    it('does not persist across different languages', function () {
+      expect([
+        req.i18n.translate('log_in', { lng: 'fr' }),
+        req.i18n.translate('log_in', { lng: 'en' }),
+        req.i18n.translate('log_in', { lng: 'da' }),
+        req.i18n.translate('log_in'),
+      ]).to.deep.equal(['Se connecter', 'Log in', 'Log ind', 'Log in'])
     })
   })
 

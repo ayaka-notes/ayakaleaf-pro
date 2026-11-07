@@ -44,9 +44,16 @@ if (Settings.catchErrors) {
   process.removeAllListeners('uncaughtException')
   process.removeAllListeners('unhandledRejection')
   process
-    .on('uncaughtException', error =>
+    .on('uncaughtException', error => {
+      if (error.code === 'ERR_STREAM_UNABLE_TO_PIPE') {
+        metrics.inc('disconnected_write', 1, { status: error.code })
+        return logger.warn(
+          { err: error },
+          'attempted to write to disconnected client'
+        )
+      }
       logger.error({ err: error }, 'uncaughtException')
-    )
+    })
     .on('unhandledRejection', (reason, p) => {
       logger.error({ err: reason }, 'unhandledRejection at Promise', p)
     })
@@ -55,8 +62,15 @@ if (Settings.catchErrors) {
 // Create ./data/dumpFolder if needed
 FileWriter.ensureDumpFolderExists()
 
-// handle SIGTERM for graceful shutdown in kubernetes
+// Handle SIGTERM with graceful shutdown by default, or a fast exit in development
 process.on('SIGTERM', function (signal) {
+  if (process.env.NODE_ENV === 'development') {
+    logger.warn({ signal }, 'triggering fast shutdown in dev environment')
+    setTimeout(() => {
+      process.exit(0)
+    }, 100)
+    return
+  }
   triggerGracefulShutdown(Server.server, signal)
 })
 

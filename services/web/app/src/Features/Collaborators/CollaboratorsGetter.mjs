@@ -12,6 +12,8 @@ import Errors from '../Errors/Errors.js'
 import ProjectEditorHandler from '../Project/ProjectEditorHandler.mjs'
 import Sources from '../Authorization/Sources.mjs'
 import PrivilegeLevels from '../Authorization/PrivilegeLevels.mjs'
+import AsyncLocalStorage from '../../infrastructure/AsyncLocalStorage.mjs'
+import Metrics from '@overleaf/metrics'
 
 const { ObjectId } = mongodb
 
@@ -36,16 +38,46 @@ const { ObjectId } = mongodb
  * @property {boolean} [pendingReviewer]
  */
 
+/**
+ * @typedef AccessRequest
+ * @property {ObjectId} userId
+ * @property {PrivilegeLevel} privilegeLevel
+ * @property {Date} requestedAt
+ */
+
 // Wrapper for determining multiple dimensions of project access.
 class ProjectAccess {
+  // Projection for the project fields the constructor needs.
+  static PROJECTION = {
+    owner_ref: 1,
+    collaberator_refs: 1,
+    readOnly_refs: 1,
+    tokenAccessReadOnly_refs: 1,
+    tokenAccessReadAndWrite_refs: 1,
+    publicAccesLevel: 1,
+    pendingEditor_refs: 1,
+    reviewer_refs: 1,
+    pendingReviewer_refs: 1,
+    editAccessRequests: 1,
+  }
+
   /** @type {ProjectMember[]} */
   #members
 
   /** @type {PublicAccessLevel} */
   #publicAccessLevel
 
+  /** @type {ObjectId} */
+  #ownerId
+
+  /** @type {Record<string, number>} */
+  #stats
+
+  /** @type {AccessRequest[]} */
+  #accessRequests
+
   /**
-   * @param {{ owner_ref: ObjectId; collaberator_refs: ObjectId[]; readOnly_refs: ObjectId[]; tokenAccessReadAndWrite_refs: ObjectId[]; tokenAccessReadOnly_refs: ObjectId[]; publicAccesLevel: PublicAccessLevel; pendingEditor_refs: ObjectId[]; reviewer_refs: ObjectId[]; pendingReviewer_refs: ObjectId[]; }} project
+   * @param {{ owner_ref: ObjectId; collaberator_refs: ObjectId[]; readOnly_refs: ObjectId[]; tokenAccessReadAndWrite_refs: ObjectId[]; tokenAccessReadOnly_refs: ObjectId[]; publicAccesLevel: PublicAccessLevel; pendingEditor_refs: ObjectId[]; reviewer_refs: ObjectId[]; pendingReviewer_refs: ObjectId[]; editAccessRequests?: AccessRequest[]; }} project
    */
   constructor(project) {
     this.#members = _getMemberIdsWithPrivilegeLevelsFromFields(
@@ -59,7 +91,29 @@ class ProjectAccess {
       project.reviewer_refs,
       project.pendingReviewer_refs
     )
+    this.#stats = {
+      reviewers: (project.reviewer_refs || []).length,
+      namedEditors: (project.collaberator_refs || []).length,
+      pendingEditors: (project.pendingEditor_refs || []).length,
+      tokenEditors: (project.tokenAccessReadAndWrite_refs || []).length,
+    }
     this.#publicAccessLevel = project.publicAccesLevel
+    this.#ownerId = project.owner_ref
+    this.#accessRequests = project.editAccessRequests || []
+  }
+
+  /**
+   * @return {ObjectId}
+   */
+  getOwnerId() {
+    return this.#ownerId
+  }
+
+  /**
+   * @return {Record<string, number>}
+   */
+  getStats() {
+    return this.#stats
   }
 
   /**
@@ -96,6 +150,90 @@ class ProjectAccess {
       this.#members.filter(m => m.privilegeLevel === PrivilegeLevels.OWNER)
     )
     return owner
+  }
+
+  /**
+   * Fetch user details for every pending access request so the owner can
+   * see who has asked. Mirrors `_loadMembers` so the user lookup is
+   * batched.
+   *
+   * @return {Promise<Array<{user: any, privilegeLevel: PrivilegeLevel, requestedAt: Date}>>}
+   */
+  async loadAccessRequests() {
+    if (this.#accessRequests.length === 0) return []
+    const userIds = Array.from(
+      new Set(this.#accessRequests.map(r => r.userId.toString()))
+    )
+    const users = new Map()
+    for (const user of await UserGetter.promises.getUsers(userIds, {
+      _id: 1,
+      email: 1,
+      first_name: 1,
+      last_name: 1,
+    })) {
+      users.set(user._id.toString(), user)
+    }
+    return this.#accessRequests
+      .map(request => {
+        const user = users.get(request.userId.toString())
+        if (!user) return null
+        return {
+          user,
+          privilegeLevel: request.privilegeLevel,
+          requestedAt: request.requestedAt,
+        }
+      })
+      .filter(r => r != null)
+  }
+
+  /**
+   * Owner-facing view of the pending requests: the flattened user details
+   * plus each requester's current privilege level (so the UI can tell
+   * whether granting would consume a new collaborator slot). Shared by the
+   * editor bootstrap and the access-requests endpoint.
+   *
+   * @return {Promise<Array<object>>}
+   */
+  async loadAccessRequestsView() {
+    const loaded = await this.loadAccessRequests()
+    return loaded.map(r => ({
+      _id: r.user._id,
+      email: r.user.email,
+      first_name: r.user.first_name,
+      last_name: r.user.last_name,
+      privilegeLevel: r.privilegeLevel,
+      currentPrivilegeLevel: this.privilegeLevelForUser(r.user._id),
+      requestedAt: r.requestedAt,
+    }))
+  }
+
+  /**
+   * Look up a single user's pending request, if any. Cheap — no user
+   * lookup. Returned to non-owners so they can see whether they have an
+   * outstanding request of their own.
+   *
+   * @param {string | ObjectId} userId
+   * @return {{privilegeLevel: PrivilegeLevel, requestedAt: Date} | null}
+   */
+  getAccessRequestForUser(userId) {
+    if (!userId) return null
+    const idString = userId.toString()
+    for (const request of this.#accessRequests) {
+      if (request.userId.toString() === idString) {
+        return {
+          privilegeLevel: request.privilegeLevel,
+          requestedAt: request.requestedAt,
+        }
+      }
+    }
+    return null
+  }
+
+  /**
+   * @return {number}
+   */
+  accessRequestCount() {
+    return this.#accessRequests.length
   }
 
   /**
@@ -158,6 +296,33 @@ class ProjectAccess {
    * @param {string | ObjectId} userId
    * @return {boolean}
    */
+  isUserReadWriteTokenMember(userId) {
+    if (!userId) return false
+    for (const member of this.#members) {
+      if (
+        member.id === userId.toString() &&
+        member.source === Sources.TOKEN &&
+        member.privilegeLevel === PrivilegeLevels.READ_AND_WRITE
+      ) {
+        return true
+      }
+    }
+    return false
+  }
+
+  /**
+   * @param {string | ObjectId} userId
+   * @return {boolean}
+   */
+  isOwner(userId) {
+    if (!userId) return false
+    return this.#ownerId.toString() === userId.toString()
+  }
+
+  /**
+   * @param {string | ObjectId} userId
+   * @return {boolean}
+   */
   isUserInvitedMember(userId) {
     if (!userId) return false
     for (const member of this.#members) {
@@ -212,36 +377,85 @@ class ProjectAccess {
   }
 }
 
+/**
+ * @param {string} projectId
+ * @param {string} path
+ * @return {ProjectAccess|null}
+ * @private
+ */
+function _getCachedProjectAccess(projectId, path) {
+  const store = AsyncLocalStorage.storage.getStore()
+  const key = `projectAccess:${projectId}`
+  if (store && store[key]) {
+    Metrics.inc('project_access_cache', 1, { status: 'hit', path })
+    return store[key]
+  }
+  Metrics.inc('project_access_cache', 1, { status: 'miss', path })
+  return null
+}
+
+/**
+ * @param {any} projectId
+ */
 async function getProjectAccess(projectId) {
-  const project = await ProjectGetter.promises.getProject(projectId, {
-    owner_ref: 1,
-    collaberator_refs: 1,
-    readOnly_refs: 1,
-    tokenAccessReadOnly_refs: 1,
-    tokenAccessReadAndWrite_refs: 1,
-    publicAccesLevel: 1,
-    pendingEditor_refs: 1,
-    reviewer_refs: 1,
-    pendingReviewer_refs: 1,
-  })
+  let projectAccess = _getCachedProjectAccess(projectId, 'full')
+  if (projectAccess) return projectAccess
+
+  const project = await ProjectGetter.promises.getProject(
+    projectId,
+    ProjectAccess.PROJECTION
+  )
   if (!project) {
     throw new Errors.NotFoundError(`no project found with id ${projectId}`)
   }
-  return new ProjectAccess(project)
+  projectAccess = new ProjectAccess(project)
+  const store = AsyncLocalStorage.storage.getStore()
+  const key = `projectAccess:${projectId}`
+  if (store) store[key] = projectAccess
+  return projectAccess
 }
 
+/**
+ * @param {string} projectId
+ * @return {Promise<ObjectId>}
+ */
+async function getProjectOwnerId(projectId) {
+  const projectAccess = _getCachedProjectAccess(projectId, 'project-owner')
+  if (projectAccess) return projectAccess.getOwnerId()
+
+  const project = await ProjectGetter.promises.getProject(projectId, {
+    owner_ref: true,
+  })
+  return project.owner_ref
+}
+
+/**
+ * @param {any} projectId
+ */
 async function getMemberIdsWithPrivilegeLevels(projectId) {
   return (await getProjectAccess(projectId)).allMembers()
 }
 
+/**
+ * @param {any} projectId
+ */
 async function getMemberIds(projectId) {
   return (await getProjectAccess(projectId)).memberIds()
 }
 
+/**
+ * @param {any} projectId
+ */
 async function getInvitedMemberIds(projectId) {
   return (await getProjectAccess(projectId)).invitedMemberIds()
 }
 
+/**
+ * @param {any} ownerId
+ * @param {any} collaboratorIds
+ * @param {any} readOnlyIds
+ * @param {any} reviewerIds
+ */
 async function getInvitedMembersWithPrivilegeLevelsFromFields(
   ownerId,
   collaboratorIds,
@@ -262,6 +476,10 @@ async function getInvitedMembersWithPrivilegeLevelsFromFields(
   return _loadMembers(members)
 }
 
+/**
+ * @param {any} userId
+ * @param {any} projectId
+ */
 async function getMemberIdPrivilegeLevel(userId, projectId) {
   // In future if the schema changes and getting all member ids is more expensive (multiple documents)
   // then optimise this.
@@ -271,14 +489,24 @@ async function getMemberIdPrivilegeLevel(userId, projectId) {
   return (await getProjectAccess(projectId)).privilegeLevelForUser(userId)
 }
 
+/**
+ * @param {any} projectId
+ */
 async function getInvitedEditCollaboratorCount(projectId) {
   return (await getProjectAccess(projectId)).countInvitedEditCollaborators()
 }
 
+/**
+ * @param {any} projectId
+ */
 async function getInvitedPendingEditorCount(projectId) {
   return (await getProjectAccess(projectId)).countInvitedPendingEditors()
 }
 
+/**
+ * @param {any} userId
+ * @param {any} projectId
+ */
 async function isUserInvitedMemberOfProject(userId, projectId) {
   if (!userId) {
     return false
@@ -286,6 +514,10 @@ async function isUserInvitedMemberOfProject(userId, projectId) {
   return (await getProjectAccess(projectId)).isUserInvitedMember(userId)
 }
 
+/**
+ * @param {any} userId
+ * @param {any} projectId
+ */
 async function isUserInvitedReadWriteMemberOfProject(userId, projectId) {
   if (!userId) {
     return false
@@ -295,6 +527,10 @@ async function isUserInvitedReadWriteMemberOfProject(userId, projectId) {
   )
 }
 
+/**
+ * @param {any} userId
+ * @param {any} projectId
+ */
 async function getPublicShareTokens(userId, projectId) {
   const memberInfo = await Project.findOne(
     {
@@ -335,6 +571,10 @@ async function getPublicShareTokens(userId, projectId) {
 // This function returns all the projects that a user currently has access to,
 // excluding projects where the user is listed in the token access fields when
 // token access has been disabled.
+/**
+ * @param {any} userId
+ * @param {any} fields
+ */
 async function getProjectsUserIsMemberOf(userId, fields) {
   // @ts-ignore
   const limit = pLimit(2)
@@ -368,6 +608,10 @@ async function getProjectsUserIsMemberOf(userId, fields) {
 // This function returns all the projects that a user is a member of, regardless of
 // the current state of the project, so it includes those projects where token access
 // has been disabled.
+/**
+ * @param {any} userId
+ * @param {any} fields
+ */
 async function dangerouslyGetAllProjectsUserIsMemberOf(userId, fields) {
   const readAndWrite = await Project.find(
     { collaberator_refs: userId },
@@ -385,6 +629,9 @@ async function dangerouslyGetAllProjectsUserIsMemberOf(userId, fields) {
   return { readAndWrite, readOnly, tokenReadAndWrite, tokenReadOnly }
 }
 
+/**
+ * @param {any} projectId
+ */
 async function getAllInvitedMembers(projectId) {
   try {
     const projectAccess = await getProjectAccess(projectId)
@@ -395,7 +642,14 @@ async function getAllInvitedMembers(projectId) {
   }
 }
 
+/**
+ * @param {any} userId
+ * @param {any} projectId
+ */
 async function userIsTokenMember(userId, projectId) {
+  const projectAccess = _getCachedProjectAccess(projectId, 'token-member')
+  if (projectAccess) return projectAccess.isUserTokenMember(userId)
+
   userId = new ObjectId(userId.toString())
   projectId = new ObjectId(projectId.toString())
   const project = await Project.findOne(
@@ -413,7 +667,14 @@ async function userIsTokenMember(userId, projectId) {
   return project != null
 }
 
+/**
+ * @param {any} userId
+ * @param {any} projectId
+ */
 async function userIsReadWriteTokenMember(userId, projectId) {
+  const projectAccess = _getCachedProjectAccess(projectId, 'rw-token-member')
+  if (projectAccess) return projectAccess.isUserReadWriteTokenMember(userId)
+
   userId = new ObjectId(userId.toString())
   projectId = new ObjectId(projectId.toString())
   const project = await Project.findOne(
@@ -476,15 +737,20 @@ function _getMemberIdsWithPrivilegeLevelsFromFields(
   }
 
   for (const memberId of readOnlyIds || []) {
+    /** @type {ProjectMember} */
     const record = {
       id: memberId.toString(),
       privilegeLevel: PrivilegeLevels.READ_ONLY,
       source: Sources.INVITE,
     }
 
-    if (pendingEditorIds?.some(pe => memberId.equals(pe))) {
+    if (
+      pendingEditorIds?.some(/** @param {any} pe */ pe => memberId.equals(pe))
+    ) {
       record.pendingEditor = true
-    } else if (pendingReviewerIds?.some(pr => memberId.equals(pr))) {
+    } else if (
+      pendingReviewerIds?.some(/** @param {any} pr */ pr => memberId.equals(pr))
+    ) {
       record.pendingReviewer = true
     }
     members.push(record)
@@ -533,6 +799,7 @@ async function _loadMembers(members) {
     .map(member => {
       const user = users.get(member.id)
       if (!user) return null
+      /** @type {any} */
       const record = {
         user,
         privilegeLevel: member.privilegeLevel,
@@ -580,6 +847,7 @@ export default {
     userIsTokenMember,
     userIsReadWriteTokenMember,
     getAllInvitedMembers,
+    getProjectOwnerId,
   },
   ProjectAccess,
 }

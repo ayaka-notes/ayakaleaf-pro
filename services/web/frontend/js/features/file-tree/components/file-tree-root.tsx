@@ -6,7 +6,6 @@ import FileTreeContext from './file-tree-context'
 import FileTreeDraggablePreviewLayer from './file-tree-draggable-preview-layer'
 import FileTreeFolderList from './file-tree-folder-list'
 import FileTreeToolbar from './file-tree-toolbar'
-import FileTreeToolbarNew from '@/features/ide-redesign/components/file-tree/file-tree-toolbar'
 import FileTreeModalDelete from './modals/file-tree-modal-delete'
 import FileTreeModalCreateFolder from './modals/file-tree-modal-create-folder'
 import FileTreeModalError from './modals/file-tree-modal-error'
@@ -19,8 +18,8 @@ import FileTreeInner from './file-tree-inner'
 import { useDragLayer } from 'react-dnd'
 import classnames from 'classnames'
 import { pathInFolder } from '@/features/file-tree/util/path'
-import { useIsNewEditorEnabled } from '@/features/ide-redesign/utils/new-editor-utils'
 import { FileTreeFindResult } from '@/features/ide-react/types/file-tree'
+import { useFeatureFlag } from '@/shared/context/split-test-context'
 
 const FileTreeRoot = React.memo<{
   onSelect: () => void
@@ -44,7 +43,9 @@ const FileTreeRoot = React.memo<{
   const { projectId } = useProjectContext()
   const { fileTreeData } = useFileTreeData()
   const isReady = Boolean(projectId && fileTreeData)
-  const newEditor = useIsNewEditorEnabled()
+  const improvedFlakyConnections = useFeatureFlag(
+    'intermittent-connection-improvements'
+  )
 
   useEffect(() => {
     if (fileTreeContainer) {
@@ -86,6 +87,8 @@ const FileTreeRoot = React.memo<{
   }, [isReady, onInit])
   if (!isReady) return null
 
+  const disconnectedOverlay = !improvedFlakyConnections && !isConnected
+
   return (
     <div
       className="file-tree"
@@ -100,8 +103,8 @@ const FileTreeRoot = React.memo<{
           onSelect={onSelect}
           fileTreeContainer={fileTreeContainer}
         >
-          {isConnected ? null : <div className="disconnected-overlay" />}
-          {newEditor ? <FileTreeToolbarNew /> : <FileTreeToolbar />}
+          {disconnectedOverlay && <div className="disconnected-overlay" />}
+          <FileTreeToolbar />
           <FileTreeContextMenu />
           <FileTreeInner>
             <FileTreeRootFolder onDelete={onDelete} />

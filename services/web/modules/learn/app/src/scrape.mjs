@@ -1,6 +1,8 @@
 import Path from 'node:path'
 import fs from 'node:fs'
 import {
+  CustomHttpAgent,
+  CustomHttpsAgent,
   fetchString,
   fetchJson,
   RequestFailedError,
@@ -9,6 +11,14 @@ import crypto from 'node:crypto'
 import settings from '@overleaf/settings'
 
 const CACHE_IN = settings.path.learnPagesFolder
+
+// fetch-utils' default agent gives up connecting after 1s, too short for
+// external APIs, so these requests get a 3s connect timeout instead
+const MAX_CONNECT_TIME = 3000
+const httpAgent = new CustomHttpAgent({ connectTimeout: MAX_CONNECT_TIME })
+const httpsAgent = new CustomHttpsAgent({ connectTimeout: MAX_CONNECT_TIME })
+const agent = url => (url.protocol === 'https:' ? httpsAgent : httpAgent)
+const REQUEST_TIMEOUT_MS = 30 * 1000
 
 async function scrape(baseUrl, page) {
   const uri = new URL(baseUrl + '/learn-scripts/api.php')
@@ -20,7 +30,10 @@ async function scrape(baseUrl, page) {
   }).toString()
 
   try {
-    return await fetchString(uri)
+    return await fetchString(uri, {
+      agent,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    })
   } catch (err) {
     if (err instanceof RequestFailedError) {
       console.error(err.response.status, page, err.response)
@@ -77,7 +90,10 @@ async function getAllPagesFrom(baseUrl, continueFrom) {
 
   let blob
   try {
-    blob = await fetchJson(uri)
+    blob = await fetchJson(uri, {
+      agent,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    })
   } catch (err) {
     if (err instanceof RequestFailedError) {
       console.error(err.response.status, continueFrom, err.response)

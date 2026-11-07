@@ -2,6 +2,11 @@ import AuthenticationController from "../../../../app/src/Features/Authenticatio
 import Settings from "@overleaf/settings"
 import Path from 'path'
 
+// Only when users have another way to log in, so nobody gets locked out
+export const localLoginDisabled = () =>
+  process.env.OVERLEAF_DISABLE_LOCAL_LOGIN === 'true' &&
+  Boolean(Settings.ldap?.enable || Settings.saml?.enable || Settings.oidc?.enable)
+
 export default {
   async loginPage(req, res, next) {
     // return res.json({ message: 'Login successful' })
@@ -22,6 +27,7 @@ export default {
       title: Settings.nav?.login_support_title || 'login',
       login_support_title: Settings.nav?.login_support_title,
       login_support_text: Settings.nav?.login_support_text,
+      localLoginDisabled: localLoginDisabled(),
       metadata,
     })
   },

@@ -1,64 +1,215 @@
 {
   "name": "overleaf",
   "private": true,
-  "dependencies": {
-    "patch-package": "^8.0.0"
-  },
+  "packageManager": "yarn@4.18.0",
   "devDependencies": {
+    "@eslint/compat": "^2.1.0",
+    "@eslint/js": "^10.0.1",
+    "@overleaf/eslint-plugin": "workspace:*",
+    "@prettier/plugin-pug": "^3.4.0",
     "@types/chai": "^4.3.0",
     "@types/chai-as-promised": "^7.1.8",
     "@types/mocha": "^10.0.6",
-    "@typescript-eslint/eslint-plugin": "8.50.0",
-    "@typescript-eslint/parser": "^8.50.0",
+    "@types/multer": "^2.1.0",
+    "@typescript-eslint/eslint-plugin": "^8.59.4",
+    "@typescript-eslint/parser": "^8.59.4",
     "@vitest/eslint-plugin": "^1.5.0",
-    "eslint": "^8.15.0",
-    "eslint-config-prettier": "^8.5.0",
-    "eslint-config-standard": "^17.0.0",
-    "eslint-plugin-chai-expect": "^3.0.0",
-    "eslint-plugin-chai-friendly": "^0.7.2",
-    "eslint-plugin-cypress": "^2.15.1",
-    "eslint-plugin-import": "^2.26.0",
-    "eslint-plugin-mocha": "^10.1.0",
-    "eslint-plugin-n": "^15.7.0",
-    "eslint-plugin-prettier": "^4.0.0",
-    "eslint-plugin-promise": "^6.0.0",
+    "eslint": "^10.4.0",
+    "eslint-config-prettier": "^10.0.1",
+    "eslint-plugin-chai-expect": "^4.0.0",
+    "eslint-plugin-chai-friendly": "^1.1.0",
+    "eslint-plugin-cypress": "^4.1.0",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-mocha": "^11.0.0",
+    "eslint-plugin-n": "^18.0.0",
+    "eslint-plugin-promise": "^7.2.1",
     "eslint-plugin-unicorn": "^56.0.0",
+    "globals": "^17.6.0",
+    "js-yaml": "^4.1.1",
     "prettier": "3.7.4",
     "prettier-plugin-groovy": "0.2.1",
     "typescript": "^5.9.3"
   },
   "engines": {
-    "npm": "11.4.2"
+    "node": ">=24.18.1"
   },
-  "overrides": {
-    "request@2.88.2": {
-      "tough-cookie": "5.1.2",
-      "form-data": "2.5.5",
-      "qs": "6.14.1"
-    },
-    "streamdown": {
-      "mermaid": "file:./services/web/stubs/mermaid-stub"
-    }
+  "resolutions": {
+    "@xmldom/xmldom": "0.8.13",
+    "argparse/underscore": "1.13.8",
+    "east/underscore": "1.13.8",
+    "js-yaml": "^4.3.1",
+    "linkify-it": "^5.0.1",
+    "sandboxed-module": "patch:sandboxed-module@npm%3A2.0.4#~/.yarn/patches/sandboxed-module-npm-2.0.4-f8b45aacc9.patch",
+    "request/tough-cookie": "5.1.2",
+    "request/form-data": "2.5.6",
+    "request/qs": "6.15.2",
+    "prettier@npm:3.7.4": "patch:prettier@npm%3A3.7.4#~/.yarn/patches/prettier-npm-3.7.4.patch",
+    "@cypress/request/qs": "6.15.2",
+    "qs": "6.15.2",
+    "@opentelemetry/api": "1.9.0",
+    "mocha/serialize-javascript": "7.0.5",
+    "protobufjs": "7.6.5",
+    "@protobufjs/utf8": "1.1.1",
+    "mocha-multi-reporters": "patch:mocha-multi-reporters@npm%3A1.5.1#~/.yarn/patches/mocha-multi-reporters-npm-1.5.1-0a1088aed5.patch",
+    "pdfjs-dist": "patch:pdfjs-dist@npm%3A5.1.91#~/.yarn/patches/pdfjs-dist-npm-5.1.91.patch",
+    "referer-parser": "patch:referer-parser@npm%3A0.0.3#~/.yarn/patches/referer-parser-npm-0.0.3.patch",
+    "sass": "1.77.1",
+    "@codemirror/autocomplete": "patch:@codemirror/autocomplete@npm%3A6.18.4#~/.yarn/patches/@codemirror-autocomplete-npm-6.18.4.patch",
+    "@codemirror/language": "6.12.1",
+    "@codemirror/lint": "6.9.2",
+    "@codemirror/search": "patch:@codemirror/search@npm%3A6.5.8#~/.yarn/patches/@codemirror-search-npm-6.5.8.patch",
+    "@codemirror/state": "6.5.4",
+    "@codemirror/view": "6.38.6",
+    "@lezer/common": "1.5.0",
+    "@lezer/lr": "1.4.7",
+    "@types/react": "18.3.28",
+    "@vitest/expect": "4.1.5",
+    "@vitest/mocker": "4.1.5",
+    "@vitest/spy": "4.1.5",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "i18next-scanner/i18next": "23.16.8",
+    "downshift": "9.0.9",
+    "body-parser": "patch:body-parser@npm%3A1.20.4#~/.yarn/patches/body-parser-npm-1.20.4-805a6a51d0.patch",
+    "cypress-multi-reporters": "patch:cypress-multi-reporters@npm%3A2.0.5#~/.yarn/patches/cypress-multi-reporters-npm-2.0.5.patch",
+    "forwarded@npm:0.2.0": "patch:forwarded@npm%3A0.2.0#~/.yarn/patches/forwarded-npm-0.2.0.patch",
+    "multer@npm:2.2.0": "patch:multer@npm%3A2.2.0#~/.yarn/patches/multer-npm-2.2.0-4ed181c78f.patch",
+    "node-fetch": "patch:node-fetch@npm%3A2.7.0#~/.yarn/patches/node-fetch-npm-2.7.0.patch",
+    "passport-local": "patch:passport-local@npm%3A1.0.0#~/.yarn/patches/passport-local-npm-1.0.0-ed89961a0c.patch",
+    "passport-oauth2": "patch:passport-oauth2@npm%3A1.6.1#~/.yarn/patches/passport-oauth2-npm-1.6.1.patch",
+    "send": "patch:send@npm%3A0.19.0#~/.yarn/patches/send-npm-0.19.0.patch",
+    "serve-static": "1.16.2",
+    "recurly": "4.12.0",
+    "pg": "8.7.1",
+    "pg-query-stream": "4.7.1",
+    "@aws-sdk/client-s3": "3.994.0",
+    "@aws-sdk/client-ses": "3.994.0",
+    "@aws-sdk/s3-request-presigner": "3.994.0",
+    "contentful": "10.8.5",
+    "@contentful/rich-text-html-renderer": "16.0.2",
+    "@contentful/rich-text-types": "16.0.2",
+    "i18next": "23.10.0",
+    "lodash": "4.18.1",
+    "express-session": "1.17.2",
+    "ioredis": "4.27.11",
+    "knip": "5.64.1",
+    "chart.js": "4.0.1",
+    "@customerio/cdp-analytics-node": "0.3.9",
+    "@google-cloud/bigquery": "8.1.1",
+    "moment": "2.29.4",
+    "sequelize-cli": "6.6.0",
+    "async": "3.2.5",
+    "dockerode": "4.0.9",
+    "tar-fs": "3.1.1",
+    "cluster-key-slot": "1.1.0",
+    "@octokit/request": "9.2.2",
+    "randomstring": "1.2.2",
+    "vite": "7.3.5",
+    "isomorphic-git": "1.33.1",
+    "http-status": "1.5.0",
+    "knex": "2.4.0",
+    "utf-8-validate": "5.0.8",
+    "samlp": "patch:samlp@npm%3A7.0.2#~/.yarn/patches/samlp-npm-7.0.2-8295b3cf85.patch",
+    "compression": "1.7.4",
+    "cookie-parser": "1.4.6",
+    "react-cookie": "7.2.0",
+    "react-dropzone": "14.2.3",
+    "@babel/core": "7.28.5",
+    "@babel/preset-env": "7.28.5",
+    "@babel/register": "7.28.3",
+    "@vitejs/plugin-react": "4.4.1",
+    "cssnano": "7.1.4",
+    "mini-css-extract-plugin": "2.7.6",
+    "nodemon": "3.0.1",
+    "postcss-reporter": "7.0.5",
+    "@uppy/core/nanoid": "5.1.16",
+    "@uppy/dashboard/nanoid": "5.1.16",
+    "@uppy/provider-views/nanoid": "5.1.16",
+    "@uppy/xhr-upload/nanoid": "5.1.16",
+    "zod": "4.1.11",
+    "zod-validation-error": "4.0.1",
+    "@phosphor-icons/react": "2.1.7",
+    "@slack/webhook": "7.0.2",
+    "@stripe/react-stripe-js": "3.9.0",
+    "@stripe/stripe-js": "7.7.0",
+    "cache-flow": "1.9.0",
+    "focus-trap-react": "11.0.4",
+    "jose": "4.15.5",
+    "on-headers": "1.0.2",
+    "pug": "3.0.3",
+    "rate-limiter-flexible": "2.4.1",
+    "react-hook-form": "7.71.1",
+    "stripe": "18.4.0",
+    "@babel/plugin-proposal-decorators": "7.28.0",
+    "@floating-ui/react": "0.27.16",
+    "@juggle/resize-observer": "3.3.1",
+    "@streamdown/cjk": "1.0.2",
+    "@testing-library/dom": "10.4.0",
+    "@testing-library/user-event": "14.5.2",
+    "@types/express": "4.17.23",
+    "@types/recurly__recurly-js": "4.38.0",
+    "@types/sanitize-html": "2.16.0",
+    "autoprefixer": "10.4.16",
+    "babel-plugin-module-resolver": "5.0.2",
+    "backbone": "1.6.0",
+    "eventsource-client": "1.1.4",
+    "fake-indexeddb": "6.0.0",
+    "formik": "2.2.9",
+    "katex": "0.16.28",
+    "match-sorter": "6.3.1",
+    "micromark": "4.0.0",
+    "pirates": "4.0.6",
+    "qrcode": "1.5.0",
+    "react-chartjs-2": "5.0.1",
+    "react-i18next": "13.3.1",
+    "react-resizable-panels": "2.1.1",
+    "rehype-harden": "1.1.7",
+    "scroll-into-view-if-needed": "2.2.28",
+    "streamdown": "2.2.0",
+    "tailwindcss": "3.4.17",
+    "thread-loader": "patch:thread-loader@npm%3A4.0.2#~/.yarn/patches/thread-loader-npm-4.0.2-dab5735f54.patch",
+    "unist-util-visit": "5.0.0",
+    "use-stick-to-bottom": "1.1.1",
+    "zustand": "5.0.8",
+    "retry-request@npm:^8.0.0": "patch:retry-request@npm%3A8.0.2#~/.yarn/patches/retry-request-npm-8.0.2-448ad084c8.patch",
+    "retry-request@npm:^7.0.0": "patch:retry-request@npm%3A7.0.2#~/.yarn/patches/retry-request-npm-7.0.2-a41087680c.patch",
+    "teeny-request@npm:^10.0.0": "patch:teeny-request@npm%3A10.1.0#~/.yarn/patches/teeny-request-npm-10.1.0.patch",
+    "teeny-request@npm:^9.0.0": "patch:teeny-request@npm%3A9.0.0#~/.yarn/patches/teeny-request-npm-9.0.0-4d571e3c55.patch",
+    "ldapauth-fork@npm:^5.0.1": "patch:ldapauth-fork@npm%3A5.0.5#~/.yarn/patches/ldapauth-fork-npm-5.0.5-c8b86f5231.patch",
+    "@node-saml/node-saml@npm:^5.1.0": "patch:@node-saml/node-saml@npm%3A5.1.0#~/.yarn/patches/@node-saml-node-saml-npm-5.1.0-f4eb6913cc.patch",
+    "@aws-sdk/xml-builder": "3.972.25",
+    "@babel/plugin-transform-modules-systemjs": "7.29.4",
+    "fast-xml-builder": "1.1.7",
+    "fast-xml-parser": "5.7.3",
+    "ip-address": "10.3.1",
+    "express": "patch:express@npm%3A4.22.1#~/.yarn/patches/express-npm-4.22.1-0ea5210390.patch"
   },
   "scripts": {
-    "format": "prettier --list-different $PWD/'**/*.js'",
-    "format:fix": "prettier --write $PWD/'**/*.js'",
-    "format:jenkins": "prettier --list-different $PWD/'**/Jenkinsfile'",
-    "format:jenkins:fix": "prettier --write $PWD/'**/Jenkinsfile'",
-    "lint": "eslint --max-warnings 0 --format unix .",
-    "lint:fix": "eslint --fix .",
-    "postinstall": "patch-package"
+    "format": "prettier --cache --cache-location ./.cache/prettier/.prettier-cache --check",
+    "format:fix": "prettier --cache --cache-location ./.cache/prettier/.prettier-cache --write --check",
+    "format:styles": "prettier --cache --cache-location ./.cache/prettier/.prettier-cache --check '**/*.{css,scss}'",
+    "format:styles:fix": "prettier --cache --cache-location ./.cache/prettier/.prettier-cache --write --check '**/*.{css,scss}'",
+    "format:pug": "prettier --cache --cache-location ./.cache/prettier/.prettier-cache --check '**/*.pug'",
+    "format:pug:fix": "prettier --cache --cache-location ./.cache/prettier/.prettier-cache --write --check '**/*.pug'",
+    "format:jenkins": "prettier --cache --cache-location ./.cache/prettier/.prettier-cache --check '**/Jenkinsfile'",
+    "format:jenkins:fix": "prettier --cache --cache-location ./.cache/prettier/.prettier-cache --write --check '**/Jenkinsfile'",
+    "format:monorepo-check": "prettier --cache --cache-location ./.cache/prettier/.prettier-cache --check '**/Jenkinsfile' 'google-ops/packer/jenkins/vm_config/init.groovy.d/*.groovy' '**/*.md' '**/docker-compose.yml' '**/docker-compose.*.yml' '.agents/**/*.js' '.agents/**/*.md' '.github/**/*.md' 'tools/monorepo-check/**/*.mjs' .pnp.register.mjs",
+    "format:monorepo-check:fix": "prettier --cache --cache-location ./.cache/prettier/.prettier-cache --write --check '**/Jenkinsfile' 'google-ops/packer/jenkins/vm_config/init.groovy.d/*.groovy' '**/*.md' '**/docker-compose.yml' '**/docker-compose.*.yml' '.agents/**/*.js' '.agents/**/*.md' '.github/**/*.md' 'tools/monorepo-check/**/*.mjs' .pnp.register.mjs",
+    "lint": "eslint --cache --cache-location ./.cache/eslint/ --max-warnings 0",
+    "lint:fix": "eslint --cache --cache-location ./.cache/eslint/ --fix"
   },
   "workspaces": [
     "jobs/mirror-documentation",
+    "jobs/quay-logging",
+    "jobs/wiki-algolia",
     "libraries/*",
     "server-ce/test",
     "services/analytics",
     "services/chat",
     "services/clsi",
     "services/clsi-cache",
+    "services/clsi-lb",
     "services/clsi-perf",
-    "services/contacts",
     "services/docstore",
     "services/document-updater",
     "services/filestore",
@@ -71,14 +222,194 @@
     "services/notifications",
     "services/project-history",
     "services/real-time",
-    "services/references",
     "services/templates",
     "services/third-party-datastore",
     "services/third-party-references",
-    "services/tpdsworker",
     "services/web",
+    "services/web/scripts/plan-prices",
+    "services/web/scripts/ukamf",
     "tools/dependency-management",
+    "tools/npm-overrides-helper",
     "tools/saas-e2e",
     "tools/migrations"
-  ]
+  ],
+  "dependenciesMeta": {
+    "@babel/helper-string-parser@7.27.1": {
+      "unplugged": true
+    },
+    "@babel/helper-validator-identifier@7.28.5": {
+      "unplugged": true
+    },
+    "@babel/parser@7.29.2": {
+      "unplugged": true
+    },
+    "@babel/types@7.29.0": {
+      "unplugged": true
+    },
+    "@prettier/plugin-pug@3.4.2": {
+      "unplugged": true
+    },
+    "acorn@7.4.1": {
+      "unplugged": true
+    },
+    "asap@2.0.6": {
+      "unplugged": true
+    },
+    "assert-never@1.4.0": {
+      "unplugged": true
+    },
+    "async-function@1.0.0": {
+      "unplugged": true
+    },
+    "async-generator-function@1.0.0": {
+      "unplugged": true
+    },
+    "babel-walk@3.0.0-canary-5": {
+      "unplugged": true
+    },
+    "call-bind-apply-helpers@1.0.2": {
+      "unplugged": true
+    },
+    "call-bound@1.0.4": {
+      "unplugged": true
+    },
+    "character-parser@2.2.0": {
+      "unplugged": true
+    },
+    "constantinople@4.0.1": {
+      "unplugged": true
+    },
+    "cypress-multi-reporters@2.0.5": {
+      "unplugged": true
+    },
+    "doctypes@1.1.0": {
+      "unplugged": true
+    },
+    "dunder-proto@1.0.1": {
+      "unplugged": true
+    },
+    "es-define-property@1.0.1": {
+      "unplugged": true
+    },
+    "es-errors@1.3.0": {
+      "unplugged": true
+    },
+    "es-object-atoms@1.1.1": {
+      "unplugged": true
+    },
+    "esmock@2.7.3": {
+      "unplugged": true
+    },
+    "function-bind@1.1.2": {
+      "unplugged": true
+    },
+    "generator-function@2.0.1": {
+      "unplugged": true
+    },
+    "get-intrinsic@1.3.1": {
+      "unplugged": true
+    },
+    "get-proto@1.0.1": {
+      "unplugged": true
+    },
+    "gopd@1.2.0": {
+      "unplugged": true
+    },
+    "has-symbols@1.1.0": {
+      "unplugged": true
+    },
+    "has-tostringtag@1.0.2": {
+      "unplugged": true
+    },
+    "hasown@2.0.2": {
+      "unplugged": true
+    },
+    "is-core-module@2.16.1": {
+      "unplugged": true
+    },
+    "is-expression@4.0.0": {
+      "unplugged": true
+    },
+    "is-promise@2.2.2": {
+      "unplugged": true
+    },
+    "is-regex@1.2.1": {
+      "unplugged": true
+    },
+    "js-stringify@1.0.2": {
+      "unplugged": true
+    },
+    "jstransformer@1.0.0": {
+      "unplugged": true
+    },
+    "math-intrinsics@1.1.0": {
+      "unplugged": true
+    },
+    "object-assign@4.1.1": {
+      "unplugged": true
+    },
+    "path-parse@1.0.7": {
+      "unplugged": true
+    },
+    "prettier@3.7.4": {
+      "unplugged": true
+    },
+    "prettier-plugin-groovy@0.2.1": {
+      "unplugged": true
+    },
+    "promise@7.3.1": {
+      "unplugged": true
+    },
+    "pug@3.0.3": {
+      "unplugged": true
+    },
+    "pug-attrs@3.0.0": {
+      "unplugged": true
+    },
+    "pug-code-gen@3.0.4": {
+      "unplugged": true
+    },
+    "pug-error@2.1.0": {
+      "unplugged": true
+    },
+    "pug-filters@4.0.0": {
+      "unplugged": true
+    },
+    "pug-lexer@5.0.1": {
+      "unplugged": true
+    },
+    "pug-linker@4.0.0": {
+      "unplugged": true
+    },
+    "pug-load@3.0.0": {
+      "unplugged": true
+    },
+    "pug-parser@6.0.0": {
+      "unplugged": true
+    },
+    "pug-runtime@3.0.1": {
+      "unplugged": true
+    },
+    "pug-strip-comments@2.0.0": {
+      "unplugged": true
+    },
+    "pug-walk@2.0.0": {
+      "unplugged": true
+    },
+    "resolve@1.22.12": {
+      "unplugged": true
+    },
+    "supports-preserve-symlinks-flag@1.0.0": {
+      "unplugged": true
+    },
+    "token-stream@1.0.0": {
+      "unplugged": true
+    },
+    "void-elements@3.1.0": {
+      "unplugged": true
+    },
+    "with@7.0.2": {
+      "unplugged": true
+    }
+  }
 }

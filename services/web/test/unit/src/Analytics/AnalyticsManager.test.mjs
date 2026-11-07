@@ -1,4 +1,4 @@
-import { vi, assert } from 'vitest'
+import { assert, beforeEach, describe, expect, it, vi } from 'vitest'
 import path from 'node:path'
 import sinon from 'sinon'
 import MockRequest from '../helpers/MockRequest.mjs'
@@ -89,10 +89,13 @@ describe('AnalyticsManager', function () {
     }))
 
     vi.doMock(
-      '../../../../app/src/Features/Analytics/UserAnalyticsIdCache',
+      '../../../../app/src/Features/Analytics/UserAnalyticsDataCache',
       () => ({
-        default: (ctx.UserAnalyticsIdCache = {
-          get: sinon.stub().resolves(ctx.analyticsId),
+        default: (ctx.UserAnalyticsDataCache = {
+          getAnalyticsId: sinon.stub().resolves(ctx.analyticsId),
+          getAnalyticsData: sinon
+            .stub()
+            .resolves({ analyticsId: ctx.analyticsId, labsProgram: false }),
         }),
       })
     )
@@ -388,10 +391,13 @@ describe('AnalyticsManager', function () {
       }))
 
       vi.doMock(
-        '../../../../app/src/Features/Analytics/UserAnalyticsIdCache',
+        '../../../../app/src/Features/Analytics/UserAnalyticsDataCache',
         () => ({
-          default: (ctx.UserAnalyticsIdCache = {
-            get: sinon.stub().resolves(ctx.analyticsId),
+          default: (ctx.UserAnalyticsDataCache = {
+            getAnalyticsId: sinon.stub().resolves(ctx.analyticsId),
+            getAnalyticsData: sinon
+              .stub()
+              .resolves({ analyticsId: ctx.analyticsId, labsProgram: false }),
           }),
         })
       )
@@ -432,6 +438,7 @@ describe('AnalyticsManager', function () {
       ctx.req.session.user = {
         _id: ctx.userId,
         analyticsId: ctx.analyticsId,
+        labsProgram: false,
       }
       await ctx.AnalyticsManager.analyticsIdMiddleware(ctx.req, ctx.res, () => {
         assert.equal(ctx.analyticsId, ctx.req.session.analyticsId)
@@ -439,10 +446,14 @@ describe('AnalyticsManager', function () {
     })
 
     it('sets session.analyticsId with a legacy user session without an analyticsId', async function (ctx) {
-      ctx.UserAnalyticsIdCache.get.resolves(ctx.userId)
+      ctx.UserAnalyticsDataCache.getAnalyticsData.resolves({
+        analyticsId: ctx.userId,
+        labsProgram: false,
+      })
       ctx.req.session.user = {
         _id: ctx.userId,
         analyticsId: undefined,
+        labsProgram: false,
       }
       await ctx.AnalyticsManager.analyticsIdMiddleware(ctx.req, ctx.res, () => {
         assert.equal(ctx.userId, ctx.req.session.analyticsId)
@@ -450,10 +461,14 @@ describe('AnalyticsManager', function () {
     })
 
     it('updates session.analyticsId with a legacy user session without an analyticsId if different', async function (ctx) {
-      ctx.UserAnalyticsIdCache.get.resolves(ctx.userId)
+      ctx.UserAnalyticsDataCache.getAnalyticsData.resolves({
+        analyticsId: ctx.userId,
+        labsProgram: false,
+      })
       ctx.req.session.user = {
         _id: ctx.userId,
         analyticsId: undefined,
+        labsProgram: false,
       }
       ctx.req.analyticsId = 'foo'
       ctx.AnalyticsManager.analyticsIdMiddleware(ctx.req, ctx.res, () => {
@@ -461,11 +476,30 @@ describe('AnalyticsManager', function () {
       })
     })
 
+    it('updates session.user.labsProgram when not defined', async function (ctx) {
+      ctx.UserAnalyticsDataCache.getAnalyticsData.resolves({
+        analyticsId: ctx.userId,
+        labsProgram: false,
+      })
+      ctx.req.session.user = {
+        _id: ctx.userId,
+        analyticsId: ctx.userId,
+      }
+      ctx.req.session.analyticsId = ctx.userId
+      ctx.AnalyticsManager.analyticsIdMiddleware(ctx.req, ctx.res, () => {
+        assert.equal(ctx.req.session.user.labsProgram, false)
+      })
+    })
+
     it('does not update session.analyticsId with a legacy user session without an analyticsId if same', async function (ctx) {
-      ctx.UserAnalyticsIdCache.get.resolves(ctx.userId)
+      ctx.UserAnalyticsDataCache.getAnalyticsData.resolves({
+        analyticsId: ctx.userId,
+        labsProgram: false,
+      })
       ctx.req.session.user = {
         _id: ctx.userId,
         analyticsId: undefined,
+        labsProgram: false,
       }
       ctx.req.analyticsId = ctx.userId
       await ctx.AnalyticsManager.analyticsIdMiddleware(ctx.req, ctx.res, () => {

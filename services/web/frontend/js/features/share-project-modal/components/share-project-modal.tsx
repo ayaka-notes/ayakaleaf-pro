@@ -7,12 +7,26 @@ import React, {
 } from 'react'
 import ShareProjectModalContent from './share-project-modal-content'
 import { useProjectContext } from '@/shared/context/project-context'
-import { useSplitTestContext } from '@/shared/context/split-test-context'
+import {
+  useFeatureFlag,
+  useSplitTestContext,
+} from '@/shared/context/split-test-context'
 import { sendMB } from '@/infrastructure/event-tracking'
 import { useEditorContext } from '@/shared/context/editor-context'
 import customLocalStorage from '@/infrastructure/local-storage'
+import { FetchError } from '@/infrastructure/fetch-json'
+import {
+  getSharingLink,
+  SharingLinkData,
+} from '@/features/share-project-modal/utils/api'
 
-type ShareProjectContextValue = {
+export type ProjectAccessType =
+  | 'legacyLinkSharing'
+  | 'onlyInvitedPeople'
+  | `anyoneInXyzWithTheLink.${string}`
+  | 'anyoneWithTheLink'
+
+export type ShareProjectContextValue = {
   monitorRequest: <T extends Promise<unknown>>(request: () => T) => T
   inFlight: boolean
   setInFlight: React.Dispatch<
@@ -22,6 +36,16 @@ type ShareProjectContextValue = {
   setError: React.Dispatch<
     React.SetStateAction<ShareProjectContextValue['error']>
   >
+  successActionMessage: string | undefined
+  setSuccessActionMessage: React.Dispatch<
+    React.SetStateAction<string | undefined>
+  >
+  projectAccess: ProjectAccessType | undefined
+  setProjectAccess: React.Dispatch<
+    React.SetStateAction<ProjectAccessType | undefined>
+  >
+  sharingLinkData: SharingLinkData | null
+  setSharingLinkData: (data: SharingLinkData | null) => void
 }
 
 const SHOW_MODAL_COOLDOWN_PERIOD = 24 * 60 * 60 * 1000 // 24 hours
@@ -58,11 +82,22 @@ const ShareProjectModal = React.memo(function ShareProjectModal({
   const [inFlight, setInFlight] =
     useState<ShareProjectContextValue['inFlight']>(false)
   const [error, setError] = useState<ShareProjectContextValue['error']>()
+  const [sharingLinkData, setSharingLinkData] =
+    useState<SharingLinkData | null>(null)
+  const [projectAccess, setProjectAccess] = useState<
+    ProjectAccessType | undefined
+  >()
+  const [successActionMessage, setSuccessActionMessage] = useState<
+    string | undefined
+  >()
 
   const { project, projectId } = useProjectContext()
   const { isProjectOwner } = useEditorContext()
+  const { publicAccessLevel } = project || {}
 
   const { splitTestVariants } = useSplitTestContext()
+  const isSharingUpdatesEnabled = useFeatureFlag('sharing-updates')
+  const isNewLinkEnabled = useFeatureFlag('sharing-updates-new-link')
 
   // show the new share modal if project owner
   // is over collaborator limit or has pending editors (once every 24 hours)
@@ -116,33 +151,90 @@ const ShareProjectModal = React.memo(function ShareProjectModal({
     }
   }, [show])
 
+  const handleShow = useCallback(async () => {
+    if (!isSharingUpdatesEnabled || !isProjectOwner) {
+      return
+    }
+
+    // When the new reusable-link feature is off, derive access purely from the
+    // project's publicAccessLevel (legacy token-based sharing) and avoid the
+    // reusable sharing-link endpoint, which is gated behind the same flag.
+    if (!isNewLinkEnabled) {
+      setSharingLinkData(null)
+      setProjectAccess(
+        publicAccessLevel === 'tokenBased'
+          ? 'legacyLinkSharing'
+          : 'onlyInvitedPeople'
+      )
+      return
+    }
+
+    if (publicAccessLevel === 'tokenBased') {
+      setSharingLinkData(null)
+      setProjectAccess('legacyLinkSharing')
+      return
+    }
+
+    try {
+      const data = await getSharingLink(projectId)
+
+      setSharingLinkData(data)
+
+      if (!data.privileges) {
+        setProjectAccess('onlyInvitedPeople')
+      } else if (data.subscriptionId) {
+        setProjectAccess(`anyoneInXyzWithTheLink.${data.subscriptionId}`)
+      } else {
+        setProjectAccess('anyoneWithTheLink')
+      }
+    } catch (error) {
+      if (error instanceof FetchError && error.response?.status === 404) {
+        setSharingLinkData(null)
+        setProjectAccess('onlyInvitedPeople')
+        return
+      }
+
+      const errorData = (error as { data?: Record<string, string> })?.data
+      setError(
+        errorData?.errorReason ||
+          errorData?.error ||
+          'generic_something_went_wrong'
+      )
+    }
+  }, [
+    publicAccessLevel,
+    projectId,
+    isSharingUpdatesEnabled,
+    isNewLinkEnabled,
+    isProjectOwner,
+  ])
+
   // close the modal if not in flight
   const cancel = useCallback(() => {
     if (!inFlight) {
       handleHide()
+      setSuccessActionMessage(undefined)
     }
   }, [handleHide, inFlight])
 
   // update `error` and `inFlight` while sending a request
   const monitorRequest = useCallback((request: () => any) => {
     setError(undefined)
+    setSuccessActionMessage(undefined)
     setInFlight(true)
 
-    const promise = request()
-
-    promise.catch((error: { data?: Record<string, string> }) => {
-      setError(
-        error.data?.errorReason ||
-          error.data?.error ||
-          'generic_something_went_wrong'
-      )
-    })
-
-    promise.finally(() => {
-      setInFlight(false)
-    })
-
-    return promise
+    return request()
+      .catch((error: { data?: Record<string, string> }) => {
+        setError(
+          error.data?.errorReason ||
+            error.data?.error ||
+            'generic_something_went_wrong'
+        )
+        throw error
+      })
+      .finally(() => {
+        setInFlight(false)
+      })
   }, [])
 
   if (!project) {
@@ -157,14 +249,22 @@ const ShareProjectModal = React.memo(function ShareProjectModal({
         setInFlight,
         error,
         setError,
+        successActionMessage,
+        setSuccessActionMessage,
+        projectAccess,
+        setProjectAccess,
+        sharingLinkData,
+        setSharingLinkData,
       }}
     >
       <ShareProjectModalContent
         animation={animation}
+        onShow={handleShow}
         cancel={cancel}
         error={error}
         inFlight={inFlight}
         show={show}
+        projectName={project.name}
       />
     </ShareProjectContext.Provider>
   )

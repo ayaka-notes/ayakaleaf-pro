@@ -49,6 +49,7 @@ const ignoreWords = {
   camel: new Set([
     'addWorkflowScope',
     'aiErrorAssistant',
+    'aiFeatureUsage',
     'beginAuth',
     'brandVariationId',
     'closeEditor',
@@ -70,6 +71,7 @@ const ignoreWords = {
     'resendManagedUserInvite',
     'salesContactForm',
     'showSupport',
+    'uniExternalCollaboration',
   ]),
   other: new Set([
     'Project',

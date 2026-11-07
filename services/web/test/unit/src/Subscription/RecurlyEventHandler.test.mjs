@@ -1,4 +1,4 @@
-import { vi } from 'vitest'
+import { beforeEach, describe, it, vi } from 'vitest'
 import mongodb from 'mongodb-legacy'
 import sinon from 'sinon'
 
@@ -66,7 +66,57 @@ describe('RecurlyEventHandler', function () {
       })
     )
 
+    vi.doMock(
+      '../../../../app/src/Features/Subscription/SubscriptionLocator',
+      () => ({
+        default: (ctx.SubscriptionLocator = {
+          promises: {
+            getUsersSubscription: sinon.stub().resolves(null),
+          },
+        }),
+      })
+    )
+
     ctx.RecurlyEventHandler = (await import(modulePath)).default
+  })
+
+  it('should not send events for subscriptions managed by stripe', async function (ctx) {
+    ctx.SubscriptionLocator.promises.getUsersSubscription.resolves({
+      _id: 'sub123',
+      paymentProvider: {
+        service: 'stripe-uk',
+      },
+    })
+
+    await ctx.RecurlyEventHandler.sendRecurlyAnalyticsEvent(
+      'new_subscription_notification',
+      ctx.eventData
+    )
+
+    sinon.assert.notCalled(ctx.AnalyticsManager.recordEventForUserInBackground)
+    sinon.assert.notCalled(
+      ctx.AnalyticsManager.setUserPropertyForUserInBackground
+    )
+    sinon.assert.notCalled(
+      ctx.SubscriptionEmailHandler.sendTrialOnboardingEmail
+    )
+  })
+
+  it('should send events for subscriptions without stripe payment provider', async function (ctx) {
+    ctx.SubscriptionLocator.promises.getUsersSubscription.resolves({
+      _id: 'sub123',
+      paymentProvider: {
+        service: 'recurly',
+      },
+    })
+
+    await ctx.RecurlyEventHandler.sendRecurlyAnalyticsEvent(
+      'new_subscription_notification',
+      ctx.eventData
+    )
+
+    sinon.assert.called(ctx.AnalyticsManager.recordEventForUserInBackground)
+    sinon.assert.called(ctx.AnalyticsManager.setUserPropertyForUserInBackground)
   })
 
   it('with new_subscription_notification - free trial', async function (ctx) {
@@ -85,48 +135,6 @@ describe('RecurlyEventHandler', function () {
         has_ai_add_on: false,
         subscriptionId: ctx.eventData.subscription.uuid,
         payment_provider: 'recurly',
-        'customerio-integration': false,
-      }
-    )
-    sinon.assert.calledWith(
-      ctx.AnalyticsManager.setUserPropertyForUserInBackground,
-      ctx.userId,
-      'subscription-plan-code',
-      ctx.planCode
-    )
-    sinon.assert.calledWith(
-      ctx.AnalyticsManager.setUserPropertyForUserInBackground,
-      ctx.userId,
-      'subscription-state',
-      'active'
-    )
-    sinon.assert.calledWith(
-      ctx.AnalyticsManager.setUserPropertyForUserInBackground,
-      ctx.userId,
-      'subscription-is-trial',
-      true
-    )
-  })
-
-  it('with new_subscription_notification - free trial with customerio integration enabled', async function (ctx) {
-    ctx.SplitTestHandler.promises.hasUserBeenAssignedToVariant.resolves(true)
-
-    await ctx.RecurlyEventHandler.sendRecurlyAnalyticsEvent(
-      'new_subscription_notification',
-      ctx.eventData
-    )
-    sinon.assert.calledWith(
-      ctx.AnalyticsManager.recordEventForUserInBackground,
-      ctx.userId,
-      'subscription-started',
-      {
-        plan_code: ctx.planCode,
-        quantity: 1,
-        is_trial: true,
-        has_ai_add_on: false,
-        subscriptionId: ctx.eventData.subscription.uuid,
-        payment_provider: 'recurly',
-        'customerio-integration': true,
       }
     )
     sinon.assert.calledWith(
@@ -182,7 +190,6 @@ describe('RecurlyEventHandler', function () {
         has_ai_add_on: false,
         subscriptionId: ctx.eventData.subscription.uuid,
         payment_provider: 'recurly',
-        'customerio-integration': false,
       }
     )
     sinon.assert.calledWith(
@@ -202,6 +209,10 @@ describe('RecurlyEventHandler', function () {
   it('with updated_subscription_notification', async function (ctx) {
     ctx.planCode = 'new-plan-code'
     ctx.eventData.subscription.plan.plan_code = ctx.planCode
+    ctx.SubscriptionLocator.promises.getUsersSubscription.resolves({
+      _id: 'sub123',
+      planCode: 'collaborator',
+    })
     await ctx.RecurlyEventHandler.sendRecurlyAnalyticsEvent(
       'updated_subscription_notification',
       ctx.eventData
@@ -212,12 +223,12 @@ describe('RecurlyEventHandler', function () {
       'subscription-updated',
       {
         plan_code: ctx.planCode,
+        previous_plan_code: 'collaborator',
         quantity: 1,
         is_trial: true,
         has_ai_add_on: false,
         subscriptionId: ctx.eventData.subscription.uuid,
         payment_provider: 'recurly',
-        'customerio-integration': false,
       }
     )
     sinon.assert.calledWith(
@@ -240,11 +251,7 @@ describe('RecurlyEventHandler', function () {
     )
   })
 
-  it('with updated_subscription_notification with customerio integration enabled', async function (ctx) {
-    ctx.SplitTestHandler.promises.hasUserBeenAssignedToVariant.resolves(true)
-    ctx.planCode = 'new-plan-code'
-    ctx.eventData.subscription.plan.plan_code = ctx.planCode
-
+  it('with updated_subscription_notification and no subscription in mongo', async function (ctx) {
     await ctx.RecurlyEventHandler.sendRecurlyAnalyticsEvent(
       'updated_subscription_notification',
       ctx.eventData
@@ -253,33 +260,7 @@ describe('RecurlyEventHandler', function () {
       ctx.AnalyticsManager.recordEventForUserInBackground,
       ctx.userId,
       'subscription-updated',
-      {
-        plan_code: ctx.planCode,
-        quantity: 1,
-        is_trial: true,
-        has_ai_add_on: false,
-        subscriptionId: ctx.eventData.subscription.uuid,
-        payment_provider: 'recurly',
-        'customerio-integration': true,
-      }
-    )
-    sinon.assert.calledWith(
-      ctx.AnalyticsManager.setUserPropertyForUserInBackground,
-      ctx.userId,
-      'subscription-plan-code',
-      ctx.planCode
-    )
-    sinon.assert.calledWith(
-      ctx.AnalyticsManager.setUserPropertyForUserInBackground,
-      ctx.userId,
-      'subscription-state',
-      'active'
-    )
-    sinon.assert.calledWith(
-      ctx.AnalyticsManager.setUserPropertyForUserInBackground,
-      ctx.userId,
-      'subscription-is-trial',
-      true
+      sinon.match({ previous_plan_code: undefined })
     )
   })
 
@@ -300,7 +281,6 @@ describe('RecurlyEventHandler', function () {
         has_ai_add_on: false,
         subscriptionId: ctx.eventData.subscription.uuid,
         payment_provider: 'recurly',
-        'customerio-integration': false,
       }
     )
     sinon.assert.calledWith(
@@ -334,7 +314,6 @@ describe('RecurlyEventHandler', function () {
         has_ai_add_on: false,
         subscriptionId: ctx.eventData.subscription.uuid,
         payment_provider: 'recurly',
-        'customerio-integration': false,
       }
     )
     sinon.assert.calledWith(
@@ -373,7 +352,6 @@ describe('RecurlyEventHandler', function () {
         has_ai_add_on: false,
         subscriptionId: ctx.eventData.subscription.uuid,
         payment_provider: 'recurly',
-        'customerio-integration': false,
       }
     )
   })
@@ -393,7 +371,6 @@ describe('RecurlyEventHandler', function () {
         has_ai_add_on: false,
         subscriptionId: ctx.eventData.subscription.uuid,
         payment_provider: 'recurly',
-        'customerio-integration': false,
       }
     )
   })

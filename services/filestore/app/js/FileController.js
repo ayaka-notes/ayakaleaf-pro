@@ -3,6 +3,8 @@ import metrics from '@overleaf/metrics'
 import parseRange from 'range-parser'
 import Errors from './Errors.js'
 import { pipeline } from 'node:stream'
+import { parseReq } from '@overleaf/validation-tools'
+import { getFileQuerySchema, getFileQueryFallbackSchema } from './schemas.js'
 
 const maxSizeInBytes = 1024 * 1024 * 1024 // 1GB
 
@@ -15,7 +17,11 @@ export default {
 
 function getFile(req, res, next) {
   const { key, bucket } = req
-  const { format, style } = req.query
+  const { query, headers } = parseReq(req, getFileQuerySchema, {
+    logOnly: true,
+    fallbackSchema: getFileQueryFallbackSchema,
+  })
+  const { format, style, cacheWarm } = query
   const options = {
     key,
     bucket,
@@ -31,11 +37,11 @@ function getFile(req, res, next) {
     bucket,
     format,
     style,
-    cacheWarm: req.query.cacheWarm,
+    cacheWarm,
   })
 
-  if (req.headers.range) {
-    const range = _getRange(req.headers.range)
+  if (headers.range) {
+    const range = _getRange(headers.range)
     if (range) {
       options.start = range.start
       options.end = range.end
@@ -63,13 +69,22 @@ function getFile(req, res, next) {
         return
       }
 
-      if (req.query.cacheWarm) {
+      if (res.destroyed) {
+        fileStream.destroy()
+        return
+      }
+
+      if (cacheWarm) {
         fileStream.destroy()
         return res.sendStatus(200).end()
       }
 
       pipeline(fileStream, res, err => {
-        if (err && err.code === 'ERR_STREAM_PREMATURE_CLOSE') {
+        if (
+          err &&
+          (err.code === 'ERR_STREAM_PREMATURE_CLOSE' ||
+            err.code === 'ERR_STREAM_UNABLE_TO_PIPE')
+        ) {
           res.end()
         } else if (err) {
           next(
@@ -113,13 +128,9 @@ function deleteFile(req, res, next) {
   req.requestLogger.addFields({ key, bucket })
   req.requestLogger.setMessage('deleting file')
 
-  FileHandler.deleteFile(bucket, key, function (err) {
-    if (err) {
-      next(err)
-    } else {
-      res.sendStatus(204)
-    }
-  })
+  FileHandler.promises.deleteFile(bucket, key).then(() => {
+    res.sendStatus(204)
+  }, next)
 }
 
 function insertFile(req, res, next) {

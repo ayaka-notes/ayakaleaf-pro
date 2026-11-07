@@ -1,25 +1,67 @@
-const express = require('express')
-const Path = require('node:path')
-const Client = require('./helpers/Client')
-const sinon = require('sinon')
-const ClsiApp = require('./helpers/ClsiApp')
-const { fetchString } = require('@overleaf/fetch-utils')
-const Settings = require('@overleaf/settings')
+import express from 'express'
+import Path from 'node:path'
+import Client from './helpers/Client.js'
+import sinon from 'sinon'
+import ClsiApp from './helpers/ClsiApp.js'
+import { fetchString } from '@overleaf/fetch-utils'
+import Settings from '@overleaf/settings'
+import {
+  handleValidationError,
+  parseReq,
+  z,
+  zz,
+} from '@overleaf/validation-tools'
+
+// Stands in for filestore's file-serving endpoints; this mock runs as its
+// own Express app in the same process as clsi's acceptance tests, so it's
+// subject to the same REQ_LOCKDOWN_MODE lockdown and needs its own schemas.
+const failParamsSchema = z.object({
+  params: z.strictObject({
+    times: z.string(),
+    id: z.string(),
+  }),
+})
+
+const projectFileParamsSchema = z.object({
+  params: z.strictObject({
+    projectId: z.string(),
+    fileId: z.string(),
+  }),
+})
+
+const bucketKeyParamsSchema = z.object({
+  params: z.strictObject({
+    bucket: z.string(),
+    key: zz.filepath(),
+  }),
+})
+
+const staticFileParamsSchema = z.object({
+  params: z.strictObject({
+    random_id: z.string(),
+    path: zz.filepath(),
+  }),
+})
 
 const Server = {
   run() {
     const app = express()
 
-    const staticServer = express.static(Path.join(__dirname, '../fixtures/'))
+    const staticServer = express.static(
+      Path.join(import.meta.dirname, '../fixtures/')
+    )
 
     const alreadyFailed = new Map()
     app.get('/fail/:times/:id', (req, res) => {
       this.getFile(req.url)
 
-      const soFar = alreadyFailed.get(req.params.id) || 0
-      const wanted = parseInt(req.params.times, 10)
+      const {
+        params: { times, id },
+      } = parseReq(req, failParamsSchema)
+      const soFar = alreadyFailed.get(id) || 0
+      const wanted = parseInt(times, 10)
       if (soFar < wanted) {
-        alreadyFailed.set(req.params.id, soFar + 1)
+        alreadyFailed.set(id, soFar + 1)
         res.status(503).end()
       } else {
         res.send('THE CONTENT')
@@ -33,19 +75,30 @@ const Server = {
 
     app.get('/project/:projectId/file/:fileId', (req, res, next) => {
       this.getFile(req.url)
-      res.send(`${req.params.projectId}:${req.params.fileId}`)
+      const {
+        params: { projectId, fileId },
+      } = parseReq(req, projectFileParamsSchema)
+      res.send(`${projectId}:${fileId}`)
     })
 
-    app.get('/bucket/:bucket/key/*', (req, res, next) => {
+    app.get('/bucket/:bucket/key/:key(.+)', (req, res, next) => {
       this.getFile(req.url)
-      res.send(`${req.params.bucket}:${req.params[0]}`)
+      const {
+        params: { bucket, key },
+      } = parseReq(req, bucketKeyParamsSchema)
+      res.send(`${bucket}:${key}`)
     })
 
-    app.get('/:random_id/*', (req, res, next) => {
+    app.get('/:random_id/:path(.+)', (req, res, next) => {
       this.getFile(req.url)
-      req.url = `/${req.params[0]}`
+      const {
+        params: { path },
+      } = parseReq(req, staticFileParamsSchema)
+      req.url = `/${path}`
       staticServer(req, res, next)
     })
+
+    app.use(handleValidationError)
 
     Client.startFakeFilestoreApp(app)
   },
@@ -235,7 +288,7 @@ describe('Url Caching', function () {
       await Client.compile(this.project_id, this.request)
 
       sinon.spy(Server, 'getFile')
-      this.image_resource.modified = new Date(this.last_modified + 3000)
+      this.image_resource.modified = this.last_modified + 3000
 
       await Client.compile(this.project_id, this.request)
     })
@@ -276,7 +329,7 @@ describe('Url Caching', function () {
       await Client.compile(this.project_id, this.request)
 
       sinon.spy(Server, 'getFile')
-      this.image_resource.modified = new Date(this.last_modified - 3000)
+      this.image_resource.modified = this.last_modified - 3000
 
       await Client.compile(this.project_id, this.request)
     })

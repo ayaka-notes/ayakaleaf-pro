@@ -103,8 +103,10 @@ html(
 			'thin-footer': showThinFooter,
 			'website-redesign': isWebsiteRedesign === true || websiteRedesignOverride,
 			'application-page': isApplicationPage,
+			'red-nav-bar-for-admins': !settings.isDevEnv && hasFeature('saas') && hasAdminAccess(),
 		}
-		data-theme='default'
+		data-theme='light'
+		data-initial-theme=initialTheme
 	)
 		if settings.recaptcha && settings.recaptcha.siteKeyV3
 			script(
@@ -114,7 +116,7 @@ html(
 				defer=deferScripts
 			)
 
-		if typeof suppressSkipToContent == 'undefined'
+		if suppressSkipToContent === false || (typeof suppressSkipToContent == 'undefined' && typeof suppressNavbar == 'undefined')
 			a(class='skip-to-content' href='#main-content') #{translate('skip_to_content')}
 
 		block body

@@ -3,6 +3,8 @@ import AddCollaboratorsUpgrade from './add-collaborators-upgrade'
 import CollaboratorsLimitUpgrade from './collaborators-limit-upgrade'
 import AccessLevelsChanged from './access-levels-changed'
 import OLRow from '@/shared/components/ol/ol-row'
+import classnames from 'classnames'
+import { useFeatureFlag } from '@/shared/context/split-test-context'
 
 export default function SendInvites({
   canAddCollaborators,
@@ -15,8 +17,14 @@ export default function SendInvites({
   haveAnyEditorsBeenDowngraded: boolean
   somePendingEditorsResolved: boolean
 }) {
+  const isSharingUpdatesEnabled = useFeatureFlag('sharing-updates')
+
   return (
-    <OLRow className="invite-controls">
+    <OLRow
+      className={classnames('invite-controls', {
+        'pb-3': isSharingUpdatesEnabled,
+      })}
+    >
       {hasExceededCollaboratorLimit && !haveAnyEditorsBeenDowngraded && (
         <AddCollaboratorsUpgrade />
       )}

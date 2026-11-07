@@ -121,6 +121,136 @@ describe('CodeMirror LaTeX-folding', function () {
       })
     })
 
+    describe('with a comment line before an indented sectioning command', function () {
+      let view: EditorView, content: string[]
+
+      beforeEach(function () {
+        // Reproduces a bug where a comment line followed by an indented
+        // `\subsection` should not pull the next sectioning command's line
+        // into the previous fold.
+        content = [
+          '\\section{1}',
+          '    Content',
+          '    \\subsection{1a}',
+          '    Content',
+          '    %',
+          '    \\subsection{1b}',
+          '    Content',
+        ]
+        view = makeView(content)
+      })
+
+      it('should fold subsection 1a up to the comment line, leaving subsection 1b on its own line', function () {
+        const folds = _getFolds(view)
+        const subsection1aFold = folds.find(
+          fold => view.state.doc.lineAt(fold.from).number === 3
+        )
+        expect(subsection1aFold).not.to.be.undefined
+        // The fold for subsection 1a should end on (or before) line 5 so that
+        // line 6 (subsection 1b) can be folded independently.
+        expect(
+          view.state.doc.lineAt(subsection1aFold!.to).number
+        ).to.be.at.most(5)
+      })
+
+      it('should still produce a separate fold for subsection 1b', function () {
+        const folds = _getFolds(view)
+        const subsection1bFold = folds.find(
+          fold => view.state.doc.lineAt(fold.from).number === 6
+        )
+        expect(subsection1bFold).not.to.be.undefined
+      })
+    })
+
+    describe('with an indented sectioning command after a blank line', function () {
+      let view: EditorView, content: string[]
+
+      beforeEach(function () {
+        // The folding algorithm should not consider whitespace on the line
+        // before an indented sectioning command as part of the previous
+        // section's fold.
+        content = ['\\section{1}', 'Content', '', ' \\section{2}', 'Content']
+        view = makeView(content)
+      })
+
+      it('should not include the indented sectioning command line in the previous fold', function () {
+        const folds = _getFolds(view)
+        const firstFold = folds.find(
+          fold => view.state.doc.lineAt(fold.from).number === 1
+        )
+        expect(firstFold).not.to.be.undefined
+        expect(view.state.doc.lineAt(firstFold!.to).number).to.be.at.most(3)
+      })
+    })
+
+    describe('with a complex mix of comments, blank lines and indented sectioning commands', function () {
+      let view: EditorView, content: string[]
+
+      beforeEach(function () {
+        // Combines all the tricky cases:
+        // - trailing `%` comment lines before indented and non-indented
+        //   sectioning commands
+        // - blank lines (with and without trailing whitespace) before indented
+        //   sectioning commands
+        // - multiple levels of (sub)sectioning at varying indentation
+        content = [
+          '\\section{1}',
+          '    Content',
+          '    \\subsection{1a}',
+          '    Content a',
+          '    %',
+          '    \\subsubsection{1a1a}',
+          '    Hello',
+          '    %',
+          '\\subsection{1b}',
+          'Content b',
+          '',
+          ' \\subsection{1c}',
+          '        Content c',
+          '',
+          '      \\subsubsection{1c1a}',
+          '    World',
+          '    ',
+          '     \\subsubsection{1c1b}',
+          '    New ',
+          '    ',
+        ]
+        view = makeView(content)
+      })
+
+      it('should produce a separate fold for each sectioning command', function () {
+        const folds = _getFolds(view)
+        const fromLines = folds
+          .map(fold => view.state.doc.lineAt(fold.from).number)
+          .sort((a, b) => a - b)
+        // One fold per sectioning command line
+        expect(fromLines).to.deep.equal([1, 3, 6, 9, 12, 15, 18])
+      })
+
+      it('should not pull a sibling sectioning command line into the previous fold', function () {
+        const folds = _getFolds(view)
+        const foldByFromLine = new Map<number, Fold>()
+        for (const fold of folds) {
+          foldByFromLine.set(view.state.doc.lineAt(fold.from).number, fold)
+        }
+        // Each subsection 1a / 1b / 1c sibling fold must end before the next
+        // subsection's line so the next subsection can be folded independently.
+        const siblingPairs: Array<[number, number]> = [
+          [3, 9], // \subsection{1a} fold must end before line 9 (\subsection{1b})
+          [9, 12], // \subsection{1b} fold must end before line 12 (\subsection{1c})
+          [15, 18], // \subsubsection{1c1a} fold must end before line 18 (\subsubsection{1c1b})
+        ]
+        for (const [fromLine, nextFromLine] of siblingPairs) {
+          const fold = foldByFromLine.get(fromLine)
+          expect(fold, `fold starting on line ${fromLine}`).not.to.be.undefined
+          expect(
+            view.state.doc.lineAt(fold!.to).number,
+            `fold starting on line ${fromLine} should end before line ${nextFromLine}`
+          ).to.be.lessThan(nextFromLine)
+        }
+      })
+    })
+
     describe('with realistic nesting', function () {
       let view: EditorView, content: string[]
 

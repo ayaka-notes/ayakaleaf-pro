@@ -1,4 +1,7 @@
 import '@testing-library/cypress/add-commands'
+import { register as registerCypressGrep } from '@cypress/grep'
+
+registerCypressGrep()
 
 Cypress.on('uncaught:exception', (err, runnable) => {
   if (err.message.includes('ResizeObserver')) {

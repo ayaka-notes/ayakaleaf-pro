@@ -4,7 +4,7 @@ import { callbackify } from 'node:util'
 import { db, ObjectId } from '../../infrastructure/mongodb.mjs'
 import Errors from '../Errors/Errors.js'
 import mongodb from 'mongodb-legacy'
-const safeCompilers = ['xelatex', 'pdflatex', 'latex', 'lualatex']
+import OError from '@overleaf/o-error'
 
 const { ReturnDocument } = mongodb
 
@@ -15,8 +15,8 @@ const ProjectOptionsHandler = {
    */
   normalizeCompiler(compiler) {
     compiler = compiler.toLowerCase()
-    if (!safeCompilers.includes(compiler)) {
-      throw new Error(`invalid compiler: ${compiler}`)
+    if (!settings.safeCompilers.includes(compiler)) {
+      throw new OError('invalid compiler', { compiler })
     }
     return compiler
   },
@@ -44,7 +44,7 @@ const ProjectOptionsHandler = {
       allowed => imageName === allowed.imageName
     )
     if (!isAllowed) {
-      throw new Error(`invalid imageName: ${imageName}`)
+      throw new OError('invalid imageName', { imageName })
     }
     return settings.imageRoot + '/' + imageName
   },
@@ -59,6 +59,12 @@ const ProjectOptionsHandler = {
     return Project.updateOne(conditions, update, {})
   },
 
+  async setPng2pdf(projectId, png2pdf) {
+    const conditions = { _id: projectId }
+    const update = { png2pdf: Boolean(png2pdf) }
+    return Project.updateOne(conditions, update, {})
+  },
+
   async setSpellCheckLanguage(projectId, languageCode) {
     if (!Array.isArray(settings.languages)) {
       return
@@ -67,7 +73,7 @@ const ProjectOptionsHandler = {
       language => language.code === languageCode
     )
     if (languageCode && !language) {
-      throw new Error(`invalid languageCode: ${languageCode}`)
+      throw new OError('invalid languageCode', { languageCode })
     }
     const conditions = { _id: projectId }
     const update = { spellCheckLanguage: languageCode }
@@ -113,11 +119,21 @@ const ProjectOptionsHandler = {
     const { otMigrationStage } = project.overleaf.history
     return { otMigrationStage }
   },
+
+  async setReferenceFormat(projectId, newReferenceFormat) {
+    if (!newReferenceFormat) {
+      return
+    }
+    const conditions = { _id: projectId }
+    const update = { referenceFormat: newReferenceFormat }
+    return Project.updateOne(conditions, update, {})
+  },
 }
 
 export default {
   setCompiler: callbackify(ProjectOptionsHandler.setCompiler),
   setImageName: callbackify(ProjectOptionsHandler.setImageName),
+  setPng2pdf: callbackify(ProjectOptionsHandler.setPng2pdf),
   setSpellCheckLanguage: callbackify(
     ProjectOptionsHandler.setSpellCheckLanguage
   ),
@@ -128,5 +144,6 @@ export default {
   setHistoryRangesSupport: callbackify(
     ProjectOptionsHandler.setHistoryRangesSupport
   ),
+  setReferenceFormat: callbackify(ProjectOptionsHandler.setReferenceFormat),
   promises: ProjectOptionsHandler,
 }

@@ -1,5 +1,6 @@
 import StartFreeTrialButton from '../../../../frontend/js/shared/components/start-free-trial-button'
 import getMeta from '@/utils/meta'
+import { SplitTestProvider } from '@/shared/context/split-test-context'
 
 describe('start free trial button', function () {
   beforeEach(function () {
@@ -13,21 +14,13 @@ describe('start free trial button', function () {
     getMeta('ol-ExposedSettings').isOverleaf = true
   })
 
-  it('renders the button with default text', function () {
-    cy.mount(<StartFreeTrialButton source="cypress-test" />)
-
-    cy.wait('@event-paywall-prompt')
-      .its('request.body.paywall-type')
-      .should('eq', 'cypress-test')
-
-    cy.get('button').contains('Start Free Trial!')
-  })
-
   it('renders the button with custom text', function () {
     cy.mount(
-      <StartFreeTrialButton source="cypress-test">
-        Some Custom Text
-      </StartFreeTrialButton>
+      <SplitTestProvider>
+        <StartFreeTrialButton source="cypress-test">
+          Some Custom Text
+        </StartFreeTrialButton>
+      </SplitTestProvider>
     )
 
     cy.wait('@event-paywall-prompt')
@@ -39,39 +32,51 @@ describe('start free trial button', function () {
 
   it('renders the button with styled button', function () {
     cy.mount(
-      <StartFreeTrialButton
-        source="cypress-test"
-        buttonProps={{
-          variant: 'danger',
-          size: 'lg',
-        }}
-      />
+      <SplitTestProvider>
+        <StartFreeTrialButton
+          source="cypress-test"
+          buttonProps={{
+            variant: 'danger',
+            size: 'lg',
+          }}
+        >
+          Start free trial
+        </StartFreeTrialButton>
+      </SplitTestProvider>
     )
 
     cy.wait('@event-paywall-prompt')
 
-    cy.get('button.btn.btn-danger.btn-lg').contains('Start Free Trial!')
+    cy.get('button.btn.btn-danger.btn-lg').contains('Start free trial')
   })
 
   it('renders the button with custom class', function () {
     cy.mount(
-      <StartFreeTrialButton
-        source="cypress-test"
-        buttonProps={{ className: 'ct-test-class' }}
-      />
+      <SplitTestProvider>
+        <StartFreeTrialButton
+          source="cypress-test"
+          buttonProps={{ className: 'ct-test-class' }}
+        >
+          Start free trial
+        </StartFreeTrialButton>
+      </SplitTestProvider>
     )
 
     cy.wait('@event-paywall-prompt')
       .its('request.body.paywall-type')
       .should('eq', 'cypress-test')
 
-    cy.get('.ct-test-class').contains('Start Free Trial!')
+    cy.get('.ct-test-class').contains('Start free trial')
   })
 
   it('calls onClick callback and opens a new tab to the subscription page on click', function () {
     const onClickStub = cy.stub()
     cy.mount(
-      <StartFreeTrialButton source="cypress-test" handleClick={onClickStub} />
+      <SplitTestProvider>
+        <StartFreeTrialButton source="cypress-test" handleClick={onClickStub}>
+          Start free trial
+        </StartFreeTrialButton>
+      </SplitTestProvider>
     )
 
     cy.wait('@event-paywall-prompt')
@@ -79,7 +84,7 @@ describe('start free trial button', function () {
     cy.window().then(win => {
       cy.stub(win, 'open').as('Open')
     })
-    cy.get('button.btn').contains('Start Free Trial!').click()
+    cy.get('button.btn').contains('Start free trial').click()
 
     cy.wrap(null).then(() => {
       cy.wait('@event-paywall-click')
@@ -87,7 +92,7 @@ describe('start free trial button', function () {
         .should('eq', 'cypress-test')
       cy.get('@Open').should(
         'have.been.calledOnceWithExactly',
-        '/user/subscription/choose-your-plan?itm_campaign=cypress-test'
+        '/user/subscription/choose-your-plan?itm_campaign=cypress-test&paywall-type=cypress-test'
       )
       expect(onClickStub).to.be.called
     })

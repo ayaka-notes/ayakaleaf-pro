@@ -1,5 +1,6 @@
 .ciam-try-premium-logo-container {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: var(--ds-spacing-600);
   padding: var(--ds-spacing-200) 0 var(--ds-spacing-500) 0;

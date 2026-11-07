@@ -1,4 +1,4 @@
-import { Meta, StoryObj } from '@storybook/react'
+import { Meta, StoryObj } from '@storybook/react-webpack5'
 import { ScopeDecorator } from '../../../frontend/stories/decorators/scope'
 import useFetchMock from '../../../frontend/stories/hooks/use-fetch-mock'
 import FullProjectSearchUI from '../frontend/js/components/full-project-search-ui'

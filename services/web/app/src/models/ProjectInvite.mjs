@@ -14,16 +14,23 @@ const ExpiryDate = function () {
 export const ProjectInviteSchema = new Schema(
   {
     email: String,
+    encryptedToken: String,
     tokenHmac: String,
     sendingUserId: ObjectId,
     projectId: ObjectId,
-    privileges: String,
+    // privileges contains a PrivilegeLevels value, which may be Boolean `false` or a String
+    privileges: {
+      type: Schema.Types.Union,
+      of: [String, Boolean],
+    },
     createdAt: { type: Date, default: Date.now },
     expires: {
       type: Date,
       default: ExpiryDate,
       index: { expireAfterSeconds: 10 },
     },
+    reusable: { type: Boolean, default: false },
+    subscriptionId: ObjectId,
   },
   {
     collection: 'projectInvites',

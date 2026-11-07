@@ -1,4 +1,4 @@
-import { vi, expect } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import mongodb from 'mongodb-legacy'
 import sinon from 'sinon'
 const modulePath =
@@ -517,79 +517,11 @@ describe('ProjectRootDocManager', function () {
     })
   })
 
-  describe('ensureRootDocumentIsSet', function () {
-    beforeEach(function (ctx) {
-      ctx.project = {}
-      ctx.ProjectGetter.promises.getProject = sinon.stub().resolves(ctx.project)
-      ctx.ProjectRootDocManager.promises.setRootDocAutomatically = sinon
-        .stub()
-        .resolves()
-    })
-
-    describe('when the root doc is set', function () {
-      beforeEach(async function (ctx) {
-        ctx.project.rootDoc_id = ctx.docId2
-
-        await ctx.ProjectRootDocManager.promises.ensureRootDocumentIsSet(
-          ctx.project_id
-        )
-      })
-
-      it('should find the project fetching only the rootDoc_id field', function (ctx) {
-        ctx.ProjectGetter.promises.getProject
-          .calledWith(ctx.project_id, { rootDoc_id: 1 })
-          .should.equal(true)
-      })
-
-      it('should not try to update the project rootDoc_id', function (ctx) {
-        ctx.ProjectRootDocManager.promises.setRootDocAutomatically.called.should.equal(
-          false
-        )
-      })
-    })
-
-    describe('when the root doc is not set', function () {
-      beforeEach(async function (ctx) {
-        await ctx.ProjectRootDocManager.promises.ensureRootDocumentIsSet(
-          ctx.project_id
-        )
-      })
-
-      it('should find the project with only the rootDoc_id field', function (ctx) {
-        ctx.ProjectGetter.promises.getProject
-          .calledWith(ctx.project_id, { rootDoc_id: 1 })
-          .should.equal(true)
-      })
-
-      it('should update the project rootDoc_id', function (ctx) {
-        ctx.ProjectRootDocManager.promises.setRootDocAutomatically
-          .calledWith(ctx.project_id)
-          .should.equal(true)
-      })
-    })
-
-    describe('when the project does not exist', function () {
-      beforeEach(function (ctx) {
-        ctx.ProjectGetter.promises.getProject = sinon.stub().resolves(null)
-      })
-
-      it('should reject', async function (ctx) {
-        await expect(
-          ctx.ProjectRootDocManager.promises.ensureRootDocumentIsSet(
-            ctx.project_id
-          )
-        ).to.be.rejectedWith('project not found')
-      })
-    })
-  })
-
   describe('ensureRootDocumentIsValid', function () {
     beforeEach(function (ctx) {
       ctx.project = {}
       ctx.ProjectGetter.promises.getProject = sinon.stub().resolves(ctx.project)
-      ctx.ProjectGetter.promises.getProjectWithoutDocLines = sinon
-        .stub()
-        .resolves(ctx.project)
+      ctx.ProjectGetter.promises.getProject = sinon.stub().resolves(ctx.project)
       ctx.ProjectEntityUpdateHandler.promises.setRootDoc = sinon
         .stub()
         .resolves()
@@ -603,18 +535,27 @@ describe('ProjectRootDocManager', function () {
 
     describe('when the root doc is set', function () {
       describe('when the root doc is valid', function () {
+        let result
         beforeEach(async function (ctx) {
           ctx.project.rootDoc_id = ctx.docId2
           ctx.ProjectEntityHandler.promises.getDocPathFromProjectByDocId = sinon
             .stub()
             .resolves(ctx.docPaths[ctx.docId2])
-          await ctx.ProjectRootDocManager.promises.ensureRootDocumentIsValid(
-            ctx.project_id
-          )
+          result =
+            await ctx.ProjectRootDocManager.promises.ensureRootDocumentIsValid(
+              ctx.project_id
+            )
+        })
+
+        it('should return the path and id', ctx => {
+          result.should.deep.equal({
+            rootDocId: ctx.docId2,
+            rootResourcePath: ctx.docPaths[ctx.docId2],
+          })
         })
 
         it('should find the project without doc lines', function (ctx) {
-          ctx.ProjectGetter.promises.getProjectWithoutDocLines
+          ctx.ProjectGetter.promises.getProject
             .calledWith(ctx.project_id)
             .should.equal(true)
         })
@@ -627,18 +568,31 @@ describe('ProjectRootDocManager', function () {
       })
 
       describe('when the root doc is not valid', function () {
+        let result
         beforeEach(async function (ctx) {
           ctx.project.rootDoc_id = new ObjectId()
           ctx.ProjectEntityHandler.promises.getDocPathFromProjectByDocId = sinon
             .stub()
             .resolves(null)
-          await ctx.ProjectRootDocManager.promises.ensureRootDocumentIsValid(
-            ctx.project_id
+          ctx.automaticRootDoc = {
+            rootDocId: ctx.docId4,
+            rootResourcePath: ctx.docPaths[ctx.docId4],
+          }
+          ctx.ProjectRootDocManager.promises.setRootDocAutomatically.resolves(
+            ctx.automaticRootDoc
           )
+          result =
+            await ctx.ProjectRootDocManager.promises.ensureRootDocumentIsValid(
+              ctx.project_id
+            )
+        })
+
+        it('should return the path and id', ctx => {
+          result.should.deep.equal(ctx.automaticRootDoc)
         })
 
         it('should find the project without doc lines', function (ctx) {
-          ctx.ProjectGetter.promises.getProjectWithoutDocLines
+          ctx.ProjectGetter.promises.getProject
             .calledWith(ctx.project_id)
             .should.equal(true)
         })
@@ -658,14 +612,27 @@ describe('ProjectRootDocManager', function () {
     })
 
     describe('when the root doc is not set', function () {
+      let result
       beforeEach(async function (ctx) {
-        await ctx.ProjectRootDocManager.promises.ensureRootDocumentIsValid(
-          ctx.project_id
+        ctx.automaticRootDoc = {
+          rootDocId: ctx.docId4,
+          rootResourcePath: ctx.docPaths[ctx.docId4],
+        }
+        ctx.ProjectRootDocManager.promises.setRootDocAutomatically.resolves(
+          ctx.automaticRootDoc
         )
+        result =
+          await ctx.ProjectRootDocManager.promises.ensureRootDocumentIsValid(
+            ctx.project_id
+          )
+      })
+
+      it('should return the path and id', ctx => {
+        result.should.deep.equal(ctx.automaticRootDoc)
       })
 
       it('should find the project without doc lines', async function (ctx) {
-        ctx.ProjectGetter.promises.getProjectWithoutDocLines
+        ctx.ProjectGetter.promises.getProject
           .calledWith(ctx.project_id)
           .should.equal(true)
       })
@@ -679,9 +646,7 @@ describe('ProjectRootDocManager', function () {
 
     describe('when the project does not exist', function () {
       beforeEach(async function (ctx) {
-        ctx.ProjectGetter.promises.getProjectWithoutDocLines = sinon
-          .stub()
-          .resolves(null)
+        ctx.ProjectGetter.promises.getProject = sinon.stub().resolves(null)
       })
 
       it('should reject', async function (ctx) {

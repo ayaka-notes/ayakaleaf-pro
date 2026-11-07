@@ -1,6 +1,8 @@
 import OAuthPersonalAccessTokenManager from './OAuthPersonalAccessTokenManager.mjs'
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
+import UserAuditLogHandler from '../../../../app/src/Features/User/UserAuditLogHandler.mjs'
 import logger from '@overleaf/logger'
+import { expressify } from '@overleaf/promise-utils'
 
 const MAX_PAT_COUNT = 10
 
@@ -42,6 +44,9 @@ const PersonalAccessTokenController = {
             return res.status(500).json({ message: 'Failed to create personal access token' })
         }
         
+        // in the background: the secret is only ever shown in this answer
+        UserAuditLogHandler.addEntryInBackground(userId, 'create-git-token', userId, req.ip)
+
         return res.json({
             accessToken: accessToken
         })
@@ -61,7 +66,18 @@ const PersonalAccessTokenController = {
             return res.status(400).json({ message: 'Token id is required' })
         }
 
-        await OAuthPersonalAccessTokenManager.removeToken(tokenId)
+        const result = await OAuthPersonalAccessTokenManager.removeToken(tokenId, user._id)
+        if (!result || result.deletedCount !== 1) {
+            return res.status(404).json({ message: 'Token not found' })
+        }
+
+        await UserAuditLogHandler.promises.addEntry(
+            user._id,
+            'delete-git-token',
+            user._id,
+            req.ip,
+            { tokenId }
+        )
 
         return res.json({ 
             message: 'Token deleted',
@@ -102,7 +118,7 @@ const PersonalAccessTokenController = {
         }
 
         // Return token info
-        logger.debug({ tokenInstance }, 'Personal access token valid')
+        logger.debug({ tokenId: tokenInstance._id }, 'Personal access token valid')
 
         return res.json({
             accessToken: tokenInstance.accessToken,
@@ -114,4 +130,9 @@ const PersonalAccessTokenController = {
 
 }
 
-export default PersonalAccessTokenController
+export default {
+    getUserPersonalAccessTokens: expressify(PersonalAccessTokenController.getUserPersonalAccessTokens),
+    createPersonalAccessToken: expressify(PersonalAccessTokenController.createPersonalAccessToken),
+    deletePersonalAccessToken: expressify(PersonalAccessTokenController.deletePersonalAccessToken),
+    checkPersonalAccessToken: expressify(PersonalAccessTokenController.checkPersonalAccessToken),
+}

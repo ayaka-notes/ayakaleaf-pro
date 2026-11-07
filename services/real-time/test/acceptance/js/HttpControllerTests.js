@@ -6,32 +6,45 @@
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
 import async from 'async'
-import Request from 'request'
+import {
+  fetchJson,
+  fetchNothing,
+  RequestFailedError,
+} from '@overleaf/fetch-utils'
 import { expect } from 'chai'
 import RealTimeClient from './helpers/RealTimeClient.js'
 import FixturesManager from './helpers/FixturesManager.js'
 
-const request = Request.defaults({
-  baseUrl: 'http://127.0.0.1:3026',
-})
-
 describe('HttpControllerTests', function () {
   describe('without a user', function () {
-    it('should return 404 for the client view', function (done) {
+    it('should return 404 for the client view', async function () {
       const clientId = 'not-existing'
-      request.get(
-        {
-          url: `/clients/${clientId}`,
-          json: true,
-        },
-        (error, response, data) => {
-          if (error) {
-            return done(error)
-          }
-          expect(response.statusCode).to.equal(404)
-          done()
-        }
-      )
+      try {
+        await fetchNothing(`http://127.0.0.1:3026/clients/${clientId}`)
+        expect.fail('request should have failed')
+      } catch (error) {
+        expect(error).to.be.instanceof(RequestFailedError)
+        expect(error.response.status).to.equal(404)
+      }
+    })
+
+    it('should return a schema-validation 404 for a __proto__-shaped client id', async function () {
+      const clientId = '__proto__'
+      try {
+        await fetchNothing(`http://127.0.0.1:3026/clients/${clientId}`)
+        expect.fail('request should have failed')
+      } catch (error) {
+        expect(error).to.be.instanceof(RequestFailedError)
+        expect(error.response.status).to.equal(404)
+        // The domain-level 404 (`res.sendStatus(404)` for an id that parses
+        // but has no matching client) has no JSON body. Asserting a JSON
+        // body with a statusCode/error here proves this request was
+        // rejected by the client_id schema (InvalidParamsError via
+        // handleValidationError), not by the "client not found" check.
+        const body = JSON.parse(error.body)
+        expect(body).to.have.property('statusCode', 404)
+        expect(body.error).to.be.a('string')
+      }
     })
   })
 
@@ -75,32 +88,22 @@ describe('HttpControllerTests', function () {
       )
     })
 
-    it('should send a client view', function (done) {
-      request.get(
-        {
-          url: `/clients/${this.client.socket.sessionid}`,
-          json: true,
-        },
-        (error, response, data) => {
-          if (error) {
-            return done(error)
-          }
-          expect(response.statusCode).to.equal(200)
-          expect(data.connected_time).to.exist
-          delete data.connected_time
-          // .email is not set in the session
-          delete data.email
-          expect(data).to.deep.equal({
-            client_id: this.client.socket.sessionid,
-            first_name: 'Joe',
-            last_name: 'Bloggs',
-            project_id: this.project_id,
-            user_id: this.user_id,
-            rooms: [this.project_id, this.doc_id],
-          })
-          done()
-        }
+    it('should send a client view', async function () {
+      const data = await fetchJson(
+        `http://127.0.0.1:3026/clients/${this.client.socket.sessionid}`
       )
+      expect(data.connected_time).to.exist
+      delete data.connected_time
+      // .email is not set in the session
+      delete data.email
+      expect(data).to.deep.equal({
+        client_id: this.client.socket.sessionid,
+        first_name: 'Joe',
+        last_name: 'Bloggs',
+        project_id: this.project_id,
+        user_id: this.user_id,
+        rooms: [this.project_id],
+      })
     })
   })
 })

@@ -168,6 +168,9 @@ const baseTheme = EditorView.baseTheme({
   '.cm-diagnostic:last-of-type .ol-cm-diagnostic-actions': {
     marginBottom: '4px',
   },
+  '.cm-vim-panel': {
+    color: 'var(--content-primary-themed)',
+  },
   '.cm-vim-panel input': {
     color: 'inherit',
   },
@@ -187,6 +190,12 @@ const staticTheme = EditorView.theme({
   // remove the outline from the focused editor
   '&.cm-editor.cm-focused:not(:focus-visible)': {
     outline: 'none',
+  },
+  '.cm-panels': {
+    backgroundColor: 'var(--bg-secondary-themed)',
+  },
+  '.cm-panel-bottom': {
+    borderTop: '1px solid var(--border-primary-themed)',
   },
   // override default styles for the search panel
   '.cm-panel.cm-search label': {

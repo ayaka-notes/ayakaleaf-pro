@@ -11,8 +11,11 @@ import { useUserContext } from './user-context'
 import { useReceiveUser } from '../hooks/user-channel/use-receive-user'
 import { getJSON } from '@/infrastructure/fetch-json'
 import { useEditorContext } from './editor-context'
+import getMeta from '@/utils/meta'
 
 export const UserFeaturesContext = createContext<User['features']>(undefined)
+
+const hasUnlimitedAi = getMeta('ol-hasUnlimitedAi')
 
 export const UserFeaturesProvider: FC<React.PropsWithChildren> = ({
   children,
@@ -31,7 +34,7 @@ export const UserFeaturesProvider: FC<React.PropsWithChildren> = ({
 
   useEffect(() => {
     const listener = async ({ isPremium }: { isPremium: boolean }) => {
-      if (features?.aiErrorAssistant === isPremium) {
+      if (hasUnlimitedAi === isPremium) {
         // the user is premium on writefull and has the AI assist, no need to refresh the features
         return
       }
@@ -47,7 +50,7 @@ export const UserFeaturesProvider: FC<React.PropsWithChildren> = ({
         listener
       )
     }
-  }, [features?.aiErrorAssistant, writefullInstance])
+  }, [writefullInstance])
 
   return (
     <UserFeaturesContext.Provider value={features}>

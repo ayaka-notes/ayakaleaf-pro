@@ -1,18 +1,24 @@
 import mongodb from './mongodb.js'
 import Settings from '@overleaf/settings'
 import Errors from './Errors.js'
+import Metrics from '@overleaf/metrics'
 
-const { db, ObjectId } = mongodb
+const { db, ObjectId, BSON } = mongodb
 
 const ARCHIVING_LOCK_DURATION_MS = Settings.archivingLockDurationMs
 
-async function findDoc(projectId, docId, projection) {
+function readPreference(useSecondary) {
+  if (useSecondary) return { readPreference: mongodb.READ_PREFERENCE_SECONDARY }
+  return {}
+}
+
+async function findDoc(projectId, docId, projection, useSecondary = false) {
   const doc = await db.docs.findOne(
     {
       _id: new ObjectId(docId.toString()),
       project_id: new ObjectId(projectId.toString()),
     },
-    { projection }
+    { projection, ...readPreference(useSecondary) }
   )
   if (doc && projection.version && !doc.version) {
     doc.version = 0
@@ -44,6 +50,7 @@ async function getProjectsDocs(projectId, options, projection) {
   }
   const queryOptions = {
     projection,
+    ...readPreference(options.useSecondary),
   }
   if (options.limit) {
     queryOptions.limit = options.limit
@@ -89,6 +96,22 @@ async function getNonDeletedArchivedProjectDocs(projectId, maxResults) {
   return docs
 }
 
+function convertUpdateToPipeline(update) {
+  const pipeline = []
+  for (const [operation, ops] of Object.entries(update)) {
+    for (const [field, value] of Object.entries(ops)) {
+      if (operation === '$unset') {
+        // $unset uses a different schema in a pipeline
+        pipeline.push({ [operation]: field })
+      } else {
+        // Avoid evaluating '$foo' strings
+        pipeline.push({ [operation]: { [field]: { $literal: value } } })
+      }
+    }
+  }
+  return pipeline
+}
+
 async function upsertIntoDocCollection(projectId, docId, previousRev, updates) {
   if (previousRev) {
     const update = {
@@ -96,20 +119,25 @@ async function upsertIntoDocCollection(projectId, docId, previousRev, updates) {
       $unset: { inS3: true },
     }
     if (updates.lines || updates.ranges) {
-      update.$inc = { rev: 1 }
+      update.$set.rev = previousRev + 1
     }
+    const pipeline = convertUpdateToPipeline(update)
+    const payloadSize = BSON.calculateObjectSize(pipeline)
+    Metrics.count('mongo_docs_write', payloadSize, 1, { method: 'update' })
     const result = await db.docs.updateOne(
       {
         _id: new ObjectId(docId),
         project_id: new ObjectId(projectId),
         rev: previousRev,
       },
-      update
+      pipeline
     )
     if (result.matchedCount !== 1) {
       throw new Errors.DocRevValueError()
     }
   } else {
+    const payloadSize = BSON.calculateObjectSize(updates)
+    Metrics.count('mongo_docs_write', payloadSize, 1, { method: 'insert' })
     try {
       await db.docs.insertOne({
         _id: new ObjectId(docId),
@@ -129,6 +157,8 @@ async function upsertIntoDocCollection(projectId, docId, previousRev, updates) {
 }
 
 async function patchDoc(projectId, docId, meta) {
+  const payloadSize = BSON.calculateObjectSize(meta)
+  Metrics.count('mongo_docs_write', payloadSize, 1, { method: 'patch' })
   await db.docs.updateOne(
     {
       _id: new ObjectId(docId),
@@ -195,9 +225,11 @@ async function restoreArchivedDoc(projectId, docId, archivedDoc) {
       inS3: true,
     },
   }
-  const result = await db.docs.updateOne(query, update)
-
-  if (result.matchedCount === 0) {
+  const pipeline = convertUpdateToPipeline(update)
+  const payloadSize = BSON.calculateObjectSize(pipeline)
+  Metrics.count('mongo_docs_write', payloadSize, 1, { method: 'restore' })
+  const result = await db.docs.updateOne(query, pipeline)
+  if (result.matchedCount !== 1) {
     throw new Errors.DocRevValueError('failed to unarchive doc', {
       docId,
       rev: archivedDoc.rev,
@@ -242,6 +274,7 @@ async function destroyProject(projectId) {
 }
 
 export default {
+  convertUpdateToPipeline,
   findDoc,
   getProjectsDeletedDocs,
   getProjectsDocs,

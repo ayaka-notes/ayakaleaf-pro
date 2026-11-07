@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Usage: services/tpr-mock/bin/up
+#
+# Runs after the toolkit's bin/up, once its network exists. Starts the mock as
+# www.zotero.org, api.zotero.org and api.mendeley.com, and as tpr-mock for the
+# control API.
+#
+# Expects TOOLKIT_DIR and TOOLKIT_NETWORK in the environment.
+
+exec "$(dirname "$0")/../../lib/start-mock" tpr-mock \
+  www.zotero.org api.zotero.org api.mendeley.com

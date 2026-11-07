@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Usage: services/github-mock/bin/up
+#
+# Runs after the toolkit's bin/up, once its network exists. Starts the mock as
+# github.com and api.github.com, and as github-mock for the control API.
+#
+# Expects TOOLKIT_DIR and TOOLKIT_NETWORK in the environment.
+
+exec "$(dirname "$0")/../../lib/start-mock" github-mock github.com api.github.com

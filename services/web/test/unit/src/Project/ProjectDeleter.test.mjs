@@ -1,4 +1,4 @@
-import { vi, expect } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import sinon from 'sinon'
 import tk from 'timekeeper'
 import moment from 'moment'
@@ -18,6 +18,12 @@ describe('ProjectDeleter', function () {
     tk.freeze(Date.now())
     ctx.ip = '192.170.18.1'
     ctx.project = dummyProject()
+
+    ctx.settings = {
+      shuttingDown: false,
+      projectHardDeletionDelay: 1000 * 60 * 60 * 24 * 90, // 90 days
+    }
+    vi.doMock('@overleaf/settings', () => ({ default: ctx.settings }))
     ctx.user = {
       _id: '588f3ddae8ebc1bac07c9fa4',
       first_name: 'bjkdsjfk',
@@ -288,7 +294,7 @@ describe('ProjectDeleter', function () {
             { 'deleterData.deletedProjectId': project._id },
             {
               project,
-              deleterData: sinon.match.object,
+              deleterData: sinon.match.has('deletedReason', 'account-deletion'),
             },
             { upsert: true }
           )
@@ -343,6 +349,7 @@ describe('ProjectDeleter', function () {
     it('should save a DeletedProject with additional deleterData', async function (ctx) {
       ctx.deleterData.deleterIpAddress = ctx.ip
       ctx.deleterData.deleterId = ctx.user._id
+      ctx.deleterData.deletedReason = 'user'
 
       ctx.ProjectMock.expects('deleteOne').chain('exec').resolves()
       ctx.DeletedProjectMock.expects('updateOne')
@@ -359,6 +366,7 @@ describe('ProjectDeleter', function () {
       await ctx.ProjectDeleter.promises.deleteProject(ctx.project._id, {
         deleterUser: ctx.user,
         ipAddress: ctx.ip,
+        deletedReason: 'user',
       })
       ctx.DeletedProjectMock.verify()
     })
@@ -475,6 +483,76 @@ describe('ProjectDeleter', function () {
 
     it('should expire projects older than 90 days', function (ctx) {
       ctx.DeletedProjectMock.verify()
+    })
+  })
+
+  describe('expireDeletedProjectsAfterDuration when graceful shutdown is in progress', function () {
+    beforeEach(async function (ctx) {
+      ctx.settings.shuttingDown = true
+
+      ctx.DeletedProjectMock.expects('find')
+        .withArgs({
+          'deleterData.deletedAt': {
+            $lt: new Date(moment().subtract(90, 'days')),
+          },
+          project: {
+            $type: 'object',
+          },
+        })
+        .chain('exec')
+        .resolves(ctx.deletedProjects)
+
+      for (const deletedProject of ctx.deletedProjects) {
+        ctx.ProjectMock.expects('findById')
+          .withArgs(deletedProject.deleterData.deletedProjectId)
+          .atLeast(0)
+          .atMost(1)
+          .chain('exec')
+          .resolves(null)
+
+        ctx.DeletedProjectMock.expects('findOne')
+          .withArgs({
+            'deleterData.deletedProjectId': deletedProject.project._id,
+          })
+          .atLeast(0)
+          .atMost(1)
+          .chain('exec')
+          .resolves(deletedProject)
+
+        ctx.DeletedProjectMock.expects('updateOne')
+          .withArgs(
+            {
+              _id: deletedProject._id,
+            },
+            {
+              $set: {
+                'deleterData.deleterIpAddress': null,
+                project: null,
+              },
+            }
+          )
+          .atLeast(0)
+          .atMost(1)
+          .chain('exec')
+          .resolves()
+      }
+
+      await ctx.ProjectDeleter.promises.expireDeletedProjectsAfterDuration()
+    })
+
+    it('should stop processing after the first project deletion', function (ctx) {
+      expect(ctx.DocstoreManager.promises.destroyProject).to.have.been
+        .calledOnce
+    })
+
+    it('should log a warning about the early termination due to graceful shutdown', function (ctx) {
+      expect(ctx.logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectCount: ctx.deletedProjects.length,
+          processedCount: 1,
+        }),
+        'graceful shutdown in progress, stopping batch of deleted projects early'
+      )
     })
   })
 

@@ -3,7 +3,10 @@ import { useTranslation, Trans } from 'react-i18next'
 import { SubscriptionDashModalIds } from '../../../../../../../../../../types/subscription/dashboard/modal-ids'
 import { postJSON } from '../../../../../../../../infrastructure/fetch-json'
 import { useSubscriptionDashboardContext } from '../../../../../../context/subscription-dashboard-context'
-import { cancelPendingSubscriptionChangeUrl } from '../../../../../../data/subscription-url'
+import {
+  cancelPendingSubscriptionChangeUrl,
+  reloadWithoutHasSubscription,
+} from '../../../../../../data/subscription-url'
 import { useLocation } from '../../../../../../../../shared/hooks/use-location'
 import {
   OLModal,
@@ -13,7 +16,7 @@ import {
   OLModalTitle,
 } from '@/shared/components/ol/ol-modal'
 import OLButton from '@/shared/components/ol/ol-button'
-import OLNotification from '@/shared/components/ol/ol-notification'
+import Notification from '@/shared/components/notification'
 
 export function KeepCurrentPlanModal() {
   const modalId: SubscriptionDashModalIds = 'keep-current-plan'
@@ -30,7 +33,7 @@ export function KeepCurrentPlanModal() {
 
     try {
       await postJSON(cancelPendingSubscriptionChangeUrl)
-      location.reload()
+      reloadWithoutHasSubscription(location)
     } catch (e) {
       setError(true)
       setInflight(false)
@@ -50,19 +53,20 @@ export function KeepCurrentPlanModal() {
       <OLModalHeader>
         <OLModalTitle>{t('change_plan')}</OLModalTitle>
       </OLModalHeader>
-
       <OLModalBody>
         {error && (
-          <OLNotification
-            type="error"
-            aria-live="polite"
-            content={
-              <>
-                {t('generic_something_went_wrong')}. {t('try_again')}.{' '}
-                {t('generic_if_problem_continues_contact_us')}.
-              </>
-            }
-          />
+          <div className="notification-list">
+            <Notification
+              type="error"
+              aria-live="polite"
+              content={
+                <>
+                  {t('generic_something_went_wrong')}. {t('try_again')}.{' '}
+                  {t('generic_if_problem_continues_contact_us')}.
+                </>
+              }
+            />
+          </div>
         )}
         <p>
           <Trans
@@ -79,7 +83,6 @@ export function KeepCurrentPlanModal() {
           />
         </p>
       </OLModalBody>
-
       <OLModalFooter>
         <OLButton
           variant="secondary"

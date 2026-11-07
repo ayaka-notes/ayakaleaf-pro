@@ -1,7 +1,7 @@
 import { v4 as uuid } from 'uuid'
 
 const outputFiles = () => {
-  const build = uuid()
+  const build = uuid().slice(0, 13) // first two groups of UUID
 
   return [
     {
@@ -200,19 +200,19 @@ export const interceptDeferredCompile = (beforeResponse?: () => void) => {
             outputFiles: [
               {
                 path: 'output.pdf',
-                build: '123',
+                build: '1234-5678',
                 url: '/build/123/output.pdf',
                 type: 'pdf',
               },
               {
                 path: 'output.log',
-                build: '123',
+                build: '1234-5678',
                 url: '/build/123/output.log',
                 type: 'log',
               },
               {
                 path: 'output.blg',
-                build: '123',
+                build: '1234-5678',
                 url: '/build/123/output.blg',
                 type: 'log',
               },

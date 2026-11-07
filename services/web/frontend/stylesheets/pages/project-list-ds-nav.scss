@@ -2,13 +2,29 @@
   --ds-nav-active-bg: var(--bg-accent-03);
   --ds-nav-active-color: var(--green-60);
   --theme-toggle-selected-background: var(--green-20);
+  --ds-nav-content-bg-primary: var(--bg-light-primary);
   --ds-nav-content-bg-secondary: var(--bg-light-secondary);
+  --table-icon-bg-hover: 27 34 44;
+  --themed-dashboard-popover-bg: var(--bg-dark-primary);
+  --themed-dashboard-popover-color: var(--content-primary-dark);
+  --themed-dashboard-popover-link-color: var(--link-ui-dark);
+  --themed-dashboard-popover-link-hover-color: var(--link-ui-hover-dark);
+  --themed-dashboard-popover-link-visited-color: var(--link-ui-visited-dark);
+  --ds-nav-color-scheme: light;
 
   @include theme('default') {
     --ds-nav-active-bg: var(--green-70);
     --ds-nav-active-color: var(--green-10);
     --theme-toggle-selected-background: var(--green-70);
+    --ds-nav-content-bg-primary: var(--bg-dark-primary);
     --ds-nav-content-bg-secondary: var(--bg-dark-secondary);
+    --table-icon-bg-hover: 255 255 255;
+    --themed-dashboard-popover-bg: var(--bg-light-primary);
+    --themed-dashboard-popover-color: var(--content-primary);
+    --themed-dashboard-popover-link-color: var(--link-ui);
+    --themed-dashboard-popover-link-hover-color: var(--link-ui-hover);
+    --themed-dashboard-popover-link-visited-color: var(--link-ui-visited);
+    --ds-nav-color-scheme: dark;
   }
 }
 
@@ -21,6 +37,7 @@ body {
 .project-ds-nav-page {
   @include full-height-stacked-page;
 
+  color-scheme: var(--ds-nav-color-scheme);
   color: var(--content-secondary-themed);
 
   // NOTE-AC: This code can be eliminated when we remove sidebar-navigation-ui-update
@@ -36,7 +53,8 @@ body {
     .navbar-header .navbar-logo {
       @include media-breakpoint-up(md) {
         position: relative;
-        top: var(--spacing-05);
+        top: calc(var(--spacing-05) * 2);
+        left: var(--spacing-05);
       }
     }
 
@@ -88,6 +106,38 @@ body {
     }
   }
 
+  &.ds-nav-hides-top-navbar {
+    // The sidebar shows the logo and account/help menus from md upwards, so
+    // the top navbar is only needed on mobile.
+    .navbar-default {
+      @include media-breakpoint-up(md) {
+        display: none;
+      }
+    }
+
+    .project-list-wrapper
+      .project-ds-nav-content-and-messages
+      .project-ds-nav-content {
+      @include media-breakpoint-up(md) {
+        border-top-left-radius: 0;
+        border-top: none;
+      }
+    }
+
+    .project-list-header-row {
+      @include media-breakpoint-up(md) {
+        margin-top: var(--spacing-08);
+      }
+
+      // On mobile the trash page has no heading or plan widget in this row
+      // (both are desktop-only), so collapse it to avoid an empty gap above
+      // the navigation dropdown.
+      @include media-breakpoint-down(md) {
+        display: none;
+      }
+    }
+  }
+
   .navbar-nav > li > .dropdown-toggle::after {
     display: none;
   }
@@ -106,7 +156,7 @@ body {
       max-width: 320px;
       min-width: 200px;
       margin-top: var(--spacing-03);
-      padding: var(--spacing-08) 0 0 0;
+      padding: calc(var(--spacing-08) - 1px) 0 0;
 
       .new-project-dropdown {
         padding: 0 var(--spacing-08) var(--spacing-05) var(--spacing-05);
@@ -122,7 +172,6 @@ body {
             100vh - #{$header-height} - var(--spacing-03) - var(--spacing-08) -
               36px - var(--spacing-05)
           );
-          overflow: auto;
         }
       }
 
@@ -137,12 +186,103 @@ body {
         flex: 1 1 auto;
         overflow: auto;
         margin: 0 var(--spacing-02) 0 0;
-        padding: var(--spacing-05) var(--spacing-07) var(--spacing-05)
-          var(--spacing-05);
+        padding: 0 var(--spacing-05) var(--spacing-05);
+      }
+
+      ul.project-list-filters {
+        margin-top: var(--spacing-05);
+
+        .sidebar-filter-button {
+          display: flex;
+          align-items: center;
+          padding-left: calc(var(--spacing-05) + 20px + var(--spacing-05));
+        }
+
+        .sidebar-filter-button-with-icon {
+          // Only the items with an icon are 44px tall: 20px of content between
+          // 12px paddings. The rest of the filters stay at 40px.
+          line-height: var(--line-height-02);
+          padding: var(--spacing-05);
+
+          // Without this the icon is an inline box sitting on the text
+          // baseline, which leaves descender space below it and stops
+          // align-items from centring it against the label.
+          .icon {
+            display: flex;
+            align-items: center;
+          }
+
+          svg {
+            margin-right: var(--spacing-05);
+          }
+        }
+
+        .dropdown-header {
+          padding-left: calc(var(--spacing-06) + 20px + var(--spacing-05));
+        }
+
+        > li.tag button.tag-name {
+          padding-left: calc(var(--spacing-06) + 20px + var(--spacing-05));
+        }
+      }
+
+      .ds-nav-page-switcher-logo {
+        padding: 0 var(--spacing-08) var(--spacing-04);
+
+        img {
+          width: 130px;
+          height: auto;
+        }
+      }
+
+      .ds-nav-page-switcher-item {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        gap: var(--spacing-05);
+
+        // 20px of text between 12px paddings makes the item 44px tall.
+        line-height: var(--line-height-02);
+        padding: var(--spacing-05);
+        border: none;
+        border-radius: var(--border-radius-medium);
+        background: none;
+        color: var(--ds-nav-color);
+        font-size: var(--font-size-03);
+        text-align: left;
+        text-decoration: none;
+
+        .ds-nav-page-switcher-item-label {
+          flex: 1 1 auto;
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        &:hover {
+          background-color: var(--ds-nav-hover-bg);
+          color: var(--ds-nav-color);
+          text-decoration: none;
+        }
+
+        &.active {
+          background-color: var(--ds-nav-active-bg);
+          color: var(--ds-nav-active-color);
+          font-weight: bold;
+        }
+      }
+
+      .ds-nav-dropdown-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-02);
+        padding: 0;
+        margin: 0;
       }
 
       .ds-nav-sidebar-lower {
-        padding: var(--spacing-05) var(--spacing-08) 0 var(--spacing-05);
+        padding: var(--spacing-05) var(--spacing-05) 0 var(--spacing-05);
         border-top: solid 1px transparent;
 
         &.show-shadow {
@@ -169,12 +309,6 @@ body {
           top: var(--spacing-07);
           right: var(--spacing-07);
           color: inherit;
-        }
-
-        .notification-body {
-          .btn {
-            @include ol-button-themed('secondary');
-          }
         }
 
         p {
@@ -254,11 +388,69 @@ body {
     }
 
     .project-ds-nav-main {
+      display: flex;
+      flex-direction: column;
       min-height: 100%;
       padding: var(--spacing-08) var(--spacing-06);
 
       @include media-breakpoint-up(md) {
         padding: var(--spacing-08);
+      }
+
+      main {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+      }
+
+      .project-ds-empty-project-list {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        flex: 1;
+        padding: var(--spacing-09);
+        background: var(--ds-nav-content-bg-primary);
+        border-radius: var(--border-radius-base);
+
+        @include media-breakpoint-down(md) {
+          margin-top: var(--spacing-06);
+        }
+
+        .project-ds-empty-project-list-inner {
+          display: flex;
+          flex-direction: column;
+          gap: var(--spacing-06);
+          max-width: 560px;
+
+          .project-ds-empty-project-list-icon {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0 auto;
+            height: 80px;
+            width: 80px;
+            padding: var(--spacing-08);
+            border-radius: 50%;
+            background-color: var(--bg-secondary-themed);
+            color: var(--content-secondary-themed);
+
+            .material-symbols {
+              font-size: var(--font-size-08);
+            }
+          }
+
+          .project-ds-empty-project-list-title {
+            @include heading-sm;
+
+            text-align: center;
+            font-weight: 600;
+          }
+
+          .project-ds-empty-project-list-description {
+            text-align: center;
+          }
+        }
       }
     }
 
@@ -273,7 +465,7 @@ body {
 
         &:hover,
         &:focus {
-          background-color: #d9d9d9 !important;
+          background-color: rgb(var(--table-icon-bg-hover) / 8%) !important;
         }
       }
 
@@ -315,16 +507,20 @@ body {
         z-index: auto;
       }
     }
+
+    .btn-link {
+      --link-color: var(--link-web-themed);
+      --link-hover-color: var(--link-web-hover-themed);
+    }
   }
 
-  .ds-nav-icon-dropdown {
+  .ds-nav-dropdown {
     .dropdown-toggle {
-      color: var(--ds-nav-color);
+      width: 100%;
+      border: none;
       background: none;
-      height: 44px;
-      width: 44px;
-      padding: 0;
-      overflow: hidden;
+      font-weight: normal;
+      text-align: left;
 
       &:hover {
         background-color: var(--ds-nav-hover-bg);
@@ -337,17 +533,6 @@ body {
 
       &::after {
         display: none;
-      }
-
-      > div {
-        height: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .material-symbols {
-        vertical-align: middle;
       }
     }
   }
@@ -417,5 +602,60 @@ body {
 
   input:checked + label {
     background-color: var(--theme-toggle-selected-background);
+  }
+}
+
+.themed-dashboard-intro-popover {
+  --bs-popover-bg: var(--themed-dashboard-popover-bg);
+  --bs-popover-header-bg: var(--themed-dashboard-popover-bg);
+  --bs-popover-body-color: var(--themed-dashboard-popover-color);
+  --bs-popover-header-color: var(--themed-dashboard-popover-color);
+
+  .btn-link {
+    color: var(--bs-popover-body-color);
+  }
+
+  a {
+    color: var(--themed-dashboard-popover-link-color);
+
+    &:visited {
+      color: var(--themed-dashboard-popover-link-hover-color);
+    }
+
+    &:hover {
+      color: var(--themed-dashboard-popover-link-visited-color);
+    }
+  }
+}
+
+.trash-page-tabs {
+  display: flex;
+  gap: var(--spacing-06);
+  margin-bottom: var(--spacing-06);
+  border-bottom: 1px solid var(--border-divider-themed);
+
+  // On mobile the Projects/References switch lives in the navigation dropdown
+  // submenu instead of these tabs.
+  @include media-breakpoint-down(md) {
+    display: none;
+  }
+
+  .trash-page-tab {
+    padding: var(--spacing-03) var(--spacing-02);
+    margin-bottom: -1px;
+    border-bottom: 2px solid transparent;
+    color: var(--content-secondary-themed);
+    font-size: var(--font-size-03);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--content-primary-themed);
+      text-decoration: none;
+    }
+
+    &.active {
+      border-bottom-color: var(--green-50);
+      color: var(--content-primary-themed);
+    }
   }
 }

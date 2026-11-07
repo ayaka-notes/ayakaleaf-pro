@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Usage: services/pandoc/bin/down
+# Nothing to do, clsi removes the Pandoc containers after each conversion.

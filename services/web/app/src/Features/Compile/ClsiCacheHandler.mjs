@@ -10,6 +10,7 @@ import OError from '@overleaf/o-error'
 import { NotFoundError, InvalidNameError } from '../Errors/Errors.js'
 import Features from '../../infrastructure/Features.mjs'
 import Path from 'node:path'
+import { zz } from '@overleaf/validation-tools'
 
 const TIMEOUT = 4_000
 
@@ -17,6 +18,29 @@ const TIMEOUT = 4_000
  * @type {Map<string, number>}
  */
 const lastFailures = new Map()
+
+/**
+ * Keep in sync with isAllowedFilename in services/clsi-cache/app/js/utils.js
+ *
+ * @param {string} filename
+ * @return {boolean}
+ */
+function isAllowedFilename(filename) {
+  return (
+    [
+      'output.blg',
+      'output.log',
+      'output.pdf',
+      'output.synctex.gz',
+      'output.overleaf.json',
+      'output.tar.gz',
+      // Not in web: 'history-resync.json.gz' is only read/written by clsi.
+      // The user/frontend should not be able to download it directly.
+      // We need to block access to it on the web layer.
+      // If we ever remove blockRestrictedUserFromProject from the history endpoints, we can remove this restriction.
+    ].includes(filename) || filename.endsWith('.blg')
+  )
+}
 
 /**
  * Keep in sync with validateFilename in services/clsi-cache/app/js/utils.js
@@ -27,18 +51,7 @@ function validateFilename(filename) {
   if (filename.split('/').includes('..')) {
     throw new InvalidNameError('path traversal')
   }
-  if (
-    !(
-      [
-        'output.blg',
-        'output.log',
-        'output.pdf',
-        'output.synctex.gz',
-        'output.overleaf.json',
-        'output.tar.gz',
-      ].includes(filename) || filename.endsWith('.blg')
-    )
-  ) {
+  if (!isAllowedFilename(filename)) {
     throw new InvalidNameError('bad filename')
   }
 }
@@ -90,12 +103,14 @@ async function clearCache(projectId, userId) {
   )
 }
 
+const editorBuildIdSchema = zz.editorBuildId()
+
 /**
  * Get an output file from a specific build.
  *
  * @param projectId
  * @param userId
- * @param buildId
+ * @param editorBuildId
  * @param filename
  * @param signal
  * @return {Promise<{size: number, zone: string, shard: string, location: string, lastModified: Date, allFiles: string[]}>}
@@ -103,20 +118,18 @@ async function clearCache(projectId, userId) {
 async function getOutputFile(
   projectId,
   userId,
-  buildId,
+  editorBuildId,
   filename,
   signal = AbortSignal.timeout(TIMEOUT)
 ) {
   validateFilename(filename)
-  if (!/^[a-f0-9-]+$/.test(buildId)) {
-    throw new InvalidNameError('bad buildId')
-  }
+  editorBuildId = editorBuildIdSchema.parse(editorBuildId)
 
   let path = `/project/${projectId}`
   if (userId) {
     path += `/user/${userId}`
   }
-  path += `/build/${buildId}/search/output/${filename}`
+  path += `/build/${editorBuildId}/search/output/${filename}`
   return getRedirectWithFallback(projectId, userId, path, signal)
 }
 
@@ -241,7 +254,6 @@ async function prepareCacheSource(
   userId,
   { sourceProjectId, templateVersionId, imageName, lastUpdated, shard, signal }
 ) {
-  imageName = Path.basename(imageName)
   const url = new URL(
     `/project/${projectId}/user/${userId}/import-from`,
     Settings.apis.clsiCache.instances.find(i => i.shard === shard).url
@@ -270,7 +282,7 @@ async function prepareCacheSource(
  *
  * @param clsiCacheShard
  * @param submissionId
- * @param buildId
+ * @param editorBuildId
  * @param templateVersionId
  * @param imageName
  * @return {Promise<void>}
@@ -278,13 +290,13 @@ async function prepareCacheSource(
 async function exportSubmissionAsTemplate(
   clsiCacheShard,
   submissionId,
-  buildId,
+  editorBuildId,
   templateVersionId,
   imageName
 ) {
   imageName = Path.basename(imageName)
   const url = new URL(
-    `/submission/${submissionId}/build/${buildId}/export-as-template`,
+    `/submission/${submissionId}/build/${editorBuildId}/export-as-template`,
     Settings.apis.clsiCache.instances.find(i => i.shard === clsiCacheShard).url
   )
   try {
@@ -307,6 +319,7 @@ async function exportSubmissionAsTemplate(
 
 export default {
   TIMEOUT,
+  isAllowedFilename,
   getEgressLabel,
   clearCache,
   getOutputFile,

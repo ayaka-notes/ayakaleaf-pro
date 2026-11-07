@@ -12,6 +12,7 @@ export abstract class ProjectionItem {
   readonly from: number = 0
   readonly to: number = 0
   readonly line: number = 0
+  readonly toLine: number = 0
 }
 
 /* eslint-disable no-unused-vars */
@@ -48,9 +49,15 @@ export function updatePosition<T extends ProjectionItem>(
   const { from, to } = item
   const newFrom = transaction.changes.mapPos(from)
   const newTo = transaction.changes.mapPos(to)
-  const lineNumber = transaction.state.doc.lineAt(newFrom).number
+  const newLine = transaction.state.doc.lineAt(newFrom).number
+  const newToLine = transaction.state.doc.lineAt(newTo).number
 
-  if (newFrom === from && newTo === to && lineNumber === item.line) {
+  if (
+    newFrom === from &&
+    newTo === to &&
+    newLine === item.line &&
+    newToLine === item.toLine
+  ) {
     // Optimisation - if the item hasn't moved, don't create a new object
     // If items are not immutable this can introduce problems
     return item
@@ -60,7 +67,8 @@ export function updatePosition<T extends ProjectionItem>(
     ...item,
     from: newFrom,
     to: newTo,
-    line: lineNumber,
+    line: newLine,
+    toLine: newToLine,
   }
 }
 
@@ -69,7 +77,7 @@ export type EnterNodeFn<T> = (
   node: SyntaxNodeRef,
   items: T[],
   nodeIntersectsChange: NodeIntersectsChangeFn
-) => any
+) => boolean | void
 
 /**
  * Calculates an updated projection of an editor state. Passing a previous ProjectionResult

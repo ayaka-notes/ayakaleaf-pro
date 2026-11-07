@@ -1,0 +1,136 @@
+# ---------------------------------
+# This workflow is used to test overleaf image automatically
+#
+# Tested image:
+#     ghcr.io/ayaka-notes/overleaf-pro/ops
+#
+# ---------------------------------
+
+name: Test Operations Image
+on:
+  workflow_dispatch:
+    inputs:
+      ops_tag:
+        description: "Ops image tag to test"
+        type: string
+        default: latest
+      arch:
+        description: "Platforms to test, arm64 runs after amd64"
+        type: choice
+        options: [both, amd64, arm64]
+        default: both
+  schedule:
+    # One hour after the development images are built
+    - cron: '0 1 * * *'
+permissions:
+  contents: read
+  packages: read
+env:
+  DOCKER_REGISTRY: ghcr.io
+
+jobs:
+  # Deploy the image with the toolkit and run one suite per runner,
+  # see server-ce/test/README.md
+  e2e-amd64:
+    if: ${{ (inputs.arch || 'both') != 'arm64' }}
+    runs-on: ubuntu-26.04
+    env:
+      ARCH: amd64
+    strategy: &strategy
+      fail-fast: false
+      # Every suite runs a whole Overleaf; pulling the ops image takes about 20s
+      # per job, and a failed setup (e.g. a rate-limited pull) is retried below
+      max-parallel: 20
+      matrix:
+        suite:
+          [
+            launchpad,
+            login-register,
+            sandboxed-compiles,
+            pandoc,
+            symbol-palette,
+            template-gallery,
+            git-bridge,
+            mcp-server,
+            oauth2-server,
+            track-changes,
+            open-in-overleaf,
+            learn,
+            reference-picker,
+            github-sync,
+            gitlab-sync,
+            gitea-sync,
+            dropbox,
+            tpr-webmodule,
+            python-runner,
+            workbench,
+            error-assistant,
+            instance-features,
+            admin-tools,
+            authentication/ldap,
+            authentication/saml,
+            authentication/oidc
+          ]
+    steps: &steps
+      - name: "Checkout Current Repository"
+        uses: actions/checkout@v7
+
+      - name: "Login to GitHub Container Registry"
+        uses: docker/login-action@v4
+        with:
+          registry: ${{env.DOCKER_REGISTRY}}
+          username: ${{github.actor}}
+          password: ${{secrets.GITHUB_TOKEN}}
+
+      # --- Deploy And Test ---
+      - name: "Setup Overleaf With Toolkit"
+        working-directory: ./server-ce/test/toolkit
+        # Mongo sometimes exits while the toolkit starts it, start over then
+        run: |
+          # GHCR image names must be lowercase
+          image=${{env.DOCKER_REGISTRY}}/${GITHUB_REPOSITORY_OWNER,,}/overleaf-pro/ops:${{inputs.ops_tag || 'latest'}}
+          for attempt in 1 2 3; do
+            make setup SUITE=${{matrix.suite}} OVERLEAF_IMAGE=$image && exit 0
+            echo "::warning::Setup attempt $attempt failed"
+            make clean OVERLEAF_IMAGE=$image
+          done
+          exit 1
+      - name: "Run E2E Tests"
+        working-directory: ./server-ce/test/toolkit
+        run: |
+          make test SUITE=${{matrix.suite}}
+
+      # --- Collect Results On Failure ---
+      - name: "Print Overleaf Logs"
+        if: failure()
+        run: |
+          docker logs --tail 200 mongo || true
+          docker inspect mongo --format 'exit={{.State.ExitCode}} oom={{.State.OOMKilled}} error={{.State.Error}}' || true
+          docker logs --tail 200 sharelatex
+          docker exec sharelatex bash -c 'tail -n 100 /var/log/overleaf/*.log'
+      # Artifact names cannot contain the slash of nested suites
+      - name: "Get Artifact Name"
+        id: artifact
+        if: failure()
+        run: |
+          suite="${{matrix.suite}}"
+          echo "name=e2e-$ARCH-${suite//\//-}-screenshots" >> $GITHUB_OUTPUT
+      - name: "Upload Cypress Screenshots"
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{steps.artifact.outputs.name}}
+          path: server-ce/test/toolkit/cypress/results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # The same suites on arm64, once amd64 is done so both do not share the
+  # concurrent job limit; runs even when an amd64 suite failed
+  e2e-arm64:
+    needs: e2e-amd64
+    if: ${{ !cancelled() && (inputs.arch || 'both') != 'amd64' }}
+    runs-on: ubuntu-26.04-arm
+    env:
+      ARCH: arm64
+    strategy: *strategy
+    steps: *steps

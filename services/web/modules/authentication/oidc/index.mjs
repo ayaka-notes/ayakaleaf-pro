@@ -1,3 +1,4 @@
+import { rememberExternalAuth } from '../logout.mjs'
 let oidcModule = {}
 if (process.env.EXTERNAL_AUTH?.includes('oidc')) {
   const { default: OIDCModuleManager } = await import('./app/src/OIDCModuleManager.mjs')
@@ -7,6 +8,7 @@ if (process.env.EXTERNAL_AUTH?.includes('oidc')) {
   oidcModule = {
     name: 'oidc-authentication',
     hooks: {
+      preFinishLogin: rememberExternalAuth,
       passportSetup: OIDCModuleManager.passportSetup,
       getGroupPolicyForUser: OIDCModuleManager.getGroupPolicyForUser,
     },

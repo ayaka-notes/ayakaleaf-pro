@@ -1,81 +1,138 @@
 <h1 align="center">
   <br>
-  <a href="https://www.overleaf.com"><img src="doc/logo.png" alt="Overleaf" width="300"></a>
+  <a href="https://ayakaleaf-pro.ayaka.space"><picture><source media="(prefers-color-scheme: dark)" srcset="doc/logo-dark.png"><img src="doc/logo.png" alt="Ayakaleaf Pro" width="300"></picture></a>
 </h1>
 
-<h4 align="center">An open-source online real-time collaborative LaTeX editor.</h4>
+<h4 align="center">Overleaf Community Edition enhanced with all Pro features <br/>(open source, free to use, self-hostable).</h4>
 
 <p align="center">
-  <a href="https://github.com/overleaf/overleaf/wiki">Wiki</a> •
-  <a href="https://www.overleaf.com/for/enterprises">Server Pro</a> •
-  <a href="#contributing">Contributing</a> •
-  <a href="https://mailchi.mp/overleaf.com/community-edition-and-server-pro">Mailing List</a> •
+  <a href="https://ayakaleaf-pro.ayaka.space">Documents</a> •
+  <a href="https://github.com/ayaka-notes/ayakaleaf-pro-playground">Playground</a> •
+  <a href="https://ayakaleaf-pro.ayaka.space/blog">Blog</a> •
+  <a href="https://github.com/orgs/ayaka-notes/packages/container/package/overleaf-pro">Docker Image</a> •
+  <a href="https://github.com/ayaka-notes/texlive-full">TeXLive</a> •
+  <a href="https://ayakaleaf-pro.ayaka.space/dev">Developer</a> •
   <a href="#authors">Authors</a> •
   <a href="#license">License</a>
 </p>
 
-<img src="doc/screenshot.png" alt="A screenshot of a project being edited in Overleaf Community Edition">
 <p align="center">
-  Figure 1: A screenshot of a project being edited in Overleaf Community Edition.
+  <b>English</b> ·
+  <a href="doc/README-CS.md">Čeština</a> ·
+  <a href="doc/README-DA.md">Dansk</a> ·
+  <a href="doc/README-DE.md">Deutsch</a> ·
+  <a href="doc/README-ES.md">Español</a> ·
+  <a href="doc/README-FI.md">Suomi</a> ·
+  <a href="doc/README-FR.md">Français</a> ·
+  <a href="doc/README-IT.md">Italiano</a> ·
+  <a href="doc/README-JP.md">日本語</a> ·
+  <a href="doc/README-KR.md">한국어</a> ·
+  <a href="doc/README-NL.md">Nederlands</a> ·
+  <a href="doc/README-NO.md">Norsk</a> ·
+  <a href="doc/README-PL.md">Polski</a> ·
+  <a href="doc/README-PT.md">Português</a> ·
+  <a href="doc/README-RU.md">Русский</a> ·
+  <a href="doc/README-SV.md">Svenska</a> ·
+  <a href="doc/README-TR.md">Türkçe</a> ·
+  <a href="doc/README-ZH.md">简体中文</a>
 </p>
 
-## Community Edition
+<img src="doc/screenshot-pro.png" alt="A screenshot of a project being edited in Overleaf Community Edition">
+<p align="center">
+  Figure 1: A screenshot of a project being edited in Ayakaleaf Pro Edition.
+</p>
 
-[Overleaf](https://www.overleaf.com) is an open-source online real-time collaborative LaTeX editor. We run a hosted version at [www.overleaf.com](https://www.overleaf.com), but you can also run your own local version, and contribute to the development of Overleaf.
+## Ayakaleaf Pro Edition
+Ayakaleaf Pro is an enhanced version of Overleaf with almost all features and capabilities. For details, please check [Ayakaleaf Pro](https://ayakaleaf-pro.ayaka.space) page. Features in Ayakaleaf Pro include: 
 
-> [!CAUTION]
-> Overleaf Community Edition is intended for use in environments where **all** users are trusted. Community Edition is **not** appropriate for scenarios where isolation of users is required due to Sandbox Compiles not being available. When not using Sandboxed Compiles, users have full read and write access to the `sharelatex` container resources (filesystem, network, environment variables) when running LaTeX compiles.
+- 2-way Dropbox Sync (Keep All Your Projects in Sync with Dropbox)
+- MCP Server (Let AI Agents Edit, Compile and Comment)
+- AI Chat Assistant (Chat, Edit and Fix with AI)
+- Error Assistant (Explain and Fix Compile Errors)
+- Pandoc Import/Export (Convert Word, Markdown and LaTeX)
+- Python Script Runner (Run Python in Your Project)
+- 2-way GitHub(Enterprise) Sync (Push and Pull with GitHub)
+- 2-way GitLab Sync (GitLab.com or Self-hosted GitLab)
+- 2-way Gitea Sync (Gitea.com or Self-hosted Gitea)
+- Zotero Integration(With Zotero OAuth Support)
+- Mendeley Integration(With Mendeley OAuth Support)
+- Advanced Reference Search (Search All Your Bib Entries)
+- Git-Bridge Support (Clone, Pull and Push with Git)
+- Full Admin Panel (Users, Projects and Templates, with Search, Bulk Actions, Sessions and Audit Logs)
+- SSO with LDAP and SAML or OAuth 2.0
+- Unlimited Compile Times (Adjustable in admin panel)
+- Self Register (Optional, can be limited by mail domain)
+- reCAPTCHA (Optional, on Login, Register and Password Reset)
+- Sandbox Compile (With [texlive-full](https://github.com/ayaka-notes/texlive-full) image support)
+- Template System (With Template Gallery)
+- Track Changes (With Review and Comment Panel)
+- Full Project History(With Restore and Download)
+- Symbol Palette (Insert Math Symbols in One Click)
+- Full i18n Translation (Every UI String in 18 Languages)
+- ARM Support(x86_64/arm64 on Docker)
 
-For more information on Sandbox Compiles check out our [documentation](https://docs.overleaf.com/on-premises/configuration/overleaf-toolkit/server-pro-only-configuration/sandboxed-compiles).
+Last but not least, Ayakaleaf Pro is open-source, free to use and modify. You can self-host it and contribute to the development of Ayakaleaf Pro. For more details, please check [Developer Documentation](https://ayakaleaf-pro.ayaka.space/dev) page.
 
-## Enterprise
-
-If you want help installing and maintaining Overleaf in your lab or workplace, we offer an officially supported version called [Overleaf Server Pro](https://www.overleaf.com/for/enterprises). It also includes more features for security (SSO with LDAP or SAML), administration and collaboration (e.g. tracked changes). [Find out more!](https://www.overleaf.com/for/enterprises)
-
-## Keeping up to date
-
-Sign up to the [mailing list](https://mailchi.mp/overleaf.com/community-edition-and-server-pro) to get updates on Overleaf releases and development.
+> [!NOTE]
+> Note: Ayakaleaf Pro is not affiliated with Overleaf, Inc. or its parent company, Digital Science. It is also *not Server Pro* Edition, which is a commercial product offered by Overleaf, Inc.
+> 
+> Ayakaleaf Pro is an independent project developed and maintained by the [ayaka-notes](https://github.com/ayaka-notes).
 
 ## Installation
 
-We have detailed installation instructions in the [Overleaf Toolkit](https://github.com/overleaf/toolkit/).
+If you just want to try Ayakaleaf Pro without setting up a server, you can use our [Ayakaleaf Pro Playground](https://github.com/ayaka-notes/ayakaleaf-pro-playground). It provides a preconfigured GitHub Codespaces environment that lets you launch and explore Ayakaleaf Pro directly in your browser.
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/ayaka-notes/ayakaleaf-pro-playground)
+
+If you want to deploy Ayakaleaf Pro for production use,  we have detailed installation instructions on the [Documents](https://ayakaleaf-pro.ayaka.space/) page. We highly recommend installing Ayakaleaf Pro using the [ayaka-notes/Toolkit](https://github.com/ayaka-notes/toolkit/).
 
 ## Upgrading
 
-If you are upgrading from a previous version of Overleaf, please see the [Release Notes section on the Wiki](https://github.com/overleaf/overleaf/wiki#release-notes) for all of the versions between your current version and the version you are upgrading to.
+If you are upgrading from a previous version of Ayakaleaf Pro, please see the [Releases page](https://github.com/ayaka-notes/ayakaleaf-pro/releases) for the changes in each version between your current version and the one you are upgrading to.
 
-## Overleaf Docker Image
+## Translations
 
-This repo contains two dockerfiles, [`Dockerfile-base`](server-ce/Dockerfile-base), which builds the
-`sharelatex/sharelatex-base` image, and [`Dockerfile`](server-ce/Dockerfile) which builds the
-`sharelatex/sharelatex` (or "community") image.
+We welcome contributions to translations of Ayakaleaf Pro. Generally, we use claude/codex to translate the English text into other languages. If you find any errors in the translations, please submit a pull request to fix them. Please only modify relevant files in the `services/web/locales/locales_patches` folder.
 
-The Base image generally contains the basic dependencies like `wget`, plus `texlive`.
-We split this out because it's a pretty heavy set of
-dependencies, and it's nice to not have to rebuild all of that every time.
-
-The `sharelatex/sharelatex` image extends the base image and adds the actual Overleaf code
-and services.
-
-Use `make build-base` and `make build-community` from `server-ce/` to build these images.
-
-We use the [Phusion base-image](https://github.com/phusion/baseimage-docker)
-(which is extended by our `base` image) to provide us with a VM-like container
-in which to run the Overleaf services. Baseimage uses the `runit` service
-manager to manage services, and we add our init-scripts from the `server-ce/runit`
-folder.
-
+Files under `services/web/locales/` are overleaf official translation files. Please do not modify them directly.
 
 ## Contributing
 
 Please see the [CONTRIBUTING](CONTRIBUTING.md) file for information on contributing to the development of Overleaf.
 
+## Blog
+We write about Overleaf internals, compilation performance, and self-hosted LaTeX infrastructure. Read more on our blog:
+- [2026.08 Overleaf Server Pro Price and Open-Source Alternative](https://ayakaleaf-pro.ayaka.space/blog/2026/overleaf-server-pro-price-and-open-source-alternative)
+- [2026.08 Overleaf Benchmark: A Deep Research of Concurrent LaTeX Compilation in Overleaf](https://ayakaleaf-pro.ayaka.space/blog/2026/overleaf-benchmark)
+
 ## Authors
 
-[The Overleaf Team](https://www.overleaf.com/about)
+- [The Overleaf Team](https://www.overleaf.com/about)
+- [Features and Copyright](https://ayakaleaf-pro.ayaka.space/on-premises/readme/features-and-copyright)
 
 ## License
 
 The code in this repository is released under the GNU AFFERO GENERAL PUBLIC LICENSE, version 3. A copy can be found in the [`LICENSE`](LICENSE) file.
 
-Copyright (c) Overleaf, 2014-2025.
+- Copyright (c) Overleaf, 2014-2025.
+- Copyright (c) [Pro Authors](https://ayakaleaf-pro.ayaka.space/on-premises/readme/features-and-copyright), 2026-now.
+
+## Sponsor
+
+<p align="center">
+  <a href="https://www.vultr.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="doc/sponsors/vultr-dark.svg"><img src="doc/sponsors/vultr.svg" alt="Vultr" width="160"></picture></a>
+  <a href="https://linux.do"><picture><source media="(prefers-color-scheme: dark)" srcset="doc/sponsors/linux-do-dark.svg"><img src="doc/sponsors/linux-do.svg" alt="Linux Do Community" width="160"></picture></a>
+  <a href="https://openai.com/en/form/codex-for-oss/"><picture><source media="(prefers-color-scheme: dark)" srcset="doc/sponsors/openai-codex-oss-dark.svg"><img src="doc/sponsors/openai-codex-oss.svg" alt="OpenAI Codex OSS" width="160"></picture></a>
+  <a href="https://www.gitbook.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="doc/sponsors/gitbook-dark.svg"><img src="doc/sponsors/gitbook.svg" alt="GitBook" width="160"></picture></a>
+  <a href="https://www.mintlify.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="doc/sponsors/mintlify-dark.svg"><img src="doc/sponsors/mintlify.svg" alt="Mintlify" width="160"></picture></a>
+</p>
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=ayaka-notes%2Fayakaleaf-pro&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=ayaka-notes/ayakaleaf-pro&type=date&theme=dark&legend=top-left&sealed_token=u3l5zBKFPuzl3y_xdCmqTPT_5iaimMLJchJaALvNsAR3LtSu2NrnvjlmbfGW1NdyDch3XLj-o6rfTpyk2K7s6gtgdzDvrDAsTkBnGz_m2CAkbq0IvxsFXPzEkypDT3vhHvYsvDu3qd7Dx6LcPFy_330a0kqmByAl6FKN-13QCGuo1LTv0iEUihWDTUlz" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=ayaka-notes/ayakaleaf-pro&type=date&legend=top-left&sealed_token=u3l5zBKFPuzl3y_xdCmqTPT_5iaimMLJchJaALvNsAR3LtSu2NrnvjlmbfGW1NdyDch3XLj-o6rfTpyk2K7s6gtgdzDvrDAsTkBnGz_m2CAkbq0IvxsFXPzEkypDT3vhHvYsvDu3qd7Dx6LcPFy_330a0kqmByAl6FKN-13QCGuo1LTv0iEUihWDTUlz" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=ayaka-notes/ayakaleaf-pro&type=date&legend=top-left&sealed_token=u3l5zBKFPuzl3y_xdCmqTPT_5iaimMLJchJaALvNsAR3LtSu2NrnvjlmbfGW1NdyDch3XLj-o6rfTpyk2K7s6gtgdzDvrDAsTkBnGz_m2CAkbq0IvxsFXPzEkypDT3vhHvYsvDu3qd7Dx6LcPFy_330a0kqmByAl6FKN-13QCGuo1LTv0iEUihWDTUlz" />
+ </picture>
+</a>

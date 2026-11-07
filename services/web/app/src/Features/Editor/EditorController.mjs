@@ -5,10 +5,11 @@ import ProjectEntityUpdateHandler from '../Project/ProjectEntityUpdateHandler.mj
 import ProjectOptionsHandler from '../Project/ProjectOptionsHandler.mjs'
 import ProjectDetailsHandler from '../Project/ProjectDetailsHandler.mjs'
 import ProjectDeleter from '../Project/ProjectDeleter.mjs'
+import { DeletedProjectReasons } from '../Project/DeletedProjectReasons.mjs'
 import EditorRealTimeController from './EditorRealTimeController.mjs'
 import async from 'async'
 import PublicAccessLevels from '../Authorization/PublicAccessLevels.mjs'
-import { promisifyAll } from '@overleaf/promise-utils'
+import { promisify, promisifyMultiResult } from '@overleaf/promise-utils'
 
 const EditorController = {
   addDoc(projectId, folderId, docName, docLines, source, userId, callback) {
@@ -445,7 +446,11 @@ const EditorController = {
 
   deleteProject(projectId, callback) {
     Metrics.inc('editor.delete-project')
-    ProjectDeleter.deleteProject(projectId, callback)
+    ProjectDeleter.deleteProject(
+      projectId,
+      { deletedReason: DeletedProjectReasons.USER },
+      callback
+    )
   },
 
   renameEntity(
@@ -571,6 +576,16 @@ const EditorController = {
     })
   },
 
+  setPng2pdf(projectId, png2pdf, callback) {
+    ProjectOptionsHandler.setPng2pdf(projectId, png2pdf, function (err) {
+      if (err) {
+        return callback(err)
+      }
+      EditorRealTimeController.emitToRoom(projectId, 'png2pdfUpdated', png2pdf)
+      callback()
+    })
+  },
+
   setSpellCheckLanguage(projectId, languageCode, callback) {
     ProjectOptionsHandler.setSpellCheckLanguage(
       projectId,
@@ -654,6 +669,24 @@ const EditorController = {
     )
   },
 
+  setReferenceFormat(projectId, newReferenceFormat, callback) {
+    ProjectOptionsHandler.setReferenceFormat(
+      projectId,
+      newReferenceFormat,
+      function (err) {
+        if (err) {
+          return callback(err)
+        }
+        EditorRealTimeController.emitToRoom(
+          projectId,
+          'referenceFormatUpdated',
+          newReferenceFormat
+        )
+        callback()
+      }
+    )
+  },
+
   _notifyProjectUsersOfNewFolders(projectId, folders, callback) {
     async.eachSeries(
       folders,
@@ -687,9 +720,36 @@ const EditorController = {
   },
 }
 
-EditorController.promises = promisifyAll(EditorController, {
-  multiResult: {
-    mkdirp: ['newFolders', 'lastFolder'],
-  },
-})
+EditorController.promises = {
+  addDoc: promisify(EditorController.addDoc),
+  addDocWithRanges: promisify(EditorController.addDocWithRanges),
+  addFile: promisify(EditorController.addFile),
+  appendToDoc: promisify(EditorController.appendToDoc),
+  upsertDoc: promisify(EditorController.upsertDoc),
+  upsertFile: promisify(EditorController.upsertFile),
+  upsertDocWithPath: promisify(EditorController.upsertDocWithPath),
+  upsertFileWithPath: promisify(EditorController.upsertFileWithPath),
+  addFolder: promisify(EditorController.addFolder),
+  mkdirp: promisifyMultiResult(EditorController.mkdirp, [
+    'newFolders',
+    'lastFolder',
+  ]),
+  deleteEntity: promisify(EditorController.deleteEntity),
+  deleteEntityWithPath: promisify(EditorController.deleteEntityWithPath),
+  updateProjectDescription: promisify(
+    EditorController.updateProjectDescription
+  ),
+  deleteProject: promisify(EditorController.deleteProject),
+  renameEntity: promisify(EditorController.renameEntity),
+  moveEntity: promisify(EditorController.moveEntity),
+  renameProject: promisify(EditorController.renameProject),
+  setCompiler: promisify(EditorController.setCompiler),
+  setImageName: promisify(EditorController.setImageName),
+  setPng2pdf: promisify(EditorController.setPng2pdf),
+  setSpellCheckLanguage: promisify(EditorController.setSpellCheckLanguage),
+  setPublicAccessLevel: promisify(EditorController.setPublicAccessLevel),
+  setRootDoc: promisify(EditorController.setRootDoc),
+  setMainBibliographyDoc: promisify(EditorController.setMainBibliographyDoc),
+  setReferenceFormat: promisify(EditorController.setReferenceFormat),
+}
 export default EditorController

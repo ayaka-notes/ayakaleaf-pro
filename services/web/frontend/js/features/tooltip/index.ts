@@ -11,18 +11,44 @@ function getElementWidth(el: Element) {
   return el.scrollWidth - elPaddingX - elBorderX
 }
 
+const visibleInstances = new Set<Tooltip>()
+
+function handleEscapeKey(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    visibleInstances.forEach(instance => instance.hide())
+    e.stopPropagation()
+  }
+}
+
+function createTooltip(element: Element): Tooltip {
+  const instance = new Tooltip(element)
+  element.addEventListener('show.bs.tooltip', () => {
+    if (visibleInstances.size === 0) {
+      document.addEventListener('keydown', handleEscapeKey, { capture: true })
+    }
+    visibleInstances.add(instance)
+  })
+  element.addEventListener('hide.bs.tooltip', () => {
+    visibleInstances.delete(instance)
+    if (visibleInstances.size === 0) {
+      document.removeEventListener('keydown', handleEscapeKey, {
+        capture: true,
+      })
+    }
+  })
+  return instance
+}
+
 const footerLanguageElement = document.querySelector(
   '[data-ol-lang-selector-tooltip]'
 ) as Element
 if (footerLanguageElement) {
-  // eslint-disable-next-line no-new
-  new Tooltip(footerLanguageElement)
+  createTooltip(footerLanguageElement)
 }
 
 const allTooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]')
 allTooltips.forEach(element => {
-  // eslint-disable-next-line no-new
-  new Tooltip(element)
+  createTooltip(element)
 })
 
 const possibleBadgeTooltips = document.querySelectorAll('[data-badge-tooltip]')
@@ -36,8 +62,7 @@ possibleBadgeTooltips.forEach(element => {
   if (element.parentElement) {
     const parentWidth = getElementWidth(element.parentElement)
     if (element.scrollWidth > parentWidth) {
-      // eslint-disable-next-line no-new
-      new Tooltip(element)
+      createTooltip(element)
     } else {
       element.parentElement.style.maxWidth = 'none'
     }

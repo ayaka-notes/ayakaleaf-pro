@@ -8,12 +8,14 @@ import MaterialIcon from '@/shared/components/material-icon'
 import { useEditorAnalytics } from '@/shared/hooks/use-editor-analytics'
 
 function PdfHybridDownloadButton() {
-  const { pdfDownloadUrl } = useCompileContext()
+  const { pdfDownloadUrl, showLogs } = useCompileContext()
   const { sendEvent } = useEditorAnalytics()
-
   const { projectId } = useProjectContext()
-
   const { t } = useTranslation()
+
+  if (showLogs) {
+    return null
+  }
   const description = pdfDownloadUrl
     ? t('download_pdf')
     : t('please_compile_pdf_before_download')

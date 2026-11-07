@@ -207,9 +207,11 @@ function _sendUnlinkedEmail(primaryEmail, providerName, institutionEmail) {
 
 async function getUser(providerId, externalUserId, userIdAttribute) {
   if (!providerId || !externalUserId || !userIdAttribute) {
-    throw new Error(
-      `invalid arguments: providerId: ${providerId}, externalUserId: ${externalUserId}, userIdAttribute: ${userIdAttribute}`
-    )
+    throw new OError('invalid arguments', {
+      providerId,
+      externalUserId,
+      userIdAttribute,
+    })
   }
   const user = await User.findOne({
     samlIdentifiers: {
@@ -242,6 +244,7 @@ async function redundantSubscription(userId, providerId, providerName) {
 }
 
 async function linkAccounts(userId, samlData, auditLog) {
+  // Only for Commons SSO
   const {
     externalUserId,
     institutionEmail,
@@ -252,9 +255,7 @@ async function linkAccounts(userId, samlData, auditLog) {
   } = samlData
 
   if (!externalUserId || !institutionEmail || !providerId || !userIdAttribute) {
-    throw new Error(
-      `missing data when linking institution SSO: ${JSON.stringify(samlData)}`
-    )
+    throw new OError('missing data when linking institution SSO', { samlData })
   }
 
   await _addIdentifier(
@@ -303,19 +304,30 @@ async function unlinkAccounts(
 }
 
 async function _removeIdentifier(userId, providerId) {
+  // Called either when a user deletes a linked email
+  // or unlinks their institution SSO.
+  // The identifier is stored both in samlIdentifiers array
+  // and in the emails array as samlProviderId.
+  // When a user deletes a linked email, the email is removed
+  // before this function is called, so we do expect no match
+  // in that scenario
+
   providerId = providerId.toString()
 
-  const query = {
-    _id: userId,
-  }
-  const update = {
-    $pull: {
-      samlIdentifiers: {
-        providerId,
+  await User.updateOne(
+    { _id: userId },
+    {
+      $pull: {
+        samlIdentifiers: { providerId },
+      },
+      $unset: {
+        'emails.$[email].samlProviderId': 1,
       },
     },
-  }
-  await User.updateOne(query, update).exec()
+    {
+      arrayFilters: [{ 'email.samlProviderId': providerId }],
+    }
+  ).exec()
 }
 
 async function updateEntitlement(

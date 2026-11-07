@@ -4,11 +4,12 @@ const { Schema } = mongoose
 const Usage = new Schema({
   usage: { type: Number },
   periodStart: { type: Date },
+  limitReachedPeriodStart: { type: Date },
 })
 
 export const UserFeatureUsageSchema = new Schema({
   features: {
-    aiErrorAssistant: Usage,
+    aiFeatureUsage: Usage,
     aiWorkbench: Usage,
   },
 })

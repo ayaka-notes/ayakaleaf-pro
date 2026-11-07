@@ -2,6 +2,7 @@ import sinon from 'sinon'
 import { expect } from 'chai'
 import { strict as esmock } from 'esmock'
 import EventEmitter from 'node:events'
+import OError from '@overleaf/o-error'
 import { RequestFailedError } from '@overleaf/fetch-utils'
 import * as Errors from '../../../../app/js/Errors.js'
 
@@ -27,17 +28,6 @@ describe('HistoryStoreManager', function () {
         },
       },
     }
-    this.latestChunkRequestArgs = sinon.match({
-      method: 'GET',
-      url: `${this.settings.overleaf.history.host}/projects/${this.historyId}/latest/history`,
-      json: true,
-      auth: {
-        user: this.settings.overleaf.history.user,
-        pass: this.settings.overleaf.history.pass,
-        sendImmediately: true,
-      },
-    })
-
     this.callback = sinon.stub()
 
     this.LocalFileWriter = {
@@ -53,11 +43,10 @@ describe('HistoryStoreManager', function () {
 
     this.FetchUtils = {
       fetchStream: sinon.stub(),
+      fetchString: sinon.stub(),
       fetchNothing: sinon.stub().resolves(),
       RequestFailedError,
     }
-
-    this.request = sinon.stub()
 
     this.logger = {
       debug: sinon.stub(),
@@ -66,7 +55,6 @@ describe('HistoryStoreManager', function () {
 
     this.HistoryStoreManager = await esmock(MODULE_PATH, {
       '@overleaf/fetch-utils': this.FetchUtils,
-      request: this.request,
       '@overleaf/settings': this.settings,
       '../../../../app/js/LocalFileWriter.js': this.LocalFileWriter,
       '../../../../app/js/WebApiManager.js': this.WebApiManager,
@@ -77,7 +65,7 @@ describe('HistoryStoreManager', function () {
 
   describe('getMostRecentChunk', function () {
     describe('successfully', function () {
-      beforeEach(function () {
+      beforeEach(function (done) {
         this.chunk = {
           chunk: {
             startVersion: 0,
@@ -89,13 +77,27 @@ describe('HistoryStoreManager', function () {
             },
           },
         }
-        this.request
-          .withArgs(this.latestChunkRequestArgs)
-          .yields(null, { statusCode: 200 }, this.chunk)
+        this.FetchUtils.fetchString.resolves(JSON.stringify(this.chunk))
         this.HistoryStoreManager.getMostRecentChunk(
           this.projectId,
           this.historyId,
-          this.callback
+          (...args) => {
+            this.callback(...args)
+            done()
+          }
+        )
+      })
+
+      it('should request latest history from the overleaf history service', function () {
+        expect(this.FetchUtils.fetchString).to.have.been.calledWithMatch(
+          `${this.settings.overleaf.history.host}/projects/${this.historyId}/latest/history`,
+          {
+            method: 'GET',
+            basicAuth: {
+              user: this.settings.overleaf.history.user,
+              password: this.settings.overleaf.history.pass,
+            },
+          }
         )
       })
 
@@ -107,7 +109,7 @@ describe('HistoryStoreManager', function () {
 
   describe('getMostRecentVersion', function () {
     describe('successfully', function () {
-      beforeEach(function () {
+      beforeEach(function (done) {
         this.chunk = {
           chunk: {
             startVersion: 5,
@@ -123,13 +125,14 @@ describe('HistoryStoreManager', function () {
           },
         }
 
-        this.request
-          .withArgs(this.latestChunkRequestArgs)
-          .yields(null, { statusCode: 200 }, this.chunk)
+        this.FetchUtils.fetchString.resolves(JSON.stringify(this.chunk))
         this.HistoryStoreManager.getMostRecentVersion(
           this.projectId,
           this.historyId,
-          this.callback
+          (...args) => {
+            this.callback(...args)
+            done()
+          }
         )
       })
 
@@ -141,10 +144,23 @@ describe('HistoryStoreManager', function () {
           { v2Authors: ['5678'], timestamp: '2017-10-17T10:44:40.227Z' }
         )
       })
+
+      it('should request latest history from the overleaf history service', function () {
+        expect(this.FetchUtils.fetchString).to.have.been.calledWithMatch(
+          `${this.settings.overleaf.history.host}/projects/${this.historyId}/latest/history`,
+          {
+            method: 'GET',
+            basicAuth: {
+              user: this.settings.overleaf.history.user,
+              password: this.settings.overleaf.history.pass,
+            },
+          }
+        )
+      })
     })
 
     describe('out of order doc ops', function () {
-      beforeEach(function () {
+      beforeEach(function (done) {
         this.chunk = {
           chunk: {
             startVersion: 5,
@@ -172,13 +188,14 @@ describe('HistoryStoreManager', function () {
           },
         }
 
-        this.request
-          .withArgs(this.latestChunkRequestArgs)
-          .yields(null, { statusCode: 200 }, this.chunk)
+        this.FetchUtils.fetchString.resolves(JSON.stringify(this.chunk))
         this.HistoryStoreManager.getMostRecentVersion(
           this.projectId,
           this.historyId,
-          this.callback
+          (...args) => {
+            this.callback(...args)
+            done()
+          }
         )
       })
 
@@ -204,7 +221,7 @@ describe('HistoryStoreManager', function () {
     })
 
     describe('out of order project structure versions', function () {
-      beforeEach(function () {
+      beforeEach(function (done) {
         this.chunk = {
           chunk: {
             startVersion: 5,
@@ -222,13 +239,14 @@ describe('HistoryStoreManager', function () {
           },
         }
 
-        this.request
-          .withArgs(this.latestChunkRequestArgs)
-          .yields(null, { statusCode: 200 }, this.chunk)
+        this.FetchUtils.fetchString.resolves(JSON.stringify(this.chunk))
         this.HistoryStoreManager.getMostRecentVersion(
           this.projectId,
           this.historyId,
-          this.callback
+          (...args) => {
+            this.callback(...args)
+            done()
+          }
         )
       })
 
@@ -256,7 +274,7 @@ describe('HistoryStoreManager', function () {
     })
 
     describe('out of order project structure and doc versions', function () {
-      beforeEach(function () {
+      beforeEach(function (done) {
         this.chunk = {
           chunk: {
             startVersion: 5,
@@ -313,13 +331,14 @@ describe('HistoryStoreManager', function () {
           },
         }
 
-        this.request
-          .withArgs(this.latestChunkRequestArgs)
-          .yields(null, { statusCode: 200 }, this.chunk)
+        this.FetchUtils.fetchString.resolves(JSON.stringify(this.chunk))
         this.HistoryStoreManager.getMostRecentVersion(
           this.projectId,
           this.historyId,
-          this.callback
+          (...args) => {
+            this.callback(...args)
+            done()
+          }
         )
       })
 
@@ -350,20 +369,21 @@ describe('HistoryStoreManager', function () {
     })
 
     describe('with an unexpected response', function () {
-      beforeEach(function () {
+      beforeEach(function (done) {
         this.badChunk = {
           chunk: {
             foo: 123, // valid chunk should have startVersion property
             bar: 456,
           },
         }
-        this.request
-          .withArgs(this.latestChunkRequestArgs)
-          .yields(null, { statusCode: 200 }, this.badChunk)
+        this.FetchUtils.fetchString.resolves(JSON.stringify(this.badChunk))
         this.HistoryStoreManager.getMostRecentVersion(
           this.projectId,
           this.historyId,
-          this.callback
+          (...args) => {
+            this.callback(...args)
+            done()
+          }
         )
       })
 
@@ -373,6 +393,107 @@ describe('HistoryStoreManager', function () {
             .instanceOf(Error)
             .and(sinon.match.has('message', 'unexpected response'))
         )
+      })
+    })
+  })
+
+  describe('_requestHistoryService error handling', function () {
+    function itCallsBackWithTheHistoryServiceError(statusCode) {
+      it('should call the callback with an error naming the status code', function () {
+        const err = this.callback.firstCall.args[0]
+        expect(err.message).to.equal(
+          `history store a non-success status code: ${statusCode}`
+        )
+      })
+    }
+
+    describe('with a 409 response carrying a body', function () {
+      beforeEach(function (done) {
+        this.FetchUtils.fetchString.rejects(
+          new RequestFailedError(
+            `${this.settings.overleaf.history.host}/projects/${this.historyId}/latest/history`,
+            { method: 'GET' },
+            { status: 409 },
+            'conflict-detail'
+          )
+        )
+        this.HistoryStoreManager.getMostRecentVersion(
+          this.projectId,
+          this.historyId,
+          (...args) => {
+            this.callback(...args)
+            done()
+          }
+        )
+      })
+
+      itCallsBackWithTheHistoryServiceError(409)
+
+      it('should include the response body and status code in the error info', function () {
+        const err = this.callback.firstCall.args[0]
+        const info = OError.getFullInfo(err)
+        expect(info.body).to.equal('conflict-detail')
+        expect(info.statusCode).to.equal(409)
+      })
+    })
+
+    describe('with a 422 response carrying a body', function () {
+      beforeEach(function (done) {
+        this.FetchUtils.fetchString.rejects(
+          new RequestFailedError(
+            `${this.settings.overleaf.history.host}/projects/${this.historyId}/latest/history`,
+            { method: 'GET' },
+            { status: 422 },
+            'schema-validation-detail'
+          )
+        )
+        this.HistoryStoreManager.getMostRecentVersion(
+          this.projectId,
+          this.historyId,
+          (...args) => {
+            this.callback(...args)
+            done()
+          }
+        )
+      })
+
+      itCallsBackWithTheHistoryServiceError(422)
+
+      it('should include the response body and status code in the error info', function () {
+        const err = this.callback.firstCall.args[0]
+        const info = OError.getFullInfo(err)
+        expect(info.body).to.equal('schema-validation-detail')
+        expect(info.statusCode).to.equal(422)
+      })
+    })
+
+    describe('with a 500 response and no informative body', function () {
+      beforeEach(function (done) {
+        this.FetchUtils.fetchString.rejects(
+          new RequestFailedError(
+            `${this.settings.overleaf.history.host}/projects/${this.historyId}/latest/history`,
+            { method: 'GET' },
+            { status: 500 },
+            null
+          )
+        )
+        this.HistoryStoreManager.getMostRecentVersion(
+          this.projectId,
+          this.historyId,
+          (...args) => {
+            this.callback(...args)
+            done()
+          }
+        )
+      })
+
+      itCallsBackWithTheHistoryServiceError(500)
+
+      it('should not include a response body in the error info', function () {
+        const err = this.callback.firstCall.args[0]
+        const info = OError.getFullInfo(err)
+        expect(info.body).to.equal(null)
+        expect(info.statusCode).to.equal(500)
       })
     })
   })
@@ -613,28 +734,25 @@ describe('HistoryStoreManager', function () {
 
   describe('getProjectBlob', function () {
     describe('successfully', function () {
-      beforeEach(function () {
+      beforeEach(function (done) {
         this.blobContent = 'test content'
-        this.blobHash = 'test hash'
+        this.blobHash = 'testhash'
 
-        this.request.yields(null, { statusCode: 200 }, this.blobContent)
+        this.FetchUtils.fetchString.resolves(this.blobContent)
         this.HistoryStoreManager.getProjectBlob(
           this.historyId,
           this.blobHash,
-          this.callback
+          (...args) => {
+            this.callback(...args)
+            done()
+          }
         )
       })
 
       it('should get the blob from the overleaf history service', function () {
-        expect(this.request).to.have.been.calledWithMatch({
-          method: 'GET',
-          url: `${this.settings.overleaf.history.host}/projects/${this.historyId}/blobs/${this.blobHash}`,
-          auth: {
-            user: this.settings.overleaf.history.user,
-            pass: this.settings.overleaf.history.pass,
-            sendImmediately: true,
-          },
-        })
+        expect(this.FetchUtils.fetchString).to.have.been.calledWithMatch(
+          `${this.settings.overleaf.history.host}/projects/${this.historyId}/blobs/${this.blobHash}`
+        )
       })
 
       it('should call the callback with the blob', function () {
@@ -677,32 +795,27 @@ describe('HistoryStoreManager', function () {
 
   describe('initializeProject', function () {
     describe('successfully', function () {
-      beforeEach(function () {
+      beforeEach(function (done) {
         this.response_body = { projectId: this.historyId }
-        this.request.callsArgWith(
-          1,
-          null,
-          { statusCode: 200 },
-          this.response_body
-        )
+        this.FetchUtils.fetchString.resolves(JSON.stringify(this.response_body))
 
         this.HistoryStoreManager.initializeProject(
           this.historyId,
-          this.callback
+          (...args) => {
+            this.callback(...args)
+            done()
+          }
         )
       })
 
       it('should send the change to the history store', function () {
-        expect(this.request).to.have.been.calledWithMatch({
-          method: 'POST',
-          url: `${this.settings.overleaf.history.host}/projects`,
-          auth: {
-            user: this.settings.overleaf.history.user,
-            pass: this.settings.overleaf.history.pass,
-            sendImmediately: true,
-          },
-          json: { projectId: this.historyId },
-        })
+        expect(this.FetchUtils.fetchString).to.have.been.calledWithMatch(
+          `${this.settings.overleaf.history.host}/projects`,
+          {
+            method: 'POST',
+            json: { projectId: this.historyId },
+          }
+        )
       })
 
       it('should call the callback with the new overleaf id', function () {
@@ -713,14 +826,87 @@ describe('HistoryStoreManager', function () {
 
   describe('deleteProject', function () {
     beforeEach(function (done) {
-      this.request.yields(null, { statusCode: 204 }, '')
+      this.FetchUtils.fetchString.resolves('')
       this.HistoryStoreManager.deleteProject(this.historyId, done)
     })
 
     it('should ask the history store to delete the project', function () {
-      expect(this.request).to.have.been.calledWithMatch({
-        method: 'DELETE',
-        url: `${this.settings.overleaf.history.host}/projects/${this.historyId}`,
+      expect(this.FetchUtils.fetchString).to.have.been.calledWithMatch(
+        `${this.settings.overleaf.history.host}/projects/${this.historyId}`,
+        { method: 'DELETE' }
+      )
+    })
+  })
+
+  describe('sendChanges', function () {
+    beforeEach(function () {
+      this.changes = [{ op: 'mock-change' }]
+      this.endVersion = 42
+    })
+
+    describe('successfully', function () {
+      beforeEach(function (done) {
+        this.FetchUtils.fetchString.resolves(
+          JSON.stringify({ resyncNeeded: true })
+        )
+        this.HistoryStoreManager.sendChanges(
+          this.projectId,
+          this.historyId,
+          this.changes,
+          this.endVersion,
+          (...args) => {
+            this.callback(...args)
+            done()
+          }
+        )
+      })
+
+      it('should send the changes to the history store', function () {
+        expect(this.FetchUtils.fetchString).to.have.been.calledWithMatch(
+          `${this.settings.overleaf.history.host}/projects/${this.historyId}/legacy_changes?end_version=${this.endVersion}`,
+          {
+            method: 'POST',
+            json: this.changes,
+          }
+        )
+      })
+
+      it('should call the callback with the resync flag from the response', function () {
+        expect(this.callback).to.have.been.calledWith(null, {
+          resyncNeeded: true,
+        })
+      })
+    })
+
+    describe('when the history store returns a non-success status code', function () {
+      beforeEach(function (done) {
+        this.FetchUtils.fetchString.rejects(
+          new RequestFailedError(
+            `${this.settings.overleaf.history.host}/projects/${this.historyId}/legacy_changes`,
+            { method: 'POST' },
+            { status: 409 },
+            'conflict-detail'
+          )
+        )
+        this.HistoryStoreManager.sendChanges(
+          this.projectId,
+          this.historyId,
+          this.changes,
+          this.endVersion,
+          (...args) => {
+            this.callback(...args)
+            done()
+          }
+        )
+      })
+
+      it('should call the callback with an error', function () {
+        expect(this.callback.firstCall.args[0]).to.be.an.instanceOf(Error)
+      })
+
+      it('should keep the response body from the history store in the error info', function () {
+        const err = this.callback.firstCall.args[0]
+        expect(OError.getFullInfo(err).body).to.equal('conflict-detail')
       })
     })
   })

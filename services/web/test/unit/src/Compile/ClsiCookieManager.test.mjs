@@ -1,5 +1,5 @@
 import sinon from 'sinon'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const modulePath = '../../../../app/src/Features/Compile/ClsiCookieManager.mjs'
 
 describe('ClsiCookieManager', function () {
@@ -16,7 +16,6 @@ describe('ClsiCookieManager', function () {
       fetchNothing: sinon.stub().returns(Promise.resolve()),
       fetchStringWithResponse: sinon.stub().returns(Promise.resolve()),
     }
-    ctx.metrics = { inc: sinon.stub() }
     ctx.settings = {
       redis: {
         web: 'redis.something',
@@ -41,9 +40,6 @@ describe('ClsiCookieManager', function () {
       default: ctx.settings,
     }))
     vi.doMock('@overleaf/fetch-utils', () => ctx.fetchUtils)
-    vi.doMock('@overleaf/metrics', () => ({
-      default: ctx.metrics,
-    }))
 
     ctx.ClsiCookieManager = (await import(modulePath)).default()
   })
@@ -55,7 +51,26 @@ describe('ClsiCookieManager', function () {
         ctx.project_id,
         ctx.user_id,
         '',
-        'c3d'
+        'free'
+      )
+      ctx.redis.get
+        .calledWith(`clsiserver:free:${ctx.project_id}:${ctx.user_id}`)
+        .should.equal(true)
+      serverId.should.equal('clsi-7')
+    })
+
+    it('should fall back to the old key during the free/premium rollout', async function (ctx) {
+      ctx.redis.get
+        .withArgs(`clsiserver:free:${ctx.project_id}:${ctx.user_id}`)
+        .resolves(null)
+      ctx.redis.get
+        .withArgs(`clsiserver:c3d:${ctx.project_id}:${ctx.user_id}`)
+        .resolves('clsi-7')
+      const serverId = await ctx.ClsiCookieManager.promises.getServerId(
+        ctx.project_id,
+        ctx.user_id,
+        '',
+        'free'
       )
       ctx.redis.get
         .calledWith(`clsiserver:c3d:${ctx.project_id}:${ctx.user_id}`)
@@ -87,7 +102,7 @@ describe('ClsiCookieManager', function () {
         ctx.project_id,
         ctx.user_id,
         '',
-        'c3d'
+        'free'
       )
       ctx.ClsiCookieManager.promises._populateServerIdViaRequest
         .calledWith(ctx.project_id, ctx.user_id)
@@ -118,13 +133,13 @@ describe('ClsiCookieManager', function () {
           ctx.project_id,
           ctx.user_id,
           'standard',
-          'c3d'
+          'free'
         )
         const args = ctx.ClsiCookieManager.promises.setServerId.args[0]
         args[0].should.equal(ctx.project_id)
         args[1].should.equal(ctx.user_id)
         args[2].should.equal('standard')
-        args[3].should.equal('c3d')
+        args[3].should.equal('free')
         args[4].should.deep.equal(ctx.clsiServerId)
       })
 
@@ -134,7 +149,7 @@ describe('ClsiCookieManager', function () {
             ctx.project_id,
             ctx.user_id,
             '',
-            'c3d'
+            'free'
           )
         serverId.should.equal(ctx.clsiServerId)
       })
@@ -153,7 +168,7 @@ describe('ClsiCookieManager', function () {
           ctx.project_id,
           ctx.user_id,
           'standard',
-          'c3d',
+          'free',
           ctx.clsiServerId,
           null
         )
@@ -167,9 +182,10 @@ describe('ClsiCookieManager', function () {
       await ctx.ClsiCookieManager.promises.clearServerId(
         ctx.project_id,
         ctx.user_id,
-        'c3d'
+        'free'
       )
       ctx.redis.del.should.have.been.calledWith(
+        `clsiserver:free:${ctx.project_id}:${ctx.user_id}`,
         `clsiserver:c3d:${ctx.project_id}:${ctx.user_id}`
       )
     })
@@ -188,12 +204,12 @@ describe('ClsiCookieManager', function () {
         ctx.project_id,
         ctx.user_id,
         'standard',
-        'c3d',
+        'free',
         ctx.clsiServerId,
         null
       )
       ctx.redis.setex.should.have.been.calledWith(
-        `clsiserver:c3d:${ctx.project_id}:${ctx.user_id}`,
+        `clsiserver:free:${ctx.project_id}:${ctx.user_id}`,
         ctx.settings.clsiCookie.ttlInSeconds,
         ctx.clsiServerId
       )
@@ -205,12 +221,12 @@ describe('ClsiCookieManager', function () {
         ctx.project_id,
         ctx.user_id,
         'standard',
-        'c3d',
+        'free',
         ctx.clsiServerId,
         null
       )
       expect(ctx.redis.setex).to.have.been.calledWith(
-        `clsiserver:c3d:${ctx.project_id}:${ctx.user_id}`,
+        `clsiserver:free:${ctx.project_id}:${ctx.user_id}`,
         ctx.settings.clsiCookie.ttlInSecondsRegular,
         ctx.clsiServerId
       )
@@ -233,7 +249,7 @@ describe('ClsiCookieManager', function () {
           ctx.project_id,
           ctx.user_id,
           'standard',
-          'c3d',
+          'free',
           ctx.clsiServerId,
           null
         )
@@ -258,12 +274,12 @@ describe('ClsiCookieManager', function () {
         ctx.project_id,
         ctx.user_id,
         'standard',
-        'c3d',
+        'free',
         ctx.clsiServerId,
         null
       )
       ctx.redis_secondary.setex.should.have.been.calledWith(
-        `clsiserver:c3d:${ctx.project_id}:${ctx.user_id}`,
+        `clsiserver:free:${ctx.project_id}:${ctx.user_id}`,
         ctx.settings.clsiCookie.ttlInSeconds,
         ctx.clsiServerId
       )
@@ -277,14 +293,14 @@ describe('ClsiCookieManager', function () {
             ctx.project_id,
             ctx.user_id,
             'standard',
-            'c3d',
+            'free',
             ctx.clsiServerId,
             'previous-clsi-server-id'
           )
           expect(
             ctx.fetchUtils.fetchStringWithResponse
           ).to.have.been.calledWith(
-            `${ctx.settings.apis.clsi.url}/instance-state?clsiserverid=previous-clsi-server-id&compileGroup=standard&compileBackendClass=c3d`,
+            `${ctx.settings.apis.clsi.url}/instance-state?clsiserverid=previous-clsi-server-id&compileGroup=standard&compileBackendClass=free`,
             { method: 'GET', signal: sinon.match.instanceOf(AbortSignal) }
           )
         }
@@ -296,7 +312,7 @@ describe('ClsiCookieManager', function () {
           body: 'previous-clsi-server-id,UP\n',
         })
         await ctx.call()
-        expect(ctx.metrics.inc).to.have.been.calledWith(
+        expect(ctx.Metrics.inc).to.have.been.calledWith(
           'clsi-lb-switch-backend',
           1,
           { status: 'load-shedding' }
@@ -309,7 +325,7 @@ describe('ClsiCookieManager', function () {
           body: 'other-clsi-server-id,UP\n',
         })
         await ctx.call()
-        expect(ctx.metrics.inc).to.have.been.calledWith(
+        expect(ctx.Metrics.inc).to.have.been.calledWith(
           'clsi-lb-switch-backend',
           1,
           { status: 'cycle' }
@@ -321,7 +337,7 @@ describe('ClsiCookieManager', function () {
           response: { status: 404 },
         })
         await ctx.call()
-        expect(ctx.metrics.inc).to.have.been.calledWith(
+        expect(ctx.Metrics.inc).to.have.been.calledWith(
           'clsi-lb-switch-backend',
           1,
           { status: 'cycle' }

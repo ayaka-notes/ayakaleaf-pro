@@ -1,6 +1,6 @@
 import logger from '@overleaf/logger'
 import Settings from '@overleaf/settings'
-import { boolFromEnv } from '../../../utils.mjs'
+import { boolFromEnv, hasPassword } from '../../../utils.mjs'
 import PermissionsManager from '../../../../../app/src/Features/Authorization/PermissionsManager.mjs'
 import OIDCAuthenticationController from './OIDCAuthenticationController.mjs'
 import { Strategy as OIDCStrategy } from 'passport-openidconnect'
@@ -53,9 +53,9 @@ const OIDCModuleManager = {
       logger.info({}, error.message)
     }
     const oidcPolicyValidator = async ({ user, subscription }) => {
-      // If user is not logged in, user.externalAuth is undefined,
-      // in this case allow to change password if the user has a hashedPassword
-      return user.externalAuth === 'oidc' || (user.externalAuth === undefined && !user.hashedPassword)
+      // Only an account without a local password may not set one: LDAP and
+      // SAML remove the password on login, OIDC keeps the one of a local account
+      return !(await hasPassword(user._id))
     }
     try {
       PermissionsManager.registerPolicy(

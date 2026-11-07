@@ -29,7 +29,7 @@ import { NoKEKMatchedError } from '@overleaf/object-persistor/src/Errors.js'
 
 const globalBlobsBucket = config.get('blobStore.globalBucket')
 
-class BackupBlobStore {
+class BackupBlobStore extends core.BlobStoreBase {
   /**
    *
    * @param {string} historyId
@@ -38,6 +38,7 @@ class BackupBlobStore {
    * @param {boolean} useBackupGlobalBlobs
    */
   constructor(historyId, tmp, persistor, useBackupGlobalBlobs) {
+    super()
     this.historyId = historyId
     this.tmp = tmp
     this.blobs = new Map()
@@ -46,17 +47,13 @@ class BackupBlobStore {
   }
 
   /**
-   * Required for BlobStore interface - not supported.
-   *
    * @template T
    * @param {string} hash
    * @return {Promise<T>}
    */
   async getObject(hash) {
     try {
-      const stream = await this.getStream(hash)
-      const buffer = await streams.readStreamToBuffer(stream)
-      return JSON.parse(buffer.toString())
+      return await super.getObject(hash)
     } catch (err) {
       logger.warn({ err, hash }, 'Failed to fetch chunk blob')
       throw err
@@ -146,7 +143,7 @@ class BackupBlobStore {
    * @param {string} hash
    * @return {Promise<string>}
    */
-  async getString(hash) {
+  async fetchString(hash) {
     const stream = await this.getStream(hash)
     const buffer = await streams.readStreamToBuffer(stream)
     return buffer.toString()
@@ -185,12 +182,29 @@ class BackupBlobStore {
  */
 
 /**
- * @typedef {(import('archiver').Archiver)} Archiver
+ * @typedef {(import('zip-stream').default)} ZipStream
  */
 
 /**
  * @typedef {(import('overleaf-editor-core').FileMap)} FileMap
  */
+
+/**
+ * Promisified wrapper for ZipStream's entry method.
+ *
+ * @param {ZipStream} archive
+ * @param {Buffer|NodeJS.ReadableStream|string} source
+ * @param {{ name: string }} data
+ * @return {Promise<void>}
+ */
+function addEntry(archive, source, data) {
+  return new Promise((resolve, reject) => {
+    archive.entry(source, data, err => {
+      if (err) reject(err)
+      else resolve()
+    })
+  })
+}
 
 /**
  *
@@ -254,14 +268,15 @@ async function fetchBlob(historyId, hash, persistor) {
 
 /**
  * @typedef {object} AddChunkOptions
- * @property {string} [prefix] Should include trailing slash (if length > 0)
+ * @property {string} [prefix]
  * @property {boolean} [useBackupGlobalBlobs]
+ * @property {boolean} [verbose]
  */
 
 /**
  *
  * @param {History} history
- * @param {Archiver} archive
+ * @param {ZipStream} archive
  * @param {CachedPerProjectEncryptedS3Persistor} projectCache
  * @param {string} historyId
  * @param {AddChunkOptions} [options]
@@ -272,7 +287,7 @@ async function addChunkToArchive(
   archive,
   projectCache,
   historyId,
-  { prefix = '', useBackupGlobalBlobs = false } = {}
+  { prefix = '', useBackupGlobalBlobs = false, verbose = false } = {}
 ) {
   const chunkBlobs = new Set()
   history.findBlobHashes(chunkBlobs)
@@ -334,9 +349,16 @@ async function addChunkToArchive(
         }
         content = await blobStore.getStream(hash)
       }
-      archive.append(content, {
+      if (content == null) {
+        logger.error({ filePath }, 'File content is empty')
+        continue
+      }
+      await addEntry(archive, content, {
         name: `${prefix}${filePath}`,
       })
+      if (verbose) {
+        logger.info({ filePath: `${prefix}${filePath}` }, 'added to archive')
+      }
     }
   })
 }
@@ -358,17 +380,20 @@ async function findStartVersionOfLatestChunk(historyId) {
 /**
  * Restore a project from the latest snapshot
  *
- * There is an assumption that the database backup has been restored.
+ * There is an assumption that the database backup
+ * has been restored.
  *
- * @param {Archiver} archive
+ * @param {ZipStream} archive
  * @param {string} historyId
  * @param {boolean} [useBackupGlobalBlobs]
+ * @param {boolean} [verbose]
  * @return {Promise<void>}
  */
 export async function archiveLatestChunk(
   archive,
   historyId,
-  useBackupGlobalBlobs = false
+  useBackupGlobalBlobs = false,
+  verbose = false
 ) {
   logger.info({ historyId, useBackupGlobalBlobs }, 'Archiving latest chunk')
 
@@ -386,20 +411,28 @@ export async function archiveLatestChunk(
 
   await addChunkToArchive(backedUpChunk, archive, projectCache, historyId, {
     useBackupGlobalBlobs,
+    verbose,
   })
 
   return archive
 }
 
 /**
- * Fetches all raw blobs from the project and adds them to the archive.
+ * Fetches all raw blobs from the project and adds
+ * them to the archive.
  *
  * @param {string} historyId
- * @param {Archiver} archive
+ * @param {ZipStream} archive
  * @param {CachedPerProjectEncryptedS3Persistor} projectCache
+ * @param {boolean} [verbose]
  * @return {Promise<void>}
  */
-async function addRawBlobsToArchive(historyId, archive, projectCache) {
+async function addRawBlobsToArchive(
+  historyId,
+  archive,
+  projectCache,
+  verbose = false
+) {
   const blobKeys = await projectCache.listDirectoryKeys(
     projectBlobsBucket,
     projectKey.format(historyId)
@@ -411,9 +444,13 @@ async function addRawBlobsToArchive(historyId, archive, projectCache) {
         key,
         { autoGunzip: true }
       )
-      archive.append(stream, {
-        name: path.join(historyId, 'blobs', key),
+      const entryName = path.join(historyId, 'blobs', key)
+      await addEntry(archive, stream, {
+        name: entryName,
       })
+      if (verbose) {
+        logger.info({ entryName }, 'added to archive')
+      }
     } catch (err) {
       logger.warn({ err, path: key }, 'Failed to append blob to archive')
     }
@@ -425,17 +462,20 @@ async function addRawBlobsToArchive(historyId, archive, projectCache) {
  *
  * This can work without the database being backed up.
  *
- * It will split the project into chunks per directory and download the blobs alongside the chunk.
+ * It will split the project into chunks per directory
+ * and download the blobs alongside the chunk.
  *
- * @param {Archiver} archive
+ * @param {ZipStream} archive
  * @param {string} historyId
  * @param {boolean} [useBackupGlobalBlobs]
+ * @param {boolean} [verbose]
  * @return {Promise<void>}
  */
 export async function archiveRawProject(
   archive,
   historyId,
-  useBackupGlobalBlobs = false
+  useBackupGlobalBlobs = false,
+  verbose = false
 ) {
   const projectCache = await getProjectPersistor(historyId)
 
@@ -454,11 +494,15 @@ export async function archiveRawProject(
 
     const { buffer } = await loadChunkByKey(projectCache, key)
 
-    archive.append(buffer, {
-      name: `${historyId}/chunks/${chunkId}/chunk.json`,
+    const entryName = `${historyId}/chunks/${chunkId}/chunk.json`
+    await addEntry(archive, buffer, {
+      name: entryName,
     })
+    if (verbose) {
+      logger.info({ entryName }, 'added to archive')
+    }
   }
-  await addRawBlobsToArchive(historyId, archive, projectCache)
+  await addRawBlobsToArchive(historyId, archive, projectCache, verbose)
 }
 
 export class BackupPersistorError extends OError {}

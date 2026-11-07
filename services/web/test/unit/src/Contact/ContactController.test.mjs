@@ -1,4 +1,4 @@
-import { expect, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import sinon from 'sinon'
 import MockResponse from '../helpers/MockResponse.mjs'
 const modulePath = '../../../../app/src/Features/Contacts/ContactController.mjs'
@@ -83,7 +83,7 @@ describe('ContactController', function () {
       ctx.res.callback = () => {
         expect(
           ctx.ContactManager.promises.getContactIds
-        ).to.have.been.calledWith(ctx.user_id, { limit: 50 })
+        ).to.have.been.calledWith(ctx.user_id, 50)
       }
       ctx.ContactController.getContacts(ctx.req, ctx.res)
     })

@@ -1,48 +1,45 @@
-import { expect, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import sinon from 'sinon'
+import { RequestFailedError } from '@overleaf/fetch-utils'
+import OError from '@overleaf/o-error'
 const modulePath = '../../../../app/src/Features/Exports/ExportsHandler.mjs'
 
 describe('ExportsHandler', function () {
   beforeEach(async function (ctx) {
-    ctx.stubRequest = {}
-    ctx.request = {
-      defaults: () => {
-        return ctx.stubRequest
-      },
-    }
-
     vi.doMock('../../../../app/src/Features/Project/ProjectGetter', () => ({
-      default: (ctx.ProjectGetter = {}),
+      default: (ctx.ProjectGetter = { promises: {} }),
     }))
 
     vi.doMock(
       '../../../../app/src/Features/Project/ProjectHistoryHandler',
       () => ({
-        default: (ctx.ProjectHistoryHandler = {}),
+        default: (ctx.ProjectHistoryHandler = {
+          promises: {},
+        }),
       })
     )
 
-    vi.doMock('../../../../app/src/Features/Project/ProjectLocator', () => ({
-      default: (ctx.ProjectLocator = {}),
-    }))
+    ctx.fetchUtils = {
+      fetchJson: sinon.stub().resolves(),
+      fetchString: sinon.stub().resolves(),
+      RequestFailedError,
+    }
+
+    vi.doMock('@overleaf/fetch-utils', () => ctx.fetchUtils)
 
     vi.doMock(
       '../../../../app/src/Features/Project/ProjectRootDocManager',
       () => ({
-        default: (ctx.ProjectRootDocManager = {}),
+        default: (ctx.ProjectRootDocManager = { promises: {} }),
       })
     )
 
     vi.doMock('../../../../app/src/Features/User/UserGetter', () => ({
-      default: (ctx.UserGetter = {}),
+      default: (ctx.UserGetter = { promises: {} }),
     }))
 
     vi.doMock('@overleaf/settings', () => ({
       default: (ctx.settings = {}),
-    }))
-
-    vi.doMock('request', () => ({
-      default: ctx.request,
     }))
 
     ctx.ExportsHandler = (await import(modulePath)).default
@@ -65,32 +62,22 @@ describe('ExportsHandler', function () {
       license: ctx.license,
       show_source: ctx.show_source,
     }
-    ctx.callback = sinon.stub()
   })
 
   describe('exportProject', function () {
     beforeEach(function (ctx) {
       ctx.export_data = { iAmAnExport: true }
       ctx.response_body = { iAmAResponseBody: true }
-      ctx.ExportsHandler._buildExport = sinon
-        .stub()
-        .yields(null, ctx.export_data)
+      ctx.ExportsHandler._buildExport = sinon.stub().resolves(ctx.export_data)
       ctx.ExportsHandler._requestExport = sinon
         .stub()
-        .yields(null, ctx.response_body)
+        .resolves(ctx.response_body)
     })
 
     describe('when all goes well', function () {
+      let exportData
       beforeEach(async function (ctx) {
-        await new Promise(resolve => {
-          ctx.ExportsHandler.exportProject(
-            ctx.export_params,
-            (error, exportData) => {
-              ctx.callback(error, exportData)
-              resolve()
-            }
-          )
-        })
+        exportData = await ctx.ExportsHandler.exportProject(ctx.export_params)
       })
 
       it('should build the export', function (ctx) {
@@ -106,51 +93,46 @@ describe('ExportsHandler', function () {
       })
 
       it('should return the export', function (ctx) {
-        ctx.callback.calledWith(null, ctx.export_data).should.equal(true)
+        expect(exportData).to.equal(ctx.export_data)
       })
     })
 
     describe("when request can't be built", function () {
       beforeEach(async function (ctx) {
-        await new Promise(resolve => {
-          ctx.ExportsHandler._buildExport = sinon
-            .stub()
-            .yields(new Error('cannot export project without root doc'))
-          ctx.ExportsHandler.exportProject(
-            ctx.export_params,
-            (error, exportData) => {
-              ctx.callback(error, exportData)
-              resolve()
-            }
-          )
-        })
+        ctx.ExportsHandler._buildExport = sinon
+          .stub()
+          .rejects(new Error('cannot export project without root doc'))
       })
 
-      it('should return an error', function (ctx) {
-        expect(ctx.callback.args[0][0]).to.be.instanceOf(Error)
+      it('should reject with an error', async function (ctx) {
+        await expect(
+          ctx.ExportsHandler.exportProject(ctx.export_params)
+        ).to.be.rejectedWith(Error)
       })
     })
 
     describe('when export request returns an error to forward to the user', function () {
+      let exportData
+      let exportError
+
       beforeEach(async function (ctx) {
-        await new Promise(resolve => {
-          ctx.error_json = { status: 422, message: 'nope' }
-          ctx.ExportsHandler._requestExport = sinon
-            .stub()
-            .yields(null, { forwardResponse: ctx.error_json })
-          ctx.ExportsHandler.exportProject(
-            ctx.export_params,
-            (error, exportData) => {
-              ctx.callback(error, exportData)
-              resolve()
-            }
-          )
-        })
+        ctx.error_json = { status: 422, message: 'nope' }
+        const error = new Error('error message')
+        ctx.ExportsHandler._requestExport = sinon.stub().rejects(
+          OError.tag(error, 'v1 error', {
+            forwardResponse: ctx.error_json,
+          })
+        )
+        try {
+          exportData = await ctx.ExportsHandler.exportProject(ctx.export_params)
+        } catch (error) {
+          exportError = error
+        }
       })
 
-      it('should return success and the response to forward', function (ctx) {
-        expect(ctx.callback.args[0][0]).not.to.be.instanceOf(Error)
-        ctx.callback.calledWith(null, {
+      it('should throw with an error containing a response to forward', function (ctx) {
+        expect(exportData).to.be.undefined
+        expect(OError.getFullInfo(exportError)).to.eql({
           forwardResponse: ctx.error_json,
         })
       })
@@ -159,63 +141,50 @@ describe('ExportsHandler', function () {
 
   describe('_buildExport', function () {
     beforeEach(async function (ctx) {
-      await new Promise(resolve => {
-        ctx.project = {
-          id: ctx.project_id,
-          rootDoc_id: 'doc1_id',
-          compiler: 'pdflatex',
-          imageName: 'mock-image-name',
-          overleaf: {
-            id: ctx.project_history_id, // for projects imported from v1
-            history: {
-              id: ctx.project_history_id,
-            },
+      ctx.project = {
+        id: ctx.project_id,
+        rootDoc_id: 'doc1_id',
+        compiler: 'pdflatex',
+        imageName: 'mock-image-name',
+        overleaf: {
+          id: ctx.project_history_id, // for projects imported from v1
+          history: {
+            id: ctx.project_history_id,
           },
-        }
-        ctx.user = {
-          id: ctx.user_id,
-          first_name: 'Arthur',
-          last_name: 'Author',
-          email: 'arthur.author@arthurauthoring.org',
-          overleaf: {
-            id: 876,
-          },
-        }
-        ctx.rootDocPath = 'main.tex'
-        ctx.historyVersion = 777
-        ctx.ProjectGetter.getProject = sinon.stub().yields(null, ctx.project)
-        ctx.ProjectHistoryHandler.ensureHistoryExistsForProject = sinon
-          .stub()
-          .yields(null)
-        ctx.ProjectLocator.findRootDoc = sinon
-          .stub()
-          .yields(null, [null, { fileSystem: 'main.tex' }])
-        ctx.ProjectRootDocManager.ensureRootDocumentIsValid = sinon
-          .stub()
-          .callsArgWith(1, null)
-        ctx.UserGetter.getUser = sinon.stub().yields(null, ctx.user)
-        ctx.ExportsHandler._requestVersion = sinon
-          .stub()
-          .yields(null, ctx.historyVersion)
-        resolve()
-      })
+        },
+      }
+      ctx.user = {
+        id: ctx.user_id,
+        first_name: 'Arthur',
+        last_name: 'Author',
+        email: 'arthur.author@arthurauthoring.org',
+        overleaf: {
+          id: 876,
+        },
+      }
+      ctx.rootDocPath = 'main.tex'
+      ctx.historyVersion = 777
+      ctx.ProjectGetter.promises.getProject = sinon.stub().resolves(ctx.project)
+      ctx.ProjectHistoryHandler.promises.ensureHistoryExistsForProject = sinon
+        .stub()
+        .resolves()
+      ctx.ProjectRootDocManager.promises.ensureRootDocumentIsValid = sinon
+        .stub()
+        .resolves({ rootResourcePath: 'main.tex' })
+      ctx.UserGetter.promises.getUser = sinon.stub().resolves(ctx.user)
+      ctx.ExportsHandler._requestVersion = sinon
+        .stub()
+        .resolves(ctx.historyVersion)
     })
 
     describe('when all goes well', function () {
+      let exportData
       beforeEach(async function (ctx) {
-        await new Promise(resolve => {
-          ctx.ExportsHandler._buildExport(
-            ctx.export_params,
-            (error, exportData) => {
-              ctx.callback(error, exportData)
-              resolve()
-            }
-          )
-        })
+        exportData = await ctx.ExportsHandler._buildExport(ctx.export_params)
       })
 
       it('should ensure the project has history', function (ctx) {
-        ctx.ProjectHistoryHandler.ensureHistoryExistsForProject.called.should.equal(
+        ctx.ProjectHistoryHandler.promises.ensureHistoryExistsForProject.called.should.equal(
           true
         )
       })
@@ -257,25 +226,18 @@ describe('ExportsHandler', function () {
             callbackUrl: null,
           },
         }
-        ctx.callback.calledWith(null, expectedExportData).should.equal(true)
+        expect(exportData).to.eql(expectedExportData)
       })
     })
 
     describe('when we send replacement user first and last name', function () {
+      let exportData
       beforeEach(async function (ctx) {
-        await new Promise(resolve => {
-          ctx.custom_first_name = 'FIRST'
-          ctx.custom_last_name = 'LAST'
-          ctx.export_params.first_name = ctx.custom_first_name
-          ctx.export_params.last_name = ctx.custom_last_name
-          ctx.ExportsHandler._buildExport(
-            ctx.export_params,
-            (error, exportData) => {
-              ctx.callback(error, exportData)
-              resolve()
-            }
-          )
-        })
+        ctx.custom_first_name = 'FIRST'
+        ctx.custom_last_name = 'LAST'
+        ctx.export_params.first_name = ctx.custom_first_name
+        ctx.export_params.last_name = ctx.custom_last_name
+        exportData = await ctx.ExportsHandler._buildExport(ctx.export_params)
       })
 
       it('should send the data from the user input', function (ctx) {
@@ -311,51 +273,37 @@ describe('ExportsHandler', function () {
             callbackUrl: null,
           },
         }
-        ctx.callback.calledWith(null, expectedExportData).should.equal(true)
+        expect(exportData).to.eql(expectedExportData)
       })
     })
 
     describe('when project is not found', function () {
       beforeEach(async function (ctx) {
-        await new Promise(resolve => {
-          ctx.ProjectGetter.getProject = sinon
-            .stub()
-            .yields(new Error('project not found'))
-          ctx.ExportsHandler._buildExport(
-            ctx.export_params,
-            (error, exportData) => {
-              ctx.callback(error, exportData)
-              resolve()
-            }
-          )
-        })
+        ctx.ProjectGetter.promises.getProject = sinon
+          .stub()
+          .rejects(new Error('project not found'))
       })
 
-      it('should return an error', function (ctx) {
-        expect(ctx.callback.args[0][0]).to.be.instanceOf(Error)
+      it('should return an error', async function (ctx) {
+        await expect(
+          ctx.ExportsHandler._buildExport(ctx.export_params)
+        ).to.be.rejectedWith(Error)
       })
     })
 
     describe('when project has no root doc', function () {
       describe('when a root doc can be set automatically', function () {
+        let exportData
         beforeEach(async function (ctx) {
-          await new Promise(resolve => {
-            ctx.project.rootDoc_id = null
-            ctx.ProjectLocator.findRootDoc = sinon
-              .stub()
-              .yields(null, [null, { fileSystem: 'other.tex' }])
-            ctx.ExportsHandler._buildExport(
-              ctx.export_params,
-              (error, exportData) => {
-                ctx.callback(error, exportData)
-                resolve()
-              }
-            )
-          })
+          ctx.project.rootDoc_id = null
+          ctx.ProjectRootDocManager.promises.ensureRootDocumentIsValid = sinon
+            .stub()
+            .resolves({ rootResourcePath: 'other.tex' })
+          exportData = await ctx.ExportsHandler._buildExport(ctx.export_params)
         })
 
         it('should set a root doc', function (ctx) {
-          ctx.ProjectRootDocManager.ensureRootDocumentIsValid.called.should.equal(
+          ctx.ProjectRootDocManager.promises.ensureRootDocumentIsValid.called.should.equal(
             true
           )
         })
@@ -393,32 +341,25 @@ describe('ExportsHandler', function () {
               callbackUrl: null,
             },
           }
-          ctx.callback.calledWith(null, expectedExportData).should.equal(true)
+          expect(exportData).to.eql(expectedExportData)
         })
       })
     })
 
     describe('when project has an invalid root doc', function () {
       describe('when a new root doc can be set automatically', function () {
+        let exportData
         beforeEach(async function (ctx) {
-          await new Promise(resolve => {
-            ctx.fakeDoc_id = '1a2b3c4d5e6f'
-            ctx.project.rootDoc_id = ctx.fakeDoc_id
-            ctx.ProjectLocator.findRootDoc = sinon
-              .stub()
-              .yields(null, [null, { fileSystem: 'other.tex' }])
-            ctx.ExportsHandler._buildExport(
-              ctx.export_params,
-              (error, exportData) => {
-                ctx.callback(error, exportData)
-                resolve()
-              }
-            )
-          })
+          ctx.fakeDoc_id = '1a2b3c4d5e6f'
+          ctx.project.rootDoc_id = ctx.fakeDoc_id
+          ctx.ProjectRootDocManager.promises.ensureRootDocumentIsValid = sinon
+            .stub()
+            .resolves({ rootResourcePath: 'other.tex' })
+          exportData = await ctx.ExportsHandler._buildExport(ctx.export_params)
         })
 
         it('should set a valid root doc', function (ctx) {
-          ctx.ProjectRootDocManager.ensureRootDocumentIsValid.called.should.equal(
+          ctx.ProjectRootDocManager.promises.ensureRootDocumentIsValid.called.should.equal(
             true
           )
         })
@@ -456,281 +397,307 @@ describe('ExportsHandler', function () {
               callbackUrl: null,
             },
           }
-          ctx.callback.calledWith(null, expectedExportData).should.equal(true)
+          expect(exportData).to.eql(expectedExportData)
         })
       })
 
       describe('when no root doc can be identified', function () {
-        beforeEach(async function (ctx) {
-          await new Promise(resolve => {
-            ctx.ProjectLocator.findRootDoc = sinon
-              .stub()
-              .yields(null, [null, null])
-            ctx.ExportsHandler._buildExport(
-              ctx.export_params,
-              (error, exportData) => {
-                ctx.callback(error, exportData)
-                resolve()
-              }
-            )
-          })
+        beforeEach(function (ctx) {
+          ctx.ProjectRootDocManager.promises.ensureRootDocumentIsValid = sinon
+            .stub()
+            .resolves()
         })
 
-        it('should return an error', function (ctx) {
-          expect(ctx.callback.args[0][0]).to.be.instanceOf(Error)
+        it('should return an error', async function (ctx) {
+          await expect(
+            ctx.ExportsHandler._buildExport(ctx.export_params)
+          ).to.be.rejectedWith(Error)
         })
       })
     })
 
     describe('when user is not found', function () {
       beforeEach(async function (ctx) {
-        await new Promise(resolve => {
-          ctx.UserGetter.getUser = sinon
-            .stub()
-            .yields(new Error('user not found'))
-          ctx.ExportsHandler._buildExport(
-            ctx.export_params,
-            (error, exportData) => {
-              ctx.callback(error, exportData)
-              resolve()
-            }
-          )
-        })
+        ctx.UserGetter.promises.getUser = sinon
+          .stub()
+          .rejects(new Error('user not found'))
       })
 
-      it('should return an error', function (ctx) {
-        expect(ctx.callback.args[0][0]).to.be.instanceOf(Error)
+      it('should return an error', async function (ctx) {
+        await expect(
+          ctx.ExportsHandler._buildExport(ctx.export_params)
+        ).to.be.rejectedWith(Error)
       })
     })
 
     describe('when project history request fails', function () {
-      beforeEach(async function (ctx) {
-        await new Promise(resolve => {
-          ctx.ExportsHandler._requestVersion = sinon
-            .stub()
-            .yields(new Error('project history call failed'))
-          ctx.ExportsHandler._buildExport(
-            ctx.export_params,
-            (error, exportData) => {
-              ctx.callback(error, exportData)
-              resolve()
-            }
-          )
-        })
+      beforeEach(function (ctx) {
+        ctx.ExportsHandler._requestVersion = sinon
+          .stub()
+          .rejects(new Error('project history call failed'))
       })
 
-      it('should return an error', function (ctx) {
-        expect(ctx.callback.args[0][0]).to.be.instanceOf(Error)
+      it('should return an error', async function (ctx) {
+        await expect(
+          ctx.ExportsHandler._buildExport(ctx.export_params)
+        ).to.be.rejectedWith(Error)
       })
     })
   })
 
   describe('_requestExport', function () {
-    beforeEach(async function (ctx) {
-      await new Promise(resolve => {
-        ctx.settings.apis = {
-          v1: {
-            url: 'http://127.0.0.1:5000',
-            user: 'overleaf',
-            pass: 'pass',
-            timeout: 15000,
-          },
-        }
-        ctx.export_data = { iAmAnExport: true }
-        ctx.export_id = 4096
-        ctx.stubPost = sinon
-          .stub()
-          .yields(null, { statusCode: 200 }, { exportId: ctx.export_id })
-        resolve()
+    beforeEach(function (ctx) {
+      ctx.settings.apis = {
+        v1: {
+          url: 'http://127.0.0.1:5000',
+          user: 'overleaf',
+          pass: 'pass',
+          timeout: 15000,
+        },
+      }
+      ctx.export_data = { iAmAnExport: true }
+      ctx.export_id = 4096
+      ctx.export_token = 'mock-export-token'
+      ctx.fetchUtils.fetchJson.resolves({
+        exportId: ctx.export_id,
+        token: ctx.export_token,
       })
     })
 
     describe('when all goes well', function () {
+      let response
       beforeEach(async function (ctx) {
-        await new Promise(resolve => {
-          ctx.stubRequest.post = ctx.stubPost
-          ctx.ExportsHandler._requestExport(
-            ctx.export_data,
-            (error, exportV1Id) => {
-              ctx.callback(error, exportV1Id)
-              resolve()
-            }
-          )
-        })
+        response = await ctx.ExportsHandler._requestExport(ctx.export_data)
       })
 
       it('should issue the request', function (ctx) {
-        expect(ctx.stubPost.getCall(0).args[0]).to.deep.equal({
-          url: ctx.settings.apis.v1.url + '/api/v1/overleaf/exports',
-          auth: {
-            user: ctx.settings.apis.v1.user,
-            pass: ctx.settings.apis.v1.pass,
-          },
-          json: ctx.export_data,
-          timeout: 15000,
-        })
+        expect(ctx.fetchUtils.fetchJson).to.have.been.calledWith(
+          new URL('/api/v1/overleaf/exports', ctx.settings.apis.v1.url),
+          {
+            basicAuth: {
+              user: ctx.settings.apis.v1.user,
+              password: ctx.settings.apis.v1.pass,
+            },
+            json: ctx.export_data,
+            method: 'POST',
+            signal: sinon.match.instanceOf(AbortSignal),
+          }
+        )
       })
 
-      it('should return the body with v1 export id', function (ctx) {
-        ctx.callback
-          .calledWith(null, { exportId: ctx.export_id })
-          .should.equal(true)
+      it('should return the body with v1 export id and token', function (ctx) {
+        expect(response).to.eql({
+          exportId: ctx.export_id,
+          token: ctx.export_token,
+        })
       })
     })
 
     describe('when the request fails', function () {
-      beforeEach(async function (ctx) {
-        await new Promise(resolve => {
-          ctx.stubRequest.post = sinon
-            .stub()
-            .yields(new Error('export request failed'))
-          ctx.ExportsHandler._requestExport(
-            ctx.export_data,
-            (error, exportV1Id) => {
-              ctx.callback(error, exportV1Id)
-              resolve()
-            }
-          )
-        })
+      beforeEach(function (ctx) {
+        ctx.fetchUtils.fetchJson = sinon
+          .stub()
+          .rejects(new Error('export request failed'))
       })
 
-      it('should return an error', function (ctx) {
-        expect(ctx.callback.args[0][0]).to.be.instanceOf(Error)
+      it('should return an error', async function (ctx) {
+        await expect(
+          ctx.ExportsHandler._requestExport(ctx.export_data)
+        ).to.be.rejectedWith(Error)
       })
     })
 
     describe('when the request returns an error response to forward', function () {
+      let response
+      let error
       beforeEach(async function (ctx) {
         ctx.error_code = 422
         ctx.error_json = { status: ctx.error_code, message: 'nope' }
-        ctx.stubRequest.post = sinon
+        // fetch-utils exposes the response body as a string, not a parsed object
+        ctx.fetchUtils.fetchJson = sinon
           .stub()
-          .yields(null, { statusCode: ctx.error_code }, ctx.error_json)
-
-        await new Promise(resolve => {
-          ctx.ExportsHandler._requestExport(
-            ctx.export_data,
-            (error, exportV1Id) => {
-              ctx.callback(error, exportV1Id)
-              resolve()
-            }
+          .rejects(
+            new RequestFailedError(
+              new URL('/api/v1/overleaf/exports', ctx.settings.apis.v1.url),
+              {},
+              { status: ctx.error_code },
+              JSON.stringify(ctx.error_json)
+            )
           )
-        })
+
+        try {
+          response = await ctx.ExportsHandler._requestExport(ctx.export_data)
+        } catch (err) {
+          error = err
+        }
       })
 
-      it('should return success and the response to forward', function (ctx) {
-        expect(ctx.callback.args[0][0]).not.to.be.instanceOf(Error)
-        ctx.callback.calledWith(null, {
-          forwardResponse: ctx.error_json,
-        })
+      it('should throw with an error containing the parsed response to forward', function (ctx) {
+        expect(response).to.be.undefined
+        expect(OError.getFullInfo(error))
+          .to.have.property('forwardResponse')
+          .that.deep.equals(ctx.error_json)
       })
     })
   })
 
   describe('fetchExport', function () {
-    beforeEach(async function (ctx) {
-      await new Promise(resolve => {
-        ctx.settings.apis = {
-          v1: {
-            url: 'http://127.0.0.1:5000',
-            user: 'overleaf',
-            pass: 'pass',
-            timeout: 15000,
-          },
-        }
-        ctx.export_id = 897
-        ctx.body = '{"id":897, "status_summary":"completed"}'
-        ctx.stubGet = sinon
-          .stub()
-          .yields(null, { statusCode: 200 }, { body: ctx.body })
-        resolve()
-      })
+    beforeEach(function (ctx) {
+      ctx.settings.apis = {
+        v1: {
+          url: 'http://127.0.0.1:5000',
+          user: 'overleaf',
+          pass: 'pass',
+          timeout: 15000,
+        },
+      }
+      ctx.export_id = 897
+      ctx.export_token = 'mock-export-token'
+      ctx.body = '{"id":897, "status_summary":"completed"}'
+      ctx.fetchUtils.fetchString = sinon.stub().resolves(ctx.body)
     })
 
-    describe('when all goes well', function () {
+    describe('when all goes well with token', function () {
+      let exportResponse
       beforeEach(async function (ctx) {
-        await new Promise(resolve => {
-          ctx.stubRequest.get = ctx.stubGet
-          ctx.ExportsHandler.fetchExport(ctx.export_id, (error, body) => {
-            ctx.callback(error, body)
-            resolve()
-          })
-        })
+        exportResponse = await ctx.ExportsHandler.fetchExport(
+          ctx.export_id,
+          ctx.export_token
+        )
       })
 
-      it('should issue the request', function (ctx) {
-        expect(ctx.stubGet.getCall(0).args[0]).to.deep.equal({
-          url:
-            ctx.settings.apis.v1.url +
-            '/api/v1/overleaf/exports/' +
-            ctx.export_id,
-          auth: {
-            user: ctx.settings.apis.v1.user,
-            pass: ctx.settings.apis.v1.pass,
-          },
-          timeout: 15000,
-        })
+      it('should issue the request with token', function (ctx) {
+        const expectedUrl = new URL(
+          '/api/v1/overleaf/exports/' + ctx.export_id,
+          ctx.settings.apis.v1.url
+        )
+        expectedUrl.searchParams.append('token', ctx.export_token)
+        expect(ctx.fetchUtils.fetchString).to.have.been.calledWith(
+          expectedUrl,
+          {
+            basicAuth: {
+              user: ctx.settings.apis.v1.user,
+              password: ctx.settings.apis.v1.pass,
+            },
+            signal: sinon.match.instanceOf(AbortSignal),
+          }
+        )
       })
 
       it('should return the v1 export id', function (ctx) {
-        ctx.callback.calledWith(null, { body: ctx.body }).should.equal(true)
+        expect(exportResponse).to.eql(ctx.body)
+      })
+    })
+
+    describe('when called without token', function () {
+      let exportResponse
+      beforeEach(async function (ctx) {
+        exportResponse = await ctx.ExportsHandler.fetchExport(ctx.export_id)
+      })
+
+      it('should issue the request without token', function (ctx) {
+        expect(ctx.fetchUtils.fetchString).to.have.been.calledWith(
+          new URL(
+            '/api/v1/overleaf/exports/' + ctx.export_id,
+            ctx.settings.apis.v1.url
+          ),
+          {
+            basicAuth: {
+              user: ctx.settings.apis.v1.user,
+              password: ctx.settings.apis.v1.pass,
+            },
+            signal: sinon.match.instanceOf(AbortSignal),
+          }
+        )
+      })
+
+      it('should return the v1 export id', function (ctx) {
+        expect(exportResponse).to.eql(ctx.body)
       })
     })
   })
 
   describe('fetchDownload', function () {
     beforeEach(async function (ctx) {
-      await new Promise(resolve => {
-        ctx.settings.apis = {
-          v1: {
-            url: 'http://127.0.0.1:5000',
-            user: 'overleaf',
-            pass: 'pass',
-            timeout: 15000,
-          },
-        }
-        ctx.export_id = 897
-        ctx.body =
-          'https://writelatex-conversions-dev.s3.amazonaws.com/exports/ieee_latexqc/tnb/2912/xggmprcrpfwbsnqzqqmvktddnrbqkqkr.zip?X-Amz-Expires=14400&X-Amz-Date=20180730T181003Z&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAJDGDIJFGLNVGZH6A/20180730/us-east-1/s3/aws4_request&X-Amz-SignedHeaders=host&X-Amz-Signature=dec990336913cef9933f0e269afe99722d7ab2830ebf2c618a75673ee7159fee'
-        ctx.stubGet = sinon
-          .stub()
-          .yields(null, { statusCode: 200 }, { body: ctx.body })
-        resolve()
+      ctx.settings.apis = {
+        v1: {
+          url: 'http://127.0.0.1:5000',
+          user: 'overleaf',
+          pass: 'pass',
+          timeout: 15000,
+        },
+      }
+      ctx.export_id = 897
+      ctx.export_token = 'mock-export-token'
+      ctx.body =
+        'https://writelatex-conversions-dev.s3.amazonaws.com/exports/ieee_latexqc/tnb/2912/xggmprcrpfwbsnqzqqmvktddnrbqkqkr.zip?X-Amz-Expires=14400&X-Amz-Date=20180730T181003Z&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAJDGDIJFGLNVGZH6A/20180730/us-east-1/s3/aws4_request&X-Amz-SignedHeaders=host&X-Amz-Signature=dec990336913cef9933f0e269afe99722d7ab2830ebf2c618a75673ee7159fee'
+      ctx.fetchUtils.fetchString = sinon.stub().resolves(ctx.body)
+    })
+
+    describe('when all goes well with token', function () {
+      let downloadResponse
+      beforeEach(async function (ctx) {
+        downloadResponse = await ctx.ExportsHandler.fetchDownload(
+          ctx.export_id,
+          'zip',
+          ctx.export_token
+        )
+      })
+
+      it('should issue the request with token', function (ctx) {
+        const expectedUrl = new URL(
+          ctx.settings.apis.v1.url +
+            '/api/v1/overleaf/exports/' +
+            ctx.export_id +
+            '/zip_url'
+        )
+        expectedUrl.searchParams.append('token', ctx.export_token)
+        expect(ctx.fetchUtils.fetchString).to.have.been.calledWith(
+          expectedUrl,
+          {
+            basicAuth: {
+              user: ctx.settings.apis.v1.user,
+              password: ctx.settings.apis.v1.pass,
+            },
+            signal: sinon.match.instanceOf(AbortSignal),
+          }
+        )
+      })
+
+      it('should return the download URL', function (ctx) {
+        expect(downloadResponse).to.eql(ctx.body)
       })
     })
 
-    describe('when all goes well', function () {
+    describe('when called without token', function () {
+      let downloadResponse
       beforeEach(async function (ctx) {
-        await new Promise(resolve => {
-          ctx.stubRequest.get = ctx.stubGet
-          ctx.ExportsHandler.fetchDownload(
-            ctx.export_id,
-            'zip',
-            (error, body) => {
-              ctx.callback(error, body)
-              resolve()
-            }
-          )
-        })
+        downloadResponse = await ctx.ExportsHandler.fetchDownload(
+          ctx.export_id,
+          'zip'
+        )
       })
 
-      it('should issue the request', function (ctx) {
-        expect(ctx.stubGet.getCall(0).args[0]).to.deep.equal({
-          url:
+      it('should issue the request without token', function (ctx) {
+        expect(ctx.fetchUtils.fetchString).to.have.been.calledWith(
+          new URL(
             ctx.settings.apis.v1.url +
-            '/api/v1/overleaf/exports/' +
-            ctx.export_id +
-            '/zip_url',
-          auth: {
-            user: ctx.settings.apis.v1.user,
-            pass: ctx.settings.apis.v1.pass,
-          },
-          timeout: 15000,
-        })
+              '/api/v1/overleaf/exports/' +
+              ctx.export_id +
+              '/zip_url'
+          ),
+          {
+            basicAuth: {
+              user: ctx.settings.apis.v1.user,
+              password: ctx.settings.apis.v1.pass,
+            },
+            signal: sinon.match.instanceOf(AbortSignal),
+          }
+        )
       })
 
-      it('should return the v1 export id', function (ctx) {
-        ctx.callback.calledWith(null, { body: ctx.body }).should.equal(true)
+      it('should return the download URL', function (ctx) {
+        expect(downloadResponse).to.eql(ctx.body)
       })
     })
   })

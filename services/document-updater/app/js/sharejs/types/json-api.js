@@ -158,7 +158,7 @@ json.api = {
         op.od = elem[key]
       }
     } else {
-      throw new Error('bad path')
+      return cb(new Error('bad path'))
     }
     return this.submitOp([op], cb)
   },
@@ -166,7 +166,7 @@ json.api = {
   removeAt(path, cb) {
     const { elem, key } = traverse(this.snapshot, path)
     if (typeof elem[key] === 'undefined') {
-      throw new Error('no element at that path')
+      return cb(new Error('no element at that path'))
     }
     const op = { p: path }
     if (elem.constructor === Array) {
@@ -174,7 +174,7 @@ json.api = {
     } else if (typeof elem === 'object') {
       op.od = elem[key]
     } else {
-      throw new Error('bad path')
+      return cb(new Error('bad path'))
     }
     return this.submitOp([op], cb)
   },

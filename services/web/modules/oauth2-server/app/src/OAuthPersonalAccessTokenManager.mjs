@@ -62,7 +62,7 @@ const PersonalAccessTokenManager = {
 
         // Generate a new access token
         let createdAt = new Date()
-        let accessTokenExpiresAt = createdAt
+        let accessTokenExpiresAt = new Date(createdAt)
 
         // access token validity is 1 year
         accessTokenExpiresAt.setFullYear(accessTokenExpiresAt.getFullYear() + 1)
@@ -80,17 +80,22 @@ const PersonalAccessTokenManager = {
         }
 
         // Save to database
-        db.oauthAccessTokens.insertOne(
+        await db.oauthAccessTokens.insertOne(
             accessTokenDoc
         )
         // Currently we use OAuth2Server's ClientID Empty to save personal access tokens
         return accessToken
     },
 
-    // Delete a personal access token
-    async removeToken(tokenId) {
+    // Delete a personal access token owned by a specific user
+    async removeToken(tokenId, userId) {
+        if (!ObjectId.isValid(tokenId)) {
+            return { deletedCount: 0 }
+        }
         const query = {
             _id: new ObjectId(tokenId),
+            user_id: userId,
+            type: 'personal_access_token',
         }
 
         // Delete token from database
@@ -101,9 +106,6 @@ const PersonalAccessTokenManager = {
 
     // Verify a personal access token
     async verifyToken(accessToken) {
-        logger.debug({ accessToken }, 'Verifying personal access token')
-        logger.debug({ hashedToken: SecretsHelper.hashSecret(accessToken) }, 'Hashed personal access token for verification')
-
         let query = {
             accessToken: SecretsHelper.hashSecret(accessToken)
         }
@@ -121,6 +123,13 @@ const PersonalAccessTokenManager = {
         let now = new Date()
         if (tokenInstance.accessTokenExpiresAt < now) {
             logger.debug({}, 'Personal access token is expired')
+            return null
+        }
+
+        // Reject tokens of suspended or deleted users
+        let user = await db.users.findOne({ _id: tokenInstance.user_id }, { projection: { suspended: 1 } })
+        if (!user || user.suspended) {
+            logger.debug({}, 'Personal access token user is suspended or deleted')
             return null
         }
 

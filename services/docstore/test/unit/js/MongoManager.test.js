@@ -1,8 +1,10 @@
 import sinon from 'sinon'
-import { ObjectId } from 'mongodb-legacy'
+import mongodb from 'mongodb-legacy'
 import path from 'node:path'
 import { assert, beforeEach, describe, expect, it, vi } from 'vitest'
 import Errors from '../../../app/js/Errors.js'
+
+const { ObjectId, BSON } = mongodb
 
 const modulePath = path.join(
   import.meta.dirname,
@@ -13,6 +15,7 @@ describe('MongoManager', () => {
   beforeEach(async ctx => {
     ctx.db = {
       docs: {
+        findOneAndUpdate: sinon.stub().resolves({}),
         updateOne: sinon.stub().resolves({ matchedCount: 1 }),
         insertOne: sinon.stub().resolves(),
       },
@@ -22,6 +25,7 @@ describe('MongoManager', () => {
       default: {
         db: ctx.db,
         ObjectId,
+        BSON,
       },
     }))
 
@@ -42,6 +46,22 @@ describe('MongoManager', () => {
     ctx.rev = 42
     ctx.stubbedErr = new Error('hello world')
     ctx.lines = ['Three French hens', 'Two turtle doves']
+  })
+
+  describe('convertUpdateToPipeline', () => {
+    it('should convert the update', ctx => {
+      const update = {
+        $set: { lines: ['foo', 'bar'], ranges: { comments: [] }, rev: 42 },
+        $unset: { inS3: true },
+      }
+      const pipeline = ctx.MongoManager.convertUpdateToPipeline(update)
+      expect(pipeline).to.deep.equal([
+        { $set: { lines: { $literal: ['foo', 'bar'] } } },
+        { $set: { ranges: { $literal: { comments: [] } } } },
+        { $set: { rev: { $literal: 42 } } },
+        { $unset: 'inS3' },
+      ])
+    })
   })
 
   describe('findDoc', () => {
@@ -220,8 +240,8 @@ describe('MongoManager', () => {
         project_id: new ObjectId(ctx.projectId),
         rev: ctx.oldRev,
       })
-      assert.equal(args[1].$set.lines, ctx.lines)
-      assert.equal(args[1].$inc.rev, 1)
+      assert.equal(args[1][0].$set.lines.$literal, ctx.lines)
+      assert.equal(args[1][1].$set.rev.$literal, ctx.oldRev + 1)
     })
 
     it('should handle update error', async ctx => {
@@ -337,30 +357,23 @@ describe('MongoManager', () => {
     })
 
     describe('complete doc', () => {
-      beforeEach(async ctx => {
+      it('updates Mongo', async ctx => {
         await ctx.MongoManager.restoreArchivedDoc(
           ctx.projectId,
           ctx.docId,
           ctx.archivedDoc
         )
-      })
-
-      it('updates Mongo', ctx => {
         expect(ctx.db.docs.updateOne).to.have.been.calledWith(
           {
             _id: new ObjectId(ctx.docId),
             project_id: new ObjectId(ctx.projectId),
             rev: ctx.archivedDoc.rev,
           },
-          {
-            $set: {
-              lines: ctx.archivedDoc.lines,
-              ranges: ctx.archivedDoc.ranges,
-            },
-            $unset: {
-              inS3: true,
-            },
-          }
+          [
+            { $set: { lines: { $literal: ctx.archivedDoc.lines } } },
+            { $set: { ranges: { $literal: ctx.archivedDoc.ranges } } },
+            { $unset: 'inS3' },
+          ]
         )
       })
     })
@@ -368,29 +381,31 @@ describe('MongoManager', () => {
     describe('without ranges', () => {
       beforeEach(async ctx => {
         delete ctx.archivedDoc.ranges
+      })
+
+      it('sets ranges to an empty object', async ctx => {
         await ctx.MongoManager.restoreArchivedDoc(
           ctx.projectId,
           ctx.docId,
           ctx.archivedDoc
         )
-      })
-
-      it('sets ranges to an empty object', ctx => {
         expect(ctx.db.docs.updateOne).to.have.been.calledWith(
           {
             _id: new ObjectId(ctx.docId),
             project_id: new ObjectId(ctx.projectId),
             rev: ctx.archivedDoc.rev,
           },
-          {
-            $set: {
-              lines: ctx.archivedDoc.lines,
-              ranges: {},
+          [
+            {
+              $set: {
+                lines: {
+                  $literal: ctx.archivedDoc.lines,
+                },
+              },
             },
-            $unset: {
-              inS3: true,
-            },
-          }
+            { $set: { ranges: { $literal: {} } } },
+            { $unset: 'inS3' },
+          ]
         )
       })
     })

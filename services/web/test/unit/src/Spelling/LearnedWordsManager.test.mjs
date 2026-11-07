@@ -1,4 +1,4 @@
-import { vi, expect } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Errors from '../../../../app/src/Features/Errors/Errors.js'
 
 const modulePath =
@@ -20,12 +20,6 @@ describe('LearnedWordsManager', function () {
 
     vi.doMock('../../../../app/src/infrastructure/mongodb.mjs', () => ({
       default: { db: ctx.db },
-    }))
-
-    vi.doMock('@overleaf/metrics', () => ({
-      default: {
-        inc: vi.fn(),
-      },
     }))
 
     vi.doMock('@overleaf/settings', () => ({

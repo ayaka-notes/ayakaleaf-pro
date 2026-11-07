@@ -19,6 +19,7 @@ import OLFormGroup from '@/shared/components/ol/ol-form-group'
 import OLButton from '@/shared/components/ol/ol-button'
 import MaterialIcon from '@/shared/components/material-icon'
 import OLSpinner from '@/shared/components/ol/ol-spinner'
+import { useActiveOverallTheme } from '@/shared/hooks/use-active-overall-theme'
 
 /* eslint-disable no-unused-vars */
 export enum FileUploadStatus {
@@ -64,6 +65,7 @@ export const FigureModalUploadFileSource: FC = () => {
         fieldName: 'qqfile', // "qqfile" field inherited from FineUploader
       })
   )
+  const uppyTheme = useActiveOverallTheme('themed-modals')
 
   const dispatchUploadAction = useCallback(
     (name?: string, file?: UppyFile | null, folder?: File | null) => {
@@ -233,6 +235,7 @@ export const FigureModalUploadFileSource: FC = () => {
               proudlyDisplayPoweredByUppy={false}
               showSelectedFiles={false}
               hideUploadButton
+              theme={uppyTheme}
               locale={{
                 strings: {
                   // Text to show on the droppable area.
@@ -311,7 +314,7 @@ export const FileContainer: FC<{
           aria-label={t('remove_or_replace_figure')}
           onClick={() => onDelete && onDelete()}
         >
-          <MaterialIcon type="cancel" />
+          <MaterialIcon type="cancel" className="icon-danger" />
         </OLButton>
       </div>
     </div>
@@ -331,10 +334,10 @@ const FileSize: FC<{ size: number; className?: string }> = ({
     ['TB', 1e12],
     ['PB', 1e15],
   ]
-  const labelIndex = Math.min(
-    Math.floor(Math.log10(size) / 3),
-    BYTE_UNITS.length - 1
-  )
+  const labelIndex =
+    size > 0
+      ? Math.min(Math.floor(Math.log10(size) / 3), BYTE_UNITS.length - 1)
+      : 0
 
   const [label, bytesPerUnit] = BYTE_UNITS[labelIndex]
   const sizeInUnits = Math.round(size / bytesPerUnit)

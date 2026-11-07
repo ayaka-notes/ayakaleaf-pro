@@ -50,13 +50,6 @@ export const SubscriptionSchema = new Schema(
     invited_emails: [String],
     teamInvites: [TeamInviteSchema],
     recurlySubscription_id: String,
-    lastSuccesfulSubscription: {
-      planCode: {
-        type: String,
-      },
-      addOns: Schema.Types.Mixed,
-    },
-    timesRevertedDueToFailedPayment: { type: Number, default: 0 },
     teamName: { type: String },
     teamNotice: { type: String },
     planCode: { type: String },
@@ -65,11 +58,14 @@ export const SubscriptionSchema = new Schema(
     managedUsersEnabled: { type: Boolean, default: false },
     membersLimit: { type: Number, default: 0 },
     membersLimitNotificationSent: { type: Boolean, default: false },
+    membersLimitReachedNotificationSent: { type: Boolean, default: false },
     customAccount: Boolean,
     features: {
       managedUsers: { type: Boolean, default: true },
       groupSSO: { type: Boolean, default: true },
       domainCapture: { type: Boolean, default: false },
+      aiToggling: { type: Boolean, default: true },
+      sharedWorkspace: { type: Boolean, default: true },
     },
     userFeaturesDisabled: Boolean,
     addOns: Schema.Types.Mixed,
@@ -119,6 +115,18 @@ export const SubscriptionSchema = new Schema(
       },
     },
     ssoConfig: { type: ObjectId, ref: 'SSOConfig' },
+    sharingPermissions: {
+      byEmail: {
+        type: String,
+        enum: ['anyone_in_x', 'anyone'],
+        default: 'anyone',
+      },
+      byLinkSharing: {
+        type: String,
+        enum: ['no_one', 'anyone_in_x', 'anyone'],
+        default: 'anyone',
+      },
+    },
   },
   { minimize: false }
 )

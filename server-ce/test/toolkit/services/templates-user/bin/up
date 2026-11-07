@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Usage: services/templates-user/bin/up
+#
+# Runs after the toolkit's bin/up. Creates templates@example.com, a user that
+# is not an admin, with the create-user script of the docs, and makes it the
+# templates user (OVERLEAF_TEMPLATES_USER_ID). Overleaf reads the setting at
+# startup, so it applies from the next bin/up, i.e. to the variant suites.
+#
+# Expects TOOLKIT_DIR in the environment.
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+email=templates@example.com
+
+docker exec "${CONTAINER_PREFIX:-}sharelatex" bash -ce \
+  "cd /overleaf/services/web && node modules/server-ce-scripts/scripts/create-user.mjs --email=$email" \
+  >/dev/null
+id=$(docker exec "${CONTAINER_PREFIX:-}mongo" mongosh sharelatex --quiet \
+  --eval "db.users.findOne({ email: '$email' })._id.toString()")
+../../bin/apply-config "$TOOLKIT_DIR/config/variables.env" \
+  <(echo "OVERLEAF_TEMPLATES_USER_ID=$id")

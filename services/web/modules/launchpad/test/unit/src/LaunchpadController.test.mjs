@@ -25,10 +25,6 @@ describe('LaunchpadController', function () {
 
     vi.doMock('@overleaf/settings', () => ({ default: ctx.Settings }))
 
-    vi.doMock('@overleaf/metrics', () => ({
-      default: (ctx.Metrics = {}),
-    }))
-
     vi.doMock(
       '../../../../../app/src/Features/User/UserRegistrationHandler.mjs',
       () => ({
@@ -74,6 +70,19 @@ describe('LaunchpadController', function () {
         }),
       })
     )
+
+    vi.doMock('crypto', () => ({
+      default: (ctx.crypto = {
+        randomUUID: sinon
+          .stub()
+          .returns('8055c676-bcc7-4e64-a66f-8069f9a0bd92'),
+        randomBytes: sinon.stub().returns({
+          toString: () => {
+            return (ctx.password = 'mock-password123')
+          },
+        }),
+      }),
+    }))
 
     ctx.LaunchpadController = (await import(modulePath)).default
 
@@ -348,7 +357,11 @@ describe('LaunchpadController', function () {
           1
         )
         ctx.UserRegistrationHandler.promises.registerNewUser
-          .calledWith({ email: ctx.email, password: ctx.password })
+          .calledWith({
+            email: ctx.email,
+            password: ctx.password,
+            analyticsId: '8055c676-bcc7-4e64-a66f-8069f9a0bd92',
+          })
           .should.equal(true)
       })
 
@@ -607,7 +620,11 @@ describe('LaunchpadController', function () {
           1
         )
         ctx.UserRegistrationHandler.promises.registerNewUser
-          .calledWith({ email: ctx.email, password: ctx.password })
+          .calledWith({
+            email: ctx.email,
+            password: ctx.password,
+            analyticsId: '8055c676-bcc7-4e64-a66f-8069f9a0bd92',
+          })
           .should.equal(true)
       })
 
@@ -653,7 +670,11 @@ describe('LaunchpadController', function () {
           1
         )
         ctx.UserRegistrationHandler.promises.registerNewUser
-          .calledWith({ email: ctx.email, password: ctx.password })
+          .calledWith({
+            email: ctx.email,
+            password: ctx.password,
+            analyticsId: '8055c676-bcc7-4e64-a66f-8069f9a0bd92',
+          })
           .should.equal(true)
       })
     })
@@ -697,7 +718,11 @@ describe('LaunchpadController', function () {
           1
         )
         ctx.UserRegistrationHandler.promises.registerNewUser
-          .calledWith({ email: ctx.email, password: ctx.password })
+          .calledWith({
+            email: ctx.email,
+            password: ctx.password,
+            analyticsId: '8055c676-bcc7-4e64-a66f-8069f9a0bd92',
+          })
           .should.equal(true)
       })
 
@@ -763,14 +788,16 @@ describe('LaunchpadController', function () {
         ctx.UserRegistrationHandler.promises.registerNewUser.callCount.should.equal(
           1
         )
-        ctx.UserRegistrationHandler.promises.registerNewUser
-          .calledWith({
-            email: ctx.email,
-            password: 'password_here',
-            first_name: ctx.email,
-            last_name: '',
-          })
-          .should.equal(true)
+        const call =
+          ctx.UserRegistrationHandler.promises.registerNewUser.firstCall
+        expect(call.args[0]).to.include({
+          email: ctx.email,
+          first_name: ctx.email,
+          last_name: '',
+        })
+        expect(call.args[0].password).to.be.a('string')
+        expect(call.args[0].password).to.not.equal('password_here')
+        expect(call.args[0].password.length).to.be.at.least(16)
       })
 
       it('should have updated the user to make them an admin', function (ctx) {
@@ -968,14 +995,16 @@ describe('LaunchpadController', function () {
         ctx.UserRegistrationHandler.promises.registerNewUser.callCount.should.equal(
           1
         )
-        ctx.UserRegistrationHandler.promises.registerNewUser
-          .calledWith({
-            email: ctx.email,
-            password: 'password_here',
-            first_name: ctx.email,
-            last_name: '',
-          })
-          .should.equal(true)
+        const call =
+          ctx.UserRegistrationHandler.promises.registerNewUser.firstCall
+        expect(call.args[0]).to.include({
+          email: ctx.email,
+          first_name: ctx.email,
+          last_name: '',
+        })
+        expect(call.args[0].password).to.be.a('string')
+        expect(call.args[0].password).to.not.equal('password_here')
+        expect(call.args[0].password.length).to.be.at.least(16)
       })
 
       it('should not call update', function (ctx) {
@@ -1019,14 +1048,16 @@ describe('LaunchpadController', function () {
         ctx.UserRegistrationHandler.promises.registerNewUser.callCount.should.equal(
           1
         )
-        ctx.UserRegistrationHandler.promises.registerNewUser
-          .calledWith({
-            email: ctx.email,
-            password: 'password_here',
-            first_name: ctx.email,
-            last_name: '',
-          })
-          .should.equal(true)
+        const call =
+          ctx.UserRegistrationHandler.promises.registerNewUser.firstCall
+        expect(call.args[0]).to.include({
+          email: ctx.email,
+          first_name: ctx.email,
+          last_name: '',
+        })
+        expect(call.args[0].password).to.be.a('string')
+        expect(call.args[0].password).to.not.equal('password_here')
+        expect(call.args[0].password.length).to.be.at.least(16)
       })
     })
   })

@@ -75,4 +75,4 @@ class RequestLogger {
   }
 }
 
-module.exports = { monitor, RequestLogger }
+module.exports = { monitor, RequestLogger, getRoutePath }

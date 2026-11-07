@@ -1,0 +1,14 @@
+{
+  "name": "Overleaf",
+  "icons": [
+    {
+      "src": "/overleaf-logo.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ],
+  "theme_color": "#1b222c",
+  "background_color": "#ffffff",
+  "start_url": "/",
+  "display": "standalone"
+}

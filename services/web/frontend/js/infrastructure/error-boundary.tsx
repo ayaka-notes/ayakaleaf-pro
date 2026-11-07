@@ -1,7 +1,9 @@
 import { captureException } from './error-reporter'
-import { withErrorBoundary as rebWithErrorBoundary } from 'react-error-boundary'
+import {
+  withErrorBoundary as rebWithErrorBoundary,
+  FallbackProps,
+} from 'react-error-boundary'
 import { ComponentType, ErrorInfo } from 'react'
-import { FallbackProps } from 'react-error-boundary/dist/declarations/src/types'
 
 function errorHandler(error: Error, errorInfo: ErrorInfo) {
   captureException(error, {

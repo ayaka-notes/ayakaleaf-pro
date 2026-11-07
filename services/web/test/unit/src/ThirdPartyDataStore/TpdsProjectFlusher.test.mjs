@@ -1,4 +1,4 @@
-import { vi, expect } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import sinon from 'sinon'
 import mongodb from 'mongodb-legacy'
 import { Project } from '../../../../app/src/models/Project.mjs'
@@ -197,7 +197,7 @@ describe('TpdsProjectFlusher', function () {
         beforeEach(async function (ctx) {
           ctx.project.deferredTpdsFlushCounter = counterValue
           await ctx.TpdsProjectFlusher.promises.flushProjectToTpdsIfNeeded(
-            ctx.project._id
+            ctx.project
           )
         })
 
@@ -232,7 +232,7 @@ describe('TpdsProjectFlusher', function () {
             .chain('exec')
             .resolves()
           await ctx.TpdsProjectFlusher.promises.flushProjectToTpdsIfNeeded(
-            ctx.project._id
+            ctx.project
           )
         })
 

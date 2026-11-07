@@ -110,7 +110,7 @@ function sentryReporter() {
             /extensions\//i,
             /^chrome:\/\//i,
           ],
-          beforeSend(event) {
+          beforeSend(event, hint) {
             // Limit number of events sent to Sentry to 100 events "per page load",
             // (i.e. the cap will be reset if the page is reloaded). This prevent
             // hitting their server-side event cap.
@@ -142,6 +142,17 @@ function sentryReporter() {
 
             if (isPropensityNetworkError(event)) {
               return null
+            }
+
+            // Extract OError tag info so it appears in Sentry extra for all
+            // captured errors, including auto-captured unhandled rejections
+            // that bypass our captureException() wrapper.
+            const originalException = hint?.originalException
+            if (originalException && typeof originalException === 'object') {
+              const oErrorInfo = OError.getFullInfo(originalException)
+              if (Object.keys(oErrorInfo).length > 0) {
+                event.extra = { ...event.extra, ...oErrorInfo }
+              }
             }
 
             return sanitizeUrls(event)

@@ -1,6 +1,6 @@
 import { Form, FormCheckProps } from 'react-bootstrap'
 import { MergeAndOverride } from '../../../../../types/utils'
-import FormText from '../form/form-text'
+import { FormText } from './ol-form-text'
 
 type OLFormCheckboxProps = MergeAndOverride<
   FormCheckProps,
@@ -35,7 +35,7 @@ function OLFormCheckbox(props: OLFormCheckboxProps) {
       }
     />
   ) : (
-    <Form.Check ref={inputRef} {...rest} />
+    <Form.Check className="form-checkbox" ref={inputRef} {...rest} />
   )
 }
 
