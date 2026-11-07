@@ -1,0 +1,668 @@
+// Admin panel. main-style already holds bootstrap, the components and the
+// themed tokens, so this file only adds the page's own rules and uses tokens.
+//
+// Site pages render with data-theme='light'. Without it core uses the dark
+// themed variables (on :root), so the badge colors below follow the same rule.
+
+.admin-panel-container {
+  --admin-panel-badge-neutral-bg: var(--neutral-70);
+  --admin-panel-badge-neutral-color: var(--neutral-10);
+  --admin-panel-badge-blue-bg: var(--blue-70);
+  --admin-panel-badge-blue-color: var(--blue-10);
+  --admin-panel-badge-green-bg: var(--green-70);
+  --admin-panel-badge-green-color: var(--green-10);
+  --admin-panel-badge-yellow-bg: var(--yellow-70);
+  --admin-panel-badge-yellow-color: var(--yellow-10);
+  --admin-panel-badge-red-bg: var(--red-70);
+  --admin-panel-badge-red-color: var(--red-10);
+
+  color: var(--content-primary-themed);
+}
+
+[data-theme='light'] .admin-panel-container {
+  --admin-panel-badge-neutral-bg: var(--neutral-20);
+  --admin-panel-badge-neutral-color: var(--neutral-90);
+  --admin-panel-badge-blue-bg: var(--blue-10);
+  --admin-panel-badge-blue-color: var(--blue-70);
+  --admin-panel-badge-green-bg: var(--green-10);
+  --admin-panel-badge-green-color: var(--green-70);
+  --admin-panel-badge-yellow-bg: var(--yellow-10);
+  --admin-panel-badge-yellow-color: var(--yellow-70);
+  --admin-panel-badge-red-bg: var(--red-10);
+  --admin-panel-badge-red-color: var(--red-70);
+}
+
+.admin-panel-container {
+  padding-top: var(--spacing-08);
+  padding-bottom: var(--spacing-10);
+}
+
+// the rules of 6.3's trash page tabs (.trash-page-tabs), which also hide
+// themselves on small screens, so they are not reused as they are
+.admin-panel-tabs {
+  display: flex;
+  gap: var(--spacing-06);
+  margin-bottom: var(--spacing-06);
+  border-bottom: 1px solid var(--border-divider-themed);
+
+  .admin-panel-tab {
+    padding: var(--spacing-03) var(--spacing-02);
+    margin-bottom: -1px;
+    border-bottom: 2px solid transparent;
+    color: var(--content-secondary-themed);
+    font-size: var(--font-size-03);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--content-primary-themed);
+      text-decoration: none;
+    }
+
+    &.active {
+      border-bottom-color: var(--green-50);
+      color: var(--content-primary-themed);
+    }
+  }
+}
+
+.admin-panel-muted {
+  color: var(--content-secondary-themed);
+}
+
+// ---- toolbar: the search box and the create button, as on the original ----
+
+// one row: the search box on the left, the create button on the right
+.admin-panel-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-04);
+  margin-bottom: var(--spacing-06);
+}
+
+// a bulk button alone in its group is a circle, not core's 46 x 38 oval
+.admin-panel-bulk-actions .btn-group > .btn:only-child {
+  width: 38px;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+// the ticked rows' bulk buttons, left of the create button
+.admin-panel-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-04);
+}
+
+// the tick box column as on core's project list (measured there: the box
+// 16px from the panel's edge, 7px from the name): its 3% cell is narrower
+// than the box, which runs into the right padding; here no right padding,
+// the name's own 8px apart
+.admin-panel-table .admin-panel-cell-checkbox {
+  width: 1%;
+  padding-right: 0;
+
+  .form-check {
+    min-height: 0;
+    margin: 0;
+  }
+}
+
+.admin-panel-search {
+  flex: 1 1 320px;
+  min-width: 0;
+  max-width: 480px;
+
+  .form-group,
+  .form-control-wrapper {
+    margin-bottom: 0;
+  }
+}
+
+// ---- the deleted users hint under the toolbar ----
+
+.admin-panel-hint {
+  margin: calc(-1 * var(--spacing-03)) 0 var(--spacing-04);
+  color: var(--content-secondary-themed);
+  font-size: var(--font-size-02);
+}
+
+.admin-panel-hint-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  // the same green as a set filter in the table header
+  color: var(--content-positive-themed);
+  font: inherit;
+  font-weight: 600;
+
+  &:hover {
+    color: var(--content-positive-themed);
+    text-decoration: underline;
+  }
+}
+
+// ---- dropdowns: core's ghost toggle (share modal), in the table header ----
+
+// in the header the toggle reads as header text, so no button padding
+// in the header the toggle reads like the sort buttons: no button padding,
+// bold, the header's size and line height
+.admin-panel-table th .admin-panel-dropdown-toggle.btn {
+  padding: 0;
+  border: 0;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  white-space: nowrap;
+
+  // the same box as the sort buttons: icon as tall as the 21px header line;
+  // the chevron is drawn 0.6px above the middle of the capitals
+  .material-symbols {
+    position: relative;
+    top: 0.5px;
+    font-size: 21px;
+  }
+
+  // no ghost background behind the header text (with no padding it shows as
+  // a thin strip), the text darkens instead, like the sort buttons
+  &:hover,
+  &:focus,
+  &:active,
+  &.active,
+  &.show {
+    background-color: transparent;
+    box-shadow: none;
+    color: var(--content-primary-themed);
+  }
+
+  // a set filter stays green, also on hover
+  &.active,
+  &.active:hover {
+    color: var(--content-positive-themed);
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 2px var(--blue-30);
+  }
+}
+
+.admin-panel-dropdown-toggle.btn.active,
+.admin-panel-dropdown-toggle.btn.active:hover {
+  color: var(--content-positive-themed);
+}
+
+.admin-panel-filter-count {
+  margin-left: var(--spacing-06);
+  color: var(--content-secondary-themed);
+  font-size: var(--font-size-02);
+  font-variant-numeric: tabular-nums;
+}
+
+// the padding keeps the highlight of the option as wide as the others
+.dropdown-item.admin-panel-filter-indented {
+  padding-left: calc(var(--spacing-04) + var(--spacing-06));
+}
+
+// ---- table ----
+
+.admin-panel-table-wrapper {
+  overflow-x: auto;
+  transition: opacity 0.15s;
+
+  &.admin-panel-loading {
+    opacity: 0.6;
+  }
+}
+
+// core's panel pads all sides; without the top padding the header text sits
+// as far from the panel border as from the header divider
+.admin-panel-table-wrapper .table-container {
+  margin-bottom: 0;
+  padding-top: 0;
+}
+
+.admin-panel-table {
+  th,
+  td {
+    vertical-align: middle;
+  }
+
+  th {
+    color: var(--content-secondary-themed);
+    font-size: var(--font-size-02);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  td {
+    font-size: var(--font-size-03);
+  }
+
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+}
+
+.admin-panel-cell-actions {
+  width: 1%;
+  text-align: right !important;
+  white-space: nowrap;
+}
+
+// right aligned, the last icon lines up with the end of the header text
+.admin-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0;
+  // the button padding plus the icon glyph's own side bearing (3.5px), so the
+  // drawn edge of the last icon lines up with the end of "Actions"
+  margin-right: calc(-1 * var(--spacing-01) - 3.5px);
+
+  // 24px apart like the project list action icons, and square, so the ghost
+  // hover background is a circle
+  .btn.action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+
+    // a link icon (open project): core's `.website-redesign a .material-symbols`
+    // adds margin-left 4px and padding-bottom 3px, which moves the icon off
+    // the centre of its hover circle
+    &:is(a) .material-symbols {
+      margin: 0;
+      padding: 0;
+    }
+
+    // the own account's actions on its detail page: only the icon greyed,
+    // without the disabled ghost button's grey circle
+    &:disabled {
+      background-color: transparent;
+    }
+  }
+
+  .admin-panel-action-danger:hover {
+    color: var(--content-danger-themed);
+  }
+}
+
+.admin-panel-modal-user {
+  margin-bottom: var(--spacing-05);
+}
+
+// the rules of core's .table-header-sort-btn, which only applies inside the
+// project list
+// flex: the text becomes a flex item whose box is its 21px line, as tall as
+// the 21px icon box, and both are centred
+.admin-panel-sort {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background-color: transparent;
+  color: inherit;
+  font-weight: inherit;
+  text-align: left;
+  text-decoration: none;
+
+  &:hover,
+  &:focus {
+    color: var(--content-primary-themed);
+    text-decoration: none;
+  }
+
+  // core puts a 24px arrow next to 16px text; the same ratio for the 14px
+  // header text, which is also the header's line height. The arrow glyph is
+  // drawn 1px above the middle of the capitals, top: 1px evens that out
+  // (the box keeps its place in the layout)
+  .material-symbols {
+    position: relative;
+    top: 1px;
+    font-size: 21px;
+  }
+}
+
+.admin-panel-cell-user {
+  min-width: 220px;
+}
+
+.admin-panel-user-name {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-03);
+  color: var(--content-primary-themed);
+  font-weight: 600;
+}
+
+.admin-panel-user-email {
+  color: var(--content-secondary-themed);
+  font-size: var(--font-size-02);
+}
+
+.admin-panel-empty {
+  padding: var(--spacing-10) 0 !important;
+  color: var(--content-secondary-themed);
+  text-align: center !important;
+}
+
+.admin-panel-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-02);
+}
+
+.admin-panel-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--spacing-03);
+  border-radius: var(--border-radius-base);
+  background-color: var(--admin-panel-badge-neutral-bg);
+  color: var(--admin-panel-badge-neutral-color);
+  font-size: var(--font-size-01);
+  font-weight: 600;
+  line-height: var(--line-height-02);
+  white-space: nowrap;
+}
+
+.admin-panel-badge-ldap,
+.admin-panel-badge-info {
+  background-color: var(--admin-panel-badge-blue-bg);
+  color: var(--admin-panel-badge-blue-color);
+}
+
+.admin-panel-badge-saml {
+  background-color: var(--admin-panel-badge-yellow-bg);
+  color: var(--admin-panel-badge-yellow-color);
+}
+
+.admin-panel-badge-oidc,
+.admin-panel-badge-positive {
+  background-color: var(--admin-panel-badge-green-bg);
+  color: var(--admin-panel-badge-green-color);
+}
+
+// the admin role in the red of a disabled account, apart from SAML's yellow
+.admin-panel-badge-admin,
+.admin-panel-badge-danger {
+  background-color: var(--admin-panel-badge-red-bg);
+  color: var(--admin-panel-badge-red-color);
+}
+
+// ---- footer ----
+
+.admin-panel-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-04);
+  margin-top: var(--spacing-06);
+
+  // the pages stay in the middle whatever the text on the left says
+  // ("Showing 10 out of 85 users", "3 selected"): two equal side columns
+  @media (min-width: 768px) {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+
+    > :last-child {
+      justify-self: end;
+    }
+  }
+
+  .pagination {
+    margin: 0;
+  }
+
+  .pagination .material-symbols {
+    vertical-align: middle;
+    font-size: var(--font-size-04);
+  }
+}
+
+// one bar: the lists touch, and each one's first cell overlaps the border
+// before it by 1px, as core does between the cells of one list
+.admin-panel-pagination {
+  display: flex;
+
+  // our lists are direct children, core's sits inside its <nav>
+  > * + ul.pagination > li:first-child > button,
+  > * + nav .pagination > li:first-child > button {
+    margin-left: -1px;
+  }
+}
+
+.admin-panel-page-size {
+  width: auto;
+}
+
+// ---- user detail page ----
+
+.admin-panel-back {
+  // core's .previous-page-link (colour, size, weight, the icon's gap); only
+  // the space to the name below is ours
+  display: inline-block;
+  margin-bottom: var(--spacing-05);
+
+  // the drawn arrow starts where the name below starts: core's
+  // `.website-redesign a .material-symbols` margin-left 4px plus the glyph's
+  // own left bearing put it 6.75px to the right (measured)
+  .admin-panel-container & .material-symbols {
+    margin-left: -2.75px;
+  }
+
+  // only the words are underlined on hover, not the arrow
+  &:hover {
+    text-decoration: none;
+
+    span {
+      text-decoration: underline;
+    }
+  }
+}
+
+.admin-panel-user-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-04);
+  margin-bottom: var(--spacing-06);
+
+  // the icons on the name's line: its 30px line box, the 24px buttons
+  // centred in it
+  > .admin-panel-actions {
+    margin-top: 3px;
+  }
+}
+
+.admin-panel-user-header-name {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-03);
+  color: var(--content-primary-themed);
+  font-size: var(--font-size-05);
+  font-weight: 600;
+}
+
+.admin-panel-details th {
+  width: 220px;
+}
+
+// a long id or email wraps on a phone instead of pushing the table past the
+// screen (bootstrap sets code's own break-word, which does not narrow a table)
+.admin-panel-details td,
+.admin-panel-details td code {
+  overflow-wrap: anywhere;
+}
+
+// Edit, or Cancel and Save, centred under the table
+.admin-panel-form-actions {
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-04);
+  margin-top: var(--spacing-06);
+}
+
+// a field of the account form inside a details row
+.admin-panel-input {
+  max-width: 360px;
+}
+
+// a member's role in the members form: as wide as its longest name
+.admin-panel-input-role {
+  width: 120px;
+}
+
+// a number of the features form (collaborators, compile timeout): room
+// for four digits and the browser's spin buttons
+.admin-panel-input-number {
+  width: 72px;
+}
+
+// a field (or a switch) with its badges or label on one line
+.admin-panel-inline-field {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-03);
+
+  // the switch's box is a line tall with the switch at its top, 2px above
+  // the middle; a flex box of the switch's own size centres it
+  .form-switch {
+    display: flex;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+
+    .form-check-input {
+      float: none;
+      margin: 0;
+    }
+  }
+}
+
+// the switch's text in the size of the small inputs next to it
+.admin-panel-switch-label {
+  font-size: var(--font-size-02);
+  line-height: var(--line-height-02);
+}
+
+// the site's h3 is sized for marketing pages
+.admin-panel-container h3.admin-panel-section-title {
+  margin: var(--spacing-06) 0 var(--spacing-03);
+  color: var(--content-primary-themed);
+  font-size: var(--font-size-03);
+  font-weight: 600;
+  line-height: var(--line-height-03);
+
+  &:first-child {
+    margin-top: 0;
+  }
+}
+
+// a check or dash in a details row: a flex box as tall as the text line, so
+// the icon is centred on the row's text instead of sitting on its baseline
+.admin-panel-bool {
+  display: inline-flex;
+  align-items: center;
+  height: var(--line-height-03);
+  vertical-align: top;
+
+  // the glyphs are drawn 1px above the middle of the capitals (measured)
+  .material-symbols {
+    position: relative;
+    top: 1px;
+  }
+}
+
+.admin-panel-bool-on {
+  color: var(--content-positive-themed);
+}
+
+.admin-panel-info code {
+  font-size: var(--font-size-01);
+  word-break: break-all;
+}
+
+.admin-panel-user-name a,
+.admin-panel-user-name a:visited {
+  color: inherit;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+// a link to hand out, in core's copy block: all of it, from the left, filling
+// each line instead of breaking at its ? - and /. A click selects it all: the
+// copy button is gone where the browser gives no clipboard (a site without
+// https)
+.git-bridge-copy.admin-panel-link code {
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
+  user-select: all;
+}
+
+.admin-panel-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-02);
+
+  // core's copy button, no background; the icon in a light green, a shade
+  // darker than the Active badge's background so it stays visible
+  .btn,
+  .btn:hover,
+  .btn:focus {
+    color: var(--green-20);
+    text-decoration: none;
+  }
+
+  // drawn 0.9px above the middle of the capitals, like the checks
+  .btn .material-symbols {
+    position: relative;
+    top: 1px;
+  }
+}
+
+// a link inside a table cell reads like the text around it, as the user
+// names in the list
+.admin-panel-plain-link,
+.admin-panel-plain-link:visited {
+  color: inherit;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+// ---- project page ----
+
+// a row of the file tree: the chevron (folders), the type icon and the name
+// on one line
+.admin-panel-file {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-03);
+}
+
+// a folder row folds and unfolds: a plain button, like the text around it
+.admin-panel-file-folder {
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-right: 0;
+  cursor: pointer;
+}
+
+// the chevron's room in a doc or file row
+.admin-panel-file-chevron {
+  display: inline-block;
+  width: 20px;
+}

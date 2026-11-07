@@ -23,7 +23,7 @@ from an empty Overleaf.
 
 To run only some cases, add `GREP` to `make test`: it keeps the cases whose
 full title (the `describe` names and the `it` name) contains the text, e.g.
-`make test SUITE=admin-tools GREP="purges a deleted account"`.
+`make test SUITE=admin-tools GREP="finds deleted accounts"`.
 
 If port 80 is already in use on your machine, add `OVERLEAF_PORT=8080` to
 `make setup`. To test an image other than the latest ops image, add
@@ -147,16 +147,23 @@ One folder per module in `toolkit/suites/`, named and nested like
   with it: AI assistant, GitHub Sync, Zotero and Mendeley, all off on the
   default instance and all on in the `enabled/` variant, with git-bridge,
   which GitHub Sync needs.
-- `admin-tools/` – the admin panel: who may open it, finding users by
-  email and id, creating accounts and activating them with the link from
-  Info, duplicate emails, changing names, emails, passwords and the admin
-  flag, the collaborator limit, turning AI off and the token usage,
-  disabling and enabling users one by one and in bulk, deleting accounts with
-  and without giving their projects to another user, restoring and purging
-  them, and the license tab. For projects: a user's projects and every
-  project, search by name, id and owner, trashing, deleting, restoring,
-  purging and downloading, and changing the owner of one or several projects,
-  with the old owner kept as editor.
+- `admin-tools/` – the admin panel, `/admin/user` and `/admin/project`:
+  who may open it; the user list (search by name, email and id, every Status, Login and Role
+  filter with its counts, sorting, pages and page sizes, the deleted-match
+  hint), creating accounts, disabling (which ends the sessions),
+  transferring all projects, deleting with and without a new owner,
+  restoring and purging, one by one and in bulk; a user's page (editing the
+  name, email, password and admin flag, features and their limits, AI on and
+  off, sessions and clearing them, git tokens, the audit log with its search
+  and operation filter, the Projects tab with its filters, sorting, pages,
+  bulk actions and owner changes); a project's page (details and their
+  edits, owner changes, the file tree, members and invites, restoring
+  deleted files, the audit log, deleted projects); every project of the site
+  (the Admin menu entry, search by name, id, owner and link, the Status
+  filter with its counts across owners, the deleted-match hint, row and bulk
+  actions that go by each project's own owner). The `templates/` variant turns
+  the template gallery on for the Templates tab: search, sorting, pages,
+  opening and deleting templates.
 - `template-gallery/` – publishing a project as a template, the gallery
   (categories, search, sort, pages), editing, overwriting and deleting
   templates, creating projects from them, permissions. The `templates-user/`

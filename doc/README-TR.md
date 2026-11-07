@@ -58,7 +58,7 @@ Ayakaleaf Pro, neredeyse tüm özellik ve yeteneklere sahip, Overleaf'in gelişt
 - Mendeley entegrasyonu (Mendeley OAuth desteğiyle)
 - Gelişmiş kaynakça araması (tüm Bib kayıtlarınızda arama yapın)
 - Git-Bridge desteği (Git ile clone, pull ve push)
-- Yönetim paneli (genel kullanıcı/proje yönetimi)
+- Eksiksiz yönetim paneli (kullanıcılar, projeler ve şablonlar; arama, toplu işlemler, oturumlar ve denetim günlükleri)
 - LDAP ve SAML veya OAuth 2.0 ile SSO
 - Sınırsız derleme süresi (yönetim panelinden ayarlanabilir)
 - Kendi kendine kayıt (isteğe bağlı, e-posta alan adına göre sınırlandırılabilir)

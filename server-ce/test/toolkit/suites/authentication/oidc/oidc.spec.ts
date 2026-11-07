@@ -161,6 +161,17 @@ describe('password reset of an OIDC account', function () {
       .should('equal', 422)
   })
 
+  it('does not let an admin change the role that OIDC keeps up to date', function () {
+    oidcLogin('bob')
+    oidcLogin('alice')
+    adminUserInfo(idpEmail('bob')).then(user => {
+      postWithCsrf(`/admin/user/${user.id}/update`, { isAdmin: true })
+        .its('status')
+        .should('equal', 422)
+    })
+    adminUserInfo(idpEmail('bob')).its('isAdmin').should('equal', false)
+  })
+
   it('lets an admin set the password of a local account that OIDC is linked to', function () {
     const newPassword = `Admin-${Cypress._.random(1e9)}-Pass`
     oidcLogin('alice')
