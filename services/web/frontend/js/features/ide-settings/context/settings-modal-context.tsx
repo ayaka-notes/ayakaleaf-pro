@@ -5,6 +5,7 @@ import {
   useContext,
   useMemo,
   useState,
+  type ElementType,
 } from 'react'
 import { useLayoutContext } from '@/shared/context/layout-context'
 import AutoCloseBracketsSetting from '@/features/ide-settings/components/editor-settings/auto-close-brackets-setting'
@@ -64,6 +65,11 @@ const spellcheckExtraSectionHooks: SettingsSectionHook[] =
   importOverleafModules('settingsModalSpellcheckSections')
     .map((m: any) => m?.import?.default)
     .filter((h: unknown): h is SettingsSectionHook => typeof h === 'function')
+
+const compilerTabExtraSettings: Array<{
+  import: { default: ElementType }
+  path: string
+}> = importOverleafModules('settingsModalCompilerTabSettings')
 
 const useSlotSections = (hooks: SettingsSectionHook[]): SettingsSection[] =>
   hooks.map(hook => hook()).filter((s): s is SettingsSection => s != null)
@@ -231,6 +237,12 @@ export const SettingsModalProvider: FC<React.PropsWithChildren> = ({
                 key: 'optimizeCompiles',
                 component: <OptimizeCompileSetting />,
               },
+              ...compilerTabExtraSettings.map(
+                ({ import: { default: Component }, path }) => ({
+                  key: path,
+                  component: <Component />,
+                })
+              ),
             ],
           },
         ],
