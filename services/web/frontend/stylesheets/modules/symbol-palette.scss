@@ -351,3 +351,14 @@
   min-height: 0;
   overflow-y: auto;
 }
+
+// dedicated /user/symbol-palette page
+.sp-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--spacing-06);
+}
+
+.sp-page-title {
+  margin-bottom: var(--spacing-05);
+}

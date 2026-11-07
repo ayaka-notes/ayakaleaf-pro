@@ -23,26 +23,6 @@ import OLCol from '@/shared/components/ol/ol-col'
 import OLPageContentCard from '@/shared/components/ol/ol-page-content-card'
 import { isSplitTestEnabled } from '@/utils/splitTestUtils'
 import NotificationsSection from './notifications-section'
-import importOverleafModules from '../../../../macros/import-overleaf-module.macro'
-
-type SettingsEntrySection = {
-  key: string
-  settings: { key: string; component: JSX.Element }[]
-}
-
-type SettingsEntry = {
-  key: string
-  title: string
-  icon: string
-  sections: SettingsEntrySection[]
-}
-
-const moduleSettingsEntries: SettingsEntry[] = (
-  importOverleafModules('settingsEntries') as {
-    import: { default: SettingsEntry }
-    path: string
-  }[]
-).map(({ import: { default: entry } }) => entry)
 
 function SettingsPageRoot() {
   const { isReady } = useWaitForI18n()
@@ -102,17 +82,6 @@ function SettingsPageContent() {
             </>
           ) : null}
           <SessionsSection />
-          {moduleSettingsEntries.map(entry => (
-            <div key={entry.key} id={`settings-${entry.key}`}>
-              <hr />
-              <h2>{entry.title}</h2>
-              {entry.sections.map(section => (
-                <div key={section.key}>
-                  {section.settings.map(setting => setting.component)}
-                </div>
-              ))}
-            </div>
-          ))}
           {isOverleaf ? (
             <>
               <hr />

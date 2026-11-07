@@ -1204,12 +1204,6 @@ module.exports = {
     usGovBanner: [],
     rollingBuildsUpdatedAlert: [],
     offlineModeToolbarButtons: [],
-    settingsEntries: [
-      Path.resolve(
-        __dirname,
-        '../modules/symbol-palette/frontend/js/components/symbol-palette-settings-entry'
-      ),
-    ],
     autoCompleteExtensions: [
       Path.resolve(
         __dirname,
