@@ -604,6 +604,12 @@ describe('a project whose owner has track changes turned off', function () {
             `/project/${projectId}/users/${memberId}`,
             { privilegeLevel: 'review' },
           ],
+          // granting an access request sets the role too
+          [
+            'POST',
+            `/project/${projectId}/access-requests/${memberId}/grant`,
+            { privilegeLevel: 'review' },
+          ],
         ])
         // Other roles are not the feature's business
         postWithCsrf(`/project/${projectId}/invite`, {
@@ -631,6 +637,11 @@ describe('a project whose owner has track changes turned off', function () {
           [
             'PUT',
             `/project/${projectId}/users/${memberId}`,
+            { privilegeLevel: 'review' },
+          ],
+          [
+            'POST',
+            `/project/${projectId}/access-requests/${memberId}/grant`,
             { privilegeLevel: 'review' },
           ],
         ])

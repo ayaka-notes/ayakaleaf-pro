@@ -71,6 +71,11 @@ sharingRoutes.put(
   '/project/:Project_id/users/:user_id',
   refuseTrackingWithoutFeature(req => req.body?.privilegeLevel === 'review')
 )
+// granting a member's access request sets the same role
+sharingRoutes.post(
+  '/project/:Project_id/access-requests/:user_id/grant',
+  refuseTrackingWithoutFeature(req => req.body?.privilegeLevel === 'review')
+)
 
 export default {
   apply(webRouter) {
