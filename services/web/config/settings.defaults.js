@@ -1004,6 +1004,11 @@ module.exports = {
     // Restart webpack after making changes.
     //
     createFileModes: [
+      // WYSIWYG TikZ editor: "New file > TikZ diagram" (.tikz)
+      Path.resolve(
+        __dirname,
+        '../modules/tikz/frontend/js/components/create-tikz-file'
+      ),
       Path.resolve(
         __dirname,
         '../modules/tpr-webmodule/frontend/js/components/create-file-mode-zotero'
@@ -1206,7 +1211,14 @@ module.exports = {
     domainVerificationToken: [],
     v1ImportDataScreen: [],
     snapshotUtils: [],
-    visualEditorProviders: [],
+    visualEditorProviders: [
+      // WYSIWYG TikZ editor claims *.tikz / *.pgf (vendored app served
+      // same-origin from public/static/tikz-editor, fully offline)
+      Path.resolve(
+        __dirname,
+        '../modules/tikz/frontend/js/visual-editor-provider'
+      ),
+    ],
     usGovBanner: [],
     rollingBuildsUpdatedAlert: [],
     offlineModeToolbarButtons: [],

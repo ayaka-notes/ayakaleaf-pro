@@ -2734,4 +2734,9 @@
   "zotero_sync_up_to_date": "",
   "zotero_upgrade_prompt_content": "",
   "zotero_upgrade_prompt_title": ""
+,  "tikz_new_file": "",
+  "tikz_status_loading": "",
+  "tikz_status_ready": "",
+  "tikz_title": "",
+  "tikz_error_boot": ""
 }

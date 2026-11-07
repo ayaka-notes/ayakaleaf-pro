@@ -3464,4 +3464,9 @@
   "zotero_sync_up_to_date": "Your Zotero references are already up to date.",
   "zotero_upgrade_prompt_content": "Link your Zotero account to search and add your references from Zotero directly in your project—they’ll automatically be added to your .bib file. Or import them as a file into your __appName__ projects.",
   "zotero_upgrade_prompt_title": "Cite from Zotero"
+,  "tikz_new_file": "TikZ diagram",
+  "tikz_status_loading": "Loading TikZ editor…",
+  "tikz_status_ready": "TikZ canvas ready",
+  "tikz_title": "TikZ editor",
+  "tikz_error_boot": "The TikZ editor failed to start"
 }
