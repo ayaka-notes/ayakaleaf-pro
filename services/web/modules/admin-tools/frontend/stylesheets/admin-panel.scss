@@ -222,6 +222,13 @@
   padding-top: 0;
 }
 
+// the small tables on a user's or a project's page: with the panel's top and
+// bottom padding, their first and last rows would look taller than the others
+.admin-panel-details-wrapper .table-container {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
 .admin-panel-table {
   th,
   td {

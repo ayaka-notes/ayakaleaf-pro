@@ -9,23 +9,25 @@ export function DetailsTable({
   rows: [label: string, value: ReactNode][]
 }) {
   return (
-    <TableContainer bordered>
-      <OLTable container={false} className="admin-panel-table admin-panel-details">
-        <tbody>
-          {rows.map(([label, value]) => (
-            <tr key={label}>
-              <th scope="row">{label}</th>
-              <td>
-                {value == null || value === '' ? (
-                  <span className="admin-panel-muted">—</span>
-                ) : (
-                  value
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </OLTable>
-    </TableContainer>
+    <div className="admin-panel-details-wrapper">
+      <TableContainer bordered>
+        <OLTable container={false} className="admin-panel-table admin-panel-details">
+          <tbody>
+            {rows.map(([label, value]) => (
+              <tr key={label}>
+                <th scope="row">{label}</th>
+                <td>
+                  {value == null || value === '' ? (
+                    <span className="admin-panel-muted">—</span>
+                  ) : (
+                    value
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </OLTable>
+      </TableContainer>
+    </div>
   )
 }
