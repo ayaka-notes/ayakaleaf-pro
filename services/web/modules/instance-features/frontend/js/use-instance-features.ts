@@ -7,6 +7,7 @@ export type InstanceFeatures = {
   gitlabSync: boolean
   giteaSync: boolean
   dropbox: boolean
+  webdav: boolean
   zotero: boolean
   mendeley: boolean
 }
@@ -17,6 +18,7 @@ const DISABLED: InstanceFeatures = {
   gitlabSync: false,
   giteaSync: false,
   dropbox: false,
+  webdav: false,
   zotero: false,
   mendeley: false,
 }
@@ -42,6 +44,7 @@ function loadInstanceFeatures(): Promise<InstanceFeatures> {
           gitlabSync: Boolean(data?.gitlabSync),
           giteaSync: Boolean(data?.giteaSync),
           dropbox: Boolean(data?.dropbox),
+          webdav: Boolean(data?.webdav),
           zotero: Boolean(data?.zotero),
           mendeley: Boolean(data?.mendeley),
         }
