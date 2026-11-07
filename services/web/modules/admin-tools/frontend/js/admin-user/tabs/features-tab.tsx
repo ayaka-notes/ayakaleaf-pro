@@ -155,13 +155,14 @@ function FeaturesTab({
   ): [string, React.ReactNode] => [
     label,
     editing ? (
-      <OLFormSwitch
-        key={key}
-        id={`admin-user-feature-${key}`}
-        label={label}
-        checked={checked}
-        onChange={event => onChange(event.target.checked)}
-      />
+      <div key={key} className="admin-panel-inline-field">
+        <OLFormSwitch
+          id={`admin-user-feature-${key}`}
+          label={label}
+          checked={checked}
+          onChange={event => onChange(event.target.checked)}
+        />
+      </div>
     ) : (
       <BoolIcon key={key} value={on} label={label} />
     ),

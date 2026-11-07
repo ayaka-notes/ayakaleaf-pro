@@ -12,6 +12,8 @@ export type ProjectEntry = {
 
 // What AdminProjectController.projectPage renders into ol-adminProject
 export type AdminProjectMeta = {
+  // false with OVERLEAF_DISABLE_LINK_SHARING
+  linkSharingEnabled: boolean
   project: {
     id: string
     name: string

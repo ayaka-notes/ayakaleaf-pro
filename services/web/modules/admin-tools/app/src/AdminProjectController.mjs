@@ -1,6 +1,7 @@
 import Path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import Settings from '@overleaf/settings'
+import Features from '../../../../app/src/infrastructure/Features.mjs'
 import { listProjectEntries } from './AdminAuditLog.mjs'
 import AdminProjectManager from './AdminProjectManager.mjs'
 import {
@@ -57,7 +58,11 @@ async function projectPage(req, res) {
   )
   res.render(PROJECT_VIEW, {
     title: 'user_management',
-    adminProject: { ...adminProject, sessionUserId: adminOf(req).id },
+    adminProject: {
+      ...adminProject,
+      sessionUserId: adminOf(req).id,
+      linkSharingEnabled: Features.hasFeature('link-sharing'),
+    },
   })
 }
 
