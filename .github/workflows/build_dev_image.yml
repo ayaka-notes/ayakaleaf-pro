@@ -40,7 +40,9 @@ jobs:
             document-updater,
             docstore,
             chat,
-            clsi
+            clsi,
+            ldap,
+            saml
           ]
         platform: [linux/amd64, linux/arm64]
         include:
@@ -114,7 +116,9 @@ jobs:
           document-updater,
           docstore,
           chat,
-          clsi
+          clsi,
+          ldap,
+          saml
         ]
 
     steps:
@@ -143,6 +147,47 @@ jobs:
       - name: Inspect manifest
         run: |
           docker buildx imagetools inspect ${{ env.GHCR_REGISTRY }}/${GITHUB_REPOSITORY_OWNER,,}/overleaf-pro/dev:${{ matrix.image-name }}
+
+  # Start the dev env from the images just published, like bin/setup,
+  # and wait for the launchpad
+  test-dev-env:
+    runs-on: ${{ matrix.runner }}
+    needs: merge
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    env:
+      COMPOSE: docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.image.yml
+      # git-bridge and the debug tools are left out: git-bridge has no arm64 image
+      SERVICES: >-
+        mongo redis chat clsi clsi-nginx docstore document-updater filestore
+        history-v1 linked-url-proxy notifications project-history real-time
+        third-party-datastore web webpack ldap saml
+    steps:
+      - name: "Checkout Current Repository"
+        uses: actions/checkout@v7
+        with:
+          ref: server-pro
+      - name: "Start the dev env"
+        working-directory: develop
+        run: |
+          $COMPOSE pull $SERVICES
+          $COMPOSE up --no-deps --detach $SERVICES
+      # A fresh dev env has no admin, so the launchpad page renders without login
+      - name: "Wait for the launchpad"
+        run: |
+          timeout 900 bash -c 'until curl -sf http://127.0.0.1/launchpad | grep -q "name=\"ol-adminUserExists\""; do sleep 5; done'
+      - name: "Show the service logs"
+        if: failure()
+        working-directory: develop
+        run: |
+          $COMPOSE ps -a
+          $COMPOSE logs --tail 200 web webpack ldap saml
 
   clean-image:
     if: github.repository_owner == 'ayaka-notes'

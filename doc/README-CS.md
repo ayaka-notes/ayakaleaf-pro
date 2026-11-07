@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <a href="https://ayakaleaf-pro.ayaka.space"><img src="logo.png" alt="Ayakaleaf Pro" width="300"></a>
+  <a href="https://ayakaleaf-pro.ayaka.space"><picture><source media="(prefers-color-scheme: dark)" srcset="logo-dark.png"><img src="logo.png" alt="Ayakaleaf Pro" width="300"></picture></a>
 </h1>
 
 <h4 align="center">Overleaf Community Edition rozšířená o všechny funkce Pro <br/>(open source, zdarma k použití, s možností vlastního hostování).</h4>
@@ -58,10 +58,11 @@ Ayakaleaf Pro je rozšířená verze Overleaf s téměř všemi funkcemi a možn
 - Integrace s Mendeley (s podporou Mendeley OAuth)
 - Pokročilé vyhledávání citací (prohledávání všech vašich Bib záznamů)
 - Podpora Git-Bridge (clone, pull a push pomocí Git)
-- Administrační panel (globální správa uživatelů a projektů)
+- Kompletní administrační panel (uživatelé, projekty a šablony, s vyhledáváním, hromadnými akcemi, relacemi a auditními protokoly)
 - SSO přes LDAP a SAML nebo OAuth 2.0
 - Neomezená doba kompilace (nastavitelná v administračním panelu)
 - Samoregistrace (volitelná, lze omezit podle e-mailové domény)
+- reCAPTCHA (volitelná, při přihlášení, registraci a obnově hesla)
 - Kompilace v sandboxu (s podporou image [texlive-full](https://github.com/ayaka-notes/texlive-full))
 - Systém šablon (s galerií šablon)
 - Sledování změn (s panelem pro revize a komentáře)
@@ -117,9 +118,14 @@ Kód v tomto repozitáři je vydán pod licencí GNU AFFERO GENERAL PUBLIC LICEN
 - Copyright (c) [Pro Authors](https://ayakaleaf-pro.ayaka.space/on-premises/readme/features-and-copyright), 2026-now.
 
 ## Sponzoři
-- [Linux Do Community](https://linux.do)
-- [OpenAI Codex OSS](https://openai.com/en/form/codex-for-oss/)
-- [GitBook](https://www.gitbook.com/)
+
+<p align="center">
+  <a href="https://www.vultr.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/vultr-dark.svg"><img src="sponsors/vultr.svg" alt="Vultr" width="160"></picture></a>
+  <a href="https://linux.do"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/linux-do-dark.svg"><img src="sponsors/linux-do.svg" alt="Linux Do Community" width="160"></picture></a>
+  <a href="https://openai.com/en/form/codex-for-oss/"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/openai-codex-oss-dark.svg"><img src="sponsors/openai-codex-oss.svg" alt="OpenAI Codex OSS" width="160"></picture></a>
+  <a href="https://www.gitbook.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/gitbook-dark.svg"><img src="sponsors/gitbook.svg" alt="GitBook" width="160"></picture></a>
+  <a href="https://www.mintlify.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/mintlify-dark.svg"><img src="sponsors/mintlify.svg" alt="Mintlify" width="160"></picture></a>
+</p>
 
 ## Star History
 

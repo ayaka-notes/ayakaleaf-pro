@@ -1,4 +1,5 @@
 import { login } from '../../../helpers/login'
+import { expectOwnAuditEntry, expectProjectAuditEntry } from '../../../helpers/auditLog'
 import {
   createProject,
   openProject,
@@ -142,6 +143,8 @@ describe('linking the GitHub account', function () {
     githubWidget().findByRole('link', { name: 'Link' }).should('exist')
     connectionStatus().should('equal', false)
     expectTokensRevoked()
+    expectOwnAuditEntry(ADMIN_EMAIL, 'link-github')
+    expectOwnAuditEntry(ADMIN_EMAIL, 'unlink-github')
   })
 
   it('sends the app id, callback, scopes and a state to GitHub', function () {
@@ -259,6 +262,9 @@ describe('linking a project to a repository', function () {
           'Initial Overleaf import',
         ])
       })
+      expectProjectAuditEntry(projectId, 'integration-repo-linked', ADMIN_EMAIL)
+        .its('info.integration')
+        .should('equal', 'github')
     })
   })
 
@@ -319,6 +325,7 @@ describe('linking a project to a repository', function () {
       mockRepo(`${GITHUB_USER}/${name}`)
         .its('files')
         .should('have.property', 'main.tex')
+      expectProjectAuditEntry(projectId, 'integration-repo-unlinked', ADMIN_EMAIL)
     })
   })
 })
