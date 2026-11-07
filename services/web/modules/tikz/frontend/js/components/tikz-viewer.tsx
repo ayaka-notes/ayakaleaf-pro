@@ -8,6 +8,7 @@ import {
   TIKZ_STORAGE_KEY,
   encodeTikzHostMessage,
   handleTikzEmbedMessage,
+  isTikzFile,
   tikzEmbedUrl,
 } from '../util/tikz-protocol'
 import './tikz-viewer.css'
@@ -91,6 +92,15 @@ export default function TikzViewer () {
       case 'boot-load':
         if (bootedRef.current) return // replay guard
         bootedRef.current = true
+        // AK-12 (2026-11-07): file-kind gate — during a file switch the
+        // open doc (and the CM state it was read from) can still belong to
+        // the PREVIOUS file for a few ticks. Only ever feed the embed a
+        // document while a TikZ file is the open one; the CM-state guard
+        // below completes the load once the right document has landed.
+        if (!isTikzFile(openDocNameRef.current)) {
+          docRef.current = action.source
+          return
+        }
         // The embed requested a document: hand it the current source.
         post({ action: 'load', source: action.source, autosave: 1, fileName: openDocName ?? '' })
         setStatus('ready')
@@ -98,20 +108,32 @@ export default function TikzViewer () {
         return
 
       case 'ready':
-        if (!bootedRef.current) {
-          bootedRef.current = true
-          post({ action: 'load', source: docRef.current, autosave: 1, fileName: openDocName ?? '' })
-        }
+        if (bootedRef.current) return // boot-load already handled it
+        bootedRef.current = true
+        if (!isTikzFile(openDocNameRef.current)) return // AK-12 gate
+        post({ action: 'load', source: docRef.current, autosave: 1, fileName: openDocName ?? '' })
         setStatus('ready')
         setStatusText(t('tikz_status_ready'))
         return
 
-      case 'doc-update':
+      case 'doc-update': {
+        // AK-12: never write the canvas source into a non-TikZ document —
+        // if a file switch is in flight the open doc is the PREVIOUS file
+        // and the write-back would corrupt it. Drop the update and re-sync
+        // the canvas to the real open document instead.
+        if (!isTikzFile(openDocNameRef.current)) {
+          docRef.current = cmView ? cmView.state.doc.toString() : action.source
+          if (cmView) {
+            post({ action: 'load', source: docRef.current, autosave: 1, fileName: openDocNameRef.current ?? '' })
+          }
+          return
+        }
         writeDoc(action.source)
         // Tell the embed the host accepted the change (clears its
         // "unresolved changes" state after a host-side save).
         post({ action: 'status', modified: false })
         return
+      }
 
       case 'export-result':
         if (pendingExportRef.current) {
@@ -155,7 +177,13 @@ export default function TikzViewer () {
   useEffect(() => {
     if (!cmView) return
     const onDocChange = () => {
-      if (!bootedRef.current) return
+      // AK-12: only re-sync while a TikZ file is the open document. While a
+      // non-TikZ file is open, just track its content so that the switch
+      // back to the TikZ file is detected as a content change and pushed.
+      if (!isTikzFile(openDocNameRef.current)) {
+        docRef.current = cmView.state.doc.toString()
+        return
+      }
       const doc = cmView.state.doc
       const shown = docRef.current
       // NOTE: a length+head/tail "cheap identical" shortcut is NOT safe —
@@ -230,6 +258,7 @@ export default function TikzViewer () {
         ref={iframeRef}
         className="tikz-viewer-frame"
         title={t('tikz_title')}
+        key={openDocName}
         src={tikzEmbedUrl(readStorage())}
       />
     </div>
