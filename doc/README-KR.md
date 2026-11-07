@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <a href="https://ayakaleaf-pro.ayaka.space"><img src="logo.png" alt="Ayakaleaf Pro" width="300"></a>
+  <a href="https://ayakaleaf-pro.ayaka.space"><picture><source media="(prefers-color-scheme: dark)" srcset="logo-dark.png"><img src="logo.png" alt="Ayakaleaf Pro" width="300"></picture></a>
 </h1>
 
 <h4 align="center">모든 Pro 기능을 갖춘 Overleaf Community Edition 확장판 <br/>(오픈 소스, 무료 사용, 자체 호스팅 가능).</h4>
@@ -58,10 +58,11 @@ Ayakaleaf Pro는 거의 모든 기능을 갖춘 Overleaf의 확장판입니다. 
 - Mendeley 연동 (Mendeley OAuth 지원)
 - 고급 참고문헌 검색 (모든 Bib 항목 검색)
 - Git-Bridge 지원 (Git으로 클론, 풀, 푸시)
-- 관리자 패널 (전체 사용자/프로젝트 관리)
+- 완전한 관리자 패널 (사용자, 프로젝트, 템플릿 검색, 일괄 작업, 세션, 감사 로그)
 - LDAP, SAML 또는 OAuth 2.0을 통한 SSO
 - 무제한 컴파일 시간 (관리자 패널에서 조정 가능)
 - 자체 가입 (선택 사항, 메일 도메인으로 제한 가능)
+- reCAPTCHA (선택 사항, 로그인, 가입, 비밀번호 재설정에 적용)
 - 샌드박스 컴파일 ([texlive-full](https://github.com/ayaka-notes/texlive-full) 이미지 지원)
 - 템플릿 시스템 (템플릿 갤러리 포함)
 - 변경 내용 추적 (검토 및 댓글 패널 포함)
@@ -117,9 +118,14 @@ Overleaf 내부 구조, 컴파일 성능, 자체 호스팅 LaTeX 인프라에 �
 - Copyright (c) [Pro Authors](https://ayakaleaf-pro.ayaka.space/on-premises/readme/features-and-copyright), 2026-now.
 
 ## 후원
-- [Linux Do Community](https://linux.do)
-- [OpenAI Codex OSS](https://openai.com/en/form/codex-for-oss/)
-- [GitBook](https://www.gitbook.com/)
+
+<p align="center">
+  <a href="https://www.vultr.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/vultr-dark.svg"><img src="sponsors/vultr.svg" alt="Vultr" width="160"></picture></a>
+  <a href="https://linux.do"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/linux-do-dark.svg"><img src="sponsors/linux-do.svg" alt="Linux Do Community" width="160"></picture></a>
+  <a href="https://openai.com/en/form/codex-for-oss/"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/openai-codex-oss-dark.svg"><img src="sponsors/openai-codex-oss.svg" alt="OpenAI Codex OSS" width="160"></picture></a>
+  <a href="https://www.gitbook.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/gitbook-dark.svg"><img src="sponsors/gitbook.svg" alt="GitBook" width="160"></picture></a>
+  <a href="https://www.mintlify.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/mintlify-dark.svg"><img src="sponsors/mintlify.svg" alt="Mintlify" width="160"></picture></a>
+</p>
 
 ## Star History
 

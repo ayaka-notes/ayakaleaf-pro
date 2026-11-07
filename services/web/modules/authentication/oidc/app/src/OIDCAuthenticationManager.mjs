@@ -4,6 +4,11 @@ import UserCreator from '../../../../../app/src/Features/User/UserCreator.mjs'
 import ThirdPartyIdentityManager from '../../../../../app/src/Features/User/ThirdPartyIdentityManager.mjs'
 import { ParallelLoginError } from '../../../../../app/src/Features/Authentication/AuthenticationErrors.mjs'
 import { User } from '../../../../../app/src/models/User.mjs'
+import {
+  accountBeforeLogin,
+  logLoginChanges,
+  logLoginEntry,
+} from '../../../auditLog.mjs'
 
 const OIDCAuthenticationManager = {
   async findOrCreateUser(profile, auditLog) {
@@ -67,6 +72,7 @@ const OIDCAuthenticationManager = {
             analyticsId: crypto.randomUUID(),
           }
         )
+        await logLoginEntry(user, 'create-account', auditLog)
       }
 //    const alreadyLinked = user.thirdPartyIdentifiers.some(item => item.providerId === providerId)
 //    if (!alreadyLinked) {
@@ -84,6 +90,7 @@ const OIDCAuthenticationManager = {
 //    }
     }
 
+    const before = accountBeforeLogin(user)
     let userDetails = updateUserDetailsOnLogin ? { first_name : firstName, last_name: lastName } : {}
     if (attAdmin && valAdmin) {
       user.isAdmin = isAdmin
@@ -97,6 +104,7 @@ const OIDCAuthenticationManager = {
     if (result.modifiedCount !== 1) {
       throw new ParallelLoginError()
     }
+    await logLoginChanges(user, before, userDetails, auditLog)
     return user
   },
   async linkAccount(userId, profile, auditLog) {

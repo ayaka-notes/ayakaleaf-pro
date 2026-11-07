@@ -14,6 +14,11 @@ on:
         description: "Ops image tag to test"
         type: string
         default: latest
+      arch:
+        description: "Platforms to test, arm64 runs after amd64"
+        type: choice
+        options: [both, amd64, arm64]
+        default: both
   schedule:
     # One hour after the development images are built
     - cron: '0 1 * * *'
@@ -26,9 +31,12 @@ env:
 jobs:
   # Deploy the image with the toolkit and run one suite per runner,
   # see server-ce/test/README.md
-  e2e-test:
+  e2e-amd64:
+    if: ${{ (inputs.arch || 'both') != 'arm64' }}
     runs-on: ubuntu-26.04
-    strategy:
+    env:
+      ARCH: amd64
+    strategy: &strategy
       fail-fast: false
       # Every suite runs a whole Overleaf; pulling the ops image takes about 20s
       # per job, and a failed setup (e.g. a rate-limited pull) is retried below
@@ -63,7 +71,7 @@ jobs:
             authentication/saml,
             authentication/oidc
           ]
-    steps:
+    steps: &steps
       - name: "Checkout Current Repository"
         uses: actions/checkout@v7
 
@@ -106,7 +114,7 @@ jobs:
         if: failure()
         run: |
           suite="${{matrix.suite}}"
-          echo "name=e2e-${suite//\//-}-screenshots" >> $GITHUB_OUTPUT
+          echo "name=e2e-$ARCH-${suite//\//-}-screenshots" >> $GITHUB_OUTPUT
       - name: "Upload Cypress Screenshots"
         if: failure()
         uses: actions/upload-artifact@v7
@@ -115,3 +123,14 @@ jobs:
           path: server-ce/test/toolkit/cypress/results
           if-no-files-found: ignore
           retention-days: 7
+
+  # The same suites on arm64, once amd64 is done so both do not share the
+  # concurrent job limit; runs even when an amd64 suite failed
+  e2e-arm64:
+    needs: e2e-amd64
+    if: ${{ !cancelled() && (inputs.arch || 'both') != 'amd64' }}
+    runs-on: ubuntu-26.04-arm
+    env:
+      ARCH: arm64
+    strategy: *strategy
+    steps: *steps

@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Usage: services/recaptcha-mock/bin/prepare
+#
+# Runs before the toolkit's bin/up. Writes the mock's certificate for
+# www.google.com, puts its CA into data/overleaf/certs/ where the variant's
+# NODE_EXTRA_CA_CERTS points, and gives the mock the secret key the variant
+# sets as RECAPTCHA_SECRET_KEY. The keys stay out of variables.env, the suite
+# itself runs without a captcha.
+#
+# Expects TOOLKIT_DIR in the environment.
+
+set -euo pipefail
+
+services="$(cd "$(dirname "$0")/../.." && pwd)"
+state="$TOOLKIT_DIR/services/recaptcha-mock"
+
+"$services/lib/make-tls" "$state" www.google.com
+mkdir -p "$TOOLKIT_DIR/data/overleaf/certs"
+cp "$state/ca.crt" "$TOOLKIT_DIR/data/overleaf/certs/recaptcha-mock-ca.pem"
+
+cat >"$state/mock.env" <<ENV
+RECAPTCHA_MOCK_SECRET=e2e-recaptcha-secret
+ENV

@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid'
 import { adminUserInfo, setSuspended } from '../../../helpers/adminTools'
 import { login } from '../../../helpers/login'
+import { expectOwnAuditEntry } from '../../../helpers/auditLog'
 import { postWithCsrf, requestWithCsrf } from '../../../helpers/request'
 import { ADMIN_EMAIL, ensureUserExists } from '../../../helpers/users'
 
@@ -103,6 +104,14 @@ describe('git authentication tokens in the account settings', function () {
     cy.findByRole('button', { name: 'Add another token' }).should('not.exist')
     // No table without tokens
     cy.findByText('Created at').should('not.exist')
+  })
+
+  it('tells about a created and a deleted token on the audit log', function () {
+    createToken()
+    deleteAllTokens()
+    login(ADMIN_EMAIL)
+    expectOwnAuditEntry(owner, 'create-git-token')
+    expectOwnAuditEntry(owner, 'delete-git-token')
   })
 
   it('shows a new token once, then only its start with its dates', function () {

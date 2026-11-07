@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid'
 import { setSuspended } from '../../../helpers/adminTools'
 import { DEFAULT_PASSWORD, login } from '../../../helpers/login'
+import { resetRecaptchaMock, verifiedTokens } from '../../../helpers/recaptcha'
 import { postRegister, waitForRegisterSlot } from '../../../helpers/register'
 import { postWithCsrf } from '../../../helpers/request'
 import { ADMIN_EMAIL, ensureUserExists } from '../../../helpers/users'
@@ -37,11 +38,30 @@ describe('login', function () {
     cy.findByRole('button', { name: 'Login' })
   })
 
+  it('links the sign up page instead of the header links', function () {
+    cy.findByRole('link', { name: 'Sign up' }).should(
+      'have.attr',
+      'href',
+      '/register'
+    )
+    cy.get('.navbar-right').should('not.exist')
+  })
+
   it('logs in with the right password', function () {
     cy.findByLabelText('Email').type(user)
     cy.findByLabelText('Password').type(DEFAULT_PASSWORD)
     cy.findByRole('button', { name: 'Login' }).click()
     cy.url().should('contain', '/project')
+  })
+
+  it('logs in without a captcha when no site key is set', function () {
+    resetRecaptchaMock()
+    cy.get('script[src*="recaptcha"]').should('not.exist')
+    cy.findByLabelText('Email').type(user)
+    cy.findByLabelText('Password').type(DEFAULT_PASSWORD)
+    cy.findByRole('button', { name: 'Login' }).click()
+    cy.url().should('contain', '/project')
+    verifiedTokens().should('deep.equal', [])
   })
 
   it('treats the email case-insensitively', function () {
@@ -111,6 +131,16 @@ describe('register', function () {
     cy.findByLabelText('email')
     cy.findByLabelText('password')
     cy.findByRole('button', { name: 'Create account' })
+  })
+
+  it('links the login page instead of the header links', function () {
+    cy.visit('/register')
+    cy.findByRole('link', { name: 'Login' }).should(
+      'have.attr',
+      'href',
+      '/login'
+    )
+    cy.get('.navbar-right').should('not.exist')
   })
 
   it('creates an account that can log in', function () {

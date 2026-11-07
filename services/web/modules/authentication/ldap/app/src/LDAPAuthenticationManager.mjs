@@ -4,6 +4,11 @@ import UserCreator from '../../../../../app/src/Features/User/UserCreator.mjs'
 import { ParallelLoginError } from '../../../../../app/src/Features/Authentication/AuthenticationErrors.mjs'
 import { User } from '../../../../../app/src/models/User.mjs'
 import { splitFullName, firstValue } from '../../../utils.mjs'
+import {
+  accountBeforeLogin,
+  logLoginChanges,
+  logLoginEntry,
+} from '../../../auditLog.mjs'
 
 const LDAPAuthenticationManager = {
   async findOrCreateUser(profile, auditLog) {
@@ -50,7 +55,9 @@ const LDAPAuthenticationManager = {
         { _id: user._id },
         { $set : { 'emails.0.confirmedAt' : Date.now() } }
       ).exec() //email of ldap user is confirmed
+      await logLoginEntry(user, 'create-account', auditLog)
     }
+    const before = accountBeforeLogin(user)
     let userDetails = updateUserDetailsOnLogin ? { first_name : firstName, last_name: lastName } : {}
     if( attAdmin && valAdmin ) {
       user.isAdmin = isAdmin
@@ -67,6 +74,10 @@ const LDAPAuthenticationManager = {
     if (result.modifiedCount !== 1) {
       throw new ParallelLoginError()
     }
+    if (before.hasPassword) {
+      await logLoginEntry(user, 'remove-password', auditLog)
+    }
+    await logLoginChanges(user, before, userDetails, auditLog)
     return user
   },
 }

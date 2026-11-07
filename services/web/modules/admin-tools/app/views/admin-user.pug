@@ -1,0 +1,16 @@
+extends ../../../../app/views/layout-react
+
+block entrypointVar
+	- entrypoint = 'modules/admin-tools/pages/admin-user'
+
+block vars
+	- isWebsiteRedesign = true
+
+block append meta
+	meta(name='ol-adminUser' data-type='json' content=adminUser)
+	//- read by the row actions shared with the user list
+	meta(name='ol-adminUsersOptions' data-type='json' content=adminUsersOptions)
+
+block content
+	main.content.content-alt#main-content
+		#admin-user-root

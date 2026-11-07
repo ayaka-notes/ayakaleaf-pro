@@ -1,5 +1,6 @@
 import { git, workingCopy } from '../../../helpers/git'
 import { login } from '../../../helpers/login'
+import { expectOwnAuditEntry, expectProjectAuditEntry } from '../../../helpers/auditLog'
 import {
   createProject,
   openProject,
@@ -361,6 +362,12 @@ describe('linking the Gitea account', function () {
       .click()
     giteaWidget().findByRole('link', { name: 'Link' }).should('exist')
     connectionStatus().should('equal', false)
+    expectOwnAuditEntry(ADMIN_EMAIL, 'integration-account-linked')
+      .its('info.integration')
+      .should('equal', 'gitea')
+    expectOwnAuditEntry(ADMIN_EMAIL, 'integration-account-unlinked')
+      .its('info.integration')
+      .should('equal', 'gitea')
   })
 
   it('sends the application id, callback, scopes and a state to Gitea', function () {
@@ -496,6 +503,9 @@ describe('linking a project to a repository', function () {
         .then(commits => commits.map(c => c.commit.message.trim()))
         .should('deep.equal', ['Initial Overleaf import'])
       repoBranches(fullName).should('deep.equal', ['main'])
+      expectProjectAuditEntry(projectId, 'integration-repo-linked', ADMIN_EMAIL)
+        .its('info.integration')
+        .should('equal', 'gitea')
     })
   })
 
@@ -553,6 +563,7 @@ describe('linking a project to a repository', function () {
         .should('equal', 'need-export')
       // The repository stays on Gitea
       repoFiles(`${GITEA_USER}/${name}`).should('have.property', 'main.tex')
+      expectProjectAuditEntry(projectId, 'integration-repo-unlinked', ADMIN_EMAIL)
     })
   })
 })

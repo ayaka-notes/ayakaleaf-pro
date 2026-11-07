@@ -1,4 +1,5 @@
 import { login } from '../../../helpers/login'
+import { expectOwnAuditEntry } from '../../../helpers/auditLog'
 import {
   createProject,
   openProject,
@@ -83,6 +84,12 @@ describe('linking a Mendeley account', function () {
     tokenRequests().should('deep.equal', ['authorization_code'])
 
     unlinkReferenceManager('mendeley')
+    expectOwnAuditEntry(ADMIN_EMAIL, 'integration-account-linked')
+      .its('info.integration')
+      .should('equal', 'mendeley')
+    expectOwnAuditEntry(ADMIN_EMAIL, 'integration-account-unlinked')
+      .its('info.integration')
+      .should('equal', 'mendeley')
   })
 
   it('keeps the account when unlinking is cancelled', function () {
