@@ -54,13 +54,11 @@ export default function SymbolPaletteBody({
           aria-labelledby={`symbol-palette-tab-${category.id}`}
           hidden={category.id !== activeCategoryId}
         >
-          {category.id === activeCategoryId && (
-            <SymbolPaletteItems
-              items={categorisedSymbols[category.id]}
-              handleSelect={handleSelect}
-              focusInput={focusInput}
-            />
-          )}
+          <SymbolPaletteItems
+            items={categorisedSymbols[category.id]}
+            handleSelect={handleSelect}
+            focusInput={focusInput}
+          />
         </div>
       ))}
     </div>

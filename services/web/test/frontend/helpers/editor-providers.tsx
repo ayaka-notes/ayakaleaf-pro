@@ -648,25 +648,17 @@ export function makeEditorPropertiesProvider(
   initialValues: Partial<
     Pick<
       EditorPropertiesContextValue,
-      'showVisual' | 'showSymbolPalette' | 'wantTrackChanges'
+      'showVisual' | 'wantTrackChanges'
     >
   >
 ) {
   const EditorPropertiesProvider: FC<PropsWithChildren> = ({ children }) => {
     const {
       showVisual: initialShowVisual,
-      showSymbolPalette: initialShowSymbolPalette,
       wantTrackChanges: initialWantTrackChanges,
     } = initialValues
 
     const [showVisual, setShowVisual] = useState(initialShowVisual || false)
-    const [showSymbolPalette, setShowSymbolPalette] = useState(
-      initialShowSymbolPalette || false
-    )
-
-    function toggleSymbolPalette() {
-      setShowSymbolPalette(show => !show)
-    }
 
     const [opening, setOpening] = useState(true)
     const [trackChanges, setTrackChanges] = useState(false)
@@ -679,9 +671,6 @@ export function makeEditorPropertiesProvider(
       showVisual,
       setShowVisual,
       showVisualForFile: () => showVisual,
-      showSymbolPalette,
-      setShowSymbolPalette,
-      toggleSymbolPalette,
       opening,
       setOpening,
       trackChanges,

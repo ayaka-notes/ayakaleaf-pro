@@ -14,7 +14,6 @@ import { LegacyTableDropdown } from './table-inserter-dropdown-legacy'
 import { withinFormattingCommand } from '@/features/source-editor/utils/tree-operations/formatting'
 import { isMac } from '@/shared/utils/os'
 import { useProjectContext } from '@/shared/context/project-context'
-import { useEditorPropertiesContext } from '@/features/ide-react/context/editor-properties-context'
 import { usePermissionsContext } from '@/features/ide-react/context/permissions-context'
 import { isCursorOnEmptyLine } from '@/features/source-editor/utils/is-cursor-on-empty-line'
 import importOverleafModules from '../../../../../macros/import-overleaf-module.macro'
@@ -42,8 +41,6 @@ export const ToolbarItems: FC<{
   listDepth,
 }) {
   const { t } = useTranslation()
-  const { showSymbolPalette, toggleSymbolPalette } =
-    useEditorPropertiesContext()
   const { writefullInstance } = useEditorContext()
   const { features } = useProjectContext()
   const permissions = usePermissionsContext()
@@ -105,8 +102,13 @@ export const ToolbarItems: FC<{
                 <ToolbarButton
                   id="toolbar-toggle-symbol-palette"
                   label={t('toolbar_insert_symbol')}
-                  active={showSymbolPalette}
-                  command={toggleSymbolPalette}
+                  command={() =>
+                    window.dispatchEvent(
+                      new CustomEvent('ui:select-rail-tab', {
+                        detail: { tab: 'symbol-palette', open: true },
+                      })
+                    )
+                  }
                   icon="Ω"
                   textIcon
                   className="ol-cm-toolbar-button-math"
