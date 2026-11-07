@@ -189,13 +189,7 @@ export default LinkedFilesController = {
   refreshLinkedFile: expressify(refreshLinkedFile),
 
   handleError(error, req, res, next) {
-    if (
-      error instanceof AccessDeniedError &&
-      error.message === 'Zotero account not linked'
-    ) {
-      res.status(400)
-      plainTextResponse(res, 'Your account is not linked with Zotero')
-    } else if (error instanceof AccessDeniedError) {
+    if (error instanceof AccessDeniedError) {
       res.status(403)
       plainTextResponse(
         res,

@@ -1,6 +1,5 @@
 import { expect, vi } from 'vitest'
 import sinon from 'sinon'
-import LinkedFilesErrors from '../../../../app/src/Features/LinkedFiles/LinkedFilesErrors.mjs'
 const modulePath =
   '../../../../app/src/Features/LinkedFiles/LinkedFilesController.mjs'
 
@@ -224,32 +223,6 @@ describe('LinkedFilesController', function () {
             ctx.next
           )
         })
-      })
-    })
-
-    it('returns error 400 if Zotero account is not linked', async function (ctx) {
-      ctx.Agent.promises.refreshLinkedFile = sinon
-        .stub()
-        .rejects(
-          new LinkedFilesErrors.AccessDeniedError('Zotero account not linked')
-        )
-
-      await new Promise(resolve => {
-        ctx.next = sinon.stub().callsFake(() => resolve('unexpected error'))
-        ctx.res = {
-          status: sinon.stub().callsFake(code => {
-            expect(code).to.equal(400)
-            return ctx.res
-          }),
-          contentType: sinon.stub(),
-          setHeader: sinon.stub(),
-          send: sinon.stub(msg => {
-            expect(msg).to.equal('Your account is not linked with Zotero')
-            resolve()
-          }),
-        }
-
-        ctx.LinkedFilesController.refreshLinkedFile(ctx.req, ctx.res, ctx.next)
       })
     })
   })
