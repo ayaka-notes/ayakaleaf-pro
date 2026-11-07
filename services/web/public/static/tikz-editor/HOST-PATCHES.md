@@ -39,6 +39,20 @@ in-embed Ctrl+N / Ctrl+S / Ctrl+W shortcuts):
     [G.CLOSE_DOCUMENT]:{enabled:EXPR,...  -> enabled:!1
     [G.CLOSE_ALL_DOCUMENTS]:{enabled:EXPR,... -> enabled:!1
 
+### 1b. Document-tab-strip buttons (same commit, same rationale)
+
+The tab strip's "+" (new document) and × (close) buttons dispatch the
+NEW_DOCUMENT / CLOSE_DOCUMENT state actions DIRECTLY (they do not go
+through the command map), so they were disabled separately:
+
+    tab-new button:  className:Mo.add,onClick:()=>{r({type:"NEW_DOCUMENT"})}
+      -> className:Mo.add,disabled:!0,onClick:()=>{}
+    tab close button: className:Mo.close,...onClick:()=>{...CLOSE_DOCUMENT...}
+      -> className:Mo.close,disabled:!0,...,onClick:()=>{}
+
+Buttons render greyed (disabled) — visible affordance that the
+document lifecycle is owned by Overleaf.
+
 Kept (compatible with project storage): Open Example..., Import
 (Ipe/PowerPoint/SVG — loads content into the current document), Export
 (SVG/Standalone LaTeX/PDF/PNG downloads, Copy as SVG), Show Compiled
