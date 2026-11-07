@@ -7,6 +7,7 @@ import {
 } from '../../../helpers/project'
 import {
   bibEntry,
+  describeTurnedOffForAUser,
   clickRefresh,
   countEntries,
   expectReferencesSearchable,
@@ -363,3 +364,5 @@ describe('importing from Mendeley', function () {
     })
   })
 })
+
+describeTurnedOffForAUser('mendeley')

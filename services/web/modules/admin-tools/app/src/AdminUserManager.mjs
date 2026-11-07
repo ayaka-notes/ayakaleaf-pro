@@ -30,6 +30,7 @@ import {
   getTokenUsage,
   resetTokenUsage,
 } from '../../../workbench/app/src/TokenQuota.mjs'
+import { rememberAdminFeatures } from './AdminFeatures.mjs'
 import {
   deleteUserEntries,
   logOnAdmin,
@@ -471,6 +472,7 @@ async function updateUser(userId, body, admin) {
     throw OError.tag(err, 'problem updating user settings', { userId })
   })
   if (disabling) await disableUser(userId, admin)
+  if (changes.features) await rememberAdminFeatures(userId, features)
 
   // a new password ends what the old one opened, as when the user changes it.
   // Before the log: a failed entry must not leave them open

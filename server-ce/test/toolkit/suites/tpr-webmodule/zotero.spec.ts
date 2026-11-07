@@ -7,6 +7,7 @@ import {
 } from '../../../helpers/project'
 import {
   bibEntry,
+  describeTurnedOffForAUser,
   clickRefresh,
   countEntries,
   expectReferencesSearchable,
@@ -343,3 +344,5 @@ describe('importing from Zotero', function () {
     })
   })
 })
+
+describeTurnedOffForAUser('zotero')

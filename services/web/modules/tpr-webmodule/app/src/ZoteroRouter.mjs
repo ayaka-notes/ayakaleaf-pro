@@ -1,5 +1,9 @@
 import AuthenticationController from '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
+import { requireUserFeature } from '../../../instance-features/app/src/UserFeatures.mjs'
 import ZoteroController from './ZoteroController.mjs'
+
+// Unlinking stays open: a user can always let go of the account
+const requireZotero = requireUserFeature('zotero')
 
 export default {
   apply(webRouter) {
@@ -7,6 +11,7 @@ export default {
     webRouter.get(
       '/zotero/groups',
       AuthenticationController.requireLogin(),
+      requireZotero,
       ZoteroController.getGroups
     )
 
@@ -14,6 +19,7 @@ export default {
     webRouter.get(
       '/user/zotero/oauth',
       AuthenticationController.requireLogin(),
+      requireZotero,
       ZoteroController.oauth
     )
 
@@ -21,6 +27,7 @@ export default {
     webRouter.get(
       '/user/zotero/oauth/callback',
       AuthenticationController.requireLogin(),
+      requireZotero,
       ZoteroController.oauthCallback
     )
 

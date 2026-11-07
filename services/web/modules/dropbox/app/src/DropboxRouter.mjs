@@ -3,6 +3,7 @@ import AuthenticationController from '../../../../app/src/Features/Authenticatio
 import AuthorizationMiddleware from '../../../../app/src/Features/Authorization/AuthorizationMiddleware.mjs'
 import RateLimiterMiddleware from '../../../../app/src/Features/Security/RateLimiterMiddleware.mjs'
 import { RateLimiter } from '../../../../app/src/infrastructure/RateLimiter.mjs'
+import { requireUserFeature } from '../../../instance-features/app/src/UserFeatures.mjs'
 import DropboxController from './DropboxController.mjs'
 
 // 'Manual syncing is limited to one per minute' (dropbox_sync_now_rate_limited)
@@ -10,6 +11,10 @@ const syncNowRateLimiter = new RateLimiter('dropbox-sync-now', {
   points: 1,
   duration: 60,
 })
+
+// Unlinking stays open. Turning the feature off unlinks the account (the
+// removeDropbox hook), which also ends the webhook's and the file sync's work.
+const requireDropbox = requireUserFeature('dropbox')
 
 export default {
   apply(webRouter, privateApiRouter, publicApiRouter) {
@@ -19,6 +24,7 @@ export default {
     webRouter.get(
       '/user/dropbox/oauth',
       AuthenticationController.requireLogin(),
+      requireDropbox,
       DropboxController.oauth2
     )
 
@@ -26,6 +32,7 @@ export default {
     webRouter.get(
       '/user/dropbox/oauth/callback',
       AuthenticationController.requireLogin(),
+      requireDropbox,
       DropboxController.oauth2Callback
     )
 
@@ -38,6 +45,7 @@ export default {
     webRouter.get(
       '/user/dropbox/status',
       AuthenticationController.requireLogin(),
+      requireDropbox,
       DropboxController.getStatus
     )
 
@@ -45,6 +53,7 @@ export default {
       '/project/:Project_id/dropbox',
       AuthenticationController.requireLogin(),
       AuthorizationMiddleware.ensureUserCanReadProject,
+      requireDropbox,
       DropboxController.getProjectFolder
     )
 
@@ -52,6 +61,7 @@ export default {
       '/project/:Project_id/dropbox/sync-now',
       AuthenticationController.requireLogin(),
       AuthorizationMiddleware.ensureUserCanReadProject,
+      requireDropbox,
       RateLimiterMiddleware.rateLimit(syncNowRateLimiter, {
         params: ['Project_id'],
       }),

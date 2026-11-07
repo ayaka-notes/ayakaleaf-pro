@@ -930,7 +930,7 @@ describe('AI turned off for a user', function () {
     })
   })
 
-  it('refuses the chat and disables the prompt', function () {
+  it('refuses the chat and hides the assistant', function () {
     login(offUser)
     cy.request('/workbench/access')
       .its('body')
@@ -942,9 +942,9 @@ describe('AI turned off for a user', function () {
     })
 
     openNewProject()
-    openAssistant()
-    panel().findByRole('region', { name: 'Give AI consent' }).should('not.exist')
-    panel().find('[data-chat-input]').should('have.attr', 'inert')
+    cy.findByRole('tab', { name: 'File tree' }).should('exist')
+    cy.findByRole('tab', { name: 'AI assistant' }).should('not.exist')
+    panel().should('not.exist')
     chatRequests().should('have.length', 0)
   })
 

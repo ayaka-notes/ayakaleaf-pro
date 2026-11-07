@@ -1,4 +1,5 @@
 import { v4 as uuid } from 'uuid'
+import { expectRoutesAnswer, setUserFeatures } from '../../../helpers/adminTools'
 import { login } from '../../../helpers/login'
 import {
   createProject,
@@ -554,5 +555,152 @@ describe('permissions', function () {
     cy.request(`/project/${projectId}/threads`)
       .its('body')
       .should('not.have.property', reviewerThread)
+  })
+})
+
+describe('a project whose owner has track changes turned off', function () {
+  const lockedOwner = `locked-owner-${uuid()}@example.com`
+  const member = `locked-member-${uuid()}@example.com`
+  const invited = `locked-invited-${uuid()}@example.com`
+
+  before(function () {
+    ensureUserExists(lockedOwner)
+    ensureUserExists(member)
+  })
+
+  it('cannot track or get reviewers, keeps its comments, until it is on again', function () {
+    login(lockedOwner)
+    createProject(projectName('Locked')).then(projectId => {
+      shareProject(projectId, member, 'readAndWrite')
+      login(lockedOwner)
+      cy.request(`/project/${projectId}/members`).then(({ body }) => {
+        const memberId = body.members.find(
+          (m: { email: string }) => m.email === member
+        )._id
+
+        login(ADMIN_EMAIL)
+        setUserFeatures(lockedOwner, { trackChanges: false })
+
+        login(lockedOwner)
+        cy.visit('/project')
+        expectRoutesAnswer(403, [
+          [
+            'POST',
+            `/project/${projectId}/track_changes`,
+            { on_for: { [memberId]: true } },
+          ],
+          [
+            'POST',
+            `/project/${projectId}/track_changes`,
+            { on_for_guests: true },
+          ],
+          [
+            'POST',
+            `/project/${projectId}/invite`,
+            { email: invited, privileges: 'review' },
+          ],
+          [
+            'PUT',
+            `/project/${projectId}/users/${memberId}`,
+            { privilegeLevel: 'review' },
+          ],
+        ])
+        // Other roles are not the feature's business
+        postWithCsrf(`/project/${projectId}/invite`, {
+          email: invited,
+          privileges: 'readAndWrite',
+        })
+          .its('status')
+          .should('equal', 200)
+
+        openProject(projectId)
+        openReviewPanel()
+        addComment(projectId, 'Introduction', 'Still a comment')
+
+        login(ADMIN_EMAIL)
+        setUserFeatures(lockedOwner, { trackChanges: true })
+
+        login(lockedOwner)
+        cy.visit('/project')
+        expectRoutesAnswer(204, [
+          [
+            'POST',
+            `/project/${projectId}/track_changes`,
+            { on_for: { [memberId]: true } },
+          ],
+          [
+            'PUT',
+            `/project/${projectId}/users/${memberId}`,
+            { privilegeLevel: 'review' },
+          ],
+        ])
+      })
+    })
+  })
+
+  it('goes by the owner, not by a collaborator with it turned off', function () {
+    const offCollaborator = `locked-collaborator-${uuid()}@example.com`
+    ensureUserExists(offCollaborator)
+    login(ADMIN_EMAIL)
+    setUserFeatures(offCollaborator, { trackChanges: false })
+    login(owner)
+    createProject(projectName('Unlocked')).then(projectId => {
+      shareProject(projectId, offCollaborator, 'readAndWrite')
+      cy.visit('/project')
+      expectRoutesAnswer(204, [
+        [
+          'POST',
+          `/project/${projectId}/track_changes`,
+          { on_for_guests: true },
+        ],
+      ])
+    })
+  })
+
+  it('can still turn tracking off, but not back on', function () {
+    const trackingOwner = `tracking-owner-${uuid()}@example.com`
+    const tracked = `tracked-member-${uuid()}@example.com`
+    ensureUserExists(trackingOwner)
+    ensureUserExists(tracked)
+    login(trackingOwner)
+    createProject(projectName('Tracked')).then(projectId => {
+      shareProject(projectId, tracked, 'readAndWrite')
+      login(trackingOwner)
+      cy.request(`/project/${projectId}/members`).then(({ body }) => {
+        const trackedId = body.members.find(
+          (m: { email: string }) => m.email === tracked
+        )._id
+        const trackChanges = `/project/${projectId}/track_changes`
+
+        cy.visit('/project')
+        expectRoutesAnswer(204, [
+          [
+            'POST',
+            trackChanges,
+            { on_for: { [trackedId]: true }, on_for_guests: true },
+          ],
+        ])
+
+        login(ADMIN_EMAIL)
+        setUserFeatures(trackingOwner, { trackChanges: false })
+
+        login(trackingOwner)
+        cy.visit('/project')
+        expectRoutesAnswer(204, [
+          // what is on already, sent again as the editor does
+          ['POST', trackChanges, { on_for: { [trackedId]: true } }],
+          [
+            'POST',
+            trackChanges,
+            { on_for: { [trackedId]: false }, on_for_guests: false },
+          ],
+        ])
+        // off now, so these turn it on again
+        expectRoutesAnswer(403, [
+          ['POST', trackChanges, { on_for: { [trackedId]: true } }],
+          ['POST', trackChanges, { on_for_guests: true }],
+        ])
+      })
+    })
   })
 })

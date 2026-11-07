@@ -261,9 +261,13 @@ describe('editing the account', function () {
 
 describe('features', function () {
   const address = email('features')
+  const refreshAddress = email('refresh')
+  const limitOwner = email('collaborator-limit')
 
   before(function () {
     createUser(address)
+    createUser(refreshAddress)
+    createUser(limitOwner)
   })
 
   beforeEach(function () {
@@ -327,6 +331,69 @@ describe('features', function () {
       postWithCsrf(`/admin/user/${id}/update`, { lastName: 'n'.repeat(255) })
         .its('status')
         .should('equal', 200)
+    })
+  })
+
+  it('keeps what the admin set when a change of email refreshes the features', function () {
+    userId(refreshAddress).then(id => {
+      const update = (body: Record<string, unknown>) =>
+        postWithCsrf(`/admin/user/${id}/update`, body)
+          .its('status')
+          .should('equal', 200)
+      update({
+        features: {
+          trackChanges: false,
+          versioning: false,
+          dropbox: false,
+          collaborators: 3,
+          compileTimeout: 240,
+        },
+      })
+      update({ email: email('refresh-1') })
+      // A later change of a switch joins the earlier ones
+      update({ features: { versioning: true, compileTimeout: 120 } })
+      update({ email: email('refresh-2') })
+      visitUser(id, 'features')
+      detail('Collaborators per project').should('contain.text', '3')
+      detail('Compile timeout').should('contain.text', '120s')
+      detail('Track changes').find('.material-symbols').should('contain.text', 'remove')
+      detail('Dropbox').find('.material-symbols').should('contain.text', 'remove')
+      detail('Full project history').find('.material-symbols').should('contain.text', 'check')
+    })
+  })
+
+  it('stops editors over the collaborator limit, and not viewers, until it is raised', function () {
+    userId(limitOwner).then(id => {
+      postWithCsrf(`/admin/user/${id}/update`, {
+        features: { collaborators: 1 },
+      })
+        .its('status')
+        .should('equal', 200)
+    })
+    login(limitOwner)
+    createProject(projectName('Limit')).then(projectId => {
+      cy.visit('/project')
+      const invite = (name: string, privileges: string) =>
+        postWithCsrf(`/project/${projectId}/invite`, {
+          email: email(name),
+          privileges,
+        }).then(response => response.body.invite)
+      invite('limit-editor-1', 'readAndWrite').should('not.equal', null)
+      invite('limit-editor-2', 'readAndWrite').should('equal', null)
+      invite('limit-viewer', 'readOnly').should('not.equal', null)
+
+      login(ADMIN_EMAIL)
+      userId(limitOwner).then(id => {
+        visitUser(id, 'features')
+        postWithCsrf(`/admin/user/${id}/update`, {
+          features: { collaborators: -1 },
+        })
+          .its('status')
+          .should('equal', 200)
+      })
+      login(limitOwner)
+      cy.visit('/project')
+      invite('limit-editor-2', 'readAndWrite').should('not.equal', null)
     })
   })
 
