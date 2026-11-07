@@ -2,7 +2,9 @@ import crypto from 'node:crypto'
 import logger from '@overleaf/logger'
 import Settings from '@overleaf/settings'
 import { promiseMapWithLimit } from '@overleaf/promise-utils'
+import { fromZodError } from 'zod-validation-error'
 import { db } from '../../../../app/src/infrastructure/mongodb.mjs'
+import { z } from '../../../../app/src/infrastructure/Validation.mjs'
 import { User } from '../../../../app/src/models/User.mjs'
 import { DeletedUser } from '../../../../app/src/models/DeletedUser.mjs'
 import { DeletedProject } from '../../../../app/src/models/DeletedProject.mjs'
@@ -30,6 +32,7 @@ import {
 import { logOnAdmin, logOnUser } from './AdminAuditLog.mjs'
 import { FailedError, InvalidEmailError, RefusedError } from './AdminErrors.mjs'
 import { isObjectId } from './AdminQueryHelper.mjs'
+import AdminUserListManager from './AdminUserListManager.mjs'
 
 // What an admin does to an account: creating and activating it, editing it,
 // giving its projects away, deleting, restoring and purging it, its sessions
@@ -201,25 +204,45 @@ async function getActivationLink(userId) {
 
 // ---- editing ----
 
+// What the panel's forms send, and nothing else: the rest of the user document
+// is not for them. assertUpdateAllowed has the limits of the numbers
+const featureSwitch = z.boolean().optional()
+const updateSchema = z.strictObject({
+  email: z.string().optional(),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  password: z.string().optional(),
+  isAdmin: z.boolean().optional(),
+  suspended: z.boolean().optional(),
+  features: z
+    .strictObject({
+      collaborators: z.number().optional(),
+      compileTimeout: z.number().optional(),
+      trackChanges: featureSwitch,
+      versioning: featureSwitch,
+      symbolPalette: featureSwitch,
+      gitBridge: featureSwitch,
+      dropbox: featureSwitch,
+      github: featureSwitch,
+      zotero: featureSwitch,
+      mendeley: featureSwitch,
+    })
+    .optional(),
+  aiFeatures: z.strictObject({ enabled: z.boolean() }).optional(),
+})
+
 // What an admin cannot change on their own account
 const OWN_ACCOUNT_LOCKED = ['suspended', 'isAdmin', 'features', 'aiFeatures']
 
 // Refuses what cannot be applied at all, before anything changes
 function assertUpdateAllowed(updates, isOwnAccount) {
-  const { aiFeatures, features } = updates
+  const { features } = updates
   if (isOwnAccount && OWN_ACCOUNT_LOCKED.some(key => key in updates)) {
     throw new RefusedError(
       'You cannot change the access or the features of your own account'
     )
   }
-  if (
-    'aiFeatures' in updates &&
-    (typeof aiFeatures?.enabled !== 'boolean' ||
-      Object.keys(aiFeatures).some(key => key !== 'enabled'))
-  ) {
-    throw new RefusedError('invalid_ai_features')
-  }
-  if (features && typeof features === 'object') {
+  if (features) {
     const { collaborators, compileTimeout } = features
     if (
       'collaborators' in features &&
@@ -238,6 +261,20 @@ function assertUpdateAllowed(updates, isOwnAccount) {
   }
 }
 
+// A login method keeps these up to date when its settings say so. The account's
+// page greys them out; bulk actions and direct requests end up here
+function assertNotLockedOnLogin(user, updates) {
+  const locked = AdminUserListManager.getLockedOnLogin(user)
+  if (
+    (locked.isAdmin && 'isAdmin' in updates) ||
+    (locked.details && ('first_name' in updates || 'last_name' in updates))
+  ) {
+    throw new RefusedError(
+      'The SSO login of this account keeps this up to date'
+    )
+  }
+}
+
 async function assertPasswordAllowed(user, password) {
   // an account without a local password logs in through SSO only
   if (!user.hashedPassword) {
@@ -245,7 +282,7 @@ async function assertPasswordAllowed(user, password) {
       'This account logs in through SSO and cannot have a password'
     )
   }
-  if (typeof password !== 'string' || password.length < 8) {
+  if (password.length < 8) {
     throw new RefusedError('Password must be at least 8 characters long')
   }
   const isReused = await HaveIBeenPwned.promises
@@ -325,7 +362,6 @@ async function logChanges(admin, userId, requestedFeatures, changes) {
     features,
     aiFeatures,
     suspended,
-    ...others
   } = changes
   if (hashedPassword) await logOnUser(admin, userId, 'update-password')
   if (firstName != null || lastName != null) {
@@ -343,17 +379,17 @@ async function logChanges(admin, userId, requestedFeatures, changes) {
   if (suspended === false) {
     await logOnUser(admin, userId, 'account-reactivation')
   }
-  if (Object.keys(others).length > 0) {
-    await logOnUser(admin, userId, 'update-user', {
-      fields: Object.keys(others),
-    })
-  }
 }
 
 // Applies what the panel's edit forms send, and returns the fields that
 // changed under the names the panel uses
 async function updateUser(userId, body, admin) {
   const isOwnAccount = userId === admin.id
+
+  const parsed = updateSchema.safeParse(body)
+  if (!parsed.success) {
+    throw new RefusedError(fromZodError(parsed.error).message)
+  }
 
   const { firstName, lastName, ...updates } = body
   if ('firstName' in body) updates.first_name = firstName
@@ -364,12 +400,17 @@ async function updateUser(userId, body, admin) {
   const { email, password, features, ...fields } = updates
   const user = await User.findById(userId, {
     ...Object.fromEntries(Object.keys(updates).map(key => [key, 1])),
-    ...(password != null && { hashedPassword: 1 }),
+    // the login methods
+    hashedPassword: 1,
+    samlIdentifiers: 1,
+    thirdPartyIdentifiers: 1,
+    loginCount: 1,
   }).exec()
   if (!user) throw new Errors.NotFoundError('user not found')
+  assertNotLockedOnLogin(user, updates)
 
   const changes = fieldChanges(user, fields)
-  if (features && typeof features === 'object') {
+  if (features) {
     changes.features = { ...(user.features ?? {}), ...features }
   }
   // an empty password field leaves the password as it is
@@ -389,19 +430,23 @@ async function updateUser(userId, body, admin) {
     throw OError.tag(err, 'problem updating user settings', { userId })
   })
   if (disabling) await disableUser(userId, admin)
-  await logChanges(admin, userId, features, changes)
 
-  // a new password ends what the old one opened, as when the user changes it
-  if (changes.hashedPassword) {
+  // a new password ends what the old one opened, as when the user changes it. A
+  // session keeps the isAdmin it logged in with, so losing it ends them too.
+  // Before the log: a failed entry must not leave them open
+  if (changes.hashedPassword || changes.isAdmin === false) {
     await UserSessionsManager.promises.removeSessionsFromRedis(
       { _id: userId },
       isOwnAccount ? admin.sessionId : undefined
     )
+  }
+  if (changes.hashedPassword) {
     await OneTimeTokenHandler.promises.expireAllTokensForUser(
       userId,
       'password'
     )
   }
+  await logChanges(admin, userId, features, changes)
 
   const { hashedPassword, first_name, last_name, ...changed } = changes
   return {
@@ -544,6 +589,9 @@ async function purgeDeletedUser(userId, admin) {
     { 'user._id': userId },
     { 'user.email': 1 }
   ).lean()
+  // a stale page: somebody restored it meanwhile. Core's expiry would run the
+  // modules' cleanup on the live account before it fails
+  if (!deleted) throw new Errors.NotFoundError('deleted user not found')
   try {
     await UserDeleter.promises.expireDeletedUser(userId)
   } catch (err) {

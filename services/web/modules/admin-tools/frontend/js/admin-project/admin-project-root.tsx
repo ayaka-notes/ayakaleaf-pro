@@ -148,7 +148,7 @@ function AdminProjectPage() {
               )}
             </>
           )}
-          {projectActions(t, project, ownerKey ?? '').map(action => (
+          {projectActions(t, project).map(action => (
             <OLTooltip
               key={action.key}
               id={`admin-${action.key}`}

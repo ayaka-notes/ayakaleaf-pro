@@ -35,8 +35,7 @@ export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
 // Projects tab and the project page offer the same actions
 export function projectActions(
   t: TFunction,
-  project: { id: string; status: ProjectStatus },
-  ownerId: string
+  project: { id: string; status: ProjectStatus }
 ): Action[] {
   return project.status === 'deleted'
     ? [
@@ -45,10 +44,7 @@ export function projectActions(
           icon: 'restore',
           label: t('restore'),
           intro: t('about_to_restore_projects'),
-          run: () =>
-            postJSON(`/admin/project/${project.id}/undelete`, {
-              body: { userId: ownerId },
-            }),
+          run: () => postJSON(`/admin/project/${project.id}/undelete`),
         },
         {
           key: 'project-purge',

@@ -285,7 +285,7 @@ function ProjectsList({
                         ...(project.status !== 'deleted'
                           ? [changeOwnerAction(t, project.id, ownerOf(project))]
                           : []),
-                        ...projectActions(t, project, ownerOf(project)),
+                        ...projectActions(t, project),
                       ].map(action => (
                         <OLTooltip
                           key={action.key}

@@ -224,7 +224,7 @@ async function getCounts(query, providerIds) {
   }
 }
 
-function formatUser(user, providerNames, deletedAt) {
+function authMethodsOf(user, providerNames = {}) {
   const authMethods = []
   if (hasPassword(user)) authMethods.push({ type: 'local' })
   if (user.samlIdentifiers?.length) authMethods.push({ type: 'saml' })
@@ -238,6 +238,11 @@ function formatUser(user, providerNames, deletedAt) {
   if (authMethods.length === 0) {
     authMethods.push({ type: user.loginCount > 0 ? 'ldap' : 'pending' })
   }
+  return authMethods
+}
+
+function formatUser(user, providerNames, deletedAt) {
+  const authMethods = authMethodsOf(user, providerNames)
   return {
     id: user._id.toString(),
     email: user.email,
@@ -344,6 +349,11 @@ function lockedOnLogin(authMethods) {
         Boolean(Settings[m]?.valAdmin)
     ),
   }
+}
+
+// The same lock for a change that does not come from the account's page
+function getLockedOnLogin(user) {
+  return lockedOnLogin(authMethodsOf(user))
 }
 
 function formatDetails(user, providerNames) {
@@ -493,4 +503,5 @@ export default {
   getUserPage,
   ownersOf,
   getUserIdsMatching,
+  getLockedOnLogin,
 }

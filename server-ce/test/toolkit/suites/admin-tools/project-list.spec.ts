@@ -476,6 +476,24 @@ describe('actions on every project', function () {
     })
   })
 
+  it('restores a project to its own owner, whoever the request names', function () {
+    setUp(dan, `Restore-${run}`, 'delete').then(id => {
+      login(ADMIN_EMAIL)
+      visitList()
+      userId(bob).then(otherId => {
+        postWithCsrf(`/admin/project/${id}/undelete`, { userId: otherId })
+          .its('status')
+          .should('equal', 200)
+      })
+      projectAccess(dan).then(access => {
+        expect(access[id]).to.equal('owner')
+      })
+      projectAccess(bob).then(access => {
+        expect(access).not.to.have.property(id)
+      })
+    })
+  })
+
   it('deletes a project from its row and restores it to its own owner', function () {
     row(`${caseName}-bob`).findByRole('button', { name: 'Delete' }).click()
     confirmDialog('Delete')

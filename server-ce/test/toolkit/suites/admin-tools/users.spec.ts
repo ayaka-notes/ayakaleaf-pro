@@ -13,6 +13,7 @@ import {
   findUser,
   headerAction,
   interceptSearch,
+  makeAdmin,
   ownerPicker,
   pickOwner,
   row,
@@ -238,8 +239,8 @@ describe('what a row shows', function () {
 describe('filters, sorting and pages', function () {
   // their own prefix: the other groups have disabled accounts too. Twelve
   // accounts the admin created (a random password, never logged in), the first
-  // one disabled; an admin (logged in now, last in the editor long ago), a
-  // disabled account, one that opened a project, and one not seen for years
+  // one disabled; an admin (logged in now, never in the editor), a disabled
+  // account and one that opened a project
   const prefix = `list-${run}-f-`
   const many = Array.from({ length: 12 }, (_, i) =>
     email(`f-page-${String(i).padStart(2, '0')}`)
@@ -247,9 +248,8 @@ describe('filters, sorting and pages', function () {
   const admin = email('f-admin')
   const disabled = email('f-disabled')
   const recent = email('f-recent')
-  const old = email('f-old')
-  // no route sets these dates; the old update endpoint writes any field
-  const longAgo = '2020-01-01T00:00:00.000Z'
+  // made by services/inactive-user: no route writes the dates it needs
+  const inactive = 'inactive-user@example.com'
 
   before(function () {
     login(ADMIN_EMAIL)
@@ -259,7 +259,6 @@ describe('filters, sorting and pages', function () {
     createUser(admin)
     createUser(disabled)
     createUser(recent)
-    createUser(old)
     login(recent)
     createProject(projectName('Recent')).then(projectId => {
       // opening the editor is what sets lastActive
@@ -269,19 +268,7 @@ describe('filters, sorting and pages', function () {
     login(ADMIN_EMAIL)
     userId(admin).then(id => {
       cy.visit('/admin/user')
-      postWithCsrf(`/admin/user/${id}/update`, {
-        isAdmin: true,
-        lastActive: longAgo,
-      })
-        .its('status')
-        .should('equal', 200)
-    })
-    userId(old).then(id => {
-      cy.visit('/admin/user')
-      postWithCsrf(`/admin/user/${id}/update`, {
-        lastLoggedIn: longAgo,
-        lastActive: longAgo,
-      })
+      postWithCsrf(`/admin/user/${id}/update`, { isAdmin: true })
         .its('status')
         .should('equal', 200)
     })
@@ -317,11 +304,11 @@ describe('filters, sorting and pages', function () {
 
   it('gives each account one status: the counts add up to All, and each shows its accounts', function () {
     menuCounts('admin-users-filter-status').should('deep.equal', {
-      All: 16,
+      All: 15,
       Active: 2,
       Disabled: 2,
       Pending: 11,
-      Inactive: 1,
+      Inactive: 0,
       'Deleted user': 0,
     })
     filter('admin-users-filter-status', 'Disabled')
@@ -338,37 +325,40 @@ describe('filters, sorting and pages', function () {
     // the row says it too: never logged in (the newest come first)
     row(many[11]).should('contain.text', 'Pending')
 
-    filter('admin-users-filter-status', 'Inactive')
-    cy.get('tbody tr').should('have.length', 1)
-    // neither logged in nor in the editor for over a year
-    row(old).should('contain.text', 'Inactive')
-
     filter('admin-users-filter-status', 'Active')
     cy.get('tbody tr').should('have.length', 2)
-    // logged in this year, whenever it was last in the editor
+    // logged in this year, though it never opened the editor
     row(admin).should('contain.text', 'Active')
     row(recent).should('contain.text', 'Active')
 
     filter('admin-users-filter-status', 'All')
-    cy.contains('Showing 10 out of 16 users').should('exist')
+    cy.contains('Showing 10 out of 15 users').should('exist')
     cy.location('search').should('not.contain', 'status=')
+  })
+
+  it('shows an account not seen for over a year as Inactive', function () {
+    search(inactive)
+    filter('admin-users-filter-status', 'Inactive')
+    cy.get('tbody tr').should('have.length', 1)
+    // neither logged in nor in the editor for over a year
+    row(inactive).should('contain.text', 'Inactive')
   })
 
   it('counts the login methods; Pending only shows when an account waits for SSO', function () {
     menuCounts('admin-users-filter-auth').then(counts => {
-      expect(counts).to.include({ All: 16, Password: 16 })
+      expect(counts).to.include({ All: 15, Password: 15 })
       expect(counts).not.to.have.property('Pending')
     })
     filter('admin-users-filter-auth', 'Password')
-    cy.contains('Showing 10 out of 16 users').should('exist')
+    cy.contains('Showing 10 out of 15 users').should('exist')
     cy.location('search').should('contain', 'auth=local')
   })
 
   it('filters by role: admins, or everyone else', function () {
     menuCounts('admin-users-filter-role').should('deep.equal', {
-      All: 16,
+      All: 15,
       Admin: 1,
-      User: 15,
+      User: 14,
     })
     filter('admin-users-filter-role', 'Admin')
     cy.get('tbody tr').should('have.length', 1)
@@ -376,7 +366,7 @@ describe('filters, sorting and pages', function () {
     cy.location('search').should('contain', 'role=admin')
 
     filter('admin-users-filter-role', 'User')
-    cy.contains('Showing 10 out of 15 users').should('exist')
+    cy.contains('Showing 10 out of 14 users').should('exist')
     row(admin).should('not.exist')
   })
 
@@ -933,6 +923,88 @@ describe('row actions', function () {
       })
     })
   })
+
+  // A session keeps the isAdmin it logged in with, and some checks read that
+  it('ends the sessions of an admin who loses the role', function () {
+    const address = email('demoted')
+    createUser(address)
+    login(ADMIN_EMAIL)
+    makeAdmin(address)
+    // the browser of the new admin, logged in with the role
+    login(address)
+    cy.visit('/project')
+    cy.getCookie('overleaf.sid').its('value').as('userCookie')
+
+    login(ADMIN_EMAIL)
+    visitList()
+    userId(address).then(id => {
+      postWithCsrf(`/admin/user/${id}/update`, { isAdmin: false })
+        .its('status')
+        .should('equal', 200)
+    })
+    cy.get<string>('@userCookie').then(value => {
+      cy.clearAllCookies()
+      cy.setCookie('overleaf.sid', value)
+      cy.request({ url: '/user/personal_info', followRedirect: false })
+        .its('status')
+        .should('not.equal', 200)
+    })
+  })
+
+  it('refuses a field or a value the forms do not send, and changes nothing', function () {
+    const address = email('internal-field')
+    createUser(address)
+    login(ADMIN_EMAIL)
+    visitList()
+    userId(address).then(id => {
+      for (const body of [
+        { firstName: 'Changed', hashedPassword: 'not-a-hash' },
+        { firstName: 'Changed', lastActive: '2020-01-01T00:00:00.000Z' },
+        { firstName: 'Changed', isAdmin: 'yes' },
+        { firstName: 'Changed', suspended: 1 },
+        { firstName: 'Changed', email: 1 },
+        { firstName: 1 },
+        { firstName: 'Changed', features: 1 },
+        { firstName: 'Changed', features: { papers: false } },
+        { firstName: 'Changed', features: { dropbox: 'no' } },
+        { firstName: 'Changed', features: { collaborators: '3' } },
+        { firstName: 'Changed', aiFeatures: { enabled: true, quota: 1 } },
+      ]) {
+        postWithCsrf(`/admin/user/${id}/update`, body)
+          .its('status')
+          .should('equal', 422)
+      }
+    })
+    findUser(address).then(user => {
+      expect(user?.firstName).not.to.equal('Changed')
+      expect(user?.isAdmin).to.equal(false)
+      expect(user?.suspended).to.equal(false)
+    })
+    tryLogin(address).its('body.redir').should('equal', '/project')
+  })
+
+  // A stale page: somebody restored the account after the dialog opened
+  it('answers 404 to a purge of a user who is not deleted, and logs nothing', function () {
+    const address = email('purge-live')
+    createUser(address)
+    login(ADMIN_EMAIL)
+    visitList()
+    userId(address).then(id => {
+      requestWithCsrf('DELETE', `/admin/user/${id}`)
+        .its('status')
+        .should('equal', 404)
+      userId(ADMIN_EMAIL).then(adminId => {
+        cy.request(
+          `/admin/user/${adminId}/audit-log/list?operation=purge-deleted-user&search=&pageSize=200`
+        )
+          .its('body.entries')
+          .then((entries: { info?: { userId?: string } }[]) => {
+            expect(entries.map(entry => entry.info?.userId)).not.to.include(id)
+          })
+      })
+    })
+    tryLogin(address).its('body.redir').should('equal', '/project')
+  })
 })
 
 describe('bulk actions', function () {
@@ -1181,6 +1253,25 @@ describe('bulk actions', function () {
     confirmDialog('Delete permanently')
     cy.get('tbody').should('contain.text', 'No Search Results')
     findUser(users[0], 'deleted').should('equal', null)
+  })
+
+  // The table keeps the live rows when the list cannot answer: they must not
+  // get the actions for deleted users
+  it('keeps the live actions on live rows when the switch to Deleted fails', function () {
+    const address = email('bulk-failed-switch')
+    createUser(address)
+    login(ADMIN_EMAIL)
+    visitList()
+    search(address)
+    cy.intercept(
+      { pathname: '/admin/users/list', query: { status: 'deleted' } },
+      { statusCode: 500 }
+    )
+    filter('admin-users-filter-status', 'Deleted')
+    cy.get('tbody').should('contain.text', address)
+    tickAll()
+    bulk('Disable').should('exist')
+    bulk('Delete permanently').should('not.exist')
   })
 })
 

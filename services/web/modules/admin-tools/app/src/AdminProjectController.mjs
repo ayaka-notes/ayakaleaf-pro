@@ -87,7 +87,6 @@ async function undeleteProject(req, res) {
   res.json(
     await AdminProjectManager.undeleteProject(
       idParam(req, 'projectId'),
-      req.body.userId,
       adminOf(req)
     )
   )

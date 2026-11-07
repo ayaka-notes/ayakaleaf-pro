@@ -40,7 +40,7 @@ function ProjectsBulkActions({
   const actionOf = (project: Project, key: string) =>
     [
       changeOwnerAction(t, project.id, project.ownerId),
-      ...projectActions(t, project, project.ownerId),
+      ...projectActions(t, project),
     ].find(
       action => action.key === key
     )!

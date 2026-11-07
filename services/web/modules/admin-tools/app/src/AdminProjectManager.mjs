@@ -486,22 +486,21 @@ async function deleteProject(projectId, admin) {
 
 // A deleted project back to its owner, out of their trash too. The restored
 // name can have a suffix: another project may have taken it meanwhile.
-async function undeleteProject(projectId, userId, admin) {
+async function undeleteProject(projectId, admin) {
   const deleted = await DeletedProject.findOne(
     { 'deleterData.deletedProjectId': projectId },
     { 'deleterData.deletedProjectOwnerId': 1 }
   ).lean()
+  if (!deleted) throw new Errors.NotFoundError('deleted project not found')
+  const ownerId = deleted.deleterData.deletedProjectOwnerId
   // core would bring it back owned by nobody
-  if (
-    deleted &&
-    !(await User.exists({ _id: deleted.deleterData.deletedProjectOwnerId }))
-  ) {
+  if (!(await User.exists({ _id: ownerId }))) {
     throw new RefusedError(
       'The owner of this project is deleted: restore the owner first'
     )
   }
-  await ProjectDeleter.promises.undeleteProject(projectId, { userId })
-  await ProjectDeleter.promises.untrashProject(projectId, userId)
+  await ProjectDeleter.promises.undeleteProject(projectId, { userId: ownerId })
+  await ProjectDeleter.promises.untrashProject(projectId, ownerId)
   const { name } = await Project.findById(projectId, { name: 1 }).lean()
   await logOnProject(admin, projectId, 'project-restored')
   return { name }

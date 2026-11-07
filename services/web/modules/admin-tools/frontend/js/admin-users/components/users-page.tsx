@@ -61,7 +61,9 @@ function UsersPage() {
         bulkActions={
           <UsersBulkActions
             users={selectedUsers}
-            deleted={query.status === 'deleted'}
+            // the shown rows' status: right after a switch to Deleted the
+            // ticked rows are still the live ones until the answer comes
+            deleted={result.query.status === 'deleted'}
             onDone={done}
           />
         }
