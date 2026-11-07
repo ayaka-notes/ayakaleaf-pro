@@ -7158,7 +7158,7 @@ __metadata:
     lru-cache: "npm:^7.10.1"
     marked: "npm:^4.1.0"
     match-sorter: "npm:^6.2.0"
-    mathjax: "npm:^4.1.2"
+    mathjax: "patch:mathjax@npm%3A4.1.2#~/.yarn/patches/mathjax-npm-4.1.2-af4de6f854.patch"
     mediatr-ts: "npm:^2.0.1"
     mensch: "npm:^0.3.4"
     micromark: "npm:^4.0.0"
@@ -21616,12 +21616,21 @@ __metadata:
   languageName: node
   linkType: hard
 
-"mathjax@npm:^4.1.2":
+"mathjax@npm:4.1.2":
   version: 4.1.2
   resolution: "mathjax@npm:4.1.2"
   dependencies:
     "@mathjax/mathjax-newcm-font": "npm:^4.1.2"
   checksum: 10c0/3d842708029c65bdcaaf621f80aed1248a2f29f180d4e5a42e6e48e935cdf891be1505575e323193ea44347112149b636a3b08b0a72ed2b203004c18044f5dc8
+  languageName: node
+  linkType: hard
+
+"mathjax@patch:mathjax@npm%3A4.1.2#~/.yarn/patches/mathjax-npm-4.1.2-af4de6f854.patch":
+  version: 4.1.2
+  resolution: "mathjax@patch:mathjax@npm%3A4.1.2#~/.yarn/patches/mathjax-npm-4.1.2-af4de6f854.patch::version=4.1.2&hash=e6004d"
+  dependencies:
+    "@mathjax/mathjax-newcm-font": "npm:^4.1.2"
+  checksum: 10c0/2099d4959b059a0c91ccd29f45a05f75c95a3892ffdf7cf1154cc033b3d853dc95d2d80696f0dca7068694d7c1d007fa8e667b06a801180f5f0f2c451201534c
   languageName: node
   linkType: hard
 
