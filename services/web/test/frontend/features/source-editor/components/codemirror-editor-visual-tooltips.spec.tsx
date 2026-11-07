@@ -22,7 +22,6 @@ describe('<CodeMirrorEditor/> tooltips in Visual mode', function () {
           providers={{
             EditorPropertiesProvider: makeEditorPropertiesProvider({
               showVisual: true,
-              showSymbolPalette: false,
             }),
           }}
         >

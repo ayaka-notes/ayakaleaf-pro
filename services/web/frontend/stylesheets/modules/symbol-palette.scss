@@ -8,6 +8,10 @@
   --symbol-palette-selected-tab-color: var(--content-primary-dark);
   --symbol-palette-text-shadow-color: var(--bg-dark-primary);
   --symbol-palette-overlay-bg: #{rgb($bg-dark-tertiary, 0.75)};
+  // settings UI (theme-aware: dark values are the base, light overrides below)
+  --symbol-palette-settings-th-bg: var(--bg-dark-secondary);
+  --symbol-palette-settings-add-row-bg: var(--bg-dark-secondary);
+  --symbol-palette-active-outline: var(--blue-30);
 }
 
 @include theme('light') {
@@ -20,6 +24,9 @@
   --symbol-palette-selected-tab-color: var(--blue-50);
   --symbol-palette-text-shadow-color: var(--bg-light-tertiary);
   --symbol-palette-overlay-bg: #{rgb($bg-light-primary, 0.75)};
+  --symbol-palette-settings-th-bg: var(--bg-light-tertiary);
+  --symbol-palette-settings-add-row-bg: var(--bg-light-secondary);
+  --symbol-palette-active-outline: var(--blue-50);
 }
 
 .symbol-palette-container {
@@ -162,23 +169,6 @@
   width: 100%;
 }
 
-.symbol-palette-draw-toggle {
-  display: inline-flex;
-  align-items: center;
-  align-self: center; // don't stretch to the full header height
-  margin: 0 var(--spacing-02);
-  padding: var(--spacing-02);
-  border: none;
-  border-radius: var(--border-radius-base);
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-
-  &[aria-pressed='true'] {
-    background: var(--bg-accent-01);
-    color: var(--content-primary-dark); // white icon on the accent background
-  }
-}
 
 .symbol-palette-info-link,
 .symbol-palette-info-link:focus,
@@ -186,115 +176,18 @@
   color: inherit;
 }
 
-.symbol-palette-close-button-outer {
-  display: flex;
-}
 
-.symbol-palette-close-button {
-  margin-top: var(--spacing-04);
-  margin-left: var(--spacing-05);
-  margin-right: var(--spacing-03);
 
-  .symbol-palette-unavailable & {
-    visibility: hidden;
-  }
-}
 
-.symbol-palette-overlay {
-  position: absolute;
-  inset: 0;
-  background: var(--symbol-palette-overlay-bg);
-  color: var(--symbol-palette-color);
-  display: flex;
-  flex-direction: column;
-  padding: 0 var(--spacing-09) var(--spacing-05);
-  align-items: center;
-  text-shadow: 0 0 8px var(--symbol-palette-text-shadow-color);
-  min-height: 200px;
-  overflow: auto;
-
-  h4 {
-    font-weight: bold;
-    color: var(--symbol-palette-color);
-    text-align: center;
-  }
-
-  .symbol-palette-close-button {
-    position: absolute;
-    top: 0;
-    right: 0;
-  }
-
-  .upgrade-benefits {
-    column-count: 2;
-  }
-}
-
-.symbol-palette-draw {
-  display: flex;
-  flex-direction: row;
-  gap: var(--spacing-04);
-  height: 100%;
-  padding: var(--spacing-04);
-}
 
 // left column: recognised-results grid, scrolls independently
-.symbol-palette-draw-results {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow-y: auto;
-}
 
 // shown in the results column while the canvas is empty
-.symbol-palette-draw-instructions {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  margin: 0;
-  padding: var(--spacing-06);
-  text-align: center;
-  opacity: 0.7;
-}
 
 // right column: square canvas pinned to the panel height
-.symbol-palette-draw-canvas-panel {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-02);
-  height: 100%;
-  aspect-ratio: 1;
-}
 
-.symbol-palette-draw-canvas {
-  flex: 1 1 auto;
-  width: 100%;
-  min-height: 0;
-  border: 1px dashed var(--border-primary);
-  border-radius: var(--border-radius-base);
-  background: var(--bg-light-primary);
-  touch-action: none;
-}
 
-.symbol-palette-draw-toolbar {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: var(--spacing-04);
-  min-height: 20px;
-  font-size: var(--font-size-01);
-}
 
-.symbol-palette-draw-clear {
-  appearance: none;
-  border: 1px solid var(--border-primary);
-  border-radius: var(--border-radius-base);
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  padding: var(--spacing-01) var(--spacing-05);
-}
 // Rail panel layout
 // Rail panel layout
 .symbol-palette-rail-panel {
@@ -388,7 +281,7 @@
 .sp-settings-th {
   position: sticky;
   top: 0;
-  background: var(--bg-light-tertiary);
+  background: var(--symbol-palette-settings-th-bg);
   font-weight: 600;
   font-size: var(--font-size-02);
 }
@@ -432,7 +325,7 @@
 }
 
 .sp-settings-add-row {
-  background: var(--bg-light-secondary);
+  background: var(--symbol-palette-settings-add-row-bg);
 }
 .symbol-palette-rail-panel .symbol-palette-rail-settings-toggle {
   background: none;
@@ -449,7 +342,7 @@
   }
 
   &[aria-pressed='true'] {
-    outline: 2px solid var(--blue-50);
+    outline: 2px solid var(--symbol-palette-active-outline);
   }
 }
 

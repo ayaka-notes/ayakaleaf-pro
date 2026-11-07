@@ -24,9 +24,6 @@ export type EditorPropertiesContextValue = {
   showVisual: boolean
   setShowVisual: Dispatch<SetStateAction<boolean>>
   showVisualForFile: (filename: string) => boolean
-  showSymbolPalette: boolean
-  setShowSymbolPalette: Dispatch<SetStateAction<boolean>>
-  toggleSymbolPalette: () => void
   opening: boolean
   setOpening: Dispatch<SetStateAction<boolean>>
   trackChanges: boolean
@@ -98,16 +95,6 @@ export const EditorPropertiesProvider: FC<PropsWithChildren> = ({
   // Sync the showVisual state with the exposed store
   useUnstableStoreSync('editor.showVisual', showVisual)
 
-  const [showSymbolPalette, setShowSymbolPalette] = useState(false)
-
-  const toggleSymbolPalette = useCallback(() => {
-    setShowSymbolPalette(show => {
-      const newValue = !show
-      sendMB(newValue ? 'symbol-palette-show' : 'symbol-palette-hide')
-      return newValue
-    })
-  }, [setShowSymbolPalette])
-
   const [opening, setOpening] = useState(true)
   const [trackChanges, setTrackChanges] = useState(false)
   const [wantTrackChanges, setWantTrackChanges] = useState(false)
@@ -117,9 +104,6 @@ export const EditorPropertiesProvider: FC<PropsWithChildren> = ({
     showVisual,
     setShowVisual,
     showVisualForFile,
-    showSymbolPalette,
-    setShowSymbolPalette,
-    toggleSymbolPalette,
     opening,
     setOpening,
     trackChanges,

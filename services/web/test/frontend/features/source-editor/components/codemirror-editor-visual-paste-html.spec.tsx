@@ -18,7 +18,6 @@ const mountEditor = (content = '') => {
         providers={{
           EditorPropertiesProvider: makeEditorPropertiesProvider({
             showVisual: true,
-            showSymbolPalette: false,
           }),
         }}
       >
