@@ -118,6 +118,28 @@ describe('editing the account', function () {
     login(ADMIN_EMAIL)
   })
 
+  it('refuses a password that core refuses, and it changes nothing', function () {
+    const address = email('password-rules')
+    createUser(address)
+    login(ADMIN_EMAIL)
+    userId(address).then(id => {
+      visitUser(id)
+      for (const password of [
+        'short',
+        // over bcrypt's limit
+        `Aa1-${'x'.repeat(70)}`,
+        'Aa1-with\ta-tab',
+        // part of the email address
+        address,
+      ]) {
+        postWithCsrf(`/admin/user/${id}/update`, { password })
+          .its('status')
+          .should('equal', 422)
+      }
+    })
+    tryLogin(address).its('body.redir').should('equal', '/project')
+  })
+
   it('changes the name and the email, and the user logs in with the new email', function () {
     const address = email('rename')
     const newAddress = email('renamed')
@@ -168,7 +190,7 @@ describe('editing the account', function () {
       cy.get('.tab-pane.active').findByRole('button', { name: 'Save' }).click()
       cy.get('.tab-pane.active')
         .get('.notification-type-error')
-        .should('contain.text', 'Password must be at least 8 characters long')
+        .should('contain.text', 'password is too short')
       cy.get('#admin-user-password').clear().type(password)
       save()
     })
@@ -410,7 +432,7 @@ describe('audit log', function () {
     login(ADMIN_EMAIL)
     userId(address).then(id => {
       visitUser(id, 'audit-logs')
-      postWithCsrf(`/admin/user/${id}/update`, { password: `${run}-New-Password-1` })
+      postWithCsrf(`/admin/user/${id}/update`, { password: `e2e-${uuid()}` })
         .its('status')
         .should('equal', 200)
       expectLogged(`/admin/user/${id}`, 'update-password')
@@ -448,6 +470,7 @@ describe('audit log', function () {
       expectLogged(page, 'restore-account')
       remove()
       requestWithCsrf('DELETE', page).its('status').should('equal', 200)
+      cy.request(`${page}/audit-log/list`).its('body.total').should('equal', 0)
     })
     // a purge deletes the account's log too: the admin's own log tells
     userId(ADMIN_EMAIL).then(adminId => {
@@ -583,12 +606,14 @@ describe('the actions next to the name', function () {
     createUser(address)
     login(ADMIN_EMAIL)
     userId(address).then(id => {
-      visitUser(id)
+      visitUser(id, 'sessions')
       headerAction('Delete account').click()
       confirmDialog('Delete account')
       cy.get('.admin-panel-user-header').should('contain.text', 'Deleted user')
-      cy.findAllByRole('tab').should('have.length', 1)
+      cy.findAllByRole('tab').should('have.length', 2)
       detail('Deleted By email').should('contain.text', ADMIN_EMAIL)
+      openTab('Audit logs')
+      row('Delete account').should('contain.text', ADMIN_EMAIL)
       headerAction('Restore').should('exist')
       // the page is gone after a purge: back to the user list
       headerAction('Delete permanently').click()

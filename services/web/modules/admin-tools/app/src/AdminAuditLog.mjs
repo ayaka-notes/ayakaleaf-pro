@@ -37,6 +37,11 @@ export function logOnAdmin(admin, operation, info) {
   return logOnUser(admin, admin.id, operation, info)
 }
 
+// Core's cron does this after its own expiry, and skips a record already purged
+export function deleteUserEntries(userId) {
+  return UserAuditLogEntry.deleteMany({ userId }).exec()
+}
+
 // ---- reading ----
 
 function parseEntriesQuery(query) {

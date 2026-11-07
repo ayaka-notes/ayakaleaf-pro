@@ -56,8 +56,18 @@ function AdminProjectPage() {
     />
   )
 
+  const auditLogTab = {
+    key: 'audit-logs',
+    label: t('audit_logs'),
+    content: (
+      <AuditLogTab
+        active={activeTab === 'audit-logs'}
+        url={`/admin/project/${project.id}/audit-log/list`}
+      />
+    ),
+  }
   const tabs = deleted
-    ? [{ key: 'overview', label: t('overview'), content: overview }]
+    ? [{ key: 'overview', label: t('overview'), content: overview }, auditLogTab]
     : [
         { key: 'overview', label: t('overview'), content: overview },
         { key: 'files', label: t('file_tree'), content: <FilesTab /> },
@@ -67,16 +77,7 @@ function AdminProjectPage() {
           label: t('deleted_files'),
           content: <DeletedFilesTab />,
         },
-        {
-          key: 'audit-logs',
-          label: t('audit_logs'),
-          content: (
-            <AuditLogTab
-              active={activeTab === 'audit-logs'}
-              url={`/admin/project/${project.id}/audit-log/list`}
-            />
-          ),
-        },
+        auditLogTab,
       ]
 
   // after a purge the page is gone: back to the owner's deleted projects
@@ -171,7 +172,7 @@ function AdminProjectPage() {
           ))}
         </div>
       </header>
-      <TabContainer activeKey={activeTab} onSelect={setActiveTab}>
+      <TabContainer activeKey={tabs.some(tab => tab.key === activeTab) ? activeTab : tabs[0].key} onSelect={setActiveTab}>
         <Nav as="nav" className="admin-panel-tabs" aria-label={t('overview')}>
           {tabs.map(tab => (
             <Nav.Link key={tab.key} eventKey={tab.key} className="admin-panel-tab">

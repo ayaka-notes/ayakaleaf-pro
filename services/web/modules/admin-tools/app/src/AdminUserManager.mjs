@@ -29,7 +29,12 @@ import {
   getTokenUsage,
   resetTokenUsage,
 } from '../../../workbench/app/src/TokenQuota.mjs'
-import { logOnAdmin, logOnUser } from './AdminAuditLog.mjs'
+import {
+  deleteUserEntries,
+  logOnAdmin,
+  logOnProject,
+  logOnUser,
+} from './AdminAuditLog.mjs'
 import { FailedError, InvalidEmailError, RefusedError } from './AdminErrors.mjs'
 import { isObjectId } from './AdminQueryHelper.mjs'
 import AdminUserListManager from './AdminUserListManager.mjs'
@@ -165,7 +170,9 @@ async function sendActivationEmail(userId, admin) {
     throw new RefusedError('This account is not waiting for its activation')
   }
   const sent = await sendActivationLink(user)
-  await logOnUser(admin, userId, 'send-activation-email')
+  await logOnUser(admin, userId, 'send-activation-email', {
+    emailSent: sent.emailSent,
+  })
   return sent
 }
 
@@ -186,7 +193,9 @@ async function sendPasswordReset(userId, admin) {
     {},
     token => passwordResetUrl(token, user.email)
   )
-  await logOnUser(admin, userId, 'send-password-reset-email')
+  await logOnUser(admin, userId, 'send-password-reset-email', {
+    emailSent: sent.emailSent,
+  })
   return sent
 }
 
@@ -285,9 +294,9 @@ async function assertPasswordAllowed(user, password) {
       'This account logs in through SSO and cannot have a password'
     )
   }
-  if (password.length < 8) {
-    throw new RefusedError('Password must be at least 8 characters long')
-  }
+  // the rules of core's own password change, with the site's settings
+  const invalid = AuthenticationManager.validatePassword(password, user.email)
+  if (invalid) throw new RefusedError(invalid.message)
   const isReused = await HaveIBeenPwned.promises
     .checkPasswordForReuse(password)
     .catch(err => {
@@ -403,6 +412,8 @@ async function updateUser(userId, body, admin) {
   const { email, password, features, ...fields } = updates
   const user = await User.findById(userId, {
     ...Object.fromEntries(Object.keys(updates).map(key => [key, 1])),
+    // for the password rules
+    email: 1,
     // the login methods
     hashedPassword: 1,
     samlIdentifiers: 1,
@@ -601,6 +612,7 @@ async function purgeDeletedUser(userId, admin) {
     logger.warn({ err, userId }, 'failed to purge the deleted user')
     throw new RefusedError('Something went wrong. The user is already deleted?')
   }
+  await deleteUserEntries(userId)
   await logOnAdmin(admin, 'purge-deleted-user', {
     userId,
     email: deleted?.user?.email,
@@ -641,11 +653,11 @@ async function restoreDeletedUser(userId, admin) {
         $in: [DeletedProjectReasons.ACCOUNT_DELETION, null],
       },
     }).exec()
-    await promiseMapWithLimit(5, projects, project =>
-      ProjectDeleter.promises.undeleteProject(
-        project.deleterData.deletedProjectId
-      )
-    )
+    await promiseMapWithLimit(5, projects, async project => {
+      const projectId = project.deleterData.deletedProjectId
+      await ProjectDeleter.promises.undeleteProject(projectId)
+      await logOnProject(admin, projectId, 'project-restored')
+    })
   } catch (err) {
     logger.warn({ err, userId }, 'failed to restore the projects of the user')
   }

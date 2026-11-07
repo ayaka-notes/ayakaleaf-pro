@@ -15,6 +15,7 @@ import {
   confirmDialog,
   createUser,
   dialog,
+  expectLogged,
   headerAction,
   interceptSearch,
   pickOwner,
@@ -42,6 +43,11 @@ function waitForEmails(address: string, count: number, attempts = 30): Cypress.C
     cy.wait(500)
     return waitForEmails(address, count, attempts - 1)
   })
+}
+
+// The link of a project invite email
+function inviteLink(text: string) {
+  return text.match(/\S*\/invite\/token\/\S+/)![0]
 }
 
 function lastEmailText(address: string) {
@@ -87,6 +93,11 @@ describe('activation emails', function () {
     sendLink('Send activation email').then(shown => {
       dialog().should('contain.text', 'Email Sent')
       closeDialog()
+      userId(address).then(id => {
+        expectLogged(`/admin/user/${id}`, 'send-activation-email')
+          .its('info.emailSent')
+          .should('equal', true)
+      })
       waitForEmails(address, 2)
       lastEmailText(address).then(text => {
         expect(activationLink(text)).to.equal(shown)
@@ -210,6 +221,71 @@ describe('project emails', function () {
       row(invitee).findByRole('button', { name: 'Resend invite' }).click()
       confirmDialog('Resend invite')
       waitForEmails(invitee, 2)
+    })
+  })
+
+  // Core replaces a resent invite: another link, and the old one is dead
+  it('gives a resent invite a new link, and the old one stops working', function () {
+    const owner = email('link-owner')
+    const invitee = email('link-invitee')
+    createUser(owner)
+    createUser(invitee)
+    login(owner)
+    createProject(projectName('Invite link')).then(projectId => {
+      cy.visit('/project')
+      postWithCsrf(`/project/${projectId}/invite`, { email: invitee, privileges: 'readOnly' })
+        .its('status')
+        .should('equal', 200)
+      waitForEmails(invitee, 1)
+      lastEmailText(invitee).then(firstText => {
+        const oldLink = inviteLink(firstText)
+        login(ADMIN_EMAIL)
+        visitProject(projectId, 'members')
+        headerAction('Edit').click()
+        row(invitee).findByRole('button', { name: 'Resend invite' }).click()
+        confirmDialog('Resend invite')
+        waitForEmails(invitee, 2)
+        lastEmailText(invitee).then(secondText => {
+          const newLink = inviteLink(secondText)
+          expect(newLink).not.to.equal(oldLink)
+          login(invitee)
+          // a dead link answers 404
+          cy.visit(oldLink, { failOnStatusCode: false })
+          cy.contains('This is not a valid project invite').should('exist')
+          cy.visit(newLink)
+          cy.findByRole('button', { name: /join project/i }).should('exist')
+        })
+      })
+    })
+  })
+
+  // On the same page, without a reload: it has to use the new invite's id
+  it('ends the new link when a resent invite is revoked', function () {
+    const owner = email('revoke-owner')
+    const invitee = email('revoke-invitee')
+    createUser(owner)
+    createUser(invitee)
+    login(owner)
+    createProject(projectName('Invite revoke')).then(projectId => {
+      cy.visit('/project')
+      postWithCsrf(`/project/${projectId}/invite`, { email: invitee, privileges: 'readOnly' })
+        .its('status')
+        .should('equal', 200)
+      waitForEmails(invitee, 1)
+      login(ADMIN_EMAIL)
+      visitProject(projectId, 'members')
+      headerAction('Edit').click()
+      row(invitee).findByRole('button', { name: 'Resend invite' }).click()
+      confirmDialog('Resend invite')
+      waitForEmails(invitee, 2)
+      row(invitee).findByRole('button', { name: 'Revoke Invite' }).click()
+      confirmDialog('Revoke Invite')
+      row(invitee).should('not.exist')
+      lastEmailText(invitee).then(text => {
+        login(invitee)
+        cy.visit(inviteLink(text), { failOnStatusCode: false })
+        cy.contains('This is not a valid project invite').should('exist')
+      })
     })
   })
 

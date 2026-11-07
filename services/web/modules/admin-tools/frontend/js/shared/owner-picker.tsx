@@ -57,10 +57,13 @@ function OwnerPicker({
   const excluded = excludeIds.join(',')
   useEffect(() => {
     if (value && inputValue === displayName(value)) return
+    const controller = new AbortController()
     const id = window.setTimeout(() => {
       setLoading(true)
       const params = new URLSearchParams({ search: inputValue.trim(), pageSize: '50' })
-      getJSON<{ users: OwnerOption[] }>(`/admin/users/list?${params}`)
+      getJSON<{ users: OwnerOption[] }>(`/admin/users/list?${params}`, {
+        signal: controller.signal,
+      })
         .then(result =>
           setOptions(
             result.users
@@ -73,7 +76,11 @@ function OwnerPicker({
         .catch(debugConsole.error)
         .finally(() => setLoading(false))
     }, SEARCH_DELAY_MS)
-    return () => window.clearTimeout(id)
+    return () => {
+      window.clearTimeout(id)
+      // a late answer must not replace the one to what the box says now
+      controller.abort()
+    }
   }, [inputValue, value, excluded])
 
   const focusInput = useCallback(() => inputRef.current?.focus(), [])

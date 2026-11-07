@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   deleteJSON,
+  getJSON,
   getUserFacingMessage,
   postJSON,
   putJSON,
@@ -87,7 +88,24 @@ function MembersTab({
     key: 'invite-resend',
     icon: 'mail',
     label: t('resend_invite'),
-    run: () => postJSON(`/project/${projectId}/invite/${invite.id}/resend`),
+    // core replaces a resent invite by a new one with a new id, which revoking
+    // needs: a stale id revokes nothing and still answers ok
+    run: () =>
+      postJSON(`/project/${projectId}/invite/${invite.id}/resend`)
+        .then(() =>
+          getJSON<{ invites: { _id: string; email: string; privileges: string }[] }>(
+            `/project/${projectId}/invites`
+          )
+        )
+        .then(({ invites }) =>
+          setInvites(
+            invites.map(({ _id, email, privileges }) => ({
+              id: _id,
+              email,
+              privilegeLevel: privileges,
+            }))
+          )
+        ),
   })
   const revokeInvite = (invite: Invite): Action => ({
     key: 'invite-revoke',

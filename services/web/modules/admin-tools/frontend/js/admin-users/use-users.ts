@@ -39,7 +39,7 @@ export function useUsers(initialResult: UsersResult) {
 
   useEffect(() => {
     const params = toSearchParams(query)
-    const search = params.size ? `?${params}` : ''
+    const search = params.toString() ? `?${params}` : ''
     window.history.replaceState(
       null,
       '',

@@ -10,6 +10,7 @@ import {
   createUser,
   dialog,
   everyRow,
+  expectLogged,
   findUser,
   headerAction,
   interceptSearch,
@@ -744,6 +745,11 @@ describe('row actions', function () {
       dialog().should('contain.text', 'Expires in 7 days')
       dialog().findByRole('button', { name: 'Cancel' }).should('not.exist')
       closeDialog()
+      userId(address).then(id => {
+        expectLogged(`/admin/user/${id}`, 'send-activation-email')
+          .its('info.emailSent')
+          .should('equal', false)
+      })
       activateUser(link)
       tryLogin(address).its('body.redir').should('equal', '/project')
     })
@@ -766,6 +772,11 @@ describe('row actions', function () {
     sendLink('Send reset link').then(link => {
       dialog().should('contain.text', 'Expires in 1 hour')
       closeDialog()
+      userId(address).then(id => {
+        expectLogged(`/admin/user/${id}`, 'send-password-reset-email')
+          .its('info.emailSent')
+          .should('equal', false)
+      })
       cy.clearAllCookies()
       cy.visit(link)
       cy.get('input[name="password"]').type(newPassword)
@@ -864,6 +875,32 @@ describe('row actions', function () {
     )
   })
 
+  it('ignores a late answer to an older search for a new owner', function () {
+    const target = email('late-target')
+    const newer = email('late-ab')
+    const older = `list-${run}-late-a`
+    createUser(target)
+    createUser(email('late-a'))
+    createUser(newer)
+    login(ADMIN_EMAIL)
+    visitList()
+    search(target)
+    rowAction(target, 'Transfer this user’s projects')
+    cy.intercept({ pathname: '/admin/users/list', query: { search: older } }, req => {
+      req.on('response', res => {
+        res.setDelay(2000)
+      })
+    })
+    ownerPicker().type(older)
+    // past the picker's delay: that request is out
+    cy.wait(500)
+    ownerPicker().type('b')
+    cy.contains('[role="option"]', newer).should('exist')
+    // by now the older answer has come in
+    cy.wait(2500)
+    cy.findAllByRole('option').should('have.length', 1)
+  })
+
   it('leaves no tag on the new owner for a user with no project to give', function () {
     const from = email('notag-from')
     const to = email('notag-to')
@@ -916,6 +953,7 @@ describe('row actions', function () {
           postWithCsrf(`/admin/user/${id}/delete`, {}).its('status').should('equal', 200)
           postWithCsrf(`/admin/user/${id}/restore`, {}).its('status').should('equal', 200)
         })
+        expectLogged(`/admin/project/${kept}`, 'project-restored')
         projectAccess(address).then(access => {
           expect(access[kept]).to.equal('owner')
           expect(access).not.to.have.property(deleted)

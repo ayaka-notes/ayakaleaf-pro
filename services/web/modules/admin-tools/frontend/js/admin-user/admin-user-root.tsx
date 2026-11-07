@@ -36,8 +36,22 @@ function AdminUserPage() {
   })
   const name = [user.firstName, user.lastName].filter(Boolean).join(' ')
 
+  const auditLogTab = {
+    key: 'audit-logs',
+    label: t('audit_logs'),
+    content: (
+      <AuditLogTab
+        active={activeTab === 'audit-logs'}
+        url={`/admin/user/${user.id}/audit-log/list`}
+        self={{ id: user.id, email: user.email }}
+      />
+    ),
+  }
   const tabs = user.deleted
-    ? [{ key: 'account', label: t('account'), content: <AccountTab {...formProps('account')} /> }]
+    ? [
+        { key: 'account', label: t('account'), content: <AccountTab {...formProps('account')} /> },
+        auditLogTab,
+      ]
     : [
         { key: 'account', label: t('account'), content: <AccountTab {...formProps('account')} /> },
         { key: 'projects', label: t('projects'), content: <ProjectsTab active={activeTab === 'projects'} /> },
@@ -47,14 +61,7 @@ function AdminUserPage() {
           label: t('integrations'),
           content: <IntegrationsTab />,
         },
-        { key: 'audit-logs', label: t('audit_logs'), content: (
-            <AuditLogTab
-              active={activeTab === 'audit-logs'}
-              url={`/admin/user/${user.id}/audit-log/list`}
-              self={{ id: user.id, email: user.email }}
-            />
-          ),
-        },
+        auditLogTab,
         { key: 'sessions', label: t('sessions'), content: <SessionsTab /> },
       ]
 
@@ -91,7 +98,7 @@ function AdminUserPage() {
             activeTab === 'features' && user.id === getAdminUser().sessionUserId
           } />
       </header>
-      <TabContainer activeKey={activeTab} onSelect={setActiveTab}>
+      <TabContainer activeKey={tabs.some(tab => tab.key === activeTab) ? activeTab : tabs[0].key} onSelect={setActiveTab}>
         <Nav as="nav" className="admin-panel-tabs" aria-label={t('account')}>
           {tabs.map(tab => (
             <Nav.Link key={tab.key} eventKey={tab.key} className="admin-panel-tab">
