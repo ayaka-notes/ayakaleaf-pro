@@ -244,9 +244,12 @@ function assertUpdateAllowed(updates, isOwnAccount) {
   }
   if (features) {
     const { collaborators, compileTimeout } = features
+    // Core reads a limit of 0 as no limit set, which falls back to the default
     if (
       'collaborators' in features &&
-      (!Number.isInteger(collaborators) || collaborators < -1)
+      (!Number.isInteger(collaborators) ||
+        collaborators < -1 ||
+        collaborators === 0)
     ) {
       throw new RefusedError('invalid_collaborators')
     }

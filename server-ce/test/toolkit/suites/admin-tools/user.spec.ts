@@ -278,6 +278,20 @@ describe('features', function () {
     cy.get('#admin-user-feature-compileTimeout').clear().type('600')
     cy.get('#admin-user-feature-collaborators').clear().type('-2')
     cy.get('.tab-pane.active').findByRole('button', { name: 'Save' }).should('be.disabled')
+    // Core reads 0 as no limit set, which would mean unlimited
+    cy.get('#admin-user-feature-collaborators').clear().type('0')
+    cy.get('#admin-user-feature-collaborators').should('have.class', 'is-invalid')
+    cy.get('.tab-pane.active').findByRole('button', { name: 'Save' }).should('be.disabled')
+  })
+
+  it('refuses a collaborator limit of 0 from a script too', function () {
+    userId(address).then(id => {
+      postWithCsrf(`/admin/user/${id}/update`, {
+        features: { collaborators: 0 },
+      })
+        .its('status')
+        .should('equal', 422)
+    })
   })
 
   it('turns AI off for the user', function () {

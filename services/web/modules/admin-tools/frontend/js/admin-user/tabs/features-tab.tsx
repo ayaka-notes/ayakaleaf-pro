@@ -46,9 +46,10 @@ const formFrom = (user: UserDetails): Form => {
   }
 }
 
-// the update endpoint's limits: -1 is unlimited; 1 to 600 seconds
+// the update endpoint's limits: -1 is unlimited, 0 is not a limit; 1 to 600
+// seconds
 const validCollaborators = (value: string) =>
-  /^-?\d+$/.test(value) && Number(value) >= -1
+  /^-?\d+$/.test(value) && (Number(value) === -1 || Number(value) >= 1)
 const validCompileTimeout = (value: string) =>
   /^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 600
 
