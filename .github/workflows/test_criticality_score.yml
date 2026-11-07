@@ -4,7 +4,14 @@
 # project statistics (stars, pull requests, issues, outside contributors)
 # to the run summary
 #
+# The score is the one Anthropic's OSS scanner gives, not the one of the
+# ossf tool, whose formula and counts differ: the signals and the formula
+# below follow criticality_signals and criticality_score in
+# .github/scripts/triage.py of anthropics/oss-scanner at cbcb039e5f85
+# (Apache-2.0). Compare with that file now and then, it can change.
+#
 # See:
+#     https://github.com/anthropics/oss-scanner
 #     https://github.com/ossf/criticality_score
 #
 # ---------------------------------
@@ -22,23 +29,149 @@ jobs:
   criticality-score:
     runs-on: ubuntu-24.04
     steps:
-      - name: "Setup go environment"
-        uses: actions/setup-go@v7
-        with:
-          go-version: stable
-      - name: "Install criticality_score"
-        # v2.0.4 reads issue counts from the rel="last" link, which the issues API
-        # no longer sends; apply ossf/criticality_score#829 until a release has it
-        run: |
-          git clone --depth 1 -b v2.0.4 https://github.com/ossf/criticality_score
-          curl -fsSL https://github.com/ossf/criticality_score/commit/6da1c69cc033d7cd4cd4e9fcb0ca9d6ce01a62a5.diff | git -C criticality_score apply
-          cd criticality_score && go install ./cmd/criticality_score
       - name: "Compute criticality score"
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+          REPO: ${{github.repository}}
         run: |
-          # The deps.dev BigQuery dataset is no longer available, skip it
-          criticality_score -depsdev-disable -format json -out criticality.json https://github.com/${{github.repository}}
+          python3 - > criticality.json <<'EOF'
+          import json, math, os, re, urllib.error, urllib.parse, urllib.request
+          from datetime import datetime, timedelta, timezone
+
+          # weight, threshold
+          SIGNALS = {
+              "created_since": (1, 120),
+              "updated_since": (-1, 120),
+              "contributor_count": (2, 5000),
+              "org_count": (1, 10),
+              "commit_frequency": (1, 1000),
+              "recent_releases_count": (0.5, 26),
+              "closed_issues_count": (0.5, 5000),
+              "updated_issues_count": (0.5, 5000),
+              "comment_frequency": (1, 15),
+              "dependents_count": (2, 500000),
+          }
+          TOP_CONTRIBUTORS = 15
+          ISSUE_WINDOW_DAYS = 90
+          COMPANIES = "query($ids: [ID!]!) { nodes(ids: $ids) { ... on User { company } } }"
+          RECENT_RELEASES = """query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) {
+            releases(first: 100, orderBy: {field: CREATED_AT, direction: DESC}) { nodes { createdAt } } } }"""
+
+          NOW = datetime.now(timezone.utc)
+          YEAR_AGO = NOW - timedelta(days=365)
+          slug = os.environ["REPO"]
+
+
+          def fetch(path, body=None, **params):
+              query = urllib.parse.urlencode(params)
+              request = urllib.request.Request(
+                  f"https://api.github.com/{path}{'?' + query if query else ''}",
+                  data=json.dumps(body).encode() if body else None,
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                      "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  },
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return response.read(), response.headers.get("Link") or ""
+
+
+          def get(path, **params):
+              return json.loads(fetch(path, **params)[0] or "{}")
+
+
+          # How many items a list has: asked for one per page, the number of the last page is the count
+          def count(path, **params):
+              try:
+                  body, link = fetch(path, per_page=1, **params)
+              except urllib.error.HTTPError as error:
+                  if error.code != 404:
+                      raise
+                  return 0
+              last = re.search(r'[?&]page=(\d+)[^>]*>; rel="last"', link)
+              if not last and 'rel="next"' in link:
+                  raise RuntimeError(f"no count for {path}")
+              return int(last.group(1)) if last else len(json.loads(body))
+
+
+          def total(kind, query):
+              return get(f"search/{kind}", q=query, per_page=1)["total_count"]
+
+
+          def graphql(query, **variables):
+              return json.loads(fetch("graphql", body={"query": query, "variables": variables})[0])["data"]
+
+
+          def parse_time(text):
+              return datetime.fromisoformat(text.replace("Z", "+00:00"))
+
+
+          def iso(when):
+              return when.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+          def months_since(when):
+              return (NOW - when).days // 30
+
+
+          meta = get(f"repos/{slug}")
+          commits = f"repos/{slug}/commits"
+          created = parse_time(meta["created_at"])
+          try:
+              # A repository imported from elsewhere is older than its GitHub creation date
+              first = get(commits, per_page=1, page=count(commits))[0]["commit"]["author"]["date"]
+              created = min(created, parse_time(first))
+          except (urllib.error.URLError, IndexError, ValueError):
+              pass
+
+          try:
+              contributor_count = count(f"repos/{slug}/contributors", anon="true")
+              people = get(f"repos/{slug}/contributors", per_page=TOP_CONTRIBUTORS)
+          except urllib.error.HTTPError as error:
+              if error.code != 403:
+                  raise
+              # GitHub refuses to list very long histories
+              contributor_count = SIGNALS["contributor_count"][1]
+              people = []
+
+          organisations = set()
+          ids = [person["node_id"] for person in people if person.get("node_id")]
+          for person in graphql(COMPANIES, ids=ids)["nodes"] if ids else []:
+              company = (person or {}).get("company")
+              if company:
+                  organisations.add(re.sub(r"inc\.|llc|@|\s", "", company.lower()).rstrip(","))
+
+          owner, name = slug.split("/")
+          releases = graphql(RECENT_RELEASES, owner=owner, name=name)["repository"]["releases"]["nodes"]
+          recent_releases = sum(1 for release in releases if parse_time(release["createdAt"]) > YEAR_AGO)
+          if not releases:
+              # A project that tags without publishing releases: its tags spread evenly over its life
+              recent_releases = round(count(f"repos/{slug}/tags") / max((NOW - created).days, 1) * 365)
+
+          window = NOW - timedelta(days=ISSUE_WINDOW_DAYS)
+          updated_threads = total("issues", f"repo:{slug} updated:>={window:%Y-%m-%d}")
+          comments = count(f"repos/{slug}/issues/comments", since=iso(window))
+
+          signals = {
+              "created_since": months_since(created),
+              "updated_since": months_since(parse_time(meta["pushed_at"])),
+              "contributor_count": contributor_count,
+              "org_count": len(organisations),
+              "commit_frequency": round(count(commits, since=iso(YEAR_AGO)) / 52, 1),
+              "recent_releases_count": recent_releases,
+              "closed_issues_count": total("issues", f"repo:{slug} is:issue is:closed updated:>={window:%Y-%m-%d}"),
+              "updated_issues_count": total("issues", f"repo:{slug} is:issue updated:>={window:%Y-%m-%d}"),
+              "comment_frequency": round(comments / updated_threads, 1) if updated_threads else 0,
+              # Mentions of owner/repo in commit messages anywhere on GitHub
+              "dependents_count": total("commits", f'"{slug}"'),
+          }
+          score = sum(
+              weight * math.log(1 + signals[signal]) / math.log(1 + max(signals[signal], threshold))
+              for signal, (weight, threshold) in SIGNALS.items()
+          ) / sum(weight for weight, _ in SIGNALS.values())
+          print(json.dumps({"default_score": round(score, 5), "legacy": signals}))
+          EOF
           cat criticality.json
       - name: "Write project statistics to the summary"
         env:
@@ -91,7 +224,7 @@ jobs:
             "| Discussions | \($r.discussions.totalCount) |",
             "| Releases | \($r.releases.totalCount), latest \($r.releases.nodes[0].tagName) (\($r.releases.nodes[0].createdAt[0:10])) |",
             "| Commits per week | \($c.legacy.commit_frequency) over the last 12 months, last push \($m.pushed_at[0:10]) |",
-            "| OpenSSF criticality score | \($c.default_score) |",
+            "| Criticality score (as anthropics/oss-scanner computes it) | \($c.default_score) |",
             "| License | \($m.license.spdx_id) |",
             "| Created on GitHub | \($m.created_at[0:10]) |",
             "",
@@ -99,7 +232,7 @@ jobs:
             "| User | Pull requests | Merged | Issues | First seen |", "|---|---|---|---|---|",
             ($people[] | "| [\(.login)](https://github.com/\(.login)) | \(.prs) | \(.merged) | \(.issues) | \(.first) |"),
             "", "</details>", "",
-            "<details><summary>OpenSSF signals</summary>", "",
+            "<details><summary>Criticality signals</summary>", "",
             "| Signal | Value |", "|---|---|",
             ($c.legacy | to_entries[] | "| \(.key) | \(.value) |"),
             "",
