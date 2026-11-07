@@ -6,6 +6,7 @@ import { CopyToClipboard } from '@/shared/components/copy-to-clipboard'
 import OLButton from '@/shared/components/ol/ol-button'
 import OLFormControl from '@/shared/components/ol/ol-form-control'
 import OLFormSelect from '@/shared/components/ol/ol-form-select'
+import OLFormSwitch from '@/shared/components/ol/ol-form-switch'
 import OLNotification from '@/shared/components/notification'
 import { DetailsTable } from '../../admin-user/details-table'
 import { FullDate } from '../../admin-user/tabs/shared'
@@ -37,6 +38,7 @@ type Form = {
   compiler: string
   imageName: string
   rootDocId: string
+  linkSharing: boolean
 }
 
 const formFrom = (project: Project): Form => ({
@@ -44,6 +46,7 @@ const formFrom = (project: Project): Form => ({
   compiler: project.compiler ?? '',
   imageName: project.imageName ?? '',
   rootDocId: project.rootDocId ?? '',
+  linkSharing: project.linkSharing,
 })
 
 // The project's details, as the original admin page's Project Info; the
@@ -85,7 +88,8 @@ function OverviewTab({
   if (form.compiler !== (project.compiler ?? '')) settings.compiler = form.compiler
   if (form.imageName !== (project.imageName ?? '')) settings.imageName = form.imageName
   if (form.rootDocId !== (project.rootDocId ?? '')) settings.rootDocId = form.rootDocId
-  const dirty = Object.keys(settings).length > 0
+  const linkSharingChanged = form.linkSharing !== project.linkSharing
+  const dirty = Object.keys(settings).length > 0 || linkSharingChanged
 
   const docs = project.entries.filter(
     entry => entry.type === 'doc' && MAIN_DOC.test(entry.path)
@@ -102,7 +106,18 @@ function OverviewTab({
       ]
 
   const save = () => {
-    runAsync(postJSON(`/project/${project.id}/settings`, { body: settings }))
+    runAsync(
+      (async () => {
+        if (Object.keys(settings).length > 0) {
+          await postJSON(`/project/${project.id}/settings`, { body: settings })
+        }
+        if (linkSharingChanged) {
+          await postJSON(`/project/${project.id}/settings/admin`, {
+            body: { publicAccessLevel: form.linkSharing ? 'tokenBased' : 'private' },
+          })
+        }
+      })()
+    )
       .then(() => {
         const saved: Project = {
           ...project,
@@ -114,6 +129,7 @@ function OverviewTab({
             form.imageName,
           rootDocId: form.rootDocId,
           mainDocument: docs.find(doc => doc.id === form.rootDocId)?.path,
+          linkSharing: form.linkSharing,
         }
         onSaved(saved)
         setForm(formFrom(saved))
@@ -193,15 +209,25 @@ function OverviewTab({
     [t('status'), <ProjectStatusBadge key="status" status={project.status} />],
     [t('created'), <FullDate key="created" date={project.createdAt} />],
     [t('last_modified'), <FullDate key="modified" date={project.lastUpdated} />],
-    // the owner's to change in the share modal, the one place with the links,
-    // as upstream gives them only to the owner
+    // core lets site admins turn it on and off (canUserAdminProject), but
+    // gives the links only to the owner; without link sharing core answers 403
     ...(linkSharingEnabled
       ? ([
           [
             t('link_sharing'),
-            project.linkSharing
-              ? t('link_sharing_is_on')
-              : t('link_sharing_is_off_short'),
+            editing ? (
+              <OLFormSwitch
+                key="link-sharing"
+                id="admin-project-link-sharing"
+                label={t('link_sharing')}
+                checked={form.linkSharing}
+                onChange={event => change({ linkSharing: event.target.checked })}
+              />
+            ) : project.linkSharing ? (
+              t('link_sharing_is_on')
+            ) : (
+              t('link_sharing_is_off_short')
+            ),
           ],
         ] as [string, React.ReactNode][])
       : []),
