@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getJSON } from '@/infrastructure/fetch-json'
 import { debugConsole } from '@/utils/debugging'
+import { toSearchParams } from '../shared/use-paged-list'
 import type { UsersQuery, UsersResult } from './types'
 
 const DEFAULT_QUERY: UsersQuery = {
@@ -16,18 +17,6 @@ const DEFAULT_QUERY: UsersQuery = {
 
 const SEARCH_DEBOUNCE_MS = 300
 
-// Only the values that differ from the defaults go in the URL. The default
-// order depends on the sort, so a changed sort always carries its order.
-export function toSearchParams(query: UsersQuery) {
-  const params = new URLSearchParams()
-  for (const key of Object.keys(DEFAULT_QUERY) as (keyof UsersQuery)[]) {
-    const changed = query[key] !== DEFAULT_QUERY[key]
-    const sortChanged = key === 'order' && query.sort !== DEFAULT_QUERY.sort
-    if (changed || sortChanged) params.set(key, String(query[key]))
-  }
-  return params
-}
-
 export function useUsers(initialResult: UsersResult) {
   const [query, setQuery] = useState<UsersQuery>(initialResult.query)
   const [result, setResult] = useState<UsersResult>(initialResult)
@@ -38,7 +27,7 @@ export function useUsers(initialResult: UsersResult) {
   const debounceNext = useRef(false)
 
   useEffect(() => {
-    const params = toSearchParams(query)
+    const params = toSearchParams(query, DEFAULT_QUERY)
     const search = params.toString() ? `?${params}` : ''
     window.history.replaceState(
       null,

@@ -146,7 +146,7 @@ function OverviewTab({
 
   const select = (
     key: 'compiler' | 'imageName' | 'rootDocId',
-    options: { value: string; label: string }[]
+    options: { value: string; label: string; disabled?: boolean }[]
   ) => (
     <OLFormSelect
       key={key}
@@ -157,7 +157,11 @@ function OverviewTab({
       onChange={event => change({ [key]: event.target.value })}
     >
       {options.map(option => (
-        <option key={option.value} value={option.value}>
+        <option
+          key={option.value}
+          value={option.value}
+          disabled={option.disabled}
+        >
           {option.label}
         </option>
       ))}
@@ -258,7 +262,13 @@ function OverviewTab({
       editing
         ? select(
             'rootDocId',
-            docs.map(doc => ({ value: doc.id ?? '', label: doc.path }))
+            // as core's main document setting: without one, None shows first
+            [
+              ...(project.rootDocId
+                ? []
+                : [{ value: '', label: 'None', disabled: true }]),
+              ...docs.map(doc => ({ value: doc.id ?? '', label: doc.path })),
+            ]
           )
         : project.mainDocument,
     ],

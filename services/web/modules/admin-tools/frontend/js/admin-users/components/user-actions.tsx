@@ -444,15 +444,18 @@ export function CreateUserButton({ onDone }: { onDone: () => void }) {
     isExternal: false,
   })
   const { isLoading, isError, error, runAsync, reset } = useAsync()
+  // the new account's activation link, which the modal then shows
+  const [created, setCreated] = useState<PasswordLink[] | null>(null)
   const hasExternalAuth = enabledAuth.ldap || enabledAuth.saml || enabledAuth.oidc
 
   const close = () => {
     setShow(false)
+    setCreated(null)
     reset()
   }
   const create = () => {
     runAsync(
-      postJSON('/admin/user/create', {
+      postJSON<{ user: { email: string } & Partial<SentLink> }>('/admin/user/create', {
         body: {
           email: form.email.trim(),
           first_name: form.firstName.trim(),
@@ -462,10 +465,20 @@ export function CreateUserButton({ onDone }: { onDone: () => void }) {
         },
       })
     )
-      .then(() => {
-        close()
+      .then(({ user }) => {
+        const title =
+          [form.firstName.trim(), form.lastName.trim()].filter(Boolean).join(' ') ||
+          user.email
         setForm({ email: '', firstName: '', lastName: '', isAdmin: false, isExternal: false })
         onDone()
+        // an SSO account has no link: it logs in through SSO
+        if (user.link) {
+          setCreated([
+            { title, detail: user.email, link: user.link, emailSent: Boolean(user.emailSent) },
+          ])
+        } else {
+          close()
+        }
       })
       .catch(() => {})
   }
@@ -474,6 +487,7 @@ export function CreateUserButton({ onDone }: { onDone: () => void }) {
       <OLFormLabel>{label}</OLFormLabel>
       <OLFormControl
         type={name === 'email' ? 'email' : 'text'}
+        maxLength={255}
         value={form[name]}
         required={name === 'email'}
         onChange={event => setForm({ ...form, [name]: event.target.value })}
@@ -511,45 +525,65 @@ export function CreateUserButton({ onDone }: { onDone: () => void }) {
             <OLModalTitle>{t('create_account')}</OLModalTitle>
           </OLModalHeader>
           <OLModalBody>
-            {field('email', t('email_address'))}
-            {field('firstName', t('first_name'))}
-            {field('lastName', t('last_name'))}
-            <OLFormCheckbox
-              id="admin-create-is-admin"
-              checked={form.isAdmin}
-              onChange={event => setForm({ ...form, isAdmin: event.target.checked })}
-              label={t('admin_titlecase')}
-            />
-            {hasExternalAuth && (
-              <OLFormCheckbox
-                id="admin-create-is-external"
-                checked={form.isExternal}
-                onChange={event =>
-                  setForm({ ...form, isExternal: event.target.checked })
-                }
-                label={t('log_in_with_sso')}
-              />
-            )}
-            {isError && (
-              <OLNotification
-                type="error"
-                className="mt-3"
-                content={getUserFacingMessage(error) ?? t('generic_something_went_wrong')}
-              />
+            {created ? (
+              <>
+                <p className="admin-panel-modal-user">
+                  <strong>{created[0].title}</strong>
+                  <span className="admin-panel-muted"> {created[0].detail}</span>
+                </p>
+                <PasswordLinks links={created} note={t('expires_in_days', { days: 7 })} />
+              </>
+            ) : (
+              <>
+                {field('email', t('email_address'))}
+                {field('firstName', t('first_name'))}
+                {field('lastName', t('last_name'))}
+                <OLFormCheckbox
+                  id="admin-create-is-admin"
+                  checked={form.isAdmin}
+                  onChange={event => setForm({ ...form, isAdmin: event.target.checked })}
+                  label={t('admin_titlecase')}
+                />
+                {hasExternalAuth && (
+                  <OLFormCheckbox
+                    id="admin-create-is-external"
+                    checked={form.isExternal}
+                    onChange={event =>
+                      setForm({ ...form, isExternal: event.target.checked })
+                    }
+                    label={t('log_in_with_sso')}
+                  />
+                )}
+                {isError && (
+                  <OLNotification
+                    type="error"
+                    className="mt-3"
+                    content={getUserFacingMessage(error) ?? t('generic_something_went_wrong')}
+                  />
+                )}
+              </>
             )}
           </OLModalBody>
           <OLModalFooter>
-            <OLButton variant="secondary" onClick={close} disabled={isLoading}>
-              {t('cancel')}
-            </OLButton>
-            <OLButton
-              variant="primary"
-              onClick={create}
-              isLoading={isLoading}
-              disabled={!form.email.trim()}
-            >
-              {t('create')}
-            </OLButton>
+            {created ? (
+              <OLButton variant="secondary" onClick={close}>
+                {t('close')}
+              </OLButton>
+            ) : (
+              <>
+                <OLButton variant="secondary" onClick={close} disabled={isLoading}>
+                  {t('cancel')}
+                </OLButton>
+                <OLButton
+                  variant="primary"
+                  onClick={create}
+                  isLoading={isLoading}
+                  disabled={!form.email.trim()}
+                >
+                  {t('create')}
+                </OLButton>
+              </>
+            )}
           </OLModalFooter>
         </OLModal>
       )}

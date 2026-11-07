@@ -59,8 +59,11 @@ function parseEntriesQuery(query) {
 function entriesMatch(scope, query, skipOperation) {
   const and = [scope]
   if (query.search) {
-    const regex = containing(query.search)
-    and.push({ $or: [{ operation: regex }, { ipAddress: regex }] })
+    // the table shows change-features as "Change features"
+    const operation = containing(query.search.trim().replace(/\s+/g, '-'))
+    and.push({
+      $or: [{ operation }, { ipAddress: containing(query.search) }],
+    })
   }
   if (query.operation !== 'all' && !skipOperation) {
     and.push({ operation: query.operation })

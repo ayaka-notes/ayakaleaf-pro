@@ -45,6 +45,8 @@ import AdminUserListManager from './AdminUserListManager.mjs'
 
 const ONE_WEEK_IN_SECONDS = 7 * 24 * 60 * 60
 const MAX_COMPILE_TIMEOUT = 600
+// core's User model holds at most this; its settings page checks the same
+const nameField = z.string().max(255).optional()
 const TRANSFER_TAG_COLOR = '#434AF0'
 
 async function assertUserExists(userId) {
@@ -127,6 +129,12 @@ async function createUser(
   if (!EmailHelper.parseEmail(email)) {
     throw new InvalidEmailError('invalid email')
   }
+  const names = z
+    .object({ first_name: nameField, last_name: nameField })
+    .safeParse({ first_name, last_name })
+  if (!names.success) {
+    throw new RefusedError(fromZodError(names.error).message)
+  }
 
   const user = await registerUser({
     email,
@@ -151,13 +159,14 @@ async function createUser(
     }
   ).exec()
 
-  // the admin can get the link and send it again from the user list
-  if (!isExternal) await sendActivationLink(user)
+  // the modal shows the link, as Send activation email does; the admin can
+  // send it again from the user list
+  const sent = isExternal ? null : await sendActivationLink(user)
   await logOnUser(admin, user._id, 'create-account', {
     isAdmin: Boolean(isAdmin),
     isExternal: Boolean(isExternal),
   })
-  return { id: user._id.toString(), email: user.email }
+  return { id: user._id.toString(), email: user.email, ...sent }
 }
 
 async function sendActivationEmail(userId, admin) {
@@ -218,8 +227,8 @@ async function getActivationLink(userId) {
 const featureSwitch = z.boolean().optional()
 const updateSchema = z.strictObject({
   email: z.string().optional(),
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
+  firstName: nameField,
+  lastName: nameField,
   password: z.string().optional(),
   isAdmin: z.boolean().optional(),
   suspended: z.boolean().optional(),
