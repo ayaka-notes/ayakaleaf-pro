@@ -15,6 +15,11 @@ export interface ProjectSettings {
   name: string
   mainBibliographyDocId?: string
   referenceFormat?: 'bibtex' | 'biblatex'
+  // LanguageTool grammar check (project-wide; defaults when unset:
+  // enabled=true, picky=true → level=picky, language='auto')
+  languageToolEnabled?: boolean
+  languageToolPicky?: boolean
+  languageToolLanguage?: string
 }
 
 type SaveUserSettings = Partial<

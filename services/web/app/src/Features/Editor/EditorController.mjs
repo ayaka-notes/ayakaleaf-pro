@@ -604,6 +604,58 @@ const EditorController = {
     )
   },
 
+  // ─────────────────────────────────────────────────────────────
+  // LanguageTool settings (project-wide), mirrored to all clients
+  // in the room (see use-project-wide-settings-socket-listener).
+  // ─────────────────────────────────────────────────────────────
+  setLanguageToolEnabled(projectId, enabled, callback) {
+    ProjectOptionsHandler.setLanguageToolEnabled(projectId, enabled, function (
+      err
+    ) {
+      if (err) {
+        return callback(err)
+      }
+      EditorRealTimeController.emitToRoom(
+        projectId,
+        'languageToolEnabledUpdated',
+        enabled
+      )
+      callback()
+    })
+  },
+
+  setLanguageToolPicky(projectId, picky, callback) {
+    ProjectOptionsHandler.setLanguageToolPicky(projectId, picky, function (err) {
+      if (err) {
+        return callback(err)
+      }
+      EditorRealTimeController.emitToRoom(
+        projectId,
+        'languageToolPickyUpdated',
+        picky
+      )
+      callback()
+    })
+  },
+
+  setLanguageToolLanguage(projectId, language, callback) {
+    ProjectOptionsHandler.setLanguageToolLanguage(
+      projectId,
+      language,
+      function (err) {
+        if (err) {
+          return callback(err)
+        }
+        EditorRealTimeController.emitToRoom(
+          projectId,
+          'languageToolLanguageUpdated',
+          language
+        )
+        callback()
+      }
+    )
+  },
+
   setPublicAccessLevel(projectId, newAccessLevel, callback) {
     async.series(
       [
@@ -747,6 +799,13 @@ EditorController.promises = {
   setImageName: promisify(EditorController.setImageName),
   setPng2pdf: promisify(EditorController.setPng2pdf),
   setSpellCheckLanguage: promisify(EditorController.setSpellCheckLanguage),
+  setLanguageToolEnabled: promisify(
+    EditorController.setLanguageToolEnabled
+  ),
+  setLanguageToolPicky: promisify(EditorController.setLanguageToolPicky),
+  setLanguageToolLanguage: promisify(
+    EditorController.setLanguageToolLanguage
+  ),
   setPublicAccessLevel: promisify(EditorController.setPublicAccessLevel),
   setRootDoc: promisify(EditorController.setRootDoc),
   setMainBibliographyDoc: promisify(EditorController.setMainBibliographyDoc),

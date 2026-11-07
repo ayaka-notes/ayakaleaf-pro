@@ -1,0 +1,25 @@
+{
+  "name": "grammar-llm-container",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "LanguageTool-compatible (/v2/* API) HTTP grammar checker — drop-in replacement for docker-languagetool — powered by the grammar-llm engine (GRMR-V3-G4B via node-llama-cpp).",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node dist/server.mjs",
+    "download-model": "node dist/download-model.mjs",
+    "test": "node build.mjs --quiet && node --test test/*.test.mjs",
+    "smoke": "bash test/smoke.sh",
+    "sync-core": "bash scripts/sync-core.sh"
+  },
+  "dependencies": {
+    "node-llama-cpp": "3.19.1"
+  },
+  "devDependencies": {
+    "diff": "^9.0.0",
+    "esbuild": "^0.25.0"
+  }
+}

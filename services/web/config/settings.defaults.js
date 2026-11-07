@@ -1050,6 +1050,18 @@ module.exports = {
         __dirname,
         '../modules/error-assistant/frontend/js/last-fix-store'
       ),
+      // LanguageTool editor extension. Registered unconditionally: this list
+      // is consumed at BUILD time by the import-overleaf-module babel macro
+      // (webpack), so a build-environment flag would silently drop the chunk
+      // even when the deployment enables the feature at runtime. Runtime
+      // visibility is instead driven by ol-ExposedSettings.languageToolAvailable
+      // (set from LANGUAGE_TOOL_ENABLED at container start); the extension is
+      // dormant and the settings section (incl. its label) is hidden when the
+      // service is disabled — see modules/languagetool.
+      Path.resolve(
+        __dirname,
+        '../modules/languagetool/frontend/js/languagetool-extension'
+      ),
     ],
     sourceEditorVisualExtensions: [],
     sourceEditorComponents: [],
@@ -1286,7 +1298,16 @@ module.exports = {
     ],
     referenceSearchSetting: [],
     settingsModalEditorTabSections: [],
-    settingsModalSpellcheckSections: [],
+    settingsModalSpellcheckSections: [
+      // LanguageTool settings section. Unconditional bundle registration
+      // (build-time macro — see sourceEditorExtensions above); the section
+      // returns null at runtime when LANGUAGE_TOOL_ENABLED is off, so the
+      // label is hidden for disabled deployments.
+      Path.resolve(
+        __dirname,
+        '../modules/languagetool/frontend/js/languagetool-section'
+      ),
+    ],
     editorFloatingMenuActions: [],
     referenceIndices: [
       Path.resolve(
@@ -1318,6 +1339,7 @@ module.exports = {
     'sandboxed-compiles',
     'symbol-palette',
     'track-changes',
+    'languagetool',
     'template-gallery',
     'login-register',
     'oauth2-server',

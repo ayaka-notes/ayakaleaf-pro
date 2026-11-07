@@ -109,6 +109,9 @@ const updateProjectSettingsSchema = z.object({
     rootDocId: zz.objectId().optional(),
     spellCheckLanguage: z.string().optional(),
     referenceFormat: z.enum(['bibtex', 'biblatex']).optional(),
+    languageToolEnabled: z.boolean().optional(),
+    languageToolPicky: z.boolean().optional(),
+    languageToolLanguage: z.string().optional(),
   }),
 })
 
@@ -127,6 +130,9 @@ const updateProjectSettingsFallbackSchema = z.object({
     rootDocId: zz.objectId().optional(),
     spellCheckLanguage: z.string().optional(),
     referenceFormat: z.enum(['bibtex', 'biblatex']).optional(),
+    languageToolEnabled: z.boolean().optional(),
+    languageToolPicky: z.boolean().optional(),
+    languageToolLanguage: z.string().optional(),
   }),
 })
 
@@ -225,6 +231,27 @@ const _ProjectController = {
       await EditorController.promises.setSpellCheckLanguage(
         projectId,
         body.spellCheckLanguage
+      )
+    }
+
+    if (body.languageToolEnabled != null) {
+      await EditorController.promises.setLanguageToolEnabled(
+        projectId,
+        body.languageToolEnabled
+      )
+    }
+
+    if (body.languageToolPicky != null) {
+      await EditorController.promises.setLanguageToolPicky(
+        projectId,
+        body.languageToolPicky
+      )
+    }
+
+    if (body.languageToolLanguage != null) {
+      await EditorController.promises.setLanguageToolLanguage(
+        projectId,
+        body.languageToolLanguage
       )
     }
 
