@@ -5,6 +5,7 @@ import HttpErrorHandler from '../../../../app/src/Features/Errors/HttpErrorHandl
 import AuthorizationMiddleware from '../../../../app/src/Features/Authorization/AuthorizationMiddleware.mjs'
 import ProjectHelper from '../../../../app/src/Features/Project/ProjectHelper.mjs'
 import { Project } from '../../../../app/src/models/Project.mjs'
+import { parseReq, z } from '../../../../app/src/infrastructure/Validation.mjs'
 import {
   projectOwnerHasFeature,
   runBeforeCoreRoutes,
@@ -45,6 +46,21 @@ async function turnsTrackingOn(req) {
   )
 }
 
+// What the editor sends (track-changes-state-context.tsx): on or off per
+// member, or for guests. Anything else is refused (400) before the check above
+// and the controller, which stores the values as they come
+const trackChangesSchema = z.object({
+  body: z.object({
+    on_for: z.record(z.string(), z.boolean()).optional(),
+    on_for_guests: z.boolean().optional(),
+  }),
+})
+
+function validateTrackChanges(req, res, next) {
+  parseReq(req, trackChangesSchema)
+  next()
+}
+
 // Core's sharing routes (CollaboratorsRouter.mjs)
 const sharingRoutes = express.Router()
 sharingRoutes.post(
@@ -66,6 +82,7 @@ export default {
       '/project/:project_id/track_changes',
       AuthorizationMiddleware.blockRestrictedUserFromProject,
       AuthorizationMiddleware.ensureUserCanWriteProjectContent,
+      validateTrackChanges,
       refuseTrackingWithoutFeature(turnsTrackingOn),
       TrackChangesController.trackChanges
     )

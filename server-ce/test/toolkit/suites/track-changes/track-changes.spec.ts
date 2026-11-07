@@ -700,6 +700,11 @@ describe('a project whose owner has track changes turned off', function () {
           ['POST', trackChanges, { on_for: { [trackedId]: true } }],
           ['POST', trackChanges, { on_for_guests: true }],
         ])
+        // only true or false: the text "true" would be stored and read as on
+        expectRoutesAnswer(400, [
+          ['POST', trackChanges, { on_for: { [trackedId]: 'true' } }],
+          ['POST', trackChanges, { on_for_guests: 'true' }],
+        ])
       })
     })
   })
