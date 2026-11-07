@@ -1,0 +1,6 @@
+# Build/dev scratch only — the generated assets (*.png *.svg favicon.ico img/)
+# are TRACKED in this repo (baked into the docker images via public/).
+.mypy_cache/
+__pycache__/
+*.pyc
+logo-generator
