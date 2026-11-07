@@ -290,7 +290,7 @@ function UserActions({
   editDisabled,
 }: {
   user: AdminUser
-  onDone: () => void
+  onDone: (action: Action) => void
   // the detail page's pencil, which opens the account form
   onEdit?: () => void
   // greyed out on a form the admin cannot use: their own features
@@ -425,7 +425,7 @@ function UserActions({
           subject={userSubject(user)}
           action={open}
           onHide={() => setOpen(null)}
-          onDone={onDone}
+          onDone={() => onDone(open)}
         />
       )}
     </div>

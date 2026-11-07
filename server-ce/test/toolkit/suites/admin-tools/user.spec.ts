@@ -590,7 +590,10 @@ describe('the actions next to the name', function () {
       cy.findAllByRole('tab').should('have.length', 1)
       detail('Deleted By email').should('contain.text', ADMIN_EMAIL)
       headerAction('Restore').should('exist')
-      headerAction('Delete permanently').should('exist')
+      // the page is gone after a purge: back to the user list
+      headerAction('Delete permanently').click()
+      confirmDialog('Delete permanently')
+      cy.location('pathname').should('equal', '/admin/user')
     })
     tryLogin(address).its('status').should('equal', 401)
   })

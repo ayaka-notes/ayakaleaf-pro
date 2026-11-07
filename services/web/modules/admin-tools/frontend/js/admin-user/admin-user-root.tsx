@@ -75,7 +75,14 @@ function AdminUserPage() {
           </div>
           {name && <div className="admin-panel-muted">{user.email}</div>}
         </div>
-        <UserActions user={user} onDone={() => window.location.reload()} onEdit={
+        <UserActions user={user} onDone={action => {
+            // after a purge the page is gone: back to the user list
+            if (action.key === 'purge') {
+              window.location.assign('/admin/user')
+            } else {
+              window.location.reload()
+            }
+          }} onEdit={
             editableTabs.includes(activeTab)
               ? () => setEditingTab(activeTab)
               : undefined
