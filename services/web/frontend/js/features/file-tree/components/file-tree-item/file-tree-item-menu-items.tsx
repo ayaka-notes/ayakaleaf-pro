@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { ElementType, ComponentType } from 'react'
 import { useTranslation } from 'react-i18next'
 import * as eventTracking from '../../../../infrastructure/event-tracking'
 import { useProjectContext } from '@/shared/context/project-context'
@@ -9,6 +10,14 @@ import {
 } from '@/shared/components/ol/ol-dropdown-menu'
 import { useFileTreeActionable } from '../../contexts/file-tree-actionable'
 import useIsNetworkStalled from '@/features/ide-react/hooks/use-is-network-stalled'
+import importOverleafModules from '../../../../../macros/import-overleaf-module.macro'
+
+// Context menu items contributed by modules (e.g. the SVG -> PDF/PNG
+// conversion actions of the svgeditor module). Each component returns null
+// unless the currently selected file is one it handles.
+const fileTreeContextMenuItems = importOverleafModules(
+  'fileTreeContextMenuItems'
+) as { import: { default: ComponentType<any> }; path: string }[]
 
 function FileTreeItemMenuItems() {
   const { t } = useTranslation()
@@ -26,6 +35,8 @@ function FileTreeItemMenuItems() {
     selectedFileName,
     canSetRootDocId,
     setRootDocId,
+    parentFolderId,
+    isDuplicate,
   } = useFileTreeActionable()
 
   const { project } = useProjectContext()
@@ -74,6 +85,18 @@ function FileTreeItemMenuItems() {
           </OLDropdownItem>
         </li>
       ) : null}
+      {/* Module-provided actions for this file (e.g. SVG -> PDF/PNG). */}
+      {fileTreeContextMenuItems.map(({ import: { default: MenuItem }, path }) => (
+        <MenuItem
+          key={path}
+          fileName={selectedFileName}
+          downloadPath={downloadPath}
+          parentFolderId={parentFolderId ?? ''}
+          isDuplicate={(name: string) =>
+            isDuplicate(parentFolderId ?? '', name)
+          }
+        />
+      ))}
       {canSetRootDocId ? (
         <>
           <OLDropdownDivider />

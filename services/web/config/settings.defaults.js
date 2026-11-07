@@ -1231,6 +1231,10 @@ module.exports = {
         __dirname,
         '../modules/python-runner/frontend/js/components/editor/python/python-output-toasts'
       ),
+      Path.resolve(
+        __dirname,
+        '../modules/svgeditor/frontend/js/components/svg-convert-toasts'
+      ),
     ],
     editorSidebarComponents: [
       Path.resolve(
@@ -1303,6 +1307,22 @@ module.exports = {
     railPopovers: [],
     railActions: [],
     railModals: [],
+    // Buttons rendered next to the download button in the file view header
+    // (e.g. the "Edit SVG" action from the svgeditor module).
+    fileViewButtons: [
+      Path.resolve(
+        __dirname,
+        '../modules/svgeditor/frontend/js/components/svg-editor-button'
+      ),
+    ],
+    // Items appended to the file tree right-click (context) menu
+    // (e.g. SVG -> PDF/PNG conversion from the svgeditor module).
+    fileTreeContextMenuItems: [
+      Path.resolve(
+        __dirname,
+        '../modules/svgeditor/frontend/js/components/svg-convert-menu-item'
+      ),
+    ],
   },
 
   moduleImportSequence: [
@@ -1332,7 +1352,8 @@ module.exports = {
     'workbench',
     'error-assistant',
     'instance-features',
-    'open-in-overleaf'
+    'open-in-overleaf',
+    'svgeditor'
   ],
   viewIncludes: {},
 
