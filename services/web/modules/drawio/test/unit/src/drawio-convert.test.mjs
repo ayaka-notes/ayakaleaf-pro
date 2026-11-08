@@ -204,21 +204,32 @@ describe('computeRasterPixelSize', () => {
 describe('diagramToSvg', () => {
   it('returns the renderer output when it is an SVG document', async () => {
     const svg = '<svg width="10" height="10"><rect/></svg>'
-    await expect(
-      diagramToSvg('<mxGraphModel/>', () => svg)
-    ).resolves.toBe(svg)
+    // manual await: `expect(p).resolves/rejects` collides with the
+    // chai-as-promised plugin registered in test/unit/bootstrap.mjs
+    const out = await diagramToSvg('<mxGraphModel/>', () => svg)
+    expect(out).toBe(svg)
   })
 
   it('rejects empty input', async () => {
-    await expect(
-      diagramToSvg('   ', () => '<svg></svg>')
-    ).rejects.toThrow('empty')
+    let threw = null
+    try {
+      await diagramToSvg('   ', () => '<svg></svg>')
+    } catch (e) {
+      threw = e
+    }
+    expect(threw).toBeTruthy()
+    expect(String(threw.message)).toContain('empty')
   })
 
   it('rejects non-SVG renderer output', async () => {
-    await expect(
-      diagramToSvg('<mxGraphModel/>', () => 'not an svg')
-    ).rejects.toThrow('<svg>')
+    let threw = null
+    try {
+      await diagramToSvg('<mxGraphModel/>', () => 'not an svg')
+    } catch (e) {
+      threw = e
+    }
+    expect(threw).toBeTruthy()
+    expect(String(threw.message)).toContain('<svg>')
   })
 })
 
