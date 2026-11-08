@@ -541,6 +541,11 @@ body {
     color: var(--ds-nav-color);
     margin-bottom: var(--spacing-05);
 
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
     span {
       text-transform: uppercase;
       font-weight: bold;

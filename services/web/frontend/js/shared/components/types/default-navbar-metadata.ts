@@ -7,6 +7,8 @@ export type DefaultNavbarMetadata = {
   customLogo?: string
   customLogoDark?: string
   title?: string
+  dsName?: string
+  dsNameLink?: string
   canDisplayAdminMenu: boolean
   canDisplayAdminRedirect: boolean
   canDisplayProjectUrlLookup: boolean

@@ -31,7 +31,7 @@ export function SidebarLowerSection({
     useContactUsModal({
       autofillProjectUrl: false,
     })
-  const { sessionUser, showSubscriptionLink, items } = getMeta('ol-navbar')
+  const { sessionUser, showSubscriptionLink, items, dsName, dsNameLink } = getMeta('ol-navbar')
   const helpItem = items.find(
     item => item.text === 'help_and_resources'
   ) as NavbarDropdownItemData
@@ -119,7 +119,11 @@ export function SidebarLowerSection({
         </ul>
       </nav>
       <div className="ds-nav-ds-name" translate="no">
-        <span>Digital Science</span>
+        {dsNameLink ? (
+          <a href={dsNameLink}>{dsName ?? 'Digital Science'}</a>
+        ) : (
+          <span>{dsName ?? 'Digital Science'}</span>
+        )}
       </div>
       <UserProvider>{contactUsModal}</UserProvider>
     </>
