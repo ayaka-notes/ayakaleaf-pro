@@ -8,6 +8,10 @@
   --symbol-palette-selected-tab-color: var(--content-primary-dark);
   --symbol-palette-text-shadow-color: var(--bg-dark-primary);
   --symbol-palette-overlay-bg: #{rgb($bg-dark-tertiary, 0.75)};
+  // settings UI (theme-aware: dark values are the base, light overrides below)
+  --symbol-palette-settings-th-bg: var(--bg-dark-secondary);
+  --symbol-palette-settings-add-row-bg: var(--bg-dark-secondary);
+  --symbol-palette-active-outline: var(--blue-30);
 }
 
 @include theme('light') {
@@ -20,6 +24,9 @@
   --symbol-palette-selected-tab-color: var(--blue-50);
   --symbol-palette-text-shadow-color: var(--bg-light-tertiary);
   --symbol-palette-overlay-bg: #{rgb($bg-light-primary, 0.75)};
+  --symbol-palette-settings-th-bg: var(--bg-light-tertiary);
+  --symbol-palette-settings-add-row-bg: var(--bg-light-secondary);
+  --symbol-palette-active-outline: var(--blue-50);
 }
 
 .symbol-palette-container {
@@ -45,7 +52,7 @@
   justify-content: space-between;
   align-items: stretch;
   font-family: $font-family-sans-serif;
-  font-size: var(--font-size-02);
+  font-size: var(--font-size-03);
   background: var(--symbol-palette-header-background);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 10%);
 }
@@ -53,8 +60,8 @@
 .symbol-palette-header {
   flex: 1;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
+  flex-flow: column nowrap;
+  justify-content: flex-start;
   align-items: stretch;
 }
 
@@ -73,9 +80,11 @@
   color: inherit;
   cursor: pointer;
   display: inline-block;
+  flex-shrink: 0;
   font: inherit;
   margin: 0;
   padding: var(--spacing-02) var(--spacing-04);
+  white-space: nowrap;
 
   &[aria-selected='true'] {
     background: var(--symbol-palette-selected-tab-bg);
@@ -96,6 +105,7 @@
 .symbol-palette-items {
   display: flex;
   flex-wrap: wrap;
+  min-width: 0;
   padding: var(--spacing-03);
 }
 
@@ -105,7 +115,6 @@
   line-height: 42px;
   height: 42px;
   width: 42px;
-  padding: 0;
   margin: var(--spacing-03);
   color: var(--symbol-palette-item-color);
   background: var(--symbol-palette-item-bg);
@@ -145,37 +154,21 @@
 }
 
 .symbol-palette-search {
+  min-width: 0;
   padding: var(--spacing-01) var(--spacing-05);
-  margin: var(--spacing-03);
+  margin: 0 var(--spacing-03) var(--spacing-03);
   line-height: 1;
   height: auto;
-  width: auto;
+  width: 100%;
 }
 
 .symbol-palette-header-group {
   display: flex;
   align-items: stretch;
   white-space: nowrap;
-  margin-left: var(--spacing-03);
+  width: 100%;
 }
 
-.symbol-palette-draw-toggle {
-  display: inline-flex;
-  align-items: center;
-  align-self: center; // don't stretch to the full header height
-  margin: 0 var(--spacing-02);
-  padding: var(--spacing-02);
-  border: none;
-  border-radius: var(--border-radius-base);
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-
-  &[aria-pressed='true'] {
-    background: var(--bg-accent-01);
-    color: var(--content-primary-dark); // white icon on the accent background
-  }
-}
 
 .symbol-palette-info-link,
 .symbol-palette-info-link:focus,
@@ -183,112 +176,166 @@
   color: inherit;
 }
 
-.symbol-palette-close-button-outer {
-  display: flex;
-}
 
-.symbol-palette-close-button {
-  margin-top: var(--spacing-04);
-  margin-left: var(--spacing-05);
-  margin-right: var(--spacing-03);
 
-  .symbol-palette-unavailable & {
-    visibility: hidden;
-  }
-}
 
-.symbol-palette-overlay {
-  position: absolute;
-  inset: 0;
-  background: var(--symbol-palette-overlay-bg);
-  color: var(--symbol-palette-color);
+
+// left column: recognised-results grid, scrolls independently
+
+// shown in the results column while the canvas is empty
+
+// right column: square canvas pinned to the panel height
+
+
+
+// Rail panel layout
+// Rail panel layout
+.symbol-palette-rail-panel {
   display: flex;
   flex-direction: column;
-  padding: 0 var(--spacing-09) var(--spacing-05);
-  align-items: center;
-  text-shadow: 0 0 8px var(--symbol-palette-text-shadow-color);
-  min-height: 200px;
-  overflow: auto;
-
-  h4 {
-    font-weight: bold;
-    color: var(--symbol-palette-color);
-    text-align: center;
-  }
-
-  .symbol-palette-close-button {
-    position: absolute;
-    top: 0;
-    right: 0;
-  }
-
-  .upgrade-benefits {
-    column-count: 2;
-  }
+  min-width: 0;
+  contain: layout paint;
+  height: 100%;
+  overflow: hidden;
 }
 
-.symbol-palette-draw {
+.symbol-palette-rail-panel-body {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
   display: flex;
-  flex-direction: row;
-  gap: var(--spacing-04);
+  flex-direction: column;
+}
+
+.symbol-palette-rail-panel-body .symbol-palette-container {
   height: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.symbol-palette-rail-panel-body .symbol-palette {
+  min-height: 0;
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.symbol-palette-rail-panel-body .symbol-palette-body {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+// Settings page
+.sp-settings {
   padding: var(--spacing-04);
 }
 
-// left column: recognised-results grid, scrolls independently
-.symbol-palette-draw-results {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow-y: auto;
+.sp-settings-section {
+  margin-bottom: var(--spacing-06);
 }
 
-// shown in the results column while the canvas is empty
-.symbol-palette-draw-instructions {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  margin: 0;
-  padding: var(--spacing-06);
-  text-align: center;
-  opacity: 0.7;
+.sp-settings-section-title {
+  font-weight: 600;
+  margin-bottom: var(--spacing-03);
 }
 
-// right column: square canvas pinned to the panel height
-.symbol-palette-draw-canvas-panel {
-  flex: 0 0 auto;
+.sp-settings-category-controls {
   display: flex;
-  flex-direction: column;
   gap: var(--spacing-02);
-  height: 100%;
-  aspect-ratio: 1;
-}
-
-.symbol-palette-draw-canvas {
-  flex: 1 1 auto;
-  width: 100%;
-  min-height: 0;
-  border: 1px dashed var(--border-primary);
-  border-radius: var(--border-radius-base);
-  background: var(--bg-light-primary);
-  touch-action: none;
-}
-
-.symbol-palette-draw-toolbar {
-  display: flex;
-  flex-shrink: 0;
+  margin-bottom: var(--spacing-03);
   align-items: center;
-  gap: var(--spacing-04);
-  min-height: 20px;
-  font-size: var(--font-size-01);
 }
 
-.symbol-palette-draw-clear {
-  appearance: none;
-  border: 1px solid var(--border-primary);
+.sp-settings-category-select {
+  flex: 1;
+  max-width: 300px;
+}
+
+.sp-settings-add-category {
+  display: flex;
+  gap: var(--spacing-02);
+  max-width: 400px;
+}
+
+.sp-settings-table-container {
+  border: 1px solid var(--border-color-01);
   border-radius: var(--border-radius-base);
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  padding: var(--spacing-01) var(--spacing-05);
+}
+
+.sp-settings-table {
+  width: 100%;
+  border-collapse: collapse;
+
+  th,
+  td {
+    padding: var(--spacing-02) var(--spacing-03);
+    text-align: left;
+    border-bottom: 1px solid var(--border-color-01);
+  }
+}
+
+.sp-settings-th {
+  position: sticky;
+  top: 0;
+  background: var(--symbol-palette-settings-th-bg);
+  font-weight: 600;
+  font-size: var(--font-size-02);
+}
+
+.sp-settings-th-symbol {
+  width: 60px;
+}
+
+.sp-settings-th-actions {
+  width: 160px;
+}
+
+.sp-settings-cell-symbol {
+  font-family: 'Stix Two Math', serif;
+  font-size: 20px;
+  text-align: center;
+  width: 60px;
+}
+
+.sp-settings-cell-command {
+  font-family: monospace;
+  font-size: var(--font-size-02);
+}
+
+.sp-settings-cell-actions {
+  display: flex;
+  gap: var(--spacing-01);
+  flex-wrap: nowrap;
+}
+
+.sp-settings-input-symbol {
+  width: 50px;
+  text-align: center;
+  font-family: 'Stix Two Math', serif;
+}
+
+.sp-settings-buttons {
+  display: flex;
+  gap: var(--spacing-03);
+  flex-wrap: wrap;
+}
+
+.sp-settings-add-row {
+  background: var(--symbol-palette-settings-add-row-bg);
+}
+
+
+// dedicated /user/symbol-palette page
+.sp-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--spacing-06);
+}
+
+.sp-page-title {
+  margin-bottom: var(--spacing-05);
 }

@@ -196,6 +196,7 @@ nav.navbar.navbar-default.navbar-main.navbar-expand-lg(
 									.disabled.dropdown-item #{getSessionUser().email}
 								+dropdown-menu-divider
 								+dropdown-menu-link-item(href='/user/settings') #{translate('account_settings')}
+								+dropdown-menu-link-item(href='/user/symbol-palette') #{translate('symbol_palette')}
 								if nav.showSubscriptionLink
 									+dropdown-menu-link-item(href='/user/subscription') #{translate('subscription')}
 								+dropdown-menu-divider

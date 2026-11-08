@@ -57,7 +57,6 @@ const mountEditor = (content: string) => {
           PermissionsProvider,
           EditorPropertiesProvider: makeEditorPropertiesProvider({
             showVisual: true,
-            showSymbolPalette: false,
           }),
         }}
       >

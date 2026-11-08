@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import PropTypes from 'prop-types'
-import { useEditorPropertiesContext } from '@/features/ide-react/context/editor-properties-context'
 import SymbolPaletteItem from './symbol-palette-item'
 
 export default function SymbolPaletteItems({
   items,
   handleSelect,
   focusInput,
-  ariaLabel = 'Symbols',
-  spriteSheet,
 }) {
   const [focusedIndex, setFocusedIndex] = useState(0)
   const itemRefs = useRef([])
@@ -21,7 +18,6 @@ export default function SymbolPaletteItems({
   const getItemRects = () => {
     return itemRefs.current.map(ref => ref?.getBoundingClientRect?.() ?? null)
   }
-  const { toggleSymbolPalette } = useEditorPropertiesContext()
 
   const handleKeyDown = useCallback(
     event => {
@@ -69,10 +65,9 @@ export default function SymbolPaletteItems({
         case 'Enter':
         case ' ':
           handleSelect(items[focusedIndex])
-          toggleSymbolPalette()
+          window.dispatchEvent(new CustomEvent('editor:focus'))
           break
         case 'Escape':
-          toggleSymbolPalette()
           window.dispatchEvent(new CustomEvent('editor:focus'))
           break
 
@@ -84,14 +79,14 @@ export default function SymbolPaletteItems({
       event.preventDefault()
       setFocusedIndex(newIndex)
     },
-    [focusedIndex, items, focusInput, handleSelect, toggleSymbolPalette]
+    [focusedIndex, items, focusInput, handleSelect]
   )
 
   return (
-    <div className="symbol-palette-items" role="listbox" aria-label={ariaLabel}>
+    <div className="symbol-palette-items" role="listbox" aria-label="Symbols">
       {items.map((symbol, index) => (
         <SymbolPaletteItem
-          key={symbol.command}
+          key={symbol.codepoint}
           symbol={symbol}
           handleSelect={symbol => {
             handleSelect(symbol)
@@ -99,7 +94,6 @@ export default function SymbolPaletteItems({
           }}
           handleKeyDown={handleKeyDown}
           focused={index === focusedIndex}
-          spriteSheet={spriteSheet}
           ref={el => {
             itemRefs.current[index] = el
           }}
@@ -117,7 +111,5 @@ SymbolPaletteItems.propTypes = {
   ).isRequired,
   handleSelect: PropTypes.func.isRequired,
   focusInput: PropTypes.func.isRequired,
-  ariaLabel: PropTypes.string,
-  spriteSheet: PropTypes.object,
 }
 
