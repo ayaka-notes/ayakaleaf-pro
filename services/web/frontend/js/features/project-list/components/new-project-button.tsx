@@ -188,6 +188,14 @@ function NewProjectButton({
     onClick: (e: React.MouseEvent) => void
   }> = importProjectFromGiteaMenu?.import.default
 
+  const [importProjectFromWebdavMenu] = importOverleafModules(
+    'importProjectFromWebdavMenu'
+  )
+
+  const ImportProjectFromWebdavMenu: JSXElementConstructor<{
+    onClick: (e: React.MouseEvent) => void
+  }> = importProjectFromWebdavMenu?.import.default
+
   return (
     <>
       <OLDropdown
@@ -294,6 +302,18 @@ function NewProjectButton({
                     handleModalMenuClick(e, {
                       modalVariant: 'import_from_gitea',
                       dropdownMenuEvent: 'import-from-gitea',
+                    })
+                  }
+                />
+              </li>
+            )}
+            {ImportProjectFromWebdavMenu && (
+              <li role="none">
+                <ImportProjectFromWebdavMenu
+                  onClick={e =>
+                    handleModalMenuClick(e, {
+                      modalVariant: 'import_from_webdav',
+                      dropdownMenuEvent: 'import-from-webdav',
                     })
                   }
                 />
