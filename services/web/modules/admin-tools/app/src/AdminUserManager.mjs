@@ -24,6 +24,7 @@ import TagsHandler from '../../../../app/src/Features/Tags/TagsHandler.mjs'
 import UserDeleter from '../../../../app/src/Features/User/UserDeleter.mjs'
 import UserRegistrationHandler from '../../../../app/src/Features/User/UserRegistrationHandler.mjs'
 import UserSessionsManager from '../../../../app/src/Features/User/UserSessionsManager.mjs'
+import UserSessionsRedis from '../../../../app/src/Features/User/UserSessionsRedis.mjs'
 import UserUpdater from '../../../../app/src/Features/User/UserUpdater.mjs'
 import {
   getTokenUsage,
@@ -402,6 +403,23 @@ async function logChanges(admin, userId, requestedFeatures, changes) {
   }
 }
 
+// A session keeps the isAdmin it logged in with, which core reads for the Admin
+// menu and a few checks, and core only edits the session of the current request
+async function setAdminInSessions(userId, isAdmin) {
+  const rclient = UserSessionsRedis.client()
+  const sessionKeys = await rclient.smembers(
+    UserSessionsRedis.sessionSetKey({ _id: userId })
+  )
+  for (const key of sessionKeys) {
+    const value = await rclient.get(key)
+    if (!value) continue
+    const session = JSON.parse(value)
+    const sessionUser = session.passport?.user ?? session.user
+    sessionUser.isAdmin = isAdmin
+    await rclient.set(key, JSON.stringify(session), 'KEEPTTL', 'XX')
+  }
+}
+
 // Applies what the panel's edit forms send, and returns the fields that
 // changed under the names the panel uses
 async function updateUser(userId, body, admin) {
@@ -454,20 +472,20 @@ async function updateUser(userId, body, admin) {
   })
   if (disabling) await disableUser(userId, admin)
 
-  // a new password ends what the old one opened, as when the user changes it. A
-  // session keeps the isAdmin it logged in with, so losing it ends them too.
+  // a new password ends what the old one opened, as when the user changes it.
   // Before the log: a failed entry must not leave them open
-  if (changes.hashedPassword || changes.isAdmin === false) {
+  if (changes.hashedPassword) {
     await UserSessionsManager.promises.removeSessionsFromRedis(
       { _id: userId },
       isOwnAccount ? admin.sessionId : undefined
     )
-  }
-  if (changes.hashedPassword) {
     await OneTimeTokenHandler.promises.expireAllTokensForUser(
       userId,
       'password'
     )
+  }
+  if (changes.isAdmin != null) {
+    await setAdminInSessions(userId, changes.isAdmin)
   }
   await logChanges(admin, userId, features, changes)
 

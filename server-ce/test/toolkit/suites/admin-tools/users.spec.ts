@@ -1015,8 +1015,8 @@ describe('row actions', function () {
     })
   })
 
-  // A session keeps the isAdmin it logged in with, and some checks read that
-  it('ends the sessions of an admin who loses the role', function () {
+  // Their session only drops the isAdmin it logged in with
+  it('keeps an admin who loses the role logged in, without the role', function () {
     const address = email('demoted')
     createUser(address)
     login(ADMIN_EMAIL)
@@ -1038,7 +1038,34 @@ describe('row actions', function () {
       cy.setCookie('overleaf.sid', value)
       cy.request({ url: '/user/personal_info', followRedirect: false })
         .its('status')
+        .should('equal', 200)
+      cy.request({ url: '/admin/user', followRedirect: false })
+        .its('status')
         .should('not.equal', 200)
+      cy.visit('/project')
+      cy.findByRole('menubar')
+        .findByRole('menuitem', { name: 'Admin' })
+        .should('not.exist')
+    })
+  })
+
+  it('gives a logged in user who gets the role the Admin menu, without a new login', function () {
+    const address = email('promoted')
+    createUser(address)
+    login(address)
+    cy.visit('/project')
+    cy.findByRole('menubar')
+      .findByRole('menuitem', { name: 'Admin' })
+      .should('not.exist')
+    cy.getCookie('overleaf.sid').its('value').as('userCookie')
+
+    login(ADMIN_EMAIL)
+    makeAdmin(address)
+    cy.get<string>('@userCookie').then(value => {
+      cy.clearAllCookies()
+      cy.setCookie('overleaf.sid', value)
+      cy.visit('/project')
+      cy.findByRole('menubar').findByRole('menuitem', { name: 'Admin' })
     })
   })
 
