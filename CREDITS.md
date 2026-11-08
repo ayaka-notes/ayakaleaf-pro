@@ -33,6 +33,23 @@ Shipped in `services/web/public/static/tikz-editor/` and driven by
 License texts: `static/tikz-editor/LICENSE-MIT.txt` covers the tikz-editor
 bundle; see the upstream repositories for the full MIT / Apache-2.0 texts.
 
+## Draw.io (WYSIWYG `.drawio` diagram editor)
+
+The diagram editor for `.drawio` files (module: `services/web/modules/drawio/`)
+embeds a vendored draw.io application bundle:
+
+| Component | Provenance | License |
+|-----------|-----------|---------|
+| draw.io core | [JGraph draw.io](https://github.com/jgraph/drawio), vendored from the official [viewer.diagrams.net](https://viewer.diagrams.net/) static build (v32.3.0) | MPL 2.0 (core) |
+| jsPDF | [jsPDF](https://github.com/parallax/jsPDF) `^3.0.1` (npm — vector PDF conversion) | MIT |
+| svg2pdf.js | [svg2pdf.js](https://github.com/yworks/svg2pdf.js) `^2.5.1` (npm — SVG→PDF operators) | Apache-2.0 |
+
+Vendored at `services/web/public/static/drawio/` (20 MB) with its own
+`PROVENANCE.txt`; served same-origin, offline, inside an isolated iframe
+(same discipline as the tikz-editor bundle). The npm dependencies are
+dynamically imported only by the file-tree "Convert to PDF/PNG" action so
+they stay out of the main IDE bundle.
+
 ## Notes
 
 - All of the above is vendored into the image and served same-origin;
