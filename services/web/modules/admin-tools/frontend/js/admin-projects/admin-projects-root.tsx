@@ -35,6 +35,7 @@ function AdminProjectsTabs() {
           <ProjectsList
             url="/admin/projects/list"
             id="admin-projects"
+            inUrl
             active={activeTab === 'projects'}
             placeholder={t('search_by_project_name_id_owner_or_link')}
           />

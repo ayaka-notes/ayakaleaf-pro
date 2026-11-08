@@ -61,8 +61,7 @@ function rowAction(text: string, name: string) {
   row(text).findByRole('button', { name }).click()
 }
 
-// Registers an account like the Create account modal, not activated, with
-// the activation link the old Info endpoint gives
+// Registers an account like the Create account modal, not activated
 function createAccount(address: string, firstName = 'List', lastName = 'User') {
   cy.visit('/admin/user')
   return postWithCsrf('/admin/user/create', {
@@ -72,14 +71,6 @@ function createAccount(address: string, firstName = 'List', lastName = 'User') {
   }).then(response => {
     expect(response.status).to.equal(200)
   })
-}
-
-function activationLinkOf(address: string): Cypress.Chainable<string> {
-  return userId(address).then(id =>
-    cy
-      .request(`/admin/user/${id}/info`)
-      .then(response => response.body.activationLink as string)
-  )
 }
 
 // groups below log in as the admin first, also when GREP runs only them
@@ -106,6 +97,26 @@ describe('access', function () {
         expect(response.status, url).to.equal(302)
         expect(response.redirectedToUrl, url).to.contain('/login')
       })
+    }
+  })
+
+  it('answers the lists of a signed out visitor with 401, which the pages show as an error', function () {
+    for (const url of [
+      '/admin/users/list',
+      '/admin/projects/list',
+      '/admin/templates/list',
+      `/admin/user/${id}/projects/list`,
+      `/admin/user/${id}/audit-log/list`,
+      `/admin/project/${id}/audit-log/list`,
+    ]) {
+      cy.request({
+        url,
+        headers: { Accept: 'application/json' },
+        followRedirect: false,
+        failOnStatusCode: false,
+      })
+        .its('status')
+        .should('equal', 401)
     }
   })
 
@@ -507,12 +518,20 @@ describe('creating accounts', function () {
       cy.findByLabelText('First name').type('Grace')
       cy.findByLabelText('Last name').type('Hopper')
       cy.findByRole('button', { name: 'Create' }).click()
+      // no email on this site: the modal hands the link out instead
+      cy.contains('No email was sent').should('exist')
+      cy.contains('Grace Hopper').should('exist')
+      cy.get('code').invoke('text').as('link', { type: 'static' })
+      cy.findByRole('button', { name: 'Close' }).click()
     })
     dialog().should('not.exist')
     search(address)
     row(address).should('contain.text', 'Grace Hopper').and('contain.text', 'Pending')
 
-    activationLinkOf(address).then(link => activateUser(link))
+    cy.get<string>('@link').then(link => {
+      expect(link).to.contain('/user/activate?token=')
+      activateUser(link)
+    })
     tryLogin(address).its('body.redir').should('equal', '/project')
   })
 
@@ -526,6 +545,7 @@ describe('creating accounts', function () {
       cy.findByLabelText('Email address').type(address)
       cy.findByLabelText('Admin').check()
       cy.findByRole('button', { name: 'Create' }).click()
+      cy.findByRole('button', { name: 'Close' }).click()
     })
     dialog().should('not.exist')
     findUser(address).its('isAdmin').should('equal', true)
@@ -565,6 +585,21 @@ describe('creating accounts', function () {
     dialog().should('not.exist')
   })
 
+  it('refuses a name longer than core keeps, and creates nothing', function () {
+    const address = email('long-name')
+    for (const field of ['first_name', 'last_name']) {
+      postWithCsrf('/admin/user/create', {
+        email: address,
+        [field]: 'n'.repeat(256),
+      })
+        .its('status')
+        .should('equal', 422)
+    }
+    cy.request(`/admin/users/list?search=${encodeURIComponent(address)}`)
+      .its('body.total')
+      .should('equal', 0)
+  })
+
   it('keeps an address given in capitals as the one email of the account', function () {
     const address = email('capitals')
     createAccount(address.toUpperCase())
@@ -581,6 +616,24 @@ describe('creating accounts', function () {
 })
 
 describe('row actions', function () {
+  it('says Not found when the account was deleted meanwhile', function () {
+    const address = email('gone-meanwhile')
+    login(ADMIN_EMAIL)
+    createAccount(address)
+    visitList()
+    search(address)
+    // another admin deletes it while the list still shows it
+    userId(address).then(id => {
+      postWithCsrf(`/admin/user/${id}/delete`, {}).its('status').should('equal', 200)
+    })
+    rowAction(address, 'Disable')
+    dialog().within(() => {
+      cy.findByRole('button', { name: 'Disable' }).click()
+      cy.get('.notification-type-error').should('contain.text', 'Not found')
+      cy.findByRole('button', { name: 'Cancel' }).click()
+    })
+  })
+
   it('disables an account, which logs the user out everywhere, and enables it', function () {
     const address = email('toggle')
     createUser(address)

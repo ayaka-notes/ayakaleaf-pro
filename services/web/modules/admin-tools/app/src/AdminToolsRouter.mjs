@@ -1,4 +1,5 @@
 import logger from '@overleaf/logger'
+import AuthenticationController from '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
 import AuthorizationMiddleware from '../../../../app/src/Features/Authorization/AuthorizationMiddleware.mjs'
 import AdminProjectController from './AdminProjectController.mjs'
 import AdminUserController from './AdminUserController.mjs'
@@ -9,7 +10,12 @@ export default {
   apply(webRouter) {
     logger.debug({}, 'Init AdminTools router')
 
-    const admin = AuthorizationMiddleware.ensureUserIsSiteAdmin
+    // core's login check first: a list fetched after the session ended gets
+    // a 401, not the login page that the admin check redirects to
+    const admin = [
+      AuthenticationController.requireLogin(),
+      AuthorizationMiddleware.ensureUserIsSiteAdmin,
+    ]
 
     // the user list
     webRouter.get('/admin/user', admin, AdminUserController.usersPage)

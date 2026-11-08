@@ -16,6 +16,7 @@ import {
   openTab,
   pickOwner,
   row,
+  uniqueAlias,
   userId,
   visitUser,
 } from './panel'
@@ -316,6 +317,19 @@ describe('features', function () {
     })
   })
 
+  it('refuses a name longer than core keeps, from a script too', function () {
+    userId(address).then(id => {
+      for (const field of ['firstName', 'lastName']) {
+        postWithCsrf(`/admin/user/${id}/update`, { [field]: 'n'.repeat(256) })
+          .its('status')
+          .should('equal', 422)
+      }
+      postWithCsrf(`/admin/user/${id}/update`, { lastName: 'n'.repeat(255) })
+        .its('status')
+        .should('equal', 200)
+    })
+  })
+
   it('turns AI off for the user', function () {
     edit()
     cy.get('#admin-user-feature-ai').uncheck()
@@ -523,6 +537,33 @@ describe('audit log', function () {
       cy.get('.dropdown-menu.show').contains('.dropdown-item', 'Login').click()
       cy.wait('@log')
       cy.get('#admin-user-audit-operation').should('contain.text', 'Operation: Login')
+    })
+  })
+
+  it('names operations as the table shows them, and finds them by that name', function () {
+    const address = email('audit-label')
+    createUser(address)
+    login(ADMIN_EMAIL)
+    userId(address).then(id => {
+      cy.visit('/admin/user')
+      for (const path of ['ai-usage/reset', 'clear-sessions']) {
+        postWithCsrf(`/admin/user/${id}/${path}`, {})
+          .its('status')
+          .should('equal', 200)
+      }
+      visitUser(id, 'audit-logs')
+      row('Reset AI usage').should('exist')
+      for (const term of ['Clear sessions', 'clear sessions', 'clear-sessions']) {
+        const log = uniqueAlias('log')
+        interceptSearch('/admin/user/*/audit-log/list', term).as(log)
+        cy.get('.tab-pane.active')
+          .findByRole('textbox', { name: 'Search' })
+          .clear()
+          .type(term)
+        cy.wait(`@${log}`)
+        cy.get('.tab-pane.active tbody tr').should('have.length', 1)
+        everyRow('.tab-pane.active tbody tr', text => /Clear sessions/.test(text))
+      }
     })
   })
 
