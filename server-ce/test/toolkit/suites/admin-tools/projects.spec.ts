@@ -613,8 +613,7 @@ describe('the project page', function () {
       cy.get('#admin-project-imageName').select('TeX Live 2025')
       // the main document: any doc the editor offers, here one in a folder
       cy.get('#admin-project-rootDocId').select('/chapters/intro.tex')
-      // only the owner has the links, so only the owner turns it on and off
-      cy.get('#admin-project-link-sharing').should('not.exist')
+      cy.get('#admin-project-link-sharing').uncheck()
       cy.get('.tab-pane.active').findByRole('button', { name: 'Save' }).click()
       cy.get('.tab-pane.active').contains('Saved').should('exist')
       cy.get('.admin-panel-user-header').should('contain.text', renamed)
@@ -622,7 +621,7 @@ describe('the project page', function () {
       detail('Compiler').should('contain.text', 'XeLaTeX')
       detail('TeX Live version').should('contain.text', 'TeX Live 2025')
       detail('Main document').should('contain.text', '/chapters/intro.tex')
-      detail('Link sharing').should('contain.text', 'Link sharing is on')
+      detail('Link sharing').should('contain.text', 'Link sharing is off')
       projectNameOf(owner, projectId).should('equal', renamed)
     })
   })
