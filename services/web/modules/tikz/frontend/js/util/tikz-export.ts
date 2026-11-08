@@ -53,8 +53,8 @@ const RENDER_TIMEOUT_MS = 90_000
 const POLL_MS = 1000
 /** Consecutive "not ready" answers before we give up (≈ an empty document). */
 const MAX_NOT_READY = 12
-/** Consecutive empty-canvas answers before we give up (slow render race). */
-const MAX_EMPTY = 30
+/** Consecutive empty-canvas answers before we give up (no figures at all). */
+const MAX_EMPTY = 8
 const PNG_LONG_EDGE = 1600
 const PDF_LONG_EDGE = 2400
 
@@ -197,7 +197,7 @@ function renderTikzSvg (
           if (emptyCount >= MAX_EMPTY) {
             finish(
               new Error(
-                'The figure has no renderable preview (is the file empty or broken?).'
+                'The file contains no renderable figures to export.'
               )
             )
           }
