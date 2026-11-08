@@ -239,6 +239,17 @@ export default function DrawioViewer () {
   // Flipped once the app window is alive; lets the hand-off (re)start
   // after a slow boot if its bounded window expired first.
   const [appAlive, setAppAlive] = useState(false)
+  // AK-13 (2026-11-08): app-reload recovery — same class of bug as the
+  // tikz viewer. The viewer stays mounted while other files are open
+  // (Overleaf keeps the document tabs alive); if the browser EVICTS or
+  // reloads the iframe in the background (crash, memory pressure), the
+  // app comes back EMPTY while the host-side hand-off guard
+  // (appDocRef === name) still says "already handed off" — the replay
+  // guard eats the fresh boot and the canvas stays empty (fixing it
+  // requires the tex→drawio re-open cycle that remounts the viewer).
+  // Every post-boot iframe `load` event bumps this epoch, which re-runs
+  // the one-shot boot effect below and clears the hand-off guard.
+  const [bootEpoch, setBootEpoch] = useState(0)
   // Last CodeMirror state version we acted on (freshness watchdog).
   const lastCmVersionRef = useRef(0)
   // Live mirrors for the read-only debug probe (window.__drawioDebug).
@@ -553,6 +564,10 @@ export default function DrawioViewer () {
   // document's (attribution set by the hand-off supervisor) — which is
   // exactly what keeps a switch window from copying one file's diagram
   // into the other.
+  // AK-13 (2026-11-08): blank-watch cooldown for the self-heal below
+  // (a pathological app must not be able to create a push loop).
+  const blankPushAtRef = useRef(0)
+
   const pullToDoc = useCallback(
     (allowClobber: boolean): boolean => {
       const active = openDocNameRef.current
@@ -954,7 +969,24 @@ export default function DrawioViewer () {
       window.clearTimeout(settle1)
       window.clearTimeout(settle2)
     }
-  }, [appWin, flushSave, t])
+  }, [appWin, flushSave, t, bootEpoch])
+
+  // AK-13 (2026-11-08): iframe reload recovery. The FIRST load event is
+  // the normal boot (handled by the one-shot effect above). Any load
+  // event after the boot completed means the app reloaded underneath us
+  // (background-tab iframe eviction / crash / in-place navigation): reset
+  // the boot + hand-off state and re-arm the one-shot boot effect via
+  // bootEpoch, so the fresh app gets the document pushed again.
+  const onIframeLoad = useCallback((): void => {
+    if (!loadedRef.current) return // initial boot: nothing to recover
+    loadedRef.current = false
+    appDocRef.current = null
+    pendingRef.current = null
+    setAppAlive(false)
+    setStatus('booting')
+    setStatusText('')
+    setBootEpoch(epoch => epoch + 1)
+  }, [])
 
   // HAND-OFF — one supervisor per file switch (and the initial open).
   // Re-runs when the app window becomes alive (slow boot safety net);
@@ -964,7 +996,7 @@ export default function DrawioViewer () {
     if (!name || !cmView) return
     if (appDocRef.current === name && pendingRef.current == null) return
     runHandoff(name)
-  }, [openDocName, cmView, runHandoff, appAlive])
+  }, [openDocName, cmView, runHandoff, appAlive, bootEpoch])
 
   // SYNC — the pull tick, plus a freshness watchdog: if the document
   // changes underneath us (code view, collaboration, server-side edit)
@@ -993,6 +1025,37 @@ export default function DrawioViewer () {
             pendingRef.current == null
           if (external) {
             runHandoff(active, true)
+            return
+          }
+        }
+      }
+      // AK-13 (2026-11-08): blank-watch self-heal. The vendored app can
+      // WIPE its own model late in boot (its default-diagram step lands
+      // after a hash push; verified live 2026-11-08 after an
+      // eviction-reload, where the settle check matched then the canvas
+      // went empty). If we already hold this document's TRUSTED content
+      // (real cells — never for a genuinely new blank file) and the app
+      // shows a BLANK canvas with no in-flight hand-off, re-run the
+      // hand-off so the canvas recovers within one poll.
+      const activeDoc = openDocNameRef.current
+      if (
+        loadedRef.current &&
+        activeDoc &&
+        appDocRef.current === activeDoc &&
+        pendingRef.current == null
+      ) {
+        const trusted = docRef.current || seedCacheRef.current.get(activeDoc) || ''
+        if (
+          trusted &&
+          parseDrawioFile(trusted) != null &&
+          cellCount(trusted) > 2 &&
+          Date.now() - blankPushAtRef.current > 3000
+        ) {
+          const model = readAppModel()
+          if (model == null || cellCount(String(model)) <= 2) {
+            blankPushAtRef.current = Date.now()
+            dbgLog('blank-watch: app canvas is blank; re-running handoff for ' + activeDoc)
+            runHandoff(activeDoc, false)
             return
           }
         }
@@ -1053,6 +1116,7 @@ export default function DrawioViewer () {
         className="drawio-viewer-frame"
         src={IFRAME_SRC}
         title="draw.io canvas editor"
+        onLoad={onIframeLoad}
       />
     </div>
   )

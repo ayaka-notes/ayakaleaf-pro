@@ -46,6 +46,15 @@ export default function TikzViewer () {
     reject: (e: Error) => void
   } | null>(null)
   const bootedRef = useRef(false)
+  // True once the first handshake reached "ready". Any iframe `load`
+  // event AFTER that means the app reloaded underneath us (browser
+  // eviction of a backgrounded iframe, crash-reload, in-place
+  // navigation) — the replay guard below would then eat the app's fresh
+  // boot-load and leave the canvas EMPTY while the status still claims
+  // "ready" (reported 2026-11-08: editor empty after the Overleaf tab
+  // sat in the background while an exported SVG was viewed elsewhere,
+  // fixed by a tex→tikz re-open cycle that remounts the viewer).
+  const readyRef = useRef(false)
 
   const [status, setStatus] = useState<'booting' | 'ready' | 'error'>(
     'booting'
@@ -105,6 +114,7 @@ export default function TikzViewer () {
         post({ action: 'load', source: action.source, autosave: 1, fileName: openDocName ?? '' })
         setStatus('ready')
         setStatusText(t('tikz_status_ready'))
+        readyRef.current = true
         return
 
       case 'ready':
@@ -114,6 +124,7 @@ export default function TikzViewer () {
         post({ action: 'load', source: docRef.current, autosave: 1, fileName: openDocName ?? '' })
         setStatus('ready')
         setStatusText(t('tikz_status_ready'))
+        readyRef.current = true
         return
 
       case 'doc-update': {
@@ -241,6 +252,20 @@ export default function TikzViewer () {
     }
   }, [onMessage, cmView, t])
 
+  // AK-13 (2026-11-08): app-reload recovery. After the first handshake is
+  // ready, a further iframe `load` event means the app restarted
+  // (background-tab iframe eviction / crash / in-place navigation).
+  // Re-arm the handshake so the app's fresh boot-load is processed and
+  // the document is pushed again — otherwise the replay guard leaves the
+  // canvas empty (see readyRef above).
+  const onIframeLoad = useCallback(() => {
+    if (!readyRef.current) return // initial boot: nothing to recover
+    readyRef.current = false
+    bootedRef.current = false
+    setStatus('booting')
+    setStatusText('')
+  }, [])
+
   return (
     <div className="tikz-viewer">
       <div className="tikz-viewer-toolbar">
@@ -260,6 +285,7 @@ export default function TikzViewer () {
         title={t('tikz_title')}
         key={openDocName}
         src={tikzEmbedUrl(readStorage())}
+        onLoad={onIframeLoad}
       />
     </div>
   )
