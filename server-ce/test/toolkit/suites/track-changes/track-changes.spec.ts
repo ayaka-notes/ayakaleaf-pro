@@ -649,6 +649,74 @@ describe('a project whose owner has track changes turned off', function () {
     })
   })
 
+  it('refuses a reviewer invitation from before it was turned off', function () {
+    const inviter = `locked-inviter-${uuid()}@example.com`
+    const reviewer = `locked-reviewer-${uuid()}@example.com`
+    const editor = `locked-editor-${uuid()}@example.com`
+    const invitationToken = (projectId: string) => {
+      cy.visit('/project')
+      return cy
+        .request('/notifications')
+        .then(
+          ({ body }) =>
+            body.find(
+              (n: { messageOpts?: { projectId?: string } }) =>
+                n.messageOpts?.projectId === projectId
+            ).messageOpts.token as string
+        )
+    }
+    for (const email of [inviter, reviewer, editor]) ensureUserExists(email)
+
+    login(inviter)
+    createProject(projectName('Invited')).then(projectId => {
+      cy.visit('/project')
+      for (const [email, privileges] of [
+        [reviewer, 'review'],
+        [editor, 'readAndWrite'],
+      ]) {
+        postWithCsrf(`/project/${projectId}/invite`, { email, privileges })
+          .its('status')
+          .should('equal', 200)
+      }
+      login(ADMIN_EMAIL)
+      setUserFeatures(inviter, { trackChanges: false })
+
+      const accept = `/project/${projectId}/invite/token`
+      login(reviewer)
+      invitationToken(projectId).then(token => {
+        postWithCsrf(`${accept}/${token}/accept`, {})
+          .its('status')
+          .should('equal', 403)
+        postWithCsrf(`/project/${projectId}/share`, { token })
+          .its('status')
+          .should('equal', 403)
+      })
+      // Other roles are not the feature's business
+      login(editor)
+      invitationToken(projectId).then(token => {
+        postWithCsrf(`${accept}/${token}/accept`, {})
+          .its('status')
+          .should('be.lessThan', 400)
+      })
+
+      login(inviter)
+      cy.request(`/project/${projectId}/members`).then(({ body }) => {
+        const emails = body.members.map((m: { email: string }) => m.email)
+        expect(emails).to.include(editor)
+        expect(emails).not.to.include(reviewer)
+      })
+
+      login(ADMIN_EMAIL)
+      setUserFeatures(inviter, { trackChanges: true })
+      login(reviewer)
+      invitationToken(projectId).then(token => {
+        postWithCsrf(`${accept}/${token}/accept`, {})
+          .its('status')
+          .should('be.lessThan', 400)
+      })
+    })
+  })
+
   it('goes by the owner, not by a collaborator with it turned off', function () {
     const offCollaborator = `locked-collaborator-${uuid()}@example.com`
     ensureUserExists(offCollaborator)

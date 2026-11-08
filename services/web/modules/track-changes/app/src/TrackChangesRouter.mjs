@@ -3,6 +3,7 @@ import logger from '@overleaf/logger'
 import { expressify } from '@overleaf/promise-utils'
 import HttpErrorHandler from '../../../../app/src/Features/Errors/HttpErrorHandler.mjs'
 import AuthorizationMiddleware from '../../../../app/src/Features/Authorization/AuthorizationMiddleware.mjs'
+import CollaboratorsInviteGetter from '../../../../app/src/Features/Collaborators/CollaboratorsInviteGetter.mjs'
 import ProjectHelper from '../../../../app/src/Features/Project/ProjectHelper.mjs'
 import { Project } from '../../../../app/src/models/Project.mjs'
 import { parseReq, z } from '../../../../app/src/infrastructure/Validation.mjs'
@@ -61,6 +62,18 @@ function validateTrackChanges(req, res, next) {
   next()
 }
 
+// An invitation from before the feature was turned off adds a reviewer too.
+// Without a token core's own checks answer, hashing one here would throw
+async function acceptsReviewerInvite(req) {
+  const token = req.params.token ?? req.body?.token
+  if (typeof token !== 'string') return false
+  const invite = await CollaboratorsInviteGetter.promises.getInviteByToken(
+    req.params.Project_id,
+    token
+  )
+  return invite?.privileges === 'review'
+}
+
 // Core's sharing routes (CollaboratorsRouter.mjs)
 const sharingRoutes = express.Router()
 sharingRoutes.post(
@@ -75,6 +88,14 @@ sharingRoutes.put(
 sharingRoutes.post(
   '/project/:Project_id/access-requests/:user_id/grant',
   refuseTrackingWithoutFeature(req => req.body?.privilegeLevel === 'review')
+)
+sharingRoutes.post(
+  '/project/:Project_id/invite/token/:token/accept',
+  refuseTrackingWithoutFeature(acceptsReviewerInvite)
+)
+sharingRoutes.post(
+  '/project/:Project_id/share',
+  refuseTrackingWithoutFeature(acceptsReviewerInvite)
 )
 
 export default {
