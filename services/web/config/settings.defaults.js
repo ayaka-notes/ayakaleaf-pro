@@ -1303,6 +1303,14 @@ module.exports = {
     railPopovers: [],
     railActions: [],
     railModals: [],
+    // Buttons rendered next to the download button in the file view header
+    // (e.g. the "Edit Image" action from the toast-image module).
+    fileViewButtons: [
+      Path.resolve(
+        __dirname,
+        '../modules/toast-image/frontend/js/components/toast-image-editor'
+      ),
+    ],
   },
 
   moduleImportSequence: [
@@ -1332,7 +1340,8 @@ module.exports = {
     'workbench',
     'error-assistant',
     'instance-features',
-    'open-in-overleaf'
+    'open-in-overleaf',
+    'toast-image'
   ],
   viewIncludes: {},
 
