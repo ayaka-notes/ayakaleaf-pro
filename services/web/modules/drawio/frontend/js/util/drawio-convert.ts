@@ -618,8 +618,9 @@ const DRAWIO_APP_URL =
   '&noSaveBtn=1&noExitBtn=1&od=0' +
   // Native offline/stealth gates of the vendored app (Pusher realtime,
   // Drive/gapi, cloud sync) — the converter iframe must not touch the
-  // network either.
-  '&gapi=0&stealth=1&offline=1&plugins=0'
+  // network either. (offline=1 is deliberately omitted: it would enable
+  // the app's service-worker registration, which 404s on our scope.)
+  '&gapi=0&stealth=1&plugins=0'
 
 /** Boot (and cache) one hidden app instance for all conversions. */
 let sharedAppPromise: Promise<Window> | null = null

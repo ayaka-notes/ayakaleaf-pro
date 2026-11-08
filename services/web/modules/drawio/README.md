@@ -129,11 +129,15 @@ image at build time** — the app never fetches anything external at runtime:
   tracked `public/static/brochures/...` assets).
 - **The iframe URL carries the app's native offline gates** (both the editor
   viewer and the hidden converter app instance):
-  `stealth=1` + `offline=1` skip the Pusher realtime-script load and cloud
-  sync; `gapi=0` disables the Google Drive/API client; `plugins=0` blocks
-  remote plugin loading. Verified in the browser: a full edit +
-  convert session issues **zero** requests to hosts other than the Overleaf
-  origin.
+  `stealth=1` skips the Pusher realtime-script load, cloud sync and the
+  cloud login surface; `gapi=0` disables the Google Drive/API client;
+  `plugins=0` blocks remote plugin loading. `offline=1` is deliberately
+  NOT used — in the vendored build that parameter ENABLES the app's
+  service-worker registration, which would 404 on our same-origin scope.
+  Verified in the browser: a full edit + convert session issues **zero**
+  requests to hosts other than the Overleaf origin, and the app console
+  is free of the `service-worker.js` / `github-logo-white.svg` 404s
+  (the latter asset is vendored in `public/static/drawio/images/`).
 
 ## Test note (chai-as-promised)
 
