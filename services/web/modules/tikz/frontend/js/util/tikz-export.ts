@@ -24,22 +24,28 @@ import {
   tikzEmbedUrl,
 } from './tikz-protocol'
 import {
+  buildPdf,
+  hasTikzSvgContent,
   isTikzExportError,
   isTikzExportNotReady,
   parseTikzSvgViewBox,
   TIKZ_EXPORT_FORMATS,
   TIKZ_EXPORT_MIME,
   tikzExportTargetName,
+  tikzPdfObjectBodies,
   TikzExportFormat,
 } from './tikz-export-util'
 
 export {
+  buildPdf,
+  hasTikzSvgContent,
   isTikzExportError,
   isTikzExportNotReady,
   parseTikzSvgViewBox,
   TIKZ_EXPORT_FORMATS,
   TIKZ_EXPORT_MIME,
   tikzExportTargetName,
+  tikzPdfObjectBodies,
 }
 export type { TikzExportFormat } from './tikz-export-util'
 
@@ -47,6 +53,8 @@ const RENDER_TIMEOUT_MS = 90_000
 const POLL_MS = 1000
 /** Consecutive "not ready" answers before we give up (≈ an empty document). */
 const MAX_NOT_READY = 12
+/** Consecutive empty-canvas answers before we give up (slow render race). */
+const MAX_EMPTY = 30
 const PNG_LONG_EDGE = 1600
 const PDF_LONG_EDGE = 2400
 
@@ -85,6 +93,7 @@ function renderTikzSvg (
   return new Promise((resolve, reject) => {
     const startedAt = Date.now()
     let notReadyCount = 0
+    let emptyCount = 0
 
     // Off-screen but laid out (display:none would stop the preview render).
     const host = document.createElement('div')
@@ -173,12 +182,25 @@ function renderTikzSvg (
           finish(new Error(String(m.error)))
           return
         }
-        if (typeof m.data === 'string' && m.data.length > 0) {
-          finish(undefined, m.data)
+        const candidate =
+          typeof m.data === 'string' ? m.data
+          : typeof m.svg === 'string' ? m.svg
+          : ''
+        // An empty canvas is a timing race (the app answers before the
+        // preview has rendered) — keep polling until real content arrives.
+        if (candidate && hasTikzSvgContent(candidate)) {
+          finish(undefined, candidate)
           return
         }
-        if (typeof m.svg === 'string' && m.svg.length > 0) {
-          finish(undefined, m.svg)
+        if (candidate) {
+          emptyCount += 1
+          if (emptyCount >= MAX_EMPTY) {
+            finish(
+              new Error(
+                'The figure has no renderable preview (is the file empty or broken?).'
+              )
+            )
+          }
         }
       }
     }
@@ -258,17 +280,6 @@ async function svgToPng (
   })
 }
 
-function concatBytes (chunks: Uint8Array[]): Uint8Array {
-  const total = chunks.reduce((n, c) => n + c.length, 0)
-  const out = new Uint8Array(total)
-  let off = 0
-  for (const c of chunks) {
-    out.set(c, off)
-    off += c.length
-  }
-  return out
-}
-
 async function deflate (
   data: Uint8Array
 ): Promise<{ bytes: Uint8Array; compressed: boolean }> {
@@ -308,47 +319,17 @@ async function svgToPdf (svg: string): Promise<Blob> {
     rgb[j + 2] = Math.round(px[i + 2] * a + 255 * (1 - a))
   }
   const { bytes: stream, compressed } = await deflate(rgb)
-  const content = `q ${ptW} 0 0 ${ptH} 0 0 cm /Im0 Do Q`
-  const objects = [
-    '<</Type/Catalog/Pages 2 0 R>>',
-    '<</Type/Pages/Kids[3 0 R]/Count 1>>',
-    `<</Type/Page/Parent 2 0 R/MediaBox[0 0 ${ptW} ${ptH}]/Resources<</XObject<</Im0 4 0 R>>/ProcSet[/PDF/Image/DeviceRGB]>>/Contents 5 0 R>>`,
-    `<</Type/XObject/Subtype/Image/Width ${canvas.width}/Height ${canvas.height}/ColorSpace/DeviceRGB/BitsPerComponent 8${compressed ? '/Filter/FlateDecode' : ''}/Length ${stream.length}>`,
-    `<</Length ${content.length}>\nstream\n${content}\nendstream`,
-  ]
-  return buildPdf({ objects, stream })
-}
-
-/** Assemble the PDF byte string with exact offsets (image inline in obj 4). */
-function buildPdf (opts: {
-  objects: string[]
-  stream: Uint8Array
-}): Blob {
-  const enc = new TextEncoder()
-  const parts: Uint8Array[] = [enc.encode('%PDF-1.4\n')]
-  const offsets: number[] = []
-  opts.objects.forEach((body, i) => {
-    offsets.push(parts.reduce((n, p) => n + p.length, 0))
-    parts.push(enc.encode(`${i + 1} 0 obj\n`))
-    if (i === 3) {
-      // object 4: dict, then the binary image stream inline
-      parts.push(enc.encode(body))
-      parts.push(enc.encode('\nstream\n'))
-      parts.push(opts.stream)
-      parts.push(enc.encode(`\nendstream\nendobj\n`))
-      return
-    }
-    parts.push(enc.encode(body))
-    parts.push(enc.encode('\nendobj\n'))
+  return buildPdf({
+    objects: tikzPdfObjectBodies({
+      ptW,
+      ptH,
+      width: canvas.width,
+      height: canvas.height,
+      compressed,
+      streamLength: stream.length,
+    }),
+    stream,
   })
-  const xrefPos = parts.reduce((n, p) => n + p.length, 0)
-  let xref = `xref\n0 ${opts.objects.length + 1}\n0000000000 65535 f \n`
-  for (const off of offsets) {
-    xref += `${String(off).padStart(10, '0')} 00000 n \n`
-  }
-  const trailer = `trailer\n<</Size ${opts.objects.length + 1}/Root 1 0 R>>\nstartxref\n${xrefPos}\n%%EOF\n`
-  parts.push(enc.encode(xref + trailer))
-  return new Blob([concatBytes(parts) as BlobPart], { type: 'application/pdf' })
 }
 
 async function generateArtifact (

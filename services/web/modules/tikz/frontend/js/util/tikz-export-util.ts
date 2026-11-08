@@ -51,6 +51,21 @@ export function parseTikzSvgViewBox (
 }
 
 /**
+ * True when a rendered preview SVG actually contains figure content
+ * (as opposed to an empty canvas `<svg viewBox="..."</svg>` that the app
+ * answers before its preview has rendered).
+ */
+export function hasTikzSvgContent (svg: string): boolean {
+  if (typeof svg !== 'string') return false
+  // strip the outer svg element, then look for anything left
+  const inner = svg
+    .replace(/<svg[^>]*>/i, '')
+    .replace(/<\/svg>/i, '')
+    .trim()
+  return inner.length > 0
+}
+
+/**
  * True when the embed export message is a "preview not ready" retry
  * signal (as opposed to a hard failure).
  */
@@ -62,6 +77,71 @@ export function isTikzExportNotReady (
     typeof msg.error === 'string' &&
     /not ready/i.test(msg.error)
   )
+}
+
+/**
+ * The five object bodies of the generated single-page PDF (pure, so the
+ * structure can be unit-tested with a strict mini-parser).
+ */
+function concatBytes (chunks: Uint8Array[]): Uint8Array {
+  const total = chunks.reduce((n, c) => n + c.length, 0)
+  const out = new Uint8Array(total)
+  let off = 0
+  for (const c of chunks) {
+    out.set(c, off)
+    off += c.length
+  }
+  return out
+}
+
+export function tikzPdfObjectBodies (params: {
+  ptW: number
+  ptH: number
+  width: number
+  height: number
+  compressed: boolean
+  streamLength: number
+}): string[] {
+  const content = `q ${params.ptW} 0 0 ${params.ptH} 0 0 cm /Im0 Do Q`
+  return [
+    '<</Type/Catalog/Pages 2 0 R>>',
+    '<</Type/Pages/Kids[3 0 R]/Count 1>>',
+    `<</Type/Page/Parent 2 0 R/MediaBox[0 0 ${params.ptW} ${params.ptH}]/Resources<</XObject<</Im0 4 0 R>>/ProcSet[/PDF/Image/DeviceRGB]>>/Contents 5 0 R>>`,
+    `<</Type/XObject/Subtype/Image/Width ${params.width}/Height ${params.height}/ColorSpace/DeviceRGB/BitsPerComponent 8${params.compressed ? '/Filter/FlateDecode' : ''}/Length ${params.streamLength}>>`,
+    `<</Length ${content.length}>>\nstream\n${content}\nendstream`,
+  ]
+}
+
+/** Assemble the PDF byte string with exact offsets (image inline in obj 4). */
+export function buildPdf (opts: {
+  objects: string[]
+  stream: Uint8Array
+}): Blob {
+  const enc = new TextEncoder()
+  const parts: Uint8Array[] = [enc.encode('%PDF-1.4\n')]
+  const offsets: number[] = []
+  opts.objects.forEach((body, i) => {
+    offsets.push(parts.reduce((n, p) => n + p.length, 0))
+    parts.push(enc.encode(`${i + 1} 0 obj\n`))
+    if (i === 3) {
+      // object 4: dict, then the binary image stream inline
+      parts.push(enc.encode(body))
+      parts.push(enc.encode('\nstream\n'))
+      parts.push(opts.stream)
+      parts.push(enc.encode(`\nendstream\nendobj\n`))
+      return
+    }
+    parts.push(enc.encode(body))
+    parts.push(enc.encode('\nendobj\n'))
+  })
+  const xrefPos = parts.reduce((n, p) => n + p.length, 0)
+  let xref = `xref\n0 ${opts.objects.length + 1}\n0000000000 65535 f \n`
+  for (const off of offsets) {
+    xref += `${String(off).padStart(10, '0')} 00000 n \n`
+  }
+  const trailer = `trailer\n<</Size ${opts.objects.length + 1}/Root 1 0 R>>\nstartxref\n${xrefPos}\n%%EOF\n`
+  parts.push(enc.encode(xref + trailer))
+  return new Blob([concatBytes(parts) as BlobPart], { type: 'application/pdf' })
 }
 
 /**
