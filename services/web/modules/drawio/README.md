@@ -127,6 +127,21 @@ image at build time** — the app never fetches anything external at runtime:
   `COPY --parents libraries/ services/ tools/migrations/ /overleaf/` (line 32).
 - Served same-origin at `/static/drawio/...` (same static path family as the
   tracked `public/static/brochures/...` assets).
+- **The iframe URL carries the app's native offline gates** (both the editor
+  viewer and the hidden converter app instance):
+  `stealth=1` + `offline=1` skip the Pusher realtime-script load and cloud
+  sync; `gapi=0` disables the Google Drive/API client; `plugins=0` blocks
+  remote plugin loading. Verified in the browser: a full edit +
+  convert session issues **zero** requests to hosts other than the Overleaf
+  origin.
+
+## Test note (chai-as-promised)
+
+`test/unit/bootstrap.mjs` registers the `chai-as-promised` plugin, which
+intercepts `expect(promise).resolves/.rejects` assertions (they end up
+asserting against the unresolved `Promise` object). Unit tests in this
+module therefore use manual `await` / try-catch for promise assertions —
+keep it that way.
 
 ## Files
 
