@@ -233,10 +233,14 @@ function UserRow({
         </div>
       </td>
       <td className={COLUMN.role}>
-        <RoleBadge isAdmin={user.isAdmin} />
+        <div className="admin-panel-badges">
+          <RoleBadge isAdmin={user.isAdmin} />
+        </div>
       </td>
       <td className={COLUMN.status}>
-        <StatusBadge user={user} />
+        <div className="admin-panel-badges">
+          <StatusBadge user={user} />
+        </div>
       </td>
       <td className={COLUMN.signUp}>
         <RelativeDate date={user.signUpDate} />
