@@ -534,6 +534,35 @@ const commentWithUserSchema = z.object({
   }),
 })
 
+const addCommentSchema = z.object({
+  params: docParamsSchema,
+  body: z.strictObject({
+    thread_id: zz.objectId(),
+    user_id: zz.objectId(),
+    text: z.string().min(1),
+    offset: z.number().int().nonnegative(),
+    version: z.number().int().nonnegative().optional(),
+  }),
+})
+
+async function addComment(req, res) {
+  const { params, body } = parseReq(req, addCommentSchema)
+  const { project_id: projectId, doc_id: docId } = params
+  const { thread_id: threadId, user_id: userId, text, offset, version } = body
+  logger.debug({ projectId, docId, threadId }, 'adding comment via http')
+  await DocumentManager.promises.addCommentWithLock(
+    projectId,
+    docId,
+    threadId,
+    userId,
+    text,
+    offset,
+    version
+  )
+  logger.debug({ projectId, docId, threadId }, 'added comment via http')
+  res.sendStatus(204) // No Content
+}
+
 async function resolveComment(req, res) {
   const { params, body } = parseReq(req, commentWithUserSchema, {
     logOnly: true,
@@ -868,6 +897,7 @@ module.exports = {
   deleteProject: expressify(deleteProject),
   deleteMultipleProjects: expressify(deleteMultipleProjects),
   acceptChanges: expressify(acceptChanges),
+  addComment: expressify(addComment),
   resolveComment: expressify(resolveComment),
   reopenComment: expressify(reopenComment),
   deleteComment: expressify(deleteComment),

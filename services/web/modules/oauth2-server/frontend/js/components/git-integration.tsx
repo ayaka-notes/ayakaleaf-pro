@@ -216,6 +216,9 @@ function GitIntegrationSetting() {
                     <li>{t('your_git_access_info_bullet_4')}</li>
                     <li>{t('your_git_access_info_bullet_5')}</li>
                 </ul>
+                <p className="small">
+                    {t('your_git_access_info_review_comments_api')}
+                </p>
 
                 <LinkingGitBridgeTable />
             </div>

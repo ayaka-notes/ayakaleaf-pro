@@ -1323,6 +1323,7 @@ module.exports = {
     'oauth2-server',
     'reference-picker',
     'git-bridge',
+    'token-api',
     'mcp-server',
     'github-sync',
     'gitlab-sync',

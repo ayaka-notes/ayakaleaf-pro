@@ -8,6 +8,7 @@ import DocumentHelper from '../Documents/DocumentHelper.mjs'
 import DocumentUpdaterHandler from '../DocumentUpdater/DocumentUpdaterHandler.mjs'
 import FileStoreHandler from '../FileStore/FileStoreHandler.mjs'
 import FileSystemImportManager from './FileSystemImportManager.mjs'
+import ReviewStateManager from '../Reviews/ReviewStateManager.mjs'
 import ProjectCreationHandler from '../Project/ProjectCreationHandler.mjs'
 import ProjectEntityMongoUpdateHandler from '../Project/ProjectEntityMongoUpdateHandler.mjs'
 import ProjectRootDocManager from '../Project/ProjectRootDocManager.mjs'
@@ -17,6 +18,12 @@ import { DeletedProjectReasons } from '../Project/DeletedProjectReasons.mjs'
 import TpdsProjectFlusher from '../ThirdPartyDataStore/TpdsProjectFlusher.mjs'
 import logger from '@overleaf/logger'
 import OError from '@overleaf/o-error'
+
+// Must match REVIEW_JSON_NAME in Features/Downloads/ProjectZipStreamManager.mjs
+// and Features/Reviews/ReviewStateManager.mjs (duplicated rather than imported:
+// those modules' dependency graphs drag in mongoose models, which breaks unit
+// tests that mock this one).
+const REVIEW_JSON_NAME = 'overleaf-comments-and-changes.json'
 
 export default {
   createProjectFromZipArchive: callbackify(createProjectFromZipArchive),
@@ -165,7 +172,37 @@ async function _initializeProjectWithZipContents(
     newProject: { version: projectVersion },
   })
   await TpdsProjectFlusher.promises.flushProjectToTpds(project._id)
+  // Reconstitute the review state (comments + tracked changes) bundled in the
+  // zip, if present. Never allowed to break the import itself.
+  await _restoreReviewState(project, docEntries, topLevelDir)
   return { fileEntries, docEntries }
+}
+
+async function _restoreReviewState(project, docEntries, topLevelDir) {
+  const bundlePath = Path.join(topLevelDir, REVIEW_JSON_NAME)
+  let state
+  try {
+    state = JSON.parse(await fs.promises.readFile(bundlePath, 'utf8'))
+  } catch (err) {
+    if (err?.code === 'ENOENT') return // no bundle in this zip — nothing to do
+    logger.warn(
+      { err, projectId: project._id },
+      'could not read review state bundle from import zip; skipping restore'
+    )
+    return
+  }
+  const docs = docEntries.map(entry => ({
+    docId: entry.doc?._id,
+    text: entry.docLines ?? '',
+  }))
+  try {
+    await ReviewStateManager.promises.restoreReviewState({ project, docs, state })
+  } catch (err) {
+    logger.error(
+      { err, projectId: project._id },
+      'failed to restore review state from import zip (import itself succeeded)'
+    )
+  }
 }
 
 /**
@@ -173,7 +210,22 @@ async function _initializeProjectWithZipContents(
  * Returns the created entries grouped by type, in the correct order.
  */
 async function _createEntriesFromImports(project, importEntries) {
-  const createdEntries = new Array(importEntries.length)
+  // A project zip bundles its review state (overleaf-comments-and-changes.json:
+  // comment threads + tracked changes). It is machine-generated metadata, not
+  // project content: it must never be carried over as a file — most importantly
+  // when a project becomes a template (a template must have no comments or
+  // tracked changes). _restoreReviewState reconstitutes the state instead.
+  const keptEntries = importEntries.filter(
+    entry => Path.basename(entry.projectPath) !== REVIEW_JSON_NAME
+  )
+  if (keptEntries.length !== importEntries.length) {
+    logger.info(
+      { projectId: project._id, skipped: importEntries.length - keptEntries.length },
+      `skipping review-state bundle file on import (${REVIEW_JSON_NAME})`
+    )
+  }
+
+  const createdEntries = new Array(keptEntries.length)
   let nextIndex = 0
   let firstError
 
@@ -182,14 +234,14 @@ async function _createEntriesFromImports(project, importEntries) {
       const currentIndex = nextIndex
       nextIndex++
 
-      if (currentIndex >= importEntries.length) {
+      if (currentIndex >= keptEntries.length) {
         return
       }
 
       try {
         createdEntries[currentIndex] = await _createEntryFromImport(
           project,
-          importEntries[currentIndex]
+          keptEntries[currentIndex]
         )
       } catch (error) {
         firstError = firstError ?? error
@@ -199,7 +251,7 @@ async function _createEntriesFromImports(project, importEntries) {
   }
 
   await Promise.allSettled(
-    Array.from({ length: Math.min(5, importEntries.length) }, () => worker())
+    Array.from({ length: Math.min(5, keptEntries.length) }, () => worker())
   )
 
   if (firstError != null) {
