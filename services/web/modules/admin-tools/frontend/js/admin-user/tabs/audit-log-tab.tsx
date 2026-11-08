@@ -28,10 +28,24 @@ type AuditLogResult = {
   }[]
 }
 
+// The words of the operations that are names: the original admin page only
+// had SSO. A new operation with another one adds it here
+const PROPER_NOUNS: Record<string, string> = {
+  sso: 'SSO',
+  ai: 'AI',
+  git: 'Git',
+  github: 'GitHub',
+  dropbox: 'Dropbox',
+}
+
 // "change-primary-email" -> "Change primary email", as the original admin page
-const readable = (operation: string) =>
-  operation.charAt(0).toUpperCase() +
-  operation.slice(1).replace(/-/g, ' ').replace(/\bsso\b/g, 'SSO')
+const readable = (operation: string) => {
+  const label = operation
+    .split('-')
+    .map(word => PROPER_NOUNS[word] ?? word)
+    .join(' ')
+  return label.charAt(0).toUpperCase() + label.slice(1)
+}
 
 // The user's audit log, newest first, paged and searched in the backend
 // (operation or IP address); the operation filter sits in the header

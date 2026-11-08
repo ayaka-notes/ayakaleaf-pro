@@ -43,6 +43,10 @@ export function adminRoute(handler) {
       } else if (err instanceof InvalidEmailError) {
         const message = t('email_address_is_invalid')
         HttpErrorHandler.unprocessableEntity(req, res, message)
+      } else if (err instanceof Errors.NotFoundError) {
+        // core's 404 page for a page; for the panel's requests, a message
+        // instead of the page, which the modals could not show
+        HttpErrorHandler.notFound(req, res, t('not_found'))
       } else if (err instanceof Errors.EmailExistsError) {
         HttpErrorHandler.conflict(req, res, t('email_already_registered'))
       } else if (err instanceof FailedError) {

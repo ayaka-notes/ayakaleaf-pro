@@ -11,7 +11,12 @@ import { RelativeDate } from '../admin-users/components/users-table'
 import ListSearch from './list-search'
 import ListFooter from './list-footer'
 import SortHeader from './sort-header'
-import { usePagedList, useReloadWhenShown } from './use-paged-list'
+import {
+  fromSearchParams,
+  usePagedList,
+  useQueryInUrl,
+  useReloadWhenShown,
+} from './use-paged-list'
 import DeletedHint from './deleted-hint'
 import { useSelection } from './selection'
 import OLFormCheckbox from '@/shared/components/ol/ol-form-checkbox'
@@ -51,6 +56,15 @@ type ProjectsResult = {
   }[]
 }
 
+const DEFAULT_QUERY: ProjectsQuery = {
+  page: 1,
+  pageSize: 10,
+  search: '',
+  status: 'all',
+  sort: 'lastUpdated',
+  order: 'desc',
+}
+
 // A list of projects, paged, searched and filtered in the backend, laid out
 // like the user list: a user's projects (their page's Projects tab, ownerId)
 // or every project of the site (/admin/project, with an Owner column; each
@@ -61,6 +75,7 @@ function ProjectsList({
   ownerId,
   active,
   placeholder,
+  inUrl = false,
 }: {
   url: string
   // the prefix of the controls' ids
@@ -69,6 +84,8 @@ function ProjectsList({
   // whether its tab shows; opening it again reloads the projects
   active: boolean
   placeholder: string
+  // the site's list keeps its query in the URL, as the user list does
+  inUrl?: boolean
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState<{ project: ProjectRow; action: Action } | null>(null)
@@ -76,14 +93,8 @@ function ProjectsList({
   const { query, result, loading, error, updateQuery, reload } = usePagedList<
     ProjectsQuery,
     ProjectsResult
-  >(url, {
-    page: 1,
-    pageSize: 10,
-    search: '',
-    status: 'all',
-    sort: 'lastUpdated',
-    order: 'desc',
-  })
+  >(url, inUrl ? fromSearchParams(DEFAULT_QUERY) : DEFAULT_QUERY)
+  useQueryInUrl(query, DEFAULT_QUERY, inUrl)
   useReloadWhenShown(active, reload)
 
   const labels: Record<ProjectStatus, string> = {

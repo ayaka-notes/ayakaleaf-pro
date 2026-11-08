@@ -428,20 +428,25 @@ async function getProjectPage(projectId) {
     .exec()
   if (!deletedProject) throw new Errors.NotFoundError('project not found')
   const { deleterData } = deletedProject
-  const [owner, deleter] = await Promise.all([
-    User.findById(deleterData.deletedProjectOwnerId, PERSON_FIELDS)
-      .lean()
-      .exec(),
-    deleterData.deleterId &&
-      User.findById(deleterData.deleterId, PERSON_FIELDS).lean().exec(),
+  // the owner and the deleter can be deleted users too, as in the list
+  const personOf = await AdminUserListManager.ownersOf([
+    deleterData.deletedProjectOwnerId,
+    deleterData.deleterId,
   ])
+  const owner = personOf(deleterData.deletedProjectOwnerId)
+  const deleter = personOf(deleterData.deleterId)
   return {
     project: {
       ...overview(deletedProject.project),
       status: 'deleted',
       deletedAt: deleterData.deletedAt,
     },
-    owner: formatPerson(owner),
+    // ownersOf gives the full name
+    owner: owner.email && {
+      id: owner.id,
+      email: owner.email,
+      firstName: owner.name,
+    },
     ownerId: deleterData.deletedProjectOwnerId?.toString(),
     deleter: {
       id: deleterData.deleterId?.toString(),
@@ -456,6 +461,9 @@ async function getProjectPage(projectId) {
 // core's restore of a deleted doc (the original admin page's Deleted Docs
 // tab): a new doc with the old content, named "<name>-<timestamp>.tex"
 async function restoreDeletedDoc(projectId, docId, admin) {
+  if (!(await Project.exists({ _id: projectId }))) {
+    throw new Errors.NotFoundError('project not found')
+  }
   const deletedDocs =
     await DocstoreManager.promises.getAllDeletedDocs(projectId)
   const deletedDoc = deletedDocs.find(doc => doc._id.toString() === docId)
