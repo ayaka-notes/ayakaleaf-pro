@@ -1019,6 +1019,13 @@ module.exports = {
       ),
     ],
     devToolbar: [],
+    // WYSIWYG TikZ editor: file-tree "Export to PNG/SVG/PDF" for .tikz/.pgf files
+    tikzFileExports: [
+      Path.resolve(
+        __dirname,
+        '../modules/tikz/frontend/js/util/tikz-export'
+      ),
+    ],
     dsNavLibraryLink: [],
     trashPageTabs: [],
     adminUserLibrary: [],
@@ -1242,6 +1249,10 @@ module.exports = {
       Path.resolve(
         __dirname,
         '../modules/python-runner/frontend/js/components/editor/python/python-output-toasts'
+      ),
+      Path.resolve(
+        __dirname,
+        '../modules/tikz/frontend/js/toastGenerators'
       ),
     ],
     editorSidebarComponents: [

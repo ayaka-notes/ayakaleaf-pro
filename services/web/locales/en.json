@@ -3468,5 +3468,12 @@
   "tikz_status_loading": "Loading TikZ editor…",
   "tikz_status_ready": "TikZ canvas ready",
   "tikz_title": "TikZ editor",
-  "tikz_error_boot": "The TikZ editor failed to start"
+  "tikz_error_boot": "The TikZ editor failed to start",
+  "tikz_export_to_png": "Export to PNG",
+  "tikz_export_to_svg": "Export to SVG",
+  "tikz_export_to_pdf": "Export to PDF",
+  "tikz_export_created": "__fileName__ — exported to the project",
+  "tikz_export_created_fallback": "TikZ figure exported to the project",
+  "tikz_export_failed": "TikZ export failed: __detail__",
+  "tikz_export_failed_fallback": "TikZ export failed."
 }

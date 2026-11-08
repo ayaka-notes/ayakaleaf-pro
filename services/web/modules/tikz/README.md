@@ -47,4 +47,34 @@ no telemetry, no external origin.
   kit (iframe postMessage host API + reference host + protocol doc); this
   module follows its `host/host.js` reference behaviour.
 - Both licenses are permissive (MIT); attribution kept in the vendored
-  folder. No modifications were made to the vendored app.
+  folder. Host-side patches to the vendored bundle (document lifecycle
+  trim) are listed in `public/static/tikz-editor/HOST-PATCHES.md`.
+
+## File-tree export (PNG/SVG/PDF)
+
+Right-click a `.tikz`/`.pgf` file in the file tree → **Export to
+PNG/SVG/PDF** creates `drawing.png` / `drawing.svg` / `drawing.pdf`
+(next to the source file) from the figure's rendered output.
+
+- `frontend/js/util/tikz-export-util.ts` — pure helpers (target name,
+  viewBox parsing, export-message classification, format tables);
+  unit-tested in `test/unit/src/tikz-export.test.mjs`.
+- `frontend/js/util/tikz-export.ts` — orchestrator: boots the vendored
+  app in a hidden same-origin iframe, loads the source
+  (`action:'load'`), then requests the rendered preview through the
+  app's host export protocol (`action:'export'` → `event:'export'`,
+  polling until the app answers with the SVG — it reports "not ready"
+  until the preview has rendered). The artifact is then generated on
+  the host side — SVG as-is, PNG via an offscreen canvas, PDF via a
+  tiny dependency-free single-page PDF writer (raw RGB +
+  `CompressionStream`) — and saved to the project via `uploadBatch`
+  (the regular project upload endpoint). **No changes to the vendored
+  app are required for this flow.**
+- Registered under `overleafModuleImports.tikzFileExports`; the core
+  file-tree context menu
+  (`frontend/js/features/file-tree/components/file-tree-item/file-tree-item-menu-items.tsx`)
+  renders the three items when the module reports the selected file as
+  exportable.
+- Toasts: `frontend/js/toastGenerators.tsx` (`tikz:export-created` /
+  `tikz:export-failed`), registered under
+  `overleafModuleImports.toastGenerators`.
