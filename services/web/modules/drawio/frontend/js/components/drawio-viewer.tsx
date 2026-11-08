@@ -96,7 +96,10 @@ const HANDOFF_MAX_MS = 20_000
 const IFRAME_SRC =
   '/static/drawio/index.html?spin=1&noHelpS=1' +
   '&noSaveBtn=1&noExitBtn=1&saveAndExit=0&od=0' +
-  '&plugins=0'
+  // Native offline/stealth gates of the vendored app: skip the Pusher
+  // realtime-script load, cloud sync, Drive/gapi integration and the
+  // cloud login surface (the app checks these urlParams itself).
+  '&gapi=0&stealth=1&offline=1&plugins=0'
 
 interface DrawioUi {
   editor?: {
