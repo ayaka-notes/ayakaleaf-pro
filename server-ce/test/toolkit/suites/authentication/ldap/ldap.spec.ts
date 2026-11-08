@@ -17,7 +17,7 @@ import {
   setUserPassword,
 } from '../../../../helpers/adminTools'
 import { expectOwnAuditEntry } from '../../../../helpers/auditLog'
-import { login } from '../../../../helpers/login'
+import { login, randomPassword } from '../../../../helpers/login'
 import { postWithCsrf } from '../../../../helpers/request'
 
 // LDAP login through authentik's LDAP outpost (services/authentik). Admins
@@ -200,7 +200,7 @@ describe('password reset of an LDAP account', function () {
   })
   it('lets a local account change the password on the settings page', function () {
     const email = `local-${Cypress._.random(1e9)}@example.com`
-    const password = `Local-${Cypress._.random(1e9)}-Pass`
+    const password = randomPassword()
     loginAs('carol')
     createLocalAccount(email)
     setUserPassword(email, password).its('status').should('equal', 200)

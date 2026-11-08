@@ -14,7 +14,7 @@ import {
   updatePassword,
 } from '../../../../helpers/auth'
 import { expectOwnAuditEntry } from '../../../../helpers/auditLog'
-import { login } from '../../../../helpers/login'
+import { login, randomPassword } from '../../../../helpers/login'
 import {
   deleteEmails,
   passwordResetLink,
@@ -191,7 +191,7 @@ describe('password reset of an OIDC account', function () {
 // SAML. An admin can still change it.
 describe('email of a local account on an OIDC instance', function () {
   const email = `local-${Cypress._.random(1e9)}@example.com`
-  const password = `Local-${Cypress._.random(1e9)}-Pass`
+  const password = randomPassword()
 
   before(function () {
     oidcLogin('alice')
