@@ -1,34 +1,25 @@
-import express from 'express'
 import logger from '@overleaf/logger'
 import { expressify } from '@overleaf/promise-utils'
 import HttpErrorHandler from '../../../../app/src/Features/Errors/HttpErrorHandler.mjs'
 import AuthorizationMiddleware from '../../../../app/src/Features/Authorization/AuthorizationMiddleware.mjs'
-import CollaboratorsInviteGetter from '../../../../app/src/Features/Collaborators/CollaboratorsInviteGetter.mjs'
 import ProjectHelper from '../../../../app/src/Features/Project/ProjectHelper.mjs'
 import { Project } from '../../../../app/src/models/Project.mjs'
 import { parseReq, z } from '../../../../app/src/infrastructure/Validation.mjs'
-import {
-  projectOwnerHasFeature,
-  runBeforeCoreRoutes,
-} from '../../../instance-features/app/src/UserFeatures.mjs'
+import { projectOwnerHasFeature } from '../../../instance-features/app/src/UserFeatures.mjs'
 import TrackChangesController from './TrackChangesController.mjs'
 
-// Without the owner's feature a project cannot turn tracking on, and gets no
-// new reviewers, whose edits would be tracked. Comments and the changes it
-// already has stay usable, as in core, whose editor reads the same feature.
-const refuseTrackingWithoutFeature = shouldCheck =>
-  expressify(async (req, res, next) => {
-    if (
-      !(await shouldCheck(req)) ||
-      (await projectOwnerHasFeature(
-        req.params.project_id ?? req.params.Project_id,
-        'trackChanges'
-      ))
-    ) {
-      return next()
-    }
-    HttpErrorHandler.forbidden(req, res)
-  })
+// Without the owner's feature a project cannot turn tracking on. All it already
+// has stays usable, as in core, whose editor reads the same feature: comments,
+// changes, and reviewers, who can be invited and are comment only.
+const refuseTrackingWithoutFeature = expressify(async (req, res, next) => {
+  if (
+    !(await turnsTrackingOn(req)) ||
+    (await projectOwnerHasFeature(req.params.project_id, 'trackChanges'))
+  ) {
+    return next()
+  }
+  HttpErrorHandler.forbidden(req, res)
+})
 
 // Turning tracking on for anyone it is off for now. The editor sends every
 // member's value, so the ones already on are not new; turning off stays open.
@@ -62,54 +53,16 @@ function validateTrackChanges(req, res, next) {
   next()
 }
 
-// An invitation from before the feature was turned off adds a reviewer too.
-// Without a token core's own checks answer, hashing one here would throw
-async function acceptsReviewerInvite(req) {
-  const token = req.params.token ?? req.body?.token
-  if (typeof token !== 'string') return false
-  const invite = await CollaboratorsInviteGetter.promises.getInviteByToken(
-    req.params.Project_id,
-    token
-  )
-  return invite?.privileges === 'review'
-}
-
-// Core's sharing routes (CollaboratorsRouter.mjs)
-const sharingRoutes = express.Router()
-sharingRoutes.post(
-  '/project/:Project_id/invite',
-  refuseTrackingWithoutFeature(req => req.body?.privileges === 'review')
-)
-sharingRoutes.put(
-  '/project/:Project_id/users/:user_id',
-  refuseTrackingWithoutFeature(req => req.body?.privilegeLevel === 'review')
-)
-// granting a member's access request sets the same role
-sharingRoutes.post(
-  '/project/:Project_id/access-requests/:user_id/grant',
-  refuseTrackingWithoutFeature(req => req.body?.privilegeLevel === 'review')
-)
-sharingRoutes.post(
-  '/project/:Project_id/invite/token/:token/accept',
-  refuseTrackingWithoutFeature(acceptsReviewerInvite)
-)
-sharingRoutes.post(
-  '/project/:Project_id/share',
-  refuseTrackingWithoutFeature(acceptsReviewerInvite)
-)
-
 export default {
   apply(webRouter) {
     logger.debug({}, 'Init track-changes router')
-
-    runBeforeCoreRoutes(webRouter, sharingRoutes)
 
     webRouter.post(
       '/project/:project_id/track_changes',
       AuthorizationMiddleware.blockRestrictedUserFromProject,
       AuthorizationMiddleware.ensureUserCanWriteProjectContent,
       validateTrackChanges,
-      refuseTrackingWithoutFeature(turnsTrackingOn),
+      refuseTrackingWithoutFeature,
       TrackChangesController.trackChanges
     )
     webRouter.post(

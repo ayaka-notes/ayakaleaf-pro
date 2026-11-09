@@ -111,6 +111,18 @@ describe('what an admin turned off for one user', function () {
     }
   })
 
+  it('leaves no empty group or stray line in the account settings', function () {
+    login(offUser)
+    visitWithFeatures('/user/settings')
+    cy.contains('.settings-widget-container', 'GitLab').should('exist')
+    cy.findByRole('heading', { name: 'Reference managers' }).should('not.exist')
+    // GitLab and Gitea are left in this group: one line between them
+    cy.get('#project-sync ~ .settings-widgets-container')
+      .first()
+      .find('> hr:visible')
+      .should('have.length', 1)
+  })
+
   it('hides it in the editor, and leaves the rest', function () {
     login(offUser)
     createProject(projectName('Off')).then(projectId => {

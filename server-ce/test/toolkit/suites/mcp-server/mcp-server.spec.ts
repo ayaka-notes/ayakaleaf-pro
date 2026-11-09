@@ -845,6 +845,16 @@ describe('MCP access with git access turned off', function () {
           login(ADMIN_EMAIL)
           setUserFeatures(member, { gitBridge: false })
           mcp(projectId, token, 'tools/list').its('status').should('equal', 403)
+          // A client that accepts anything gets the same answer, not a 500
+          cy.request({
+            method: 'POST',
+            url: `/project/${projectId}/mcp`,
+            headers: { Accept: '*/*', Authorization: `Bearer ${token}` },
+            body: { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} },
+            failOnStatusCode: false,
+          })
+            .its('status')
+            .should('equal', 403)
           download(link).its('status').should('equal', 404)
 
           login(member)

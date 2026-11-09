@@ -568,7 +568,7 @@ describe('a project whose owner has track changes turned off', function () {
     ensureUserExists(member)
   })
 
-  it('cannot track or get reviewers, keeps its comments, until it is on again', function () {
+  it('cannot turn tracking on until it is on again, but keeps its comments and gets reviewers who only comment', function () {
     login(lockedOwner)
     createProject(projectName('Locked')).then(projectId => {
       shareProject(projectId, member, 'readAndWrite')
@@ -594,11 +594,15 @@ describe('a project whose owner has track changes turned off', function () {
             `/project/${projectId}/track_changes`,
             { on_for_guests: true },
           ],
-          [
-            'POST',
-            `/project/${projectId}/invite`,
-            { email: invited, privileges: 'review' },
-          ],
+        ])
+        // Reviewers are not refused: core makes them comment only
+        postWithCsrf(`/project/${projectId}/invite`, {
+          email: invited,
+          privileges: 'review',
+        })
+          .its('status')
+          .should('equal', 200)
+        expectRoutesAnswer(204, [
           [
             'PUT',
             `/project/${projectId}/users/${memberId}`,
@@ -611,17 +615,27 @@ describe('a project whose owner has track changes turned off', function () {
             { privilegeLevel: 'review' },
           ],
         ])
-        // Other roles are not the feature's business
-        postWithCsrf(`/project/${projectId}/invite`, {
-          email: invited,
-          privileges: 'readAndWrite',
-        })
-          .its('status')
-          .should('equal', 200)
 
         openProject(projectId)
         openReviewPanel()
         addComment(projectId, 'Introduction', 'Still a comment')
+
+        // Comment only: a read-only editor, but they can answer in the review
+        login(member)
+        openProject(projectId)
+        cy.get('.cm-content').should('have.attr', 'contenteditable', 'false')
+        cy.request(`/project/${projectId}/threads`).then(({ body }) => {
+          const threadId = Object.keys(body).find(id =>
+            body[id].messages.some(
+              (m: { content: string }) => m.content === 'Still a comment'
+            )
+          )
+          postWithCsrf(`/project/${projectId}/thread/${threadId}/messages`, {
+            content: 'From a reviewer',
+          })
+            .its('status')
+            .should('be.lessThan', 400)
+        })
 
         login(ADMIN_EMAIL)
         setUserFeatures(lockedOwner, { trackChanges: true })
@@ -634,85 +648,45 @@ describe('a project whose owner has track changes turned off', function () {
             `/project/${projectId}/track_changes`,
             { on_for: { [memberId]: true } },
           ],
-          [
-            'PUT',
-            `/project/${projectId}/users/${memberId}`,
-            { privilegeLevel: 'review' },
-          ],
-          [
-            'POST',
-            `/project/${projectId}/access-requests/${memberId}/grant`,
-            { privilegeLevel: 'review' },
-          ],
         ])
       })
     })
   })
 
-  it('refuses a reviewer invitation from before it was turned off', function () {
+  it('accepts a reviewer invitation from before it was turned off', function () {
     const inviter = `locked-inviter-${uuid()}@example.com`
     const reviewer = `locked-reviewer-${uuid()}@example.com`
-    const editor = `locked-editor-${uuid()}@example.com`
-    const invitationToken = (projectId: string) => {
-      cy.visit('/project')
-      return cy
-        .request('/notifications')
-        .then(
-          ({ body }) =>
-            body.find(
-              (n: { messageOpts?: { projectId?: string } }) =>
-                n.messageOpts?.projectId === projectId
-            ).messageOpts.token as string
-        )
-    }
-    for (const email of [inviter, reviewer, editor]) ensureUserExists(email)
+    for (const email of [inviter, reviewer]) ensureUserExists(email)
 
     login(inviter)
     createProject(projectName('Invited')).then(projectId => {
       cy.visit('/project')
-      for (const [email, privileges] of [
-        [reviewer, 'review'],
-        [editor, 'readAndWrite'],
-      ]) {
-        postWithCsrf(`/project/${projectId}/invite`, { email, privileges })
-          .its('status')
-          .should('equal', 200)
-      }
+      postWithCsrf(`/project/${projectId}/invite`, {
+        email: reviewer,
+        privileges: 'review',
+      })
+        .its('status')
+        .should('equal', 200)
       login(ADMIN_EMAIL)
       setUserFeatures(inviter, { trackChanges: false })
 
-      const accept = `/project/${projectId}/invite/token`
       login(reviewer)
-      invitationToken(projectId).then(token => {
-        postWithCsrf(`${accept}/${token}/accept`, {})
-          .its('status')
-          .should('equal', 403)
-        postWithCsrf(`/project/${projectId}/share`, { token })
-          .its('status')
-          .should('equal', 403)
-      })
-      // Other roles are not the feature's business
-      login(editor)
-      invitationToken(projectId).then(token => {
-        postWithCsrf(`${accept}/${token}/accept`, {})
+      cy.visit('/project')
+      cy.request('/notifications').then(({ body }) => {
+        const token = body.find(
+          (n: { messageOpts?: { projectId?: string } }) =>
+            n.messageOpts?.projectId === projectId
+        ).messageOpts.token as string
+        postWithCsrf(`/project/${projectId}/invite/token/${token}/accept`, {})
           .its('status')
           .should('be.lessThan', 400)
       })
 
       login(inviter)
       cy.request(`/project/${projectId}/members`).then(({ body }) => {
-        const emails = body.members.map((m: { email: string }) => m.email)
-        expect(emails).to.include(editor)
-        expect(emails).not.to.include(reviewer)
-      })
-
-      login(ADMIN_EMAIL)
-      setUserFeatures(inviter, { trackChanges: true })
-      login(reviewer)
-      invitationToken(projectId).then(token => {
-        postWithCsrf(`${accept}/${token}/accept`, {})
-          .its('status')
-          .should('be.lessThan', 400)
+        expect(body.members.map((m: { email: string }) => m.email)).to.include(
+          reviewer
+        )
       })
     })
   })

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getJSON } from '@/infrastructure/fetch-json'
+import '../stylesheets/settings-linking.scss'
 
 export type InstanceFeatures = {
   ai: boolean
