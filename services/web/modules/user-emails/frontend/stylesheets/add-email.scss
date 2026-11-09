@@ -1,0 +1,5 @@
+// Core's add email form asks about the institution of the address, which only
+// Overleaf's v1 service can answer
+.affiliations-table-cell-tabbed:has(> .mt-1 > .btn-inline-link) {
+  display: none;
+}

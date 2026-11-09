@@ -339,6 +339,15 @@ async function changeEmail(userId, newEmail, admin) {
   }
 }
 
+// Frees an address a user kept as a secondary email, e.g. one that stops
+// someone's first SSO login. Core logs it with the admin as the initiator.
+async function removeEmail(userId, email, admin) {
+  await UserUpdater.promises.removeEmailAddress(userId, email, {
+    initiatorId: admin.id,
+    ipAddress: admin.ip,
+  })
+}
+
 // The document changes of the plain fields
 function fieldChanges(user, fields) {
   const changes = {}
@@ -726,4 +735,5 @@ export default {
   restoreDeletedUser,
   getAiUsage,
   resetAiUsage,
+  removeEmail,
 }
