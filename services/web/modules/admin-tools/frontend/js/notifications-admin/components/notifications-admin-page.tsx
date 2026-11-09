@@ -20,6 +20,10 @@ type State = {
     baseDelayMs: number
   }
   recipients: Recipient[]
+  channels?: {
+    enabled: string[]
+    pinned?: Record<string, Record<string, string>>
+  }
   queue: {
     pending: number
     processing: number
@@ -45,6 +49,27 @@ function delayLabel(ms: number): string {
   if (ms % 1000 === 0) return `${ms / 1000} s`
   return `${ms} ms`
 }
+
+// Channel types that exist in the catalog. Used to seed the local
+// `channelDraft` state before the server state arrives.
+const ALL_CHANNEL_TYPES_FALLBACK = [
+  'browserPush',
+  'telegram',
+  'discord',
+  'slack',
+  'gotify',
+  'ntfy',
+  'pushover',
+  'nextcloud',
+  'nextcloudtalk',
+  'signal',
+  'whatsapp',
+  'wechat',
+  'zoom',
+  'zulip',
+  'webhook',
+  'customUrl',
+]
 
 function ToggleButton({
   checked,
@@ -82,6 +107,21 @@ function NotificationsAdminPage() {
   const [testEmail, setTestEmail] = useState('')
   const [testUrl, setTestUrl] = useState('')
   const [urlDrafts, setUrlDrafts] = useState<Record<string, string>>({})
+  const [channelDraft, setChannelDraft] = useState<{
+    enabled: Record<string, boolean>
+    pinned: Record<string, Record<string, string>>
+  }>(() => {
+    const meta = getMeta('ol-notificationsAdmin')
+    const enabledTypes =
+      (meta as State | null)?.channels?.enabled ||
+      ALL_CHANNEL_TYPES_FALLBACK
+    const pinned = (meta as State | null)?.channels?.pinned || {}
+    const enabled: Record<string, boolean> = {}
+    for (const t of ALL_CHANNEL_TYPES_FALLBACK) {
+      enabled[t] = enabledTypes.includes(t)
+    }
+    return { enabled, pinned }
+  })
 
   const act = useCallback(
     async (key: string, endpoint: string, payload: unknown, after?: (data: any) => void) => {
