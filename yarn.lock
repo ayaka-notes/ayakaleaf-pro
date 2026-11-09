@@ -7274,6 +7274,7 @@ __metadata:
     valid-url: "npm:^1.0.9"
     vitest: "npm:4.1.5"
     w3c-keyname: "npm:^2.2.8"
+    web-push: "npm:^4.0.0"
     webpack: "npm:^5.106.2"
     webpack-assets-manifest: "npm:^6.5.1"
     webpack-cli: "npm:^7.0.2"
@@ -11602,6 +11603,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"agent-base@npm:9.0.0":
+  version: 9.0.0
+  resolution: "agent-base@npm:9.0.0"
+  checksum: 10c0/0274cd9a2a0ee78e3fbe0e80e7e0c41df27102466f7f7b3a67c045bb4c00fc517ce0496de3045b55f5eeec1a0e77d9d0a9b9320b0362bfe61e0c9e6d7ebaee76
+  languageName: node
+  linkType: hard
+
 "agent-base@npm:^7.1.0, agent-base@npm:^7.1.2":
   version: 7.1.4
   resolution: "agent-base@npm:7.1.4"
@@ -12194,6 +12202,18 @@ __metadata:
   version: 2.0.6
   resolution: "asap@npm:2.0.6"
   checksum: 10c0/c6d5e39fe1f15e4b87677460bd66b66050cd14c772269cee6688824c1410a08ab20254bb6784f9afb75af9144a9f9a7692d49547f4d19d715aeb7c0318f3136d
+  languageName: node
+  linkType: hard
+
+"asn1.js@npm:^5.3.0":
+  version: 5.4.1
+  resolution: "asn1.js@npm:5.4.1"
+  dependencies:
+    bn.js: "npm:^4.0.0"
+    inherits: "npm:^2.0.1"
+    minimalistic-assert: "npm:^1.0.0"
+    safer-buffer: "npm:^2.1.0"
+  checksum: 10c0/b577232fa6069cc52bb128e564002c62b2b1fe47f7137bdcd709c0b8495aa79cee0f8cc458a831b2d8675900eea0d05781b006be5e1aa4f0ae3577a73ec20324
   languageName: node
   linkType: hard
 
@@ -12829,6 +12849,13 @@ __metadata:
   version: 2.19.0
   resolution: "blueimp-md5@npm:2.19.0"
   checksum: 10c0/85d04343537dd99a288c62450341dcce7380d3454c81f8e5a971ddd80307d6f9ef51b5b92ad7d48aaaa92fd6d3a1f6b2f4fada068faae646887f7bfabc17a346
+  languageName: node
+  linkType: hard
+
+"bn.js@npm:^4.0.0":
+  version: 4.12.5
+  resolution: "bn.js@npm:4.12.5"
+  checksum: 10c0/e15e35d0e082fa43c5dd03b552041faf23bc870fbe5de0e41ab5d2d987875f43ffb1f8f57021494e9d71784223c59ddbba1819948b2c2648477a61ab7455aa42
   languageName: node
   linkType: hard
 
@@ -19194,6 +19221,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"http_ece@npm:1.2.1":
+  version: 1.2.1
+  resolution: "http_ece@npm:1.2.1"
+  checksum: 10c0/7a5463660053bf559156e173cfd6a60dac10b79de6d90f34aff300fc697875b7fdec1ee550ffc1d271299dd3ec2ee6a0c59f0934af7f3466ab51089dfed5077c
+  languageName: node
+  linkType: hard
+
 "https-proxy-agent@npm:^5.0.0, https-proxy-agent@npm:^5.0.1":
   version: 5.0.1
   resolution: "https-proxy-agent@npm:5.0.1"
@@ -19211,6 +19245,17 @@ __metadata:
     agent-base: "npm:^7.1.2"
     debug: "npm:4"
   checksum: 10c0/f729219bc735edb621fa30e6e84e60ee5d00802b8247aac0d7b79b0bd6d4b3294737a337b93b86a0bd9e68099d031858a39260c976dc14cdbba238ba1f8779ac
+  languageName: node
+  linkType: hard
+
+"https-proxy-agent@npm:^9.1.0":
+  version: 9.1.0
+  resolution: "https-proxy-agent@npm:9.1.0"
+  dependencies:
+    agent-base: "npm:9.0.0"
+    debug: "npm:^4.3.4"
+    proxy-agent-negotiate: "npm:1.1.0"
+  checksum: 10c0/95ca9504944e0b6d214f9da0b4d747512bf79187b4c6f69db667049bdcc43e2b67c7932ad2c4bd6952e99e83de9a7d42dafff63672d7898da297b2736f4b42bd
   languageName: node
   linkType: hard
 
@@ -25739,6 +25784,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"proxy-agent-negotiate@npm:1.1.0":
+  version: 1.1.0
+  resolution: "proxy-agent-negotiate@npm:1.1.0"
+  peerDependencies:
+    kerberos: ^2.0.0
+  peerDependenciesMeta:
+    kerberos:
+      optional: true
+  checksum: 10c0/e1c89e46b739a790335555c8182ed919f6fa16ca244cd4c01a9806a1c471af785b3beff8bd8a891422bedfffb0f43115333d98ad426f9bc82e7cd20c6a15ceb0
+  languageName: node
+  linkType: hard
+
 "proxy-from-env@npm:1.0.0":
   version: 1.0.0
   resolution: "proxy-from-env@npm:1.0.0"
@@ -30958,6 +31015,20 @@ __metadata:
   version: 2.0.1
   resolution: "web-namespaces@npm:2.0.1"
   checksum: 10c0/df245f466ad83bd5cd80bfffc1674c7f64b7b84d1de0e4d2c0934fb0782e0a599164e7197a4bce310ee3342fd61817b8047ff04f076a1ce12dd470584142a4bd
+  languageName: node
+  linkType: hard
+
+"web-push@npm:^4.0.0":
+  version: 4.0.0
+  resolution: "web-push@npm:4.0.0"
+  dependencies:
+    asn1.js: "npm:^5.3.0"
+    http_ece: "npm:1.2.1"
+    https-proxy-agent: "npm:^9.1.0"
+    jws: "npm:^4.0.1"
+  bin:
+    web-push: src/cli.js
+  checksum: 10c0/59e4fdb4b87541ee4f8f141fced7149e8ba6a9e57efa90bf6450546d850a82440e7c1a75d63a79c9e47b312abf6b5a09f158003bdfcebcf371a169efa58ce21d
   languageName: node
   linkType: hard
 

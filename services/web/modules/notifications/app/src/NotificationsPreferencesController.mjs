@@ -8,9 +8,8 @@ import * as Path from 'node:path'
 import { parseReq, z } from '../../../../app/src/infrastructure/Validation.mjs'
 import NotificationsPreferencesHandler from './NotificationsPreferencesHandler.mjs'
 import { normalizeGlobalDelayMinutes } from './PreferenceNormalizer.mjs'
-import { sendAppriseNotification } from './AppriseDispatcher.mjs'
+import { sendAppriseNotification, appriseConfigured } from './AppriseDispatcher.mjs'
 import { buildChannelUrl, getChannel, CATALOG_ORDER } from './ChannelCatalog.mjs'
-import { APPRISDE_API_URL } from './AppriseDispatcher.mjs'
 
 // Server default grace delay (same env var as the enqueue script), used to
 // show users what "leave empty" means on the preferences page.
@@ -87,7 +86,8 @@ async function globalPreferencesPage(req, res, next) {
         channelFields: Object.fromEntries(
           CATALOG_ORDER.map(type => [type, getChannel(type).fields])
         ),
-        vapidPublicKey: await _fetchVapidPublicKey(),
+        vapidPublicKey: await _getVapidPublicKey(),
+        appriseConfigured: appriseConfigured(),
       }
     )
   } catch (err) {
@@ -101,6 +101,7 @@ async function getGlobalPreferences(req, res, next) {
     const preferences = await NotificationsPreferencesHandler.promises.getGlobalPreferences(
       userId
     )
+    preferences.appriseConfigured = appriseConfigured()
     res.json(preferences)
   } catch (err) {
     next(err)
@@ -246,20 +247,14 @@ async function sendTestEmail(req, res, next) {
   }
 }
 
-// VAPID public key for the browser-push settings card (from the apprise
-// container). Cached for the process lifetime — it changes only when the
-// container regenerates its key (rare).
-let _vapidCache = null
-async function _fetchVapidPublicKey() {
-  if (_vapidCache !== null) return _vapidCache
+// VAPID public key for the browser-push settings card. Overleaf owns the
+// keys (generated once, persisted in `notificationSettings`) so browser
+// push works without the Apprise container.
+async function _getVapidPublicKey() {
   try {
-    const response = await fetch(`${APPRISDE_API_URL}/vapid`, {
-      signal: AbortSignal.timeout(3000),
-    })
-    if (!response.ok) return null
-    const data = await response.json()
-    _vapidCache = data.app_server_key || null
-    return _vapidCache
+    const { getVapidKeys } = await import('./AppriseDispatcher.mjs')
+    const { publicKey } = await getVapidKeys()
+    return publicKey
   } catch {
     return null
   }
@@ -345,22 +340,15 @@ async function sendTestChannel(req, res, next) {
 
     const url = buildChannelUrl(channel, values, pinned)
 
-    await fetch(`${APPRISDE_API_URL}/notify`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        url,
-        title: 'Overleaf test notification',
-        body: `Test message for **${ch.label}**. If you can see it, this channel works.`,
-        format: 'markdown',
-      }),
-      signal: AbortSignal.timeout(30000),
-    }).then(async response => {
-      const data = await response.json().catch(() => ({}))
-      if (!response.ok || data.status !== 1) {
-        const detail = Array.isArray(data.messages) ? data.messages.join('; ') : data.message
-        throw new Errors.InvalidError(`Dispatch failed: ${detail || response.status}`)
-      }
+    // Route through the shared dispatcher: browser push is sent by this
+    // process (no Apprise needed), email falls back to direct SMTP,
+    // everything else goes to Apprise.
+    await sendAppriseNotification({
+      title: 'Overleaf test notification',
+      body: `Test message for **${ch.label}**. If you can see it, this channel works.`,
+      url,
+    }).catch(err => {
+      throw new Errors.InvalidError(`Dispatch failed: ${err.message}`)
     })
 
     res.json({ message: `Test notification sent via ${ch.label}.` })

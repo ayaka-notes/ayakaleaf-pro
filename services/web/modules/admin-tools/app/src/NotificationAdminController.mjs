@@ -26,7 +26,7 @@ import { parseReq, z } from '../../../../app/src/infrastructure/Validation.mjs'
 import { db, ObjectId, connectionPromise } from '../../../../app/src/infrastructure/mongodb.mjs'
 import {
   sendAppriseNotification,
-  APPRISDE_API_URL,
+  appriseConfigured,
 } from '../../../notifications/app/src/AppriseDispatcher.mjs'
 import {
   normalizeNotificationUrl,
@@ -106,7 +106,7 @@ export async function buildState() {
 
   return {
     dispatch: {
-      apiUrl: APPRISDE_API_URL,
+      appriseConfigured: appriseConfigured(),
       dryRun: settings?.dryRun,
       baseDelayMs,
       staleProcessingBefore: staleBefore.toISOString(),
@@ -250,24 +250,20 @@ async function channelsState(req, res, next) {
     enabledChannelTypes: CATALOG_ORDER.filter(t => enabled.has(t)),
     pinned: doc?.pinned || {},
     pinnable: PINNABLE,
-    vapid: await _fetchVapidFromApprise(),
+    vapid: await _getVapidPublicKey(),
   }
   if (!res.headersSent) res.json(state)
 }
 
 let _vapidAdminCache = null
-async function _fetchVapidFromApprise() {
+async function _getVapidPublicKey() {
   if (_vapidAdminCache !== null) return _vapidAdminCache
   try {
-    const { APPRISDE_API_URL } = await import(
+    const { getVapidKeys } = await import(
       '../../../notifications/app/src/AppriseDispatcher.mjs'
     )
-    const response = await fetch(`${APPRISDE_API_URL}/vapid`, {
-      signal: AbortSignal.timeout(3000),
-    })
-    if (!response.ok) return null
-    const data = await response.json()
-    _vapidAdminCache = { appServerKey: data.app_server_key || null, sub: data.sub || null }
+    const { publicKey } = await getVapidKeys()
+    _vapidAdminCache = { appServerKey: publicKey, sub: 'mailto:overleaf' }
     return _vapidAdminCache
   } catch {
     return null

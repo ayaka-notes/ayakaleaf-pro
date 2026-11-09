@@ -3489,5 +3489,6 @@
   "notification_field_pinned": "fixed by your site administrator",
   "notification_test_channel": "Send test",
   "notification_custom_url_description": "For advanced users: any Apprise channel URL (tg://, ntfy://, discord://, mailto://, …).",
-  "notification_channel_fallback_hint": "Fallback (account email):"
+  "notification_channel_fallback_hint": "Fallback (account email):",
+  "notification_apprise_not_configured": "Email and browser notifications work on this server. The third-party channels below (Telegram, Discord, …) are not available because the notification bridge is not configured."
 }

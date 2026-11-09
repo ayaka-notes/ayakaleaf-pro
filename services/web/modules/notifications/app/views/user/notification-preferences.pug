@@ -45,6 +45,10 @@ block content
 					p.notification-section-title #{translate("notification_channels_title")}
 					p.text-muted #{translate("notification_channels_description")}
 
+					if ! appriseConfigured
+						.alert.alert-warning.channel-apprise-hint
+							span #{translate("notification_apprise_not_configured")}
+
 					each channelType in channelOrder
 						- const ch = channelConfiguration.channels[channelType]
 						if ch

@@ -15,7 +15,7 @@ type Recipient = {
 
 type State = {
   dispatch: {
-    apiUrl: string
+    appriseConfigured: boolean
     dryRun: boolean
     baseDelayMs: number
   }
@@ -34,7 +34,7 @@ function initialState(): State {
     return meta as State
   }
   return {
-    dispatch: { apiUrl: '', dryRun: false, baseDelayMs: 120000 },
+    dispatch: { appriseConfigured: false, dryRun: false, baseDelayMs: 120000 },
     recipients: [],
     queue: { pending: 0, processing: 0, dead: 0, recent: [] },
   }
@@ -337,7 +337,7 @@ function NotificationsAdminPage() {
           </span>
         </div>
         <div className="na-section-desc">
-          Apprise API: <code>{state.dispatch.apiUrl}</code> · minimum debounce{' '}
+          Bridge: {state.dispatch.appriseConfigured ? <span className="text-success">apprise active</span> : <span className="text-muted">not configured (email + browser push run locally)</span>} · minimum debounce{' '}
           {delayLabel(state.dispatch.baseDelayMs)} (environment configured).
         </div>
         <div className="na-section-body">
