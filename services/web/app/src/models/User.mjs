@@ -111,6 +111,19 @@ export const UserSchema = new Schema(
       referencesSearchMode: { type: String, default: 'advanced' }, // 'advanced' or 'simple'
       darkModePdf: { type: Boolean, default: false },
       floatingMenu: { type: Boolean, default: true },
+      // A list of comment tags (e.g. TODO, FIXME) to highlight in the source
+      // editor, each with its own colour. Stored as subdocuments with `_id`
+      // disabled so the array round-trips to the frontend cleanly.
+      highlight: {
+        type: [
+          {
+            _id: false,
+            tag: { type: String, default: '' },
+            color: { type: String, default: '#ff8c00' },
+          },
+        ],
+        default: [],
+      },
       zotero: refProviderSettingsSchema,
       mendeley: refProviderSettingsSchema,
       papers: refProviderSettingsSchema,

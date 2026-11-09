@@ -6,6 +6,7 @@ import CodeMirrorView from './codemirror-view'
 import CodeMirrorSearch from './codemirror-search'
 import { CodeMirrorToolbar } from './codemirror-toolbar'
 import { CodemirrorOutline } from './codemirror-outline'
+import { CommentOutline } from './comment-outline'
 import { CodeMirrorCommandTooltip } from './codemirror-command-tooltip'
 import importOverleafModules from '../../../../macros/import-overleaf-module.macro'
 import { FigureModal } from './figure-modal/figure-modal'
@@ -102,6 +103,7 @@ function CodeMirrorEditorComponents({
   return (
     <ReviewPanelProviders>
       <CodemirrorOutline />
+      <CommentOutline />
       <CodeMirrorView hidden={hidden} />
       <FigureModal />
       <CodeMirrorSearch />

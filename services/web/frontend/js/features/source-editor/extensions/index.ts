@@ -36,6 +36,7 @@ import { emptyLineFiller } from './empty-line-filler'
 import { goToLinePanel } from './go-to-line'
 import { drawSelection } from './draw-selection'
 import { nonBlinkingCursor } from './non-blinking-cursor'
+import { tagHighlight } from './tag-highlight'
 import { sourceOnly, visual } from './visual/visual'
 import { inlineBackground } from './inline-background'
 import { indentationMarkers } from './indentation-markers'
@@ -80,6 +81,10 @@ export const createExtensions = (options: Record<string, any>): Extension[] => [
   }),
   drawSelection(),
   nonBlinkingCursor(),
+  // tag highlighting (user-specific); the comment outline is computed in the
+  // publisher component (components/comment-outline.tsx) from
+  // `tagHighlightSettingsField`
+  tagHighlight(),
   // A built-in facet that is set to true to allow multiple selections.
   // This makes the editor more like a code editor than Google Docs or Microsoft Word,
   // which only have single selections.

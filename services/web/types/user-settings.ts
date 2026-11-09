@@ -9,6 +9,11 @@ export type RefProviderSettings = {
   groups: { id: string }[]
 }
 
+export type HighlightTag = {
+  tag: string
+  color: string
+}
+
 export type UserSettings = {
   pdfViewer: PdfViewer
   autoComplete: boolean
@@ -30,6 +35,7 @@ export type UserSettings = {
   nonBlinkingCursor: boolean
   darkModePdf: boolean
   floatingMenu: boolean
+  highlight: HighlightTag[]
   zotero: RefProviderSettings
   mendeley: RefProviderSettings
   papers: RefProviderSettings
