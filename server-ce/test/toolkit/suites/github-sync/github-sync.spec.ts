@@ -1,3 +1,8 @@
+import {
+  expectRoutesAnswer,
+  setUserFeatures,
+  visitWithFeatures,
+} from '../../../helpers/adminTools'
 import { login } from '../../../helpers/login'
 import { expectOwnAuditEntry, expectProjectAuditEntry } from '../../../helpers/auditLog'
 import {
@@ -1063,6 +1068,74 @@ describe('collaborators', function () {
       })
         .its('status')
         .should('equal', 403)
+    })
+  })
+})
+
+describe('a user GitHub is turned off for', function () {
+  const member = `github-off-${Date.now()}@example.com`
+
+  before(function () {
+    cy.clearAllCookies()
+    ensureUserExists(member)
+  })
+
+  it('hides it and refuses its routes until it is on again', function () {
+    login(member)
+    linkGitHubAccount()
+    createProject(projectName('GitHub off')).then(projectId => {
+      login(ADMIN_EMAIL)
+      setUserFeatures(member, { github: false })
+
+      login(member)
+      visitWithFeatures('/user/settings')
+      cy.findByRole('heading', { name: 'Change password' }).should('exist')
+      githubWidget().should('not.exist')
+
+      cy.visit('/project')
+      cy.intercept('GET', '/system/features').as('features')
+      cy.findAllByRole('button', { name: 'New project' }).first().click()
+      cy.wait('@features')
+      cy.findByRole('menuitem', { name: 'Blank project' }).should('exist')
+      cy.findByRole('menuitem', { name: 'Import from GitHub' }).should(
+        'not.exist'
+      )
+
+      cy.intercept('GET', '/system/features').as('features')
+      openProject(projectId)
+      cy.wait('@features')
+      openRailTab('Integrations')
+      cy.findByText('Git clone this project.').should('exist')
+      cy.findByRole('button', { name: /GitHub/ }).should('not.exist')
+
+      cy.visit('/project')
+      expectRoutesAnswer(403, [
+        ['GET', '/user/github-sync/oauth2'],
+        ['GET', '/user/github-sync/oauth2/callback?code=code&state=state'],
+        ['GET', '/user/github-sync/status'],
+        ['GET', '/user/github-sync/orgs'],
+        ['GET', '/user/github-sync/repos'],
+        ['POST', '/project/new/github-sync', { projectName: 'x', repo: 'x/x' }],
+        ['POST', `/project/${projectId}/github-sync/export`, {}],
+        ['GET', `/project/${projectId}/github-sync/state`],
+        ['GET', `/project/${projectId}/github-sync/merge/overview`],
+        ['POST', `/project/${projectId}/github-sync/merge`, {}],
+      ])
+      // Unlinking stays open
+      postWithCsrf('/user/github-sync/unlink', {})
+        .its('status')
+        .should('be.lessThan', 300)
+      expectTokensRevoked()
+
+      // The admin, who has it on, keeps it
+      login(ADMIN_EMAIL)
+      connectionStatus().should('equal', false)
+      setUserFeatures(member, { github: true })
+
+      login(member)
+      linkGitHubAccount()
+      connectionStatus().should('equal', true)
+      projectSyncState(projectId).should('exist')
     })
   })
 })

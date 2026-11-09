@@ -9,6 +9,7 @@ import AuthorizationManager from '../../../../app/src/Features/Authorization/Aut
 import ClsiManager from '../../../../app/src/Features/Compile/ClsiManager.mjs'
 import Errors from '../../../../app/src/Features/Errors/Errors.js'
 import UserGetter from '../../../../app/src/Features/User/UserGetter.mjs'
+import { isFeatureOn } from '../../../instance-features/app/src/UserFeatures.mjs'
 import {
   DOWNLOAD_AUDIENCE,
   buildCompileTools,
@@ -96,8 +97,8 @@ async function downloadOutputFile(req, res) {
     return res.sendStatus(404)
   }
   // the user may have lost access since the link was made
-  const user = await UserGetter.promises.getUser(userId, { suspended: 1 })
-  if (!user || user.suspended || !(await AuthorizationManager.promises.canUserReadProject(userId, projectId))) {
+  const user = await UserGetter.promises.getUser(userId, { suspended: 1, features: 1 })
+  if (!user || user.suspended || !isFeatureOn(user, 'gitBridge') || !(await AuthorizationManager.promises.canUserReadProject(userId, projectId))) {
     return res.sendStatus(404)
   }
 

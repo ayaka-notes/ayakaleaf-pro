@@ -146,7 +146,7 @@ One folder per module in `toolkit/suites/`, named and nested like
 - `instance-features/` – `/system/features` and the UI that hides itself
   with it: AI assistant, GitHub Sync, Zotero and Mendeley, all off on the
   default instance and all on in the `enabled/` variant, with git-bridge,
-  which GitHub Sync needs.
+  which GitHub Sync needs; there also what an admin turned off for one user.
 - `admin-tools/` – the admin panel, `/admin/user` and `/admin/project`:
   who may open it; the user list (search by name, email and id, every Status, Login and Role
   filter with its counts, sorting, pages and page sizes, the deleted-match

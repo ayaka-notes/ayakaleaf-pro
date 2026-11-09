@@ -6,6 +6,7 @@ import { CopyToClipboard } from '@/shared/components/copy-to-clipboard'
 import { useProjectContext } from '@/shared/context/project-context'
 import IntegrationCard from '@/features/integrations-panel/integration-card'
 import GitLogoOrange from '@/shared/svgs/git-logo-orange'
+import useInstanceFeatures from '@modules/instance-features/frontend/js/use-instance-features'
 
 import {
     OLModalBody,
@@ -110,6 +111,11 @@ function GitBridgeSyncCard() {
 
     const [showGitBridgeSyncModal, setShowGitBridgeSyncModal] = useState(false)
     const { project, tags: projectTags } = useProjectContext()
+    const { gitBridge } = useInstanceFeatures()
+
+    if (!gitBridge) {
+        return null
+    }
 
     return (
         <>
