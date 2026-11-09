@@ -102,6 +102,7 @@ Ayakaleaf Pro 是 Overleaf 的增强版本，具备几乎全部功能与能力�
 
 ## 博客
 我们撰写有关 Overleaf 内部机制、编译性能和自托管 LaTeX 基础设施的文章。在我们的博客上阅读更多：
+- [2026.11 Meet the New Admin Panel in Ayakaleaf Pro](https://ayakaleaf-pro.ayaka.space/blog/2026/new-admin-panel)
 - [2026.08 Overleaf Server Pro Price and Open-Source Alternative](https://ayakaleaf-pro.ayaka.space/blog/2026/overleaf-server-pro-price-and-open-source-alternative)
 - [2026.08 Overleaf Benchmark: A Deep Research of Concurrent LaTeX Compilation in Overleaf](https://ayakaleaf-pro.ayaka.space/blog/2026/overleaf-benchmark)
 

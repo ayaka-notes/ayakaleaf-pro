@@ -102,6 +102,7 @@ Confira o arquivo [CONTRIBUTING](../CONTRIBUTING.md) para obter informações so
 
 ## Blog
 Escrevemos sobre o funcionamento interno do Overleaf, o desempenho da compilação e infraestrutura LaTeX auto-hospedada. Leia mais no nosso blog:
+- [2026.11 Meet the New Admin Panel in Ayakaleaf Pro](https://ayakaleaf-pro.ayaka.space/blog/2026/new-admin-panel)
 - [2026.08 Overleaf Server Pro Price and Open-Source Alternative](https://ayakaleaf-pro.ayaka.space/blog/2026/overleaf-server-pro-price-and-open-source-alternative)
 - [2026.08 Overleaf Benchmark: A Deep Research of Concurrent LaTeX Compilation in Overleaf](https://ayakaleaf-pro.ayaka.space/blog/2026/overleaf-benchmark)
 
