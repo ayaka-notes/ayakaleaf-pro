@@ -4,3 +4,16 @@
 # user defined files
 .env
 docker-compose.override.yml
+
+# build artifacts (PnP, caches, local webpack output) — never commit
+.pnp.cjs
+.pnp.loader.mjs
+.pnp.data.mjs
+.yarn/cache/
+.yarn/unplugged/
+.yarn/install-state.gz
+node_modules/
+.pi/
+services/web/.cache/
+services/web/public/*.mjs
+services/web/public/*.mjs.LICENSE.txt

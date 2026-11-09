@@ -1004,6 +1004,11 @@ module.exports = {
     // Restart webpack after making changes.
     //
     createFileModes: [
+      // WYSIWYG TikZ editor: "New file > TikZ diagram" (.tikz)
+      Path.resolve(
+        __dirname,
+        '../modules/tikz/frontend/js/components/create-tikz-file'
+      ),
       Path.resolve(
         __dirname,
         '../modules/tpr-webmodule/frontend/js/components/create-file-mode-zotero'
@@ -1012,8 +1017,20 @@ module.exports = {
         __dirname,
         '../modules/tpr-webmodule/frontend/js/components/create-file-mode-mendeley'
       ),
+      // drawio module: "New file > Diagram (draw.io)" (.drawio)
+      Path.resolve(
+        __dirname,
+        '../modules/drawio/frontend/js/components/create-drawio-file'
+      ),
     ],
     devToolbar: [],
+    // WYSIWYG TikZ editor: file-tree "Export to PNG/SVG/PDF" for .tikz/.pgf files
+    tikzFileExports: [
+      Path.resolve(
+        __dirname,
+        '../modules/tikz/frontend/js/util/tikz-export'
+      ),
+    ],
     dsNavLibraryLink: [],
     trashPageTabs: [],
     adminUserLibrary: [],
@@ -1206,7 +1223,19 @@ module.exports = {
     domainVerificationToken: [],
     v1ImportDataScreen: [],
     snapshotUtils: [],
-    visualEditorProviders: [],
+    visualEditorProviders: [
+      // WYSIWYG TikZ editor claims *.tikz / *.pgf (vendored app served
+      // same-origin from public/static/tikz-editor, fully offline)
+      Path.resolve(
+        __dirname,
+        '../modules/tikz/frontend/js/visual-editor-provider'
+      ),
+      // drawio module: draw.io canvas editor claims *.drawio
+      Path.resolve(
+        __dirname,
+        '../modules/drawio/frontend/js/visual-editor-provider'
+      ),
+    ],
     usGovBanner: [],
     rollingBuildsUpdatedAlert: [],
     offlineModeToolbarButtons: [],
@@ -1230,6 +1259,14 @@ module.exports = {
       Path.resolve(
         __dirname,
         '../modules/python-runner/frontend/js/components/editor/python/python-output-toasts'
+      ),
+      Path.resolve(
+        __dirname,
+        '../modules/tikz/frontend/js/toastGenerators'
+      ),
+      Path.resolve(
+        __dirname,
+        '../modules/drawio/frontend/js/components/drawio-convert-toasts'
       ),
     ],
     editorSidebarComponents: [
@@ -1303,6 +1340,14 @@ module.exports = {
     railPopovers: [],
     railActions: [],
     railModals: [],
+    // Items appended to the file tree right-click (context) menu
+    // (e.g. draw.io -> PDF/PNG conversion from the drawio module).
+    fileTreeContextMenuItems: [
+      Path.resolve(
+        __dirname,
+        '../modules/drawio/frontend/js/components/drawio-convert-menu-item'
+      ),
+    ],
   },
 
   moduleImportSequence: [
@@ -1332,7 +1377,8 @@ module.exports = {
     'workbench',
     'error-assistant',
     'instance-features',
-    'open-in-overleaf'
+    'open-in-overleaf',
+    'drawio'
   ],
   viewIncludes: {},
 

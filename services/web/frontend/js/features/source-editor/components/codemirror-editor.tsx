@@ -45,7 +45,7 @@ function CodeMirrorEditor() {
 
   const isMounted = useIsMounted()
   const editContextEnabled = useFeatureFlag('edit-context')
-  const { openDocName } = useEditorOpenDocContext()
+  const { openDocName, currentDocumentId } = useEditorOpenDocContext()
   const { showVisual } = useEditorPropertiesContext()
 
   const VisualEditor =
@@ -79,6 +79,7 @@ function CodeMirrorEditor() {
         <CodeMirrorEditorComponents
           hidden={VisualEditor != null}
           VisualEditor={VisualEditor}
+          visualDocKey={currentDocumentId ?? openDocName}
         />
       </CodeMirrorViewContext.Provider>
     </CodeMirrorStateContext.Provider>
@@ -88,11 +89,13 @@ function CodeMirrorEditor() {
 type CodeMirrorEditorComponentsProps = {
   hidden: boolean
   VisualEditor: ElementType | null
+  visualDocKey: string | null
 }
 
 function CodeMirrorEditorComponents({
   hidden = false,
   VisualEditor,
+  visualDocKey,
 }: CodeMirrorEditorComponentsProps) {
   useToolbarMenuBarEditorCommands()
   const { features } = useProjectContext()
@@ -131,7 +134,17 @@ function CodeMirrorEditorComponents({
       )}
       {VisualEditor && (
         <Suspense fallback={null}>
-          <VisualEditor />
+          {/* ROUND 9: one visual-editor instance PER DOCUMENT. draw.io keeps
+              its model in a single GLOBAL app instance — without a per-file
+              key the same React component (and the same app model) is
+              reused for every .drawio file, which shares one diagram
+              between files (edit one, the other changes; switching files
+              clobbers). Keying on the document id remounts a fresh app
+              per file, so each file gets its own isolated diagram model.
+              The viewer persists its file's canvas state into its own
+              document via OT while it is active, which is the only
+              supported content channel. */}
+          <VisualEditor key={visualDocKey ?? 'drawio'} />
         </Suspense>
       )}
     </ReviewPanelProviders>
