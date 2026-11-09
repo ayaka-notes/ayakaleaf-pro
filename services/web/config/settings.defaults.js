@@ -1216,10 +1216,6 @@ module.exports = {
         __dirname,
         '../modules/reference-picker/frontend/js/extensions/reference-picker-keybinding.ts'
       ),
-      Path.resolve(
-        __dirname,
-        '../modules/reference-picker/frontend/js/extensions/reference-search-hint.ts'
-      ),
     ],
     sectionTitleGenerators: [],
     toastGenerators: [

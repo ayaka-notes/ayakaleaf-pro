@@ -1,4 +1,3 @@
-import '../../stylesheets/reference-picker.scss'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   OLModal,
@@ -19,6 +18,42 @@ import { useTranslation } from 'react-i18next'
 import type { Bib2JsonEntry } from '@/features/ide-react/references/types'
 
 type FocusArea = 'search' | 'list' | 'footer'
+
+type BadgeDrag = {
+  key: string
+  from: number | null
+  source: 'row' | 'badge'
+}
+
+// Walk the flex items in visual order. The invisible badge occupies space
+// but doesn't count towards the insertion index.
+function insertionSlot(event: React.DragEvent<HTMLDivElement>) {
+  const badges = Array.from(event.currentTarget.children) as HTMLElement[]
+  badges.sort((a, b) => Number(a.style.order) - Number(b.style.order))
+
+  let slot = 0
+  let count = 0
+  let nearestDistance = Infinity
+  let rowCentre = 0
+
+  for (const badge of badges) {
+    const before = count
+    if (!badge.hasAttribute('data-drag-source')) count++
+
+    const rect = badge.getBoundingClientRect()
+    const centre = rect.top + rect.height / 2
+    const distance = Math.abs(event.clientY - centre)
+    if (distance < nearestDistance) {
+      nearestDistance = distance
+      rowCentre = centre
+      slot = before
+    }
+    if (centre === rowCentre && event.clientX >= rect.left + rect.width / 2) {
+      slot = count
+    }
+  }
+  return slot
+}
 
 function highlight(text: string, tokens: string[]) {
   if (!text || tokens.length === 0) return text
@@ -72,68 +107,75 @@ export default function ReferencePickerModal({
   const { searchLocalReferences } = useReferencesContext()
 
   const [query, setQuery] = useState('')
-  const [selectedKeys, setSelectedKeys] = useState<string[]>([])
-  const [results, setResults] = useState<{ _source: Bib2JsonEntry }[]>([])
+  const [selectedKeys, setSelectedKeys] = useState<string[]>(initialKeys)
+  type Hit = { _source: Bib2JsonEntry }
+  const [allResults, setAllResults] = useState<Hit[]>([])
+  const [filteredResults, setFilteredResults] = useState<Hit[]>([])
+  const search = query.trim()
+  const results = search ? filteredResults : allResults
+  const knownKeys = useMemo(
+    () => new Set(allResults.map(hit => hit._source.EntryKey)),
+    [allResults]
+  )
 
-  const pendingInitialKeysRef = useRef<string[]>([])
-  const requestIdRef = useRef(0)
-  const searchFnRef = useRef(searchLocalReferences)
+  const [drag, setDrag] = useState<BadgeDrag | null>(null)
+  const [dropTarget, setDropTarget] = useState<number | null>(null)
 
-  useEffect(() => {
-    searchFnRef.current = searchLocalReferences
-  }, [searchLocalReferences])
+  function startDrag(event: React.DragEvent, drag: BadgeDrag) {
+    const { key, from } = drag
+    event.dataTransfer.effectAllowed = from === null ? 'copy' : 'move'
+    event.dataTransfer.setData('application/x-reference-picker-key', key)
+    setDrag(drag)
+    setDropTarget(null)
+  }
+
+  function endDrag() {
+    setDrag(null)
+    setDropTarget(null)
+  }
+
+  function dropBadge(event: React.DragEvent<HTMLDivElement>) {
+    if (!drag) return
+    event.preventDefault()
+    const to = dropTarget ?? insertionSlot(event)
+    endDrag()
+    if (drag.from === to) return
+
+    setSelectedKeys(keys => {
+      const next = [...keys]
+      if (drag.from !== null) next.splice(drag.from, 1)
+      next.splice(to, 0, drag.key)
+      return next
+    })
+  }
 
   const tokens = useMemo(
     () => query.toLowerCase().trim().split(/\s+/).filter(Boolean),
     [query]
   )
 
+  const searchFnRef = useRef(searchLocalReferences)
   useEffect(() => {
-    if (!show) return
-
-    requestIdRef.current++
-
-    setQuery('')
-    setSelectedKeys([])
-    setResults([])
-
-    pendingInitialKeysRef.current = [...initialKeys]
-
-    const requestId = ++requestIdRef.current
-
-    const perform = async () => {
-      const r = await searchFnRef.current('')
-
-      if (requestId !== requestIdRef.current) return
-
-      setResults(r.hits)
-
-      if (pendingInitialKeysRef.current.length > 0) {
-        // Preserve every existing key, even ones the local index can't resolve
-        // (stale/oversized .bib, unresolved refs); otherwise Replace silently drops them.
-        setSelectedKeys(pendingInitialKeysRef.current)
-        pendingInitialKeysRef.current = []
-      }
-    }
-
-    perform()
-  }, [show, initialKeys])
+    searchFnRef.current = searchLocalReferences
+  }, [searchLocalReferences])
 
   useEffect(() => {
-    if (!show) return
+    let active = true
+    Promise.resolve(searchFnRef.current('')).then(response => {
+      if (active) setAllResults(response.hits)
+    })
+    return () => { active = false }
+  }, [])
 
-    const requestId = ++requestIdRef.current
+  useEffect(() => {
+    if (!search) return
 
-    const perform = async () => {
-      const r = await searchFnRef.current(query.trim() || '')
-
-      if (requestId !== requestIdRef.current) return
-
-      setResults(r.hits)
-    }
-
-    perform()
-  }, [query])
+    let active = true
+    Promise.resolve(searchFnRef.current(search)).then(response => {
+      if (active) setFilteredResults(response.hits)
+    })
+    return () => { active = false }
+  }, [search])
 
   const filteredKeys = results.map(r => r._source.EntryKey)
 
@@ -141,7 +183,27 @@ export default function ReferencePickerModal({
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
   const searchRef = useRef<HTMLInputElement | null>(null)
   const cancelButtonRef = useRef<HTMLButtonElement | null>(null)
-  const insertButtonRef = useRef<HTMLButtonElement | null>(null)
+  const saveButtonRef = useRef<HTMLButtonElement | null>(null)
+
+const scrollToReference = useCallback((key: string) => {
+  const index = results.findIndex(
+    r => r._source.EntryKey === key
+  )
+
+  if (index === -1) return
+
+  const el = document.getElementById(
+    `reference-picker-item-${index}`
+  )
+
+  el?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'nearest',
+  })
+
+  setFocusArea('list')
+  setFocusedIndex(index)
+}, [results])
 
   const removeOne = useCallback((key: string) => {
     setSelectedKeys(prev => {
@@ -149,10 +211,6 @@ export default function ReferencePickerModal({
       if (index === -1) return prev
       return [...prev.slice(0, index), ...prev.slice(index + 1)]
     })
-  }, [])
-
-  const addOne = useCallback((key: string) => {
-    setSelectedKeys(prev => [...prev, key])
   }, [])
 
   const toggleKey = useCallback((key: string) => {
@@ -229,7 +287,7 @@ export default function ReferencePickerModal({
           }
           if (focusArea === 'footer') {
             if (document.activeElement === cancelButtonRef.current) {
-              insertButtonRef.current?.focus()
+              saveButtonRef.current?.focus()
               return
             } else {
               setFocusArea('search')
@@ -244,7 +302,7 @@ export default function ReferencePickerModal({
           if (focusArea === 'search') {
             setFocusArea('footer')
             setFocusedIndex(null)
-            insertButtonRef.current?.focus()
+            saveButtonRef.current?.focus()
             return
           }
           if (focusArea === 'list') {
@@ -254,7 +312,7 @@ export default function ReferencePickerModal({
             return
           }
           if (focusArea === 'footer') {
-            if (document.activeElement === insertButtonRef.current) {
+            if (document.activeElement === saveButtonRef.current) {
               cancelButtonRef.current?.focus()
               return
             } else {
@@ -276,10 +334,16 @@ export default function ReferencePickerModal({
     }
   }, [focusArea, focusedIndex])
 
+  const previewKeys =
+    drag && drag.from === null && dropTarget !== null
+      ? [...selectedKeys, drag.key]
+      : selectedKeys
+  const sourceIndex = drag ? drag.from ?? selectedKeys.length : null
+
   return (
-    <OLModal show={show} onHide={onClose} size="lg">
+    <OLModal show={show} onHide={onClose} size="lg" themed>
       <OLModalHeader>
-        <OLModalTitle>{t('search_references')}</OLModalTitle>
+        <OLModalTitle>{t('references_picker_title')}</OLModalTitle>
       </OLModalHeader>
       <div onKeyDown={onKeyDown}>
         <OLModalBody className="references-search-modal">
@@ -300,14 +364,50 @@ export default function ReferencePickerModal({
             </OLRow>
 
             <OLRow>
-              <div className="selected-key-tag">
-                {selectedKeys.map((key, idx) => (
-                  <OLTag
+              <div
+                className="selected-key-tags"
+                onDragOver={event => {
+                  if (!drag) return
+                  event.preventDefault()
+                  event.dataTransfer.dropEffect = drag.from === null ? 'copy' : 'move'
+                  setDropTarget(insertionSlot(event))
+                }}
+                onDragLeave={event => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                    setDropTarget(null)
+                  }
+                }}
+                onDrop={dropBadge}
+              >
+                {previewKeys.map((key, idx) => (
+                  <span
                     key={`${key}-${idx}`}
-                    closeBtnProps={{ onClick: () => removeOne(key) }}
+                    draggable={selectedKeys.length > 1}
+                    onDragStart={event => startDrag(event, { key, from: idx, source: 'badge' })}
+                    onDragEnd={endDrag}
+                    data-drag-source={idx === sourceIndex ? drag?.source : undefined}
+                    data-drop-slot={
+                      (idx === sourceIndex && dropTarget !== null) || undefined
+                    }
+                    style={{
+                      order:
+                        idx === sourceIndex && dropTarget !== null
+                          ? 2 * dropTarget + (dropTarget > idx ? 1 : -1)
+                          : 2 * idx,
+                    }}
+                    className={
+                      knownKeys.has(key)
+                        ? 'existing-key-tag'
+                        : 'nonexistent-key-tag'
+                    }
                   >
-                    {key}
-                  </OLTag>
+                    <OLTag
+                      contentProps={{ onClick: () => scrollToReference(key) }}
+                      closeBtnProps={{ onClick: () => removeOne(key) }}
+                    >
+                      {key}
+                    </OLTag>
+                  </span>
                 ))}
               </div>
             </OLRow>
@@ -325,6 +425,27 @@ export default function ReferencePickerModal({
                         key={key}
                         id={`reference-picker-item-${index}`}
                         tabIndex={-1}
+                        draggable
+                        onDragStart={event => {
+                          const index = selectedKeys.indexOf(key)
+                          startDrag(event, {
+                            key,
+                            from: index === -1 ? null : index,
+                            source: 'row',
+                          })
+                          const label = event.currentTarget.querySelector<HTMLElement>(
+                            '.reference-result-key'
+                          )
+                          if (label) {
+                            label.classList.add('drag-image')
+                            event.dataTransfer.setDragImage(label, 8, label.offsetHeight / 2)
+                          }
+                        }}
+                        onDragEnd={event => {
+                          event.currentTarget.querySelector('.reference-result-key')
+                            ?.classList.remove('drag-image')
+                          endDrag()
+                        }}
                         onClick={() => {
                           setFocusArea('list')
                           setFocusedIndex(index)
@@ -339,7 +460,7 @@ export default function ReferencePickerModal({
                             <span className="hit-title">
                               {highlight(title, tokens)}
                             </span>
-                            <span className="float-end">
+                            <span className="float-end reference-result-key">
                               {highlight(key, tokens)}
                             </span>
                           </OLCol>
@@ -371,8 +492,8 @@ export default function ReferencePickerModal({
           <OLButton variant="secondary" onClick={onClose} ref={cancelButtonRef}>
             {t('cancel')}
           </OLButton>
-          <OLButton variant="primary" onClick={handleApply} ref={insertButtonRef}>
-            {initialKeys.length ? t('search_replace') : t('insert')}
+          <OLButton variant="primary" onClick={handleApply} ref={saveButtonRef}>
+            {t('apply')}
           </OLButton>
         </OLModalFooter>
       </div>

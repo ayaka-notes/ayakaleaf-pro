@@ -412,6 +412,10 @@ const updateUserSettingsSchema = z.object({
     referencesSearchMode: z.string().optional(),
     darkModePdf: z.coerce.boolean().optional(),
     floatingMenu: z.coerce.boolean().optional(),
+    // Custom key bindings: a map of rebindable-action id → key string or
+    // null (null clears the binding). Values are never executed server-side;
+    // they only select one of the fixed client-side command handlers.
+    customKeybindings: z.record(z.string(), z.union([z.string(), z.null()])).optional(),
     zotero: refProviderSettingsSchema,
     mendeley: refProviderSettingsSchema,
     papers: refProviderSettingsSchema,
@@ -519,6 +523,25 @@ async function updateUserSettings(req, res, next) {
   }
   if (body.floatingMenu != null) {
     user.ace.floatingMenu = Boolean(body.floatingMenu)
+  }
+  if (body.customKeybindings != null) {
+    // Sanitize: keep only entries whose value is a null (clear) or a bounded
+    // string key-binding. Keys are short identifiers; values are never
+    // executed — the client only uses them to pick a fixed command handler.
+    const clean = {}
+    for (const [id, value] of Object.entries(body.customKeybindings)) {
+      if (value == null) {
+        clean[id] = null
+      } else if (
+        typeof value === 'string' &&
+        value.length > 0 &&
+        value.length <= 64 &&
+        /^[A-Za-z0-9 _-]+$/.test(value)
+      ) {
+        clean[id] = value
+      }
+    }
+    user.ace.customKeybindings = clean
   }
   if (body.zotero != null) {
     user.ace.zotero = { ...user.ace.zotero, ...body.zotero }

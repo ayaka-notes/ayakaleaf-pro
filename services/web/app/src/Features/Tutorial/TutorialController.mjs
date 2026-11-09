@@ -4,6 +4,7 @@ import { expressify } from '@overleaf/promise-utils'
 import { z, zz, parseReq } from '../../infrastructure/Validation.mjs'
 
 const VALID_KEYS = [
+  'reference-picker-shortcut',
   'react-history-buttons-tutorial',
   'writefull-integration',
   'writefull-oauth-promotion',
