@@ -1,10 +1,14 @@
+import {
+  setUserFeatures,
+  visitWithFeatures,
+} from '../../../../helpers/adminTools'
 import { login } from '../../../../helpers/login'
 import {
   createProject,
   openProject,
   projectName,
 } from '../../../../helpers/project'
-import { ensureUserExists } from '../../../../helpers/users'
+import { ADMIN_EMAIL, ensureUserExists } from '../../../../helpers/users'
 
 // Every feature turned on: /system/features reports them and their UI shows
 // up in the account settings, the project list and the editor.
@@ -32,6 +36,7 @@ it('reports every feature on', function () {
     dropbox: true,
     zotero: true,
     mendeley: true,
+    gitBridge: true,
   })
 })
 
@@ -66,4 +71,77 @@ it('shows the AI assistant and the integrations in the editor', function () {
   cy.findByRole('button', { name: /Dropbox/ }).should('exist')
   cy.findByRole('button', { name: /Zotero/ }).should('exist')
   cy.findByRole('button', { name: /Mendeley/ }).should('exist')
+})
+
+describe('what an admin turned off for one user', function () {
+  const offUser = `instance-features-off-${Date.now()}@example.com`
+
+  before(function () {
+    ensureUserExists(offUser)
+    login(ADMIN_EMAIL)
+    setUserFeatures(offUser, {
+      github: false,
+      dropbox: false,
+      zotero: false,
+      mendeley: false,
+      gitBridge: false,
+    })
+  })
+
+  it('reports it off for them, with the rest of the instance on', function () {
+    login(offUser)
+    cy.request('/system/features').its('body').should('deep.equal', {
+      ai: true,
+      githubSync: false,
+      gitlabSync: true,
+      giteaSync: true,
+      dropbox: false,
+      zotero: false,
+      mendeley: false,
+      gitBridge: false,
+    })
+  })
+
+  it('hides it in the account settings, and leaves the rest', function () {
+    login(offUser)
+    visitWithFeatures('/user/settings')
+    cy.contains('.settings-widget-container', 'GitLab').should('exist')
+    for (const name of ['Zotero', 'Mendeley', 'GitHub', 'Dropbox', 'Git integration']) {
+      cy.contains('.settings-widget-container', name).should('not.exist')
+    }
+  })
+
+  it('leaves no empty group or stray line in the account settings', function () {
+    login(offUser)
+    visitWithFeatures('/user/settings')
+    cy.contains('.settings-widget-container', 'GitLab').should('exist')
+    cy.findByRole('heading', { name: 'Reference managers' }).should('not.exist')
+    // GitLab and Gitea are left in this group: one line between them
+    cy.get('#project-sync ~ .settings-widgets-container')
+      .first()
+      .find('> hr:visible')
+      .should('have.length', 1)
+  })
+
+  it('hides it in the editor, and leaves the rest', function () {
+    login(offUser)
+    createProject(projectName('Off')).then(projectId => {
+      cy.intercept('GET', '/system/features').as('features')
+      openProject(projectId)
+      cy.wait('@features')
+    })
+    openRailTab('Integrations')
+    cy.findByRole('button', { name: /GitLab/ }).should('exist')
+    for (const name of [/GitHub/, /Dropbox/, /Zotero/, /Mendeley/]) {
+      cy.findByRole('button', { name }).should('not.exist')
+    }
+    cy.findByText('Git clone this project.').should('not.exist')
+    cy.findByText('MCP server').should('not.exist')
+  })
+
+  it('leaves everyone else as they were', function () {
+    login(user)
+    cy.request('/system/features').its('body.githubSync').should('equal', true)
+    cy.request('/system/features').its('body.gitBridge').should('equal', true)
+  })
 })

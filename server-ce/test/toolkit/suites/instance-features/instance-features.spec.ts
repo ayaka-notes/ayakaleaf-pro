@@ -40,6 +40,7 @@ it('reports every feature off', function () {
     dropbox: false,
     zotero: false,
     mendeley: false,
+    gitBridge: false,
   })
 })
 

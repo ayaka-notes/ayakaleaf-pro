@@ -1,5 +1,10 @@
 import { v4 as uuid } from 'uuid'
-import { setSuspended } from '../../../helpers/adminTools'
+import {
+  expectRoutesAnswer,
+  setSuspended,
+  setUserFeatures,
+  visitWithFeatures,
+} from '../../../helpers/adminTools'
 import {
   createGitToken,
   git,
@@ -77,8 +82,9 @@ describe('git tokens in the account settings', function () {
           .findAllByRole('button', { name: 'Close' })
           .last()
           .click()
-        // Wait for the closing modal to stop covering the token's delete button.
-        cy.findByRole('dialog').should('not.exist')
+        // A closed modal sometimes stays in the DOM, invisible, and covers the
+        // token's delete button (arm64 Electron); a fresh page has none
+        cy.reload()
         // Only the start of the token is shown afterwards
         cy.contains(`${token.slice(0, 8)}************`)
       })
@@ -89,6 +95,7 @@ describe('git tokens in the account settings', function () {
       cy.findByRole('button', { name: 'Delete' }).click()
     })
     cy.findByRole('dialog').should('not.exist')
+    cy.get('.linking-git-bridge-revoke-button').should('not.exist')
   })
 })
 
@@ -441,6 +448,63 @@ describe('git access of a disabled account', function () {
       gitClone(projectId, token, workingCopy('enabled-again'))
         .its('exitCode')
         .should('equal', 0)
+    })
+  })
+})
+
+describe('git access turned off for a user', function () {
+  it('refuses clone, push and new tokens, and hides git, until it is on again', function () {
+    const member = `git-off-${uuid()}@example.com`
+    const collaborator = `git-off-collaborator-${uuid()}@example.com`
+    ensureUserExists(member)
+    ensureUserExists(collaborator)
+    let projectId: string
+    login(member)
+    createProject(projectName('Git off')).then(id => {
+      projectId = id
+      shareProject(id, collaborator, 'readAndWrite')
+      login(member)
+    })
+    createGitToken().then(token => {
+      const dir = workingCopy('off')
+      gitClone(projectId, token, dir).its('exitCode').should('equal', 0)
+
+      login(collaborator)
+      createGitToken().then(collaboratorToken => {
+        login(ADMIN_EMAIL)
+        setUserFeatures(member, { gitBridge: false })
+
+        gitClone(projectId, token, workingCopy('while-off'))
+          .its('exitCode')
+          .should('not.equal', 0)
+        gitCommitAndPush(dir, 'notes.tex', 'Off', 'While off')
+          .its('exitCode')
+          .should('not.equal', 0)
+        // It goes by the user with the token, not by the project's owner
+        gitClone(projectId, collaboratorToken, workingCopy('collaborator'))
+          .its('exitCode')
+          .should('equal', 0)
+
+        login(member)
+        visitWithFeatures('/user/settings')
+        cy.findByRole('heading', { name: 'Change password' }).should('exist')
+        cy.findByRole('heading', { name: 'Git integration' }).should(
+          'not.exist'
+        )
+        expectRoutesAnswer(403, [['POST', '/oauth/personal-access-tokens', {}]])
+
+        cy.intercept('GET', '/system/features').as('features')
+        openProject(projectId)
+        cy.wait('@features')
+        cy.findByRole('tab', { name: 'Integrations' }).click()
+        cy.findByText('Git clone this project.').should('not.exist')
+
+        login(ADMIN_EMAIL)
+        setUserFeatures(member, { gitBridge: true })
+        gitClone(projectId, token, workingCopy('on-again'))
+          .its('exitCode')
+          .should('equal', 0)
+      })
     })
   })
 })

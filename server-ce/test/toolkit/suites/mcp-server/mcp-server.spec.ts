@@ -1,5 +1,5 @@
 import { v4 as uuid } from 'uuid'
-import { setSuspended } from '../../../helpers/adminTools'
+import { setSuspended, setUserFeatures } from '../../../helpers/adminTools'
 import {
   createGitToken,
   git,
@@ -95,14 +95,25 @@ type Compile = {
   outputFiles: string[]
 }
 
-// Overleaf refuses a compile within a second of the previous one
-function compile(projectId: string, token: string): Cypress.Chainable<Compile> {
+// Overleaf refuses a compile within a second of the previous one and while one
+// runs, as when an editor just opened the project and compiles it by itself
+function compile(
+  projectId: string,
+  token: string,
+  attempts = 30
+): Cypress.Chainable<Compile> {
   return callTool(projectId, token, 'compile')
     .then(toolJson)
     .then((build: Compile) => {
-      if (build.status !== 'too-recently-compiled') return build
+      if (
+        build.status !== 'too-recently-compiled' &&
+        build.status !== 'compile-in-progress'
+      ) {
+        return build
+      }
+      expect(attempts, build.status).to.be.greaterThan(0)
       cy.wait(1000)
-      return compile(projectId, token)
+      return compile(projectId, token, attempts - 1)
     })
 }
 
@@ -809,6 +820,52 @@ describe('MCP access of a disabled account', function () {
 
           login(ADMIN_EMAIL)
           setSuspended(member, false)
+          mcp(projectId, token, 'tools/list').its('status').should('equal', 200)
+          download(link).its('status').should('equal', 200)
+        })
+      })
+    })
+  })
+})
+
+describe('MCP access with git access turned off', function () {
+  it('refuses the MCP server and the download links, and hides it, until it is on again', function () {
+    const member = `git-off-${uuid()}@example.com`
+    ensureUserExists(member)
+    let projectId: string
+    login(member)
+    createProject(projectName('Mcp off')).then(id => {
+      projectId = id
+    })
+    createGitToken().then(token => {
+      compile(projectId, token).then(build => {
+        outputFileLink(projectId, token, build).then(link => {
+          download(link).its('status').should('equal', 200)
+
+          login(ADMIN_EMAIL)
+          setUserFeatures(member, { gitBridge: false })
+          mcp(projectId, token, 'tools/list').its('status').should('equal', 403)
+          // A client that accepts anything gets the same answer, not a 500
+          cy.request({
+            method: 'POST',
+            url: `/project/${projectId}/mcp`,
+            headers: { Accept: '*/*', Authorization: `Bearer ${token}` },
+            body: { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} },
+            failOnStatusCode: false,
+          })
+            .its('status')
+            .should('equal', 403)
+          download(link).its('status').should('equal', 404)
+
+          login(member)
+          cy.intercept('GET', '/system/features').as('features')
+          openProject(projectId)
+          cy.wait('@features')
+          cy.findByRole('tab', { name: 'Integrations' }).click()
+          cy.findByText('MCP server').should('not.exist')
+
+          login(ADMIN_EMAIL)
+          setUserFeatures(member, { gitBridge: true })
           mcp(projectId, token, 'tools/list').its('status').should('equal', 200)
           download(link).its('status').should('equal', 200)
         })

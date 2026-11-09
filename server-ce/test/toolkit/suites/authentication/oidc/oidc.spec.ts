@@ -13,7 +13,8 @@ import {
   ssoLogin,
   updatePassword,
 } from '../../../../helpers/auth'
-import { login } from '../../../../helpers/login'
+import { expectOwnAuditEntry } from '../../../../helpers/auditLog'
+import { login, randomPassword } from '../../../../helpers/login'
 import {
   deleteEmails,
   passwordResetLink,
@@ -161,6 +162,17 @@ describe('password reset of an OIDC account', function () {
       .should('equal', 422)
   })
 
+  it('does not let an admin change the role that OIDC keeps up to date', function () {
+    oidcLogin('bob')
+    oidcLogin('alice')
+    adminUserInfo(idpEmail('bob')).then(user => {
+      postWithCsrf(`/admin/user/${user.id}/update`, { isAdmin: true })
+        .its('status')
+        .should('equal', 422)
+    })
+    adminUserInfo(idpEmail('bob')).its('isAdmin').should('equal', false)
+  })
+
   it('lets an admin set the password of a local account that OIDC is linked to', function () {
     const newPassword = `Admin-${Cypress._.random(1e9)}-Pass`
     oidcLogin('alice')
@@ -179,7 +191,7 @@ describe('password reset of an OIDC account', function () {
 // SAML. An admin can still change it.
 describe('email of a local account on an OIDC instance', function () {
   const email = `local-${Cypress._.random(1e9)}@example.com`
-  const password = `Local-${Cypress._.random(1e9)}-Pass`
+  const password = randomPassword()
 
   before(function () {
     oidcLogin('alice')
@@ -300,6 +312,8 @@ describe('OIDC logout', function () {
     cy.get('a[href="/oidc/login"]').click()
     authentikLogin('alice')
     cy.url({ timeout: 30_000 }).should('contain', '/project')
+    // alice is an admin
+    expectOwnAuditEntry(idpEmail('alice'), 'logout')
   })
 })
 
@@ -316,5 +330,31 @@ describe('OIDC login of a disabled account', function () {
     setSuspended(idpEmail('dave'), false)
     oidcLogin('dave')
     currentUser().its('email').should('equal', idpEmail('dave'))
+  })
+})
+
+describe('OIDC audit log', function () {
+  it('tells about the account a first login creates and links', function () {
+    oidcLogin('dave')
+    oidcLogin('alice')
+    expectOwnAuditEntry(idpEmail('dave'), 'create-account')
+      .its('info.method')
+      .should('equal', 'OIDC login')
+    expectOwnAuditEntry(idpEmail('dave'), 'link-sso')
+  })
+
+  it('tells when a login changes the admin flag and the name', function () {
+    setAuthentikGroup('alice', 'Admins', false)
+    setAuthentikName('alice', 'Alicia Renamed')
+    oidcLogin('alice')
+    setAuthentikGroup('alice', 'Admins', true)
+    setAuthentikName('alice', 'Alice Admin')
+    oidcLogin('alice')
+    expectOwnAuditEntry(idpEmail('alice'), 'change-admin-access')
+      .its('info.isAdmin')
+      .should('equal', true)
+    expectOwnAuditEntry(idpEmail('alice'), 'change-name')
+      .its('info.method')
+      .should('equal', 'OIDC login')
   })
 })

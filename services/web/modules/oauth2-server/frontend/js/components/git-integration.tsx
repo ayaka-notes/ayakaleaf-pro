@@ -6,6 +6,7 @@ import Button from '@/shared/components/ol/ol-button'
 import moment from 'moment';
 
 import { getJSON, postJSON } from "@/infrastructure/fetch-json";
+import useInstanceFeatures from "@modules/instance-features/frontend/js/use-instance-features";
 import { useEffect, useState } from 'react'
 
 import DeleteAuthenticationTokenModal from "./delete-authentication-token-modal";
@@ -179,6 +180,12 @@ function LinkingGitBridgeTable() {
 // Git集成的设置
 function GitIntegrationSetting() {
     const { t } = useTranslation()
+    const { gitBridge } = useInstanceFeatures()
+
+    if (!gitBridge) {
+        return null
+    }
+
     return (
         <div className="settings-widget-container">
             <div className="linking-icon-fixed-position">

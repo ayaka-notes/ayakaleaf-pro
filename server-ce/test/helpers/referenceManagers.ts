@@ -1,4 +1,12 @@
+import {
+  expectRoutesAnswer,
+  setUserFeatures,
+  visitWithFeatures,
+} from './adminTools'
+import { login } from './login'
+import { createProject, openProject, projectName } from './project'
 import { postWithCsrf } from './request'
+import { ADMIN_EMAIL, ensureUserExists } from './users'
 
 // Zotero and Mendeley against services/tpr-mock. The control API sets the
 // libraries the mock serves and reads back what Overleaf asked for.
@@ -158,4 +166,89 @@ export function expectReferencesSearchable(
     .find('.search-result-hit')
     .should('contain.text', key)
     .and('contain.text', title)
+}
+
+// The switch of the admin panel, for one user: the settings, the new file modal
+// and the file view hide the provider, its routes and core's linked file routes
+// refuse it, unlinking stays open, and others keep it.
+export function describeTurnedOffForAUser(provider: Provider) {
+  const name = providerName[provider]
+
+  describe(`a user ${name} is turned off for`, function () {
+    const member = `${provider}-off-${Date.now()}@example.com`
+
+    before(function () {
+      cy.clearAllCookies()
+      ensureUserExists(member)
+    })
+
+    it('hides it and refuses its routes and imports until it is on again', function () {
+      login(member)
+      linkReferenceManager(provider)
+      setLibrary(provider, [bibEntry('first')])
+      createProject(projectName(name)).then(projectId => {
+        cy.intercept('POST', '/project/*/linked_file').as('import')
+        openProject(projectId)
+        importFromProvider(provider)
+        cy.wait('@import').then(({ request }) => {
+          cy.findByRole('treeitem', { name: `${provider}.bib` })
+            .find('[data-file-id]')
+            .invoke('attr', 'data-file-id')
+            .then(fileId => {
+              login(ADMIN_EMAIL)
+              setUserFeatures(member, { [provider]: false })
+
+              login(member)
+              visitWithFeatures('/user/settings')
+              cy.findByRole('heading', { name: 'Change password' }).should(
+                'exist'
+              )
+              cy.contains('.settings-widget-container h4', name).should(
+                'not.exist'
+              )
+
+              cy.intercept('GET', '/system/features').as('features')
+              openProject(projectId)
+              cy.wait('@features')
+              cy.findByRole('treeitem', { name: `${provider}.bib` }).click()
+              cy.findByRole('button', { name: 'Refresh' }).should('not.exist')
+              cy.findByRole('button', { name: 'New file' }).click()
+              cy.findByRole('dialog').within(() => {
+                cy.findByRole('button', { name: 'From external URL' }).should(
+                  'exist'
+                )
+                cy.findByRole('button', { name: `From ${name}` }).should(
+                  'not.exist'
+                )
+              })
+
+              cy.visit('/project')
+              expectRoutesAnswer(403, [
+                ['GET', `/${provider}/groups`],
+                ['GET', `/user/${provider}/oauth`],
+                ['GET', `/user/${provider}/oauth/callback`],
+                [
+                  'POST',
+                  `/project/${projectId}/linked_file`,
+                  { ...request.body, name: 'again.bib' },
+                ],
+                ['POST', `/project/${projectId}/linked_file/${fileId}/refresh`],
+              ])
+              resetReferenceManagerLink(provider)
+
+              // The admin, who has it on, keeps it
+              login(ADMIN_EMAIL)
+              cy.visit('/project')
+              expectRoutesAnswer(302, [['GET', `/user/${provider}/oauth`]])
+              setUserFeatures(member, { [provider]: true })
+
+              login(member)
+              linkReferenceManager(provider)
+              openProject(projectId)
+              importFromProvider(provider, { name: 'again.bib' })
+            })
+        })
+      })
+    })
+  })
 }

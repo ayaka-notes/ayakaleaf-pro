@@ -18,7 +18,8 @@ import {
   setSuspended,
   setUserPassword,
 } from '../../../../helpers/adminTools'
-import { login } from '../../../../helpers/login'
+import { expectOwnAuditEntry } from '../../../../helpers/auditLog'
+import { login, randomPassword } from '../../../../helpers/login'
 import { postWithCsrf } from '../../../../helpers/request'
 
 // SAML login against authentik (services/authentik). Admins are mapped from
@@ -165,6 +166,8 @@ describe('SAML profile and logout', function () {
     cy.get('a[href="/saml/login"]').click()
     authentikLogin('alice')
     cy.url({ timeout: 30_000 }).should('contain', '/project')
+    // alice is an admin
+    expectOwnAuditEntry(idpEmail('alice'), 'logout')
   })
 })
 
@@ -193,7 +196,7 @@ describe('password reset of a SAML account', function () {
   })
   it('lets a local account change the password on the settings page', function () {
     const email = `local-${Cypress._.random(1e9)}@example.com`
-    const password = `Local-${Cypress._.random(1e9)}-Pass`
+    const password = randomPassword()
     samlLogin('carol')
     createLocalAccount(email)
     setUserPassword(email, password).its('status').should('equal', 200)
@@ -220,5 +223,40 @@ describe('SAML login of a disabled account', function () {
     setSuspended(idpEmail('dave'), false)
     samlLogin('dave')
     currentUser().its('email').should('equal', idpEmail('dave'))
+  })
+})
+
+describe('SAML audit log', function () {
+  it('tells about the account a first login creates and links', function () {
+    samlLogin('dave')
+    samlLogin('carol')
+    expectOwnAuditEntry(idpEmail('dave'), 'create-account')
+      .its('info.method')
+      .should('equal', 'SAML login')
+    expectOwnAuditEntry(idpEmail('dave'), 'link-institution-sso')
+  })
+
+  it('tells when a login takes over a local account and removes its password', function () {
+    samlLogin('carol')
+    createLocalAccount(idpEmail('frank'))
+    samlLogin('frank')
+    samlLogin('carol')
+    expectOwnAuditEntry(idpEmail('frank'), 'link-institution-sso')
+    expectOwnAuditEntry(idpEmail('frank'), 'remove-password')
+  })
+
+  it('tells when a login changes the admin flag and the name', function () {
+    setAuthentikGroup('alice', 'Admins', false)
+    setAuthentikName('alice', 'Alicia Renamed')
+    samlLogin('alice')
+    setAuthentikGroup('alice', 'Admins', true)
+    setAuthentikName('alice', 'Alice Admin')
+    samlLogin('alice')
+    expectOwnAuditEntry(idpEmail('alice'), 'change-admin-access')
+      .its('info.isAdmin')
+      .should('equal', true)
+    expectOwnAuditEntry(idpEmail('alice'), 'change-name')
+      .its('info.method')
+      .should('equal', 'SAML login')
   })
 })

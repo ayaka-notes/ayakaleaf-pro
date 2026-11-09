@@ -1,5 +1,7 @@
 import { v4 as uuid } from 'uuid'
+import { adminUserInfo } from '../../../helpers/adminTools'
 import { login } from '../../../helpers/login'
+import { expectOwnAuditEntry, expectProjectAuditEntry } from '../../../helpers/auditLog'
 import {
   compileProject,
   createProject,
@@ -92,6 +94,12 @@ describe('publishing a template', function () {
       'have.attr',
       'href',
       'https://example.com'
+    )
+    expectOwnAuditEntry(ADMIN_EMAIL, 'publish-template')
+      .its('info.name')
+      .should('equal', name)
+    cy.then(() =>
+      expectProjectAuditEntry(projectId, 'publish-template', ADMIN_EMAIL)
     )
   })
 
@@ -606,6 +614,7 @@ describe('managing templates', function () {
         license: 'other',
       })
     })
+    expectOwnAuditEntry(ADMIN_EMAIL, 'edit-template')
   })
 
   it('refuses to rename to the title of another template', function () {
@@ -679,6 +688,7 @@ describe('managing templates', function () {
       expect(template).to.equal(null)
     })
     waitUntilGone(`/template/${templateId}/zip?version=2`)
+    expectOwnAuditEntry(ADMIN_EMAIL, 'delete-template')
   })
 })
 
@@ -709,6 +719,36 @@ describe('template permissions', function () {
       .its('status')
       .should('equal', 403)
     requestWithCsrf('DELETE', `/template/${templateId}/delete`, { version: 1 })
+      .its('status')
+      .should('equal', 403)
+    getTemplate(templateId).its('name').should('equal', name)
+  })
+
+  // A session keeps the isAdmin it logged in with: these routes ask the database
+  it('refuses an admin who lost the role, in the session opened with it', function () {
+    const address = `demoted-${uuid()}@example.com`
+    const setAdmin = (isAdmin: boolean) => {
+      login(ADMIN_EMAIL)
+      adminUserInfo(address).then(({ id }) => {
+        postWithCsrf(`/admin/user/${id}/update`, { isAdmin })
+          .its('status')
+          .should('equal', 200)
+      })
+    }
+    ensureUserExists(address)
+    setAdmin(true)
+    // the browser of the new admin, logged in with the role
+    login(address)
+    cy.visit('/project')
+    cy.getCookie('overleaf.sid').its('value').as('cookie')
+
+    setAdmin(false)
+    cy.get<string>('@cookie').then(cookie => {
+      cy.clearAllCookies()
+      cy.setCookie('overleaf.sid', cookie)
+    })
+    cy.visit('/project')
+    postWithCsrf(`/template/${templateId}/edit`, { name: 'hijacked' })
       .its('status')
       .should('equal', 403)
     getTemplate(templateId).its('name').should('equal', name)

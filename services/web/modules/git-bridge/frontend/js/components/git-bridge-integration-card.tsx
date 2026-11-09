@@ -6,6 +6,7 @@ import { CopyToClipboard } from '@/shared/components/copy-to-clipboard'
 import { useProjectContext } from '@/shared/context/project-context'
 import IntegrationCard from '@/features/integrations-panel/integration-card'
 import GitLogoOrange from '@/shared/svgs/git-logo-orange'
+import useInstanceFeatures from '@modules/instance-features/frontend/js/use-instance-features'
 
 import {
     OLModalBody,
@@ -41,8 +42,8 @@ function ModalGitBridgeSync({ handleHide, projectId }: Props) {
                     <p>
                         {t('git_bridge_modal_git_clone_your_project')}
                     </p>
-                    <div className="git-bridge-copy">
-                        <code>{gitCloneMethodOption}</code>
+                    <div className="git-bridge-copy justify-content-between align-items-start">
+                        <code style={{ flex: 1, minWidth: 0, wordBreak: 'break-all' }}>{gitCloneMethodOption}</code>
                         <span>
                             <CopyToClipboard content={gitCloneMethodOption}
                                 kind="text" />
@@ -110,6 +111,11 @@ function GitBridgeSyncCard() {
 
     const [showGitBridgeSyncModal, setShowGitBridgeSyncModal] = useState(false)
     const { project, tags: projectTags } = useProjectContext()
+    const { gitBridge } = useInstanceFeatures()
+
+    if (!gitBridge) {
+        return null
+    }
 
     return (
         <>

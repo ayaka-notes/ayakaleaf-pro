@@ -1,0 +1,3 @@
+# The Integrations tab lists git tokens, which only git-bridge's OAuth app
+# can make: git-bridge on, its container in services (as oauth2-server)
+GIT_BRIDGE_ENABLED=true

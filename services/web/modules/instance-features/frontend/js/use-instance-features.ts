@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getJSON } from '@/infrastructure/fetch-json'
+import '../stylesheets/settings-linking.scss'
 
 export type InstanceFeatures = {
   ai: boolean
@@ -9,6 +10,7 @@ export type InstanceFeatures = {
   dropbox: boolean
   zotero: boolean
   mendeley: boolean
+  gitBridge: boolean
 }
 
 const DISABLED: InstanceFeatures = {
@@ -19,13 +21,15 @@ const DISABLED: InstanceFeatures = {
   dropbox: false,
   zotero: false,
   mendeley: false,
+  gitBridge: false,
 }
 
 // The frontend is compiled once, so it can't read the operator's env vars.
-// Instead it asks the server (GET /system/features) which instance-level
-// features are enabled, and statically bundled UI (github-sync, gitlab-sync,
-// gitea-sync, dropbox, zotero, mendeley) hides itself when its feature is off. Fetched at most once per page
-// load and shared across every caller.
+// Instead it asks the server (GET /system/features) which features this user
+// can use: those the instance has, unless an admin turned them off for the
+// user. Statically bundled UI (github-sync, gitlab-sync, gitea-sync, dropbox,
+// zotero, mendeley, git-bridge) hides itself when its feature is off. Fetched
+// at most once per page load and shared across every caller.
 let cache: InstanceFeatures | null = null
 let inflight: Promise<InstanceFeatures> | null = null
 
@@ -44,6 +48,7 @@ function loadInstanceFeatures(): Promise<InstanceFeatures> {
           dropbox: Boolean(data?.dropbox),
           zotero: Boolean(data?.zotero),
           mendeley: Boolean(data?.mendeley),
+          gitBridge: Boolean(data?.gitBridge),
         }
         return cache
       })

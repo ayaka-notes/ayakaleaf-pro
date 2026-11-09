@@ -1,6 +1,27 @@
 // Strong enough to pass the HaveIBeenPwned check that the suites enable.
 export const DEFAULT_PASSWORD = 'e2e-Vq7#tLm2!xRp9'
 
+const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+const DIGITS = '0123456789'
+// Accepted by core and not found in emails; no `{`, cy.type() reads it as a key
+const SPECIALS = '#$%^&*()=[];:<>/?!,'
+
+function randomChars(alphabet: string, length: number) {
+  const values = crypto.getRandomValues(new Uint32Array(length))
+  return Array.from(values, value => alphabet[value % alphabet.length]).join('')
+}
+
+// A password made when the test runs, so that the repo does not hold it. With
+// 14 of its 30 characters never matching an email, core cannot find it too
+// similar to one: the score stays at 0.69 at most, the limit is 0.7.
+export function randomPassword() {
+  return (
+    randomChars(LETTERS, 8) +
+    randomChars(SPECIALS, 14) +
+    randomChars(LETTERS + DIGITS, 8)
+  )
+}
+
 export function login(username: string, password = DEFAULT_PASSWORD) {
   cy.session(
     ['via-login', username, password],

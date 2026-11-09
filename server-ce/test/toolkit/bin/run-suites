@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Usage: OVERLEAF_IMAGE=<image> bin/run-suites SUITE...
+#
+# Runs the suites one after another on this machine, each on its own deployment
+# (make setup, make test, make clean). A failed suite does not stop the next
+# ones: its screenshots stay in cypress/failed/SUITE and the exit code is 1.
+# INSTANCE and GREP work as with make.
+
+set -uo pipefail
+
+cd "$(dirname "$0")/.."
+
+suffix=${INSTANCE:+-$INSTANCE}
+prefix=${INSTANCE:+e2e$INSTANCE-}
+kept=cypress/failed$suffix
+failed=()
+
+function setup() {
+  # Mongo sometimes exits while the toolkit starts it, start over then
+  local attempt
+  for attempt in 1 2 3; do
+    make setup SUITE="$1" && return 0
+    echo "::warning::Setup of $1 failed, attempt $attempt"
+    make clean
+  done
+  return 1
+}
+
+function print_logs() {
+  docker logs --tail 200 "${prefix}mongo"
+  docker inspect "${prefix}mongo" --format 'exit={{.State.ExitCode}} oom={{.State.OOMKilled}} error={{.State.Error}}'
+  docker logs --tail 200 "${prefix}sharelatex"
+  docker exec "${prefix}sharelatex" bash -c 'tail -n 100 /var/log/overleaf/*.log'
+}
+
+rm -rf "$kept"
+for suite in "$@"; do
+  echo "::group::$suite"
+  if ! { setup "$suite" && make test SUITE="$suite"; }; then
+    failed+=("$suite")
+    print_logs
+    # make clean removes the results
+    mkdir -p "$kept/$suite"
+    cp -r "cypress/results$suffix/." "$kept/$suite/"
+  fi
+  make clean
+  echo "::endgroup::"
+done
+
+if ((${#failed[@]} > 0)); then
+  echo "::error::Failed suites: ${failed[*]}"
+  exit 1
+fi
