@@ -143,6 +143,7 @@ describe('access', function () {
     for (const url of [
       `/admin/user/${id}/clear-sessions`,
       `/admin/user/${id}/transfer-projects`,
+      `/admin/user/${id}/remove-email`,
       `/admin/project/${id}/doc/${id}/restore`,
     ]) {
       postWithCsrf(url, {}).then(response => {

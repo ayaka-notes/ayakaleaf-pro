@@ -282,6 +282,7 @@ describe('emails of a SAML account', function () {
     addConfirmedEmail(email)
     ssoLogin('/saml/login', 'eve', '/saml/login/callback')
     cy.contains('This email is already registered as a secondary email')
+    cy.get('a[href^="mailto:"]').should('not.have.attr', 'href', 'mailto:undefined')
 
     samlLogin('bob')
     cy.visit('/user/settings')

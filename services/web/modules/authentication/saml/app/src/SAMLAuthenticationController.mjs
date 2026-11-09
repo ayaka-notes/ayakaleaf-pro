@@ -1,5 +1,6 @@
 import logger from '@overleaf/logger'
 import passport from 'passport'
+import Settings from '@overleaf/settings'
 import AuthenticationController from '../../../../../app/src/Features/Authentication/AuthenticationController.mjs'
 import AsyncFormHelper from '../../../../../app/src/Features/Helpers/AsyncFormHelper.mjs'
 import Errors from '../../../../../app/src/Features/Errors/Errors.js'
@@ -50,6 +51,9 @@ const SAMLAuthenticationController = {
           if (info.redir != null) {
             return res.json({ redir: info.redir })
           } else if (info.status === 409) {
+            // this route runs before expressLocals, and the page shows the
+            // admin's address
+            res.locals.settings = { adminEmail: Settings.adminEmail }
             return HttpErrorHandler.conflict(req, res, info.text)
           } else {
             res.status(info.status || 401)
