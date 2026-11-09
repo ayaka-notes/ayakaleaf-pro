@@ -19,9 +19,6 @@ export default function LoggedInItems({
       <NavLinkItem href="/project" className="nav-item-projects">
         {t('projects')}
       </NavLinkItem>
-      <NavLinkItem href="/user/keybind" className="nav-item-keybindings">
-        {t('keybindings')}
-      </NavLinkItem>
       <NavDropdownMenu
         title={t('Account')}
         className="nav-item-account"

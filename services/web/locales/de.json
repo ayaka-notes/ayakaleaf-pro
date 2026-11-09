@@ -1332,6 +1332,7 @@
   "reference_error_relink_hint": "Wenn dieser Fehler weiterhin auftritt, versuche dein Konto hier neu zu verlinken:",
   "reference_managers": "Referenzmanager",
   "reference_picker_hide_hint": "Nicht mehr anzeigen",
+  "reference_picker_open": "Öffnen",
   "reference_picker_shortcut_hint": "Drücke __shortcut__, um Literaturstellen zu suchen.",
   "reference_search": "Erweiterte Referenzsuche",
   "reference_sync": "Referenzmanager synchronisieren",

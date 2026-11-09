@@ -58,6 +58,17 @@ export function useCitationHint(view: EditorView | null | undefined, enabled: bo
             message.append(icon, t('reference_picker_shortcut_hint', { shortcut: 'Ctrl+Space' }))
             dom.append(message)
 
+            const openButton = doc.createElement('button')
+            openButton.type = 'button'
+            openButton.className = 'd-inline-grid btn btn-sm btn-primary'
+            openButton.textContent = t('reference_picker_open')
+            openButton.onclick = () => {
+              hide()
+              view.focus()
+              window.dispatchEvent(new CustomEvent('reference:openPicker', { detail: citationRange(view) }))
+            }
+            dom.append(openButton)
+
             const button = doc.createElement('button')
             button.type = 'button'
             button.className = 'd-inline-grid btn btn-sm btn-danger-ghost'
