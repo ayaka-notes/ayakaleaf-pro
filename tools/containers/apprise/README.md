@@ -40,15 +40,25 @@ cp .env.example .env    # fill in SMTP credentials (optional)
 docker compose up -d --build
 ```
 
-Then point Overleaf at it:
+Then point Overleaf at it. Because the apprise container is in its own
+compose project (its own network), Overleaf reaches it through the
+Docker host — so Overleaf's compose service needs two things:
 
-```
-NOTIFICATIONS_APPRISDE_API_URL=http://host.docker.internal:8001
+```yaml
+    # Overleaf service (e.g. overleaf/compose.yaml)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      NOTIFICATIONS_APPRISDE_API_URL: http://host.docker.internal:8001
 ```
 
-(Overleaf must resolve `host.docker.internal` to the Docker host —
-add `extra_hosts: - "host.docker.internal:host-gateway"` — or use the
-gateway IP directly, e.g. `http://172.18.0.1:8001`.)
+(`host-gateway` resolves to the Docker host IP from inside Overleaf,
+e.g. `172.17.0.1`. Alternatively skip `extra_hosts` and use the gateway
+IP directly: `NOTIFICATIONS_APPRISDE_API_URL=http://172.17.0.1:8001`.)
+
+Without any of this, Overleaf still works: email goes out via its own
+SMTP transport and browser push via its own Web Push — this container
+is only needed for the third-party channels.
 
 ## API
 
