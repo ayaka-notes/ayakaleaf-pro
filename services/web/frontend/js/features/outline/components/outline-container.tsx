@@ -1,6 +1,5 @@
 import { FC, memo, useCallback } from 'react'
 import OutlinePane from '@/features/outline/components/outline-pane'
-import CommentOutlinePane from '@/features/outline/components/comment-outline-pane'
 import { useOutlineContext } from '@/features/ide-react/context/outline-context'
 import useNestedOutline from '../hooks/use-nested-outline'
 
@@ -11,7 +10,6 @@ export const OutlineContainer: FC = memo(() => {
     jumpToLine,
     outlineExpanded,
     toggleOutlineExpanded,
-    commentHighlights,
   } = useOutlineContext()
 
   const handleToggle = useCallback((isOpen: boolean) => {
@@ -31,10 +29,6 @@ export const OutlineContainer: FC = memo(() => {
         isPartial={outline.partial}
         expanded={outlineExpanded}
         toggleExpanded={toggleOutlineExpanded}
-      />
-      <CommentOutlinePane
-        entries={commentHighlights}
-        jumpToLine={jumpToLine}
       />
     </div>
   )

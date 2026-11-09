@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   FlatOutlineState,
   PartialFlatOutline,
@@ -8,6 +8,7 @@ import {
   nestOutline,
   Outline,
 } from '@/features/source-editor/utils/tree-operations/outline'
+import { insertCommentsIntoOutline } from '@/features/source-editor/utils/tree-operations/outline-comments'
 import { debugConsole } from '@/utils/debugging'
 
 const outlineChanged = (
@@ -38,7 +39,7 @@ const outlineChanged = (
 }
 
 export default function useNestedOutline() {
-  const { flatOutline } = useOutlineContext()
+  const { flatOutline, commentHighlights } = useOutlineContext()
 
   const [nestedOutline, setNestedOutline] = useState<{
     items: Outline[]
@@ -66,5 +67,12 @@ export default function useNestedOutline() {
     }
   }, [flatOutline])
 
-  return nestedOutline
+  // insert the user's highlight-tag comments (special comments) under the
+  // (sub)section each one belongs to, so the outline shows them in context
+  const items = useMemo(
+    () => insertCommentsIntoOutline(nestedOutline.items, commentHighlights),
+    [nestedOutline.items, commentHighlights]
+  )
+
+  return { items, partial: nestedOutline.partial }
 }

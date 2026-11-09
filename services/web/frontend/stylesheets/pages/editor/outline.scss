@@ -219,43 +219,13 @@
   text-align: center;
 }
 
-// "Special comments" section: lists the user's highlight tags found in the
-// open document, below the document outline.
-.comment-outline-pane {
-  flex: 0 0 auto;
-  max-height: 45%;
-  border-top: 1px solid var(--border-divider-themed);
-}
-
-.comment-outline-list {
-  list-style: none;
-  margin: 0;
-  padding: 0 var(--spacing-04) var(--spacing-04);
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-01);
-}
-
+// Special comment entries (the user's highlight tags) nested inside the file
+// outline, under the (sub)section they appear in.
 .comment-outline-link {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: var(--spacing-02);
-  width: 100%;
-  text-align: left;
-  white-space: nowrap;
-  color: var(--outline-content-color);
-  background-color: transparent;
-  border: 0;
-  padding: var(--spacing-01) var(--spacing-02);
-  border-radius: var(--border-radius-base);
-  font-size: var(--font-size-02);
-  cursor: pointer;
-
-  &:hover,
-  &:focus {
-    background-color: var(--outline-item-hover-bg);
-    outline: 0;
-  }
+  min-width: 0;
 }
 
 .comment-outline-tag {
@@ -269,14 +239,8 @@
   line-height: var(--line-height-01);
 }
 
-.comment-outline-line {
-  flex: 0 0 auto;
-  color: var(--content-secondary-themed);
-  font-variant-numeric: tabular-nums;
-}
-
 .comment-outline-text {
-  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
