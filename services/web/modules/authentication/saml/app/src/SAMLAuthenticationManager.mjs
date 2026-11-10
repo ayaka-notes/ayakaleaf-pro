@@ -1,81 +1,117 @@
 import crypto from 'node:crypto'
-import Settings from '@overleaf/settings'
 import UserCreator from '../../../../../app/src/Features/User/UserCreator.mjs'
 import { ParallelLoginError } from '../../../../../app/src/Features/Authentication/AuthenticationErrors.mjs'
 import SAMLIdentityManager from '../../../../../app/src/Features/User/SAMLIdentityManager.mjs'
 import { User } from '../../../../../app/src/models/User.mjs'
 import { firstValue } from '../../../utils.mjs'
+import { checkSsoAccess } from '../../../providers/index.mjs'
 import {
   accountBeforeLogin,
   logLoginChanges,
   logLoginEntry,
 } from '../../../auditLog.mjs'
 
+function attr(provider, profile, name) {
+  if (!name) return undefined
+  const raw = profile?.[name] ?? profile?._json?.[name]
+  return firstValue(raw)
+}
+
+/**
+ * SAML find-or-create for one IdP provider.
+ *
+ * We search for a SAML user, and if none is found, we search for a user with
+ * the given email. If a user is found we update the user to be a SAML user;
+ * otherwise we create a new SAML user with the given email (subject to the
+ * provider's profile filter and the admin-configured exceptions).
+ */
 const SAMLAuthenticationManager = {
-  async findOrCreateUser(profile, auditLog) {
-    const {
-      attUserId,
-      attEmail,
-      attFirstName,
-      attLastName,
-      attAdmin,
-      valAdmin,
-      updateUserDetailsOnLogin,
-    } = Settings.saml
-    const externalUserId = profile[attUserId]
-    const email = Array.isArray(profile[attEmail])
-                    ? profile[attEmail][0].toLowerCase()
-                    : profile[attEmail].toLowerCase()
-    const firstName = attFirstName ? firstValue(profile[attFirstName]) : ""
-    const lastName  = attLastName  ? firstValue(profile[attLastName]) : email
-    let isAdmin = false
-    if (attAdmin && valAdmin) {
-      isAdmin = (Array.isArray(profile[attAdmin]) ? profile[attAdmin].includes(valAdmin) :
-                                                    profile[attAdmin] === valAdmin)
+  /**
+   * @returns {Promise<{user: object|null, accessDenied?: {reason, rule}}>}
+   */
+  async findOrCreateUser(profile, provider, auditLog) {
+    const { attrs, behavior } = provider
+    const externalUserId = attr(provider, profile, attrs.userId)
+    const emailRaw = attr(provider, profile, attrs.email)
+    const email =
+      typeof emailRaw === 'string' ? emailRaw.toLowerCase() : null
+    if (!externalUserId) {
+      return { user: null, error: 'no-identity' }
     }
-    const providerId = '1' // for now, only one fixed IdP is supported
-// We search for a SAML user, and if none is found, we search for a user with the given email. If a user is found,
-// we update the user to be a SAML user, otherwise, we create a new SAML user with the given email. In the case of
-// multiple SAML IdPs, one would have to do something similar, or possibly report an error like
-// 'the email is associated with the wrong IdP'
-    let user = await SAMLIdentityManager.getUser(providerId, externalUserId, attUserId)
-    if (!user) {
+    const firstName = attr(provider, profile, attrs.firstName) || ''
+    const lastName = attr(provider, profile, attrs.lastName) || email || ''
+
+    let isAdmin = false
+    if (attrs.admin?.field && attrs.admin?.values?.length) {
+      const rawAdmin = attr(provider, profile, attrs.admin.field)
+      isAdmin = Array.isArray(rawAdmin)
+        ? attrs.admin.values.some(v => rawAdmin.includes(v))
+        : attrs.admin.values.includes(String(rawAdmin))
+    }
+
+    // --- existing account? (SAML identity link, or an account with this email)
+    let user = null
+    let isExisting = false
+    let identityLinked = false
+    try {
+      user = await SAMLIdentityManager.getUser(
+        provider.id,
+        externalUserId,
+        attrs.userId
+      )
+      isExisting = Boolean(user)
+      identityLinked = Boolean(user)
+    } catch {
+      user = null
+    }
+    if (!user && email) {
       user = await User.findOne({ 'email': email }).exec()
-      if (!user) {
-        user = await UserCreator.promises.createNewUser(
-          {
-            email: email,
-            first_name: firstName,
-            last_name: lastName,
-            isAdmin: isAdmin,
-            holdingAccount: false,
-            samlIdentifiers: [{ providerId: providerId }],
-            analyticsId: crypto.randomUUID(),
-          }
-        )
-        await logLoginEntry(user, 'create-account', auditLog)
-      }
-      // cannot use SAMLIdentityManager.linkAccounts because affilations service is not there
+      isExisting = Boolean(user)
+    }
+
+    // --- profile filter (deny list / allow list + exceptions)
+    const access = await checkSsoAccess(provider, profile, email, isExisting)
+    if (!access.allowed) {
+      return { user: null, accessDenied: { reason: access.reason, rule: access.rule } }
+    }
+
+    if (!user) {
+      user = await UserCreator.promises.createNewUser({
+        email: email,
+        first_name: firstName,
+        last_name: lastName,
+        isAdmin: isAdmin,
+        holdingAccount: false,
+        samlIdentifiers: [{ providerId: provider.id }],
+        analyticsId: crypto.randomUUID(),
+      })
+      await logLoginEntry(user, 'create-account', auditLog)
+    }
+    if (!identityLinked) {
+      // cannot use SAMLIdentityManager.linkAccounts because affiliations service is not there
       await User.updateOne(
         { _id: user._id },
         {
-          $set : {
-           'emails.0.confirmedAt': Date.now(), //email of saml user is confirmed
-           'emails.0.samlProviderId': providerId,
-           'samlIdentifiers.0.providerId': providerId,
-           'samlIdentifiers.0.externalUserId': externalUserId,
-           'samlIdentifiers.0.userIdAttribute': attUserId,
+          $set: {
+            'emails.0.confirmedAt': Date.now(), // email of saml user is confirmed
+            'emails.0.samlProviderId': provider.id,
+            'samlIdentifiers.0.providerId': provider.id,
+            'samlIdentifiers.0.externalUserId': externalUserId,
+            'samlIdentifiers.0.userIdAttribute': attrs.userId,
           },
         }
       ).exec()
       await logLoginEntry(user, 'link-institution-sso', auditLog, {
-        providerId,
+        providerId: provider.id,
         externalUserId,
       })
     }
+
     const before = accountBeforeLogin(user)
-    let userDetails = updateUserDetailsOnLogin ? { first_name : firstName, last_name: lastName } : {}
-    if (attAdmin && valAdmin) {
+    const userDetails = behavior.updateUserDetailsOnLogin
+      ? { first_name: firstName, last_name: lastName }
+      : {}
+    if (attrs.admin?.field && attrs.admin?.values?.length) {
       user.isAdmin = isAdmin
       userDetails.isAdmin = isAdmin
     }
@@ -84,9 +120,10 @@ const SAMLAuthenticationManager = {
       {
         $inc: { loginEpoch: 1 },
         $set: userDetails,
-        $unset: { hashedPassword: "" },
+        $unset: { hashedPassword: '' },
       },
     ).exec()
+
     if (result.modifiedCount !== 1) {
       throw new ParallelLoginError()
     }
@@ -94,7 +131,7 @@ const SAMLAuthenticationManager = {
       await logLoginEntry(user, 'remove-password', auditLog)
     }
     await logLoginChanges(user, before, userDetails, auditLog)
-    return user
+    return { user }
   },
 }
 

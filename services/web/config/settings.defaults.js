@@ -1313,6 +1313,7 @@ module.exports = {
     'authentication/ldap',
     'authentication/saml',
     'authentication/oidc',
+    'sso-admin',
     'admin-tools',
     'user-activate',
     'sandboxed-compiles',
@@ -1382,15 +1383,6 @@ module.exports.splitTestOverrides = {
   'intermittent-connection-improvements': 'enabled'
 }
 
-module.exports.oauthProviders = {
-  ...(process.env.EXTERNAL_AUTH && process.env.EXTERNAL_AUTH.includes('oidc') && {
-    [process.env.OVERLEAF_OIDC_PROVIDER_ID || 'oidc']: {
-      name: process.env.OVERLEAF_OIDC_PROVIDER_NAME || 'OIDC Provider',
-      descriptionKey: process.env.OVERLEAF_OIDC_PROVIDER_DESCRIPTION,
-      descriptionOptions: { link: process.env.OVERLEAF_OIDC_PROVIDER_INFO_LINK },
-      hideWhenNotLinked: process.env.OVERLEAF_OIDC_PROVIDER_HIDE_NOT_LINKED ?
-        process.env.OVERLEAF_OIDC_PROVIDER_HIDE_NOT_LINKED.toLowerCase() === 'true' : undefined,
-      linkPath: '/oidc/login',
-    },
-  }),
-}
+// OIDC providers are registered on this object by the oidc-authentication
+// module (modules/authentication/oidc) from the SSO provider store.
+module.exports.oauthProviders = {}

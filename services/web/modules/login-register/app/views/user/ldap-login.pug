@@ -69,24 +69,16 @@ block content
 								if login_support_text
 									hr
 									p.text-center !{login_support_text}
-							if (settings.saml && settings.saml.enable) || (settings.oidc && settings.oidc.enable)
+							if (settings.ssoProviders && settings.ssoProviders.length)
 								p.ciam-login-register-or-text-container
-									span.ciam-login-register-or-text #{translate("or")}
-							if settings.saml && settings.saml.enable
+								span.ciam-login-register-or-text #{translate("or")}
+							each ssoProvider in (settings.ssoProviders || [])
 								.actions(style='margin-top: 15px;')
 									a.btn.btn-ds.btn-lg.btn-secondary.w-100(
-									href='/saml/login',
+									href=ssoProvider.linkPath,
 										data-ol-disabled-inflight
 									)
-										span(data-ol-inflight="idle") #{settings.saml.identityServiceName}
-										span(hidden data-ol-inflight="pending") #{translate("logging_in")}…
-							if settings.oidc && settings.oidc.enable
-								.actions(style='margin-top: 15px;')
-									a.btn.btn-ds.btn-lg.btn-secondary.w-100(
-										href='/oidc/login',
-										data-ol-disabled-inflight
-									)
-										span(data-ol-inflight="idle") #{settings.oidc.identityServiceName}
+										span(data-ol-inflight="idle") #{ssoProvider.name}
 										span(hidden data-ol-inflight="pending") #{translate("logging_in")}…
 							if hasFeature('registration-page')
 								.login-register-hr-text-container

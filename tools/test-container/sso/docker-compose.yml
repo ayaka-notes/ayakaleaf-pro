@@ -1,0 +1,84 @@
+# SSO / identity TEST stack (OlliTeX) — for exercising the SSO + federation Go code E2E without
+# the external-registry images build-images/test needs. Mirrors the benchmark identity servers
+# (/data_1/image_mining/benchmark_overleaf_vm/compose/production): osixia LDAP, Flask OIDC,
+# boxyhq/mock-saml SAML, postfix MAILSINK (catch-all inbox).
+#
+#   up:        docker compose -f docker-compose.yml up -d
+#   LDAP:      ldap://localhost:389   admin cn=admin,dc=example,dc=com / admin_password
+#   OIDC:      http://localhost:8080/sso/realms/master   (discovery: .../sso/realms/master/.well-known/openid-configuration)
+#   SAML:      boxyhq/mock-saml — IdP metadata GET http://localhost:4100/api/saml/metadata,
+#             SSO http://localhost:4100/api/saml/sso, entityID https://saml.example.com/entityid
+#   MAILSINK:  smtp://localhost:25  → all mail captured under /var/mail/dumpuser (dump-user@localhost)
+#
+# NOTE: boxyhq/mock-saml listens on container port 4000; it's mapped to host 4100 here because the
+# live overleafserver owns host :4000 on this shared box. All test-only; credentials are dev fixtures.
+name: sso-test
+services:
+  ldap:
+    image: osixia/openldap:1.5.0
+    hostname: ldap
+    ports:
+      - "389:389"
+      - "636:636"
+    environment:
+      - LDAP_ORGANISATION=Example
+      - LDAP_DOMAIN=example.com
+      - LDAP_ADMIN_PASSWORD=admin_password
+      - LDAP_READONLY_USER=false
+    volumes:
+      - ldap-data:/var/lib/ldap
+      - ldap-config:/etc/ldap/slapd.d   # persist the in-memory config too (matches the DB across restarts; osixia refuses to start if config is empty while /var/lib/ldap has data)
+    healthcheck:
+      test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost:389 -D cn=admin,dc=example,dc=com -w admin_password -b dc=example,dc=com -s base >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  oidc:
+    image: sso-oidc:latest
+    build:
+      context: ./oidc
+    ports:
+      - "8080:80"   # soluto listens on container :80 (ASPNETCORE_URLS=http://+:80)
+    networks: [sso-test]
+
+  # SAML IdP — boxyhq/mock-saml, the standard 500k+‑download IdP (replaces the hand‑crafted Flask IdP).
+  # Real signed SAML assertions + an X.509 cert in its metadata. IdP metadata: GET /api/saml/metadata;
+  # SSO: /api/saml/sso. Config + test‑only IdP key pair in saml/saml.env (env_file). Host port 4100
+  # (container 4000) avoids the live overleafserver which owns host :4000 on this box.
+  saml:
+    image: boxyhq/mock-saml:latest
+    env_file:
+      - ./saml/saml.env
+    ports:
+      - "4100:4000"
+    healthcheck:
+      # boxyhq listens on the container's eth0 (not loopback), so the probe must go out via the compose
+      # network DNS name (which resolves to eth0) — 127.0.0.1 is refused inside the container.
+      test: ["CMD", "node", "-e", "require('http').get('http://sso-test-saml-1:4000/api/health',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  mailsink:
+    image: sso-mailsink:latest
+    build:
+      context: ./mailsink
+    command: ["postfix", "start-fg"]
+    ports:
+      - "25:25"
+    environment:
+      - myhostname=mailsink
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "25"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+networks:
+  sso-test:
+    driver: bridge
+
+volumes:
+  ldap-data:
+  ldap-config:

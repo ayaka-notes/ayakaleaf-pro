@@ -1,103 +1,154 @@
 import crypto from 'node:crypto'
-import Settings from '@overleaf/settings'
 import UserCreator from '../../../../../app/src/Features/User/UserCreator.mjs'
 import ThirdPartyIdentityManager from '../../../../../app/src/Features/User/ThirdPartyIdentityManager.mjs'
 import { ParallelLoginError } from '../../../../../app/src/Features/Authentication/AuthenticationErrors.mjs'
 import { User } from '../../../../../app/src/models/User.mjs'
+import { checkSsoAccess } from '../../../providers/index.mjs'
 import {
   accountBeforeLogin,
   logLoginChanges,
   logLoginEntry,
 } from '../../../auditLog.mjs'
 
+/** Email from the profile: passport-standard `emails` array first, then the
+ *  provider-configured claim (e.g. `email`, `mail`, `eduPersonPrincipalName`). */
+export function profileEmail(provider, profile) {
+  const fromEmails = profile?.emails?.[0]?.value
+  if (typeof fromEmails === 'string' && fromEmails) {
+    return fromEmails.toLowerCase()
+  }
+  const claim =
+    profile?.[provider.attrs.email] ?? profile?._json?.[provider.attrs.email]
+  const value = Array.isArray(claim) ? claim[0] : claim
+  return typeof value === 'string' ? value.toLowerCase() : null
+}
+
+/** The provider-specific external user id from the profile. */
+export function profileUserId(provider, profile) {
+  if (provider.attrs.userId === 'email') {
+    return profileEmail(provider, profile)
+  }
+  const raw =
+    profile?.[provider.attrs.userId] ?? profile?._json?.[provider.attrs.userId]
+  const value = Array.isArray(raw) ? raw[0] : raw
+  return typeof value === 'string' && value ? value : null
+}
+
+function profileString(provider, profile, attr) {
+  if (!attr) return ''
+  const raw = profile?.[attr] ?? profile?._json?.[attr]
+  const value = Array.isArray(raw) ? raw[0] : raw
+  return typeof value === 'string' ? value : ''
+}
+
+/** Admin determination from the provider's admin field + values. */
+export function profileIsAdmin(provider, profile) {
+  const admin = provider.attrs.admin
+  if (!admin?.field || !admin?.values?.length) return false
+  const raw = profile?.[admin.field] ?? profile?._json?.[admin.field]
+  if (raw === undefined || raw === null) return false
+  if (Array.isArray(raw)) return admin.values.some(v => raw.includes(v))
+  if (typeof raw === 'string') return admin.values.includes(raw)
+  if (typeof raw === 'boolean') return raw && admin.values.includes(String(raw))
+  return false
+}
+
 const OIDCAuthenticationManager = {
-  async findOrCreateUser(profile, auditLog) {
-    const {
-      attUserId,
-      attAdmin,
-      valAdmin,
-      updateUserDetailsOnLogin,
-      providerId,
-    } = Settings.oidc
-    // Lowercase like LDAP and SAML; the OIDC id and the admin match keep the
-    // email as sent, so existing links and settings still match
-    const email = profile.emails[0].value.toLowerCase()
-    const oidcUserId = (attUserId === 'email') ? profile.emails[0].value : profile[attUserId]
-    const firstName = profile.name?.givenName || ""
-    const lastName  = profile.name?.familyName || ""
-    let isAdmin = false
-    if (attAdmin && valAdmin) {
-      if (attAdmin === 'email') {
-        isAdmin = (profile.emails[0].value === valAdmin)
-      } else {
-        const adminClaim = profile[attAdmin] ?? profile._json?.[attAdmin]
-        isAdmin = Array.isArray(adminClaim)
-          ? adminClaim.includes(valAdmin)
-          : adminClaim === valAdmin
-      }
+  /**
+   * @param {object} profile raw SSO profile (claims)
+   * @param {object} provider normalized OIDC provider
+   * @returns {Promise<{user: object|null, accessDenied?: {reason, rule}}>}
+   */
+  async findOrCreateUser(profile, provider, auditLog) {
+    const email = profileEmail(provider, profile)
+    const oidcUserId = profileUserId(provider, profile)
+    if (!oidcUserId) {
+      return { user: null, error: 'no-identity' }
     }
-    const oidcUserData = null // Possibly it can be used later
-    let user
+    const firstName =
+      profile.name?.givenName || profileString(provider, profile, provider.attrs.firstName)
+    const lastName =
+      profile.name?.familyName || profileString(provider, profile, provider.attrs.lastName)
+    const isAdmin = profileIsAdmin(provider, profile)
+
+    // --- existing account? (identity link, or an account with this email)
+    let user = null
+    let isExisting = false
     try {
-      user = await ThirdPartyIdentityManager.promises.login(providerId, oidcUserId, oidcUserData)
+      user = await ThirdPartyIdentityManager.promises.login(
+        provider.id,
+        oidcUserId,
+        null
+      )
+      isExisting = true
     } catch {
-// A user with the specified OIDC ID and provider ID is not found. Search for a user with the given email.
-// If no user exists with this email, create a new user and link the OIDC account to it (provided this is allowed by allowedOIDCEmailDomains).
-// If a user exists but no account from the specified OIDC provider is linked to this user, link the OIDC account to this user.
-// If an account from the specified provider is already linked to this user, unlink it, and link the OIDC account to this user.
-// (Is it safe? Concider: If an account from the specified provider is already linked to this user, throw an error)
+      // not linked yet; keep looking
+    }
+    if (!user && email) {
       user = await User.findOne({ 'email': email }).exec()
-      if (!user) {
-        const allowedDomains = Settings.oidc.allowedOIDCEmailDomains
-        if (
-          allowedDomains &&
-          !allowedDomains.some(pattern => {
-            const domain = email.split('@')[1]
-            if (pattern.startsWith('*.')) {
-              const base = pattern.slice(2)
-              return domain.endsWith(`.${base}`)
-            }
-            return domain === pattern
-          })
-        ) {
-          return null
-        }
-        user = await UserCreator.promises.createNewUser(
-          {
-            email: email,
-            first_name: firstName,
-            last_name: lastName,
-            isAdmin: isAdmin,
-            holdingAccount: false,
-            analyticsId: crypto.randomUUID(),
-          }
-        )
-        await logLoginEntry(user, 'create-account', auditLog)
-      }
-//    const alreadyLinked = user.thirdPartyIdentifiers.some(item => item.providerId === providerId)
-//    if (!alreadyLinked) {
-        auditLog.initiatorId = user._id
-        await ThirdPartyIdentityManager.promises.link(user._id, providerId, oidcUserId, oidcUserData, auditLog)
-        await User.updateOne(
-          { _id: user._id },
-          { $set : {
-             'emails.0.confirmedAt': Date.now(), //email of external user is confirmed
-            },
-          }
-        ).exec()
-//    } else {
-//      throw new Error(`Overleaf user ${user.email} is already linked to another ${providerId} user`)
-//    }
+      isExisting = Boolean(user)
     }
 
+    // --- profile filter (deny list / allow list + exceptions)
+    const access = await checkSsoAccess(provider, profile, email, isExisting)
+    if (!access.allowed) {
+      return { user: null, accessDenied: { reason: access.reason, rule: access.rule } }
+    }
+
+    if (!user) {
+      // --- new account (JIT): additionally gated by allowedEmailDomains
+      const allowedDomains = provider.behavior.allowedEmailDomains
+      if (
+        allowedDomains &&
+        email &&
+        !allowedDomains.some(pattern => {
+          const domain = email.split('@')[1]
+          if (pattern.startsWith('*.')) {
+            const base = pattern.slice(2)
+            return domain.endsWith(`.${base}`)
+          }
+          return domain === pattern
+        })
+      ) {
+        return { user: null, accessDenied: { reason: 'email-domain' } }
+      }
+      user = await UserCreator.promises.createNewUser({
+        email: email,
+        first_name: firstName,
+        last_name: lastName,
+        isAdmin: isAdmin,
+        holdingAccount: false,
+        analyticsId: crypto.randomUUID(),
+      })
+      await logLoginEntry(user, 'create-account', auditLog)
+    }
+
+    // --- link the SSO identity to the account (re-linking over an
+    // existing link of this provider is the current behaviour)
+    auditLog.initiatorId = user._id
+    await ThirdPartyIdentityManager.promises.link(
+      user._id,
+      provider.id,
+      oidcUserId,
+      null,
+      auditLog
+    )
+    await User.updateOne(
+      { _id: user._id },
+      { $set: { 'emails.0.confirmedAt': Date.now() } } // email of external user is confirmed
+    ).exec()
+
     const before = accountBeforeLogin(user)
-    let userDetails = updateUserDetailsOnLogin ? { first_name : firstName, last_name: lastName } : {}
-    if (attAdmin && valAdmin) {
+    const userDetails = provider.behavior.updateUserDetailsOnLogin
+      ? { first_name: firstName, last_name: lastName }
+      : {}
+    if (provider.attrs.admin?.field && provider.attrs.admin?.values?.length) {
       user.isAdmin = isAdmin
       userDetails.isAdmin = isAdmin
     }
     const result = await User.updateOne(
-      { _id: user._id, loginEpoch: user.loginEpoch }, { $inc: { loginEpoch: 1 }, $set: userDetails },
+      { _id: user._id, loginEpoch: user.loginEpoch },
+      { $inc: { loginEpoch: 1 }, $set: userDetails },
       {}
     ).exec()
 
@@ -105,16 +156,21 @@ const OIDCAuthenticationManager = {
       throw new ParallelLoginError()
     }
     await logLoginChanges(user, before, userDetails, auditLog)
-    return user
+    return { user }
   },
-  async linkAccount(userId, profile, auditLog) {
-    const {
-      attUserId,
-      providerId,
-    } = Settings.oidc
-    const oidcUserId = (attUserId === 'email') ? profile.emails[0].value : profile[attUserId]
-    const oidcUserData = null // Possibly it can be used later
-    await ThirdPartyIdentityManager.promises.link(userId, providerId, oidcUserId, oidcUserData, auditLog)
+
+  async linkAccount(userId, profile, provider, auditLog) {
+    const oidcUserId = profileUserId(provider, profile)
+    if (!oidcUserId) {
+      throw new Error('no identity in SSO profile to link')
+    }
+    await ThirdPartyIdentityManager.promises.link(
+      userId,
+      provider.id,
+      oidcUserId,
+      null,
+      auditLog
+    )
   },
 }
 
