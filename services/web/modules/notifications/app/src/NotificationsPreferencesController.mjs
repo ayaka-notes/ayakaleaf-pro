@@ -10,6 +10,11 @@ import NotificationsPreferencesHandler from './NotificationsPreferencesHandler.m
 import { normalizeGlobalDelayMinutes } from './PreferenceNormalizer.mjs'
 import { sendAppriseNotification, appriseConfigured } from './AppriseDispatcher.mjs'
 import { buildChannelUrl, getChannel, CATALOG_ORDER } from './ChannelCatalog.mjs'
+import {
+  allEventKeys,
+  EVENT_CATEGORIES,
+  eventsInCategory,
+} from './NotificationEvents.mjs'
 
 // Server default grace delay (same env var as the enqueue script), used to
 // show users what "leave empty" means on the preferences page.
@@ -35,12 +40,8 @@ const globalPreferencesSchema = z.object({
   // null = use the account email (default).
   notificationUrl: z.string().max(2000).nullable().optional(),
   // Global event switches (which kinds of events may notify at all).
-  events: z
-    .looseObject({
-      projectChanges: z.boolean().optional(),
-      comments: z.boolean().optional(),
-    })
-    .optional(),
+  // Data-driven: any key from the event registry is accepted.
+  events: z.looseObject({}).optional(),
 })
 
 const projectPreferencesSchema = z.looseObject({})
@@ -52,9 +53,7 @@ const updateGlobalPreferencesFormSchema = z.object({
     muteAllNotifications: z.string().optional(),
     notificationDelayMinutes: z.string().optional().nullable(),
     notificationUrl: z.string().optional().nullable(),
-    // event checkboxes (present = on, absent = off)
-    eventProjectChanges: z.string().optional(),
-    eventComments: z.string().optional(),
+    // event checkboxes (present = on, absent = off) — one per event key
   }),
 })
 
@@ -68,7 +67,7 @@ async function globalPreferencesPage(req, res, next) {
     res.render(
       Path.resolve(import.meta.dirname, '../views/user/notification-preferences'),
       {
-        title: 'email_preferences',
+        title: 'notification_preferences_title',
         // The checkbox is an opt-IN ("Notifications on project activity")
         // while the stored flag is an opt-OUT (muteAllNotifications), so the
         // page renders the negated value.
@@ -80,6 +79,12 @@ async function globalPreferencesPage(req, res, next) {
         defaultDelayLabel: _formatDelayLabel(DEFAULT_DELAY_MS),
         // Events + channels for the settings page
         events: preferences.events || { projectChanges: true, comments: true },
+        // Events grouped by category for the settings page.
+        eventCategories: EVENT_CATEGORIES.map(category => ({
+          category,
+          labelKey: `notification_event_category_${category}`,
+          events: eventsInCategory(category),
+        })),
         channelConfiguration: await NotificationsPreferencesHandler.promises
           .getChannelConfiguration(userId),
         channelOrder: CATALOG_ORDER,
@@ -155,10 +160,14 @@ async function updateGlobalPreferencesFromForm(req, res, next) {
           ? String(body.notificationUrl).trim()
           : null,
       // Event switches: checkbox present => enabled, absent => disabled.
-      events: {
-        projectChanges: body.eventProjectChanges !== undefined,
-        comments: body.eventComments !== undefined,
-      },
+      // Data-driven from the event registry (allEventKeys()). The form field
+      // name is `event` + the key verbatim (see notification-preferences.pug).
+      events: Object.fromEntries(
+        allEventKeys().map(key => [
+          key,
+          body[`event${key}`] !== undefined,
+        ])
+      ),
     }
 
     await NotificationsPreferencesHandler.promises.saveGlobalPreferences(
@@ -384,6 +393,22 @@ async function savePushSubscription(req, res, next) {
   }
 }
 
+/**
+ * DELETE /user/notification-preferences/subscribe
+ *
+ * Remove the stored browser-push subscription (used by the "Disable in this
+ * browser" button, which also unsubscribes the service worker client-side).
+ */
+async function deletePushSubscription(req, res, next) {
+  try {
+    const userId = SessionManager.getLoggedInUserId(req.session)
+    await NotificationsPreferencesHandler.promises.deletePushSubscription(userId)
+    res.json({ removed: true, message: 'Browser notifications disabled.' })
+  } catch (err) {
+    next(err)
+  }
+}
+
 export default {
   globalPreferencesPage,
   getGlobalPreferences,
@@ -395,4 +420,5 @@ export default {
   saveChannelConfiguration,
   sendTestChannel,
   savePushSubscription,
+  deletePushSubscription,
 }

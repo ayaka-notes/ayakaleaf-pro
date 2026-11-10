@@ -7,19 +7,12 @@ import getMeta from '@/utils/meta'
 import { postJSON } from '@/infrastructure/fetch-json'
 import { debugConsole } from '@/utils/debugging'
 
-type Recipient = {
-  id: string
-  email: string
-  notificationUrl: string | null
-}
-
 type State = {
   dispatch: {
     appriseConfigured: boolean
     dryRun: boolean
     baseDelayMs: number
   }
-  recipients: Recipient[]
   channels?: {
     enabled: string[]
     pinned?: Record<string, Record<string, string>>
@@ -39,7 +32,6 @@ function initialState(): State {
   }
   return {
     dispatch: { appriseConfigured: false, dryRun: false, baseDelayMs: 120000 },
-    recipients: [],
     queue: { pending: 0, processing: 0, dead: 0, recent: [] },
   }
 }
@@ -106,7 +98,6 @@ function NotificationsAdminPage() {
   const [message, setMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
   const [testEmail, setTestEmail] = useState('')
   const [testUrl, setTestUrl] = useState('')
-  const [urlDrafts, setUrlDrafts] = useState<Record<string, string>>({})
   const [channelDraft, setChannelDraft] = useState<{
     enabled: Record<string, boolean>
     pinned: Record<string, Record<string, string>>
@@ -172,28 +163,6 @@ function NotificationsAdminPage() {
   const setDryRun = (value: boolean) =>
     act('dry-run', '/admin/notifications/dry-run', { dryRun: value }, () =>
       setState(s => ({ ...s, dispatch: { ...s.dispatch, dryRun: value } }))
-    )
-
-  const saveUserUrl = (recipient: Recipient) => {
-    const value = (urlDrafts[recipient.id] ?? recipient.notificationUrl ?? '').trim()
-    act(`url-${recipient.id}`, '/admin/notifications/user-url', {
-      userId: recipient.id,
-      notificationUrl: value || null,
-    }, () =>
-      setState(s => ({
-        ...s,
-        recipients: s.recipients.map(r =>
-          r.id === recipient.id ? { ...r, notificationUrl: value || null } : r
-        ),
-      }))
-    )
-  }
-
-  const testUser = (recipient: Recipient) =>
-    act(
-      `test-${recipient.id}`,
-      '/admin/notifications/test',
-      { userId: recipient.id, email: recipient.email }
     )
 
   const testChannel = () =>
@@ -421,66 +390,11 @@ function NotificationsAdminPage() {
         </div>
       </div>
 
-      {/* 3 — recipients */}
+      {/* 3 — queue */}
       <div className="na-section">
         <div className="na-section-header">
           <span className="na-section-main">
             <span className="na-badge">3</span>
-            Recipients
-            <span className="na-count">{state.recipients.length}</span>
-          </span>
-        </div>
-        <div className="na-section-desc">
-          Per-user channel override. Empty = the user&apos;s account email. Any
-          Apprise URL is accepted.
-        </div>
-        <div className="na-section-body">
-          <div className="na-recipients">
-            {state.recipients.map(r => (
-              <div key={r.id} className="na-recipient" data-recipient-id={r.id}>
-                <div className="na-recipient-email">{r.email}</div>
-                <div className="na-recipient-url">
-                  <Form.Control
-                    value={urlDrafts[r.id] ?? r.notificationUrl ?? ''}
-                    onChange={e =>
-                      setUrlDrafts(d => ({ ...d, [r.id]: e.target.value }))
-                    }
-                    placeholder="mailto://… or tg://… (empty = email)"
-                    data-testid={`na-recipient-url-${r.id}`}
-                  />
-                </div>
-                <div className="na-recipient-actions">
-                  <OLButton
-                    variant="secondary"
-                    size="sm"
-                    disabled={busy === `url-${r.id}`}
-                    onClick={() => saveUserUrl(r)}
-                    data-testid={`na-recipient-save-${r.id}`}
-                  >
-                    Save
-                  </OLButton>
-                  <OLButton
-                    variant="secondary"
-                    size="sm"
-                    leadingIcon="send"
-                    disabled={busy === `test-${r.id}`}
-                    onClick={() => testUser(r)}
-                    data-testid={`na-recipient-test-${r.id}`}
-                  >
-                    Test
-                  </OLButton>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* 4 — queue */}
-      <div className="na-section">
-        <div className="na-section-header">
-          <span className="na-section-main">
-            <span className="na-badge">4</span>
             Queue
           </span>
           <span className="na-queue-actions">

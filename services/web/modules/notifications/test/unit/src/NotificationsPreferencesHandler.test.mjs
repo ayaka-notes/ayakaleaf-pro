@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   normalizeGlobalPreferences,
   normalizeGlobalDelayMinutes,
+  GLOBAL_EVENT_KEYS,
 } from '../../../app/src/PreferenceNormalizer.mjs'
 import path from 'node:path'
 
@@ -66,6 +67,12 @@ describe('normalizeGlobalPreferences', function () {
     expect(normalizeGlobalDelayMinutes(100000)).toBeNull()
   })
 })
+
+function defaultEvents() {
+  const out = {}
+  for (const k of GLOBAL_EVENT_KEYS) out[k] = true
+  return out
+}
 
 describe('NotificationsPreferencesHandler', function () {
   beforeEach(async function (ctx) {
@@ -212,7 +219,7 @@ describe('NotificationsPreferencesHandler', function () {
       muteAllNotifications: true,
       notificationDelayMinutes: null,
       notificationUrl: null,
-      events: { projectChanges: true, comments: true },
+      events: defaultEvents(),
     })
     expect(ctx.notificationsPreferences.updateOne).toHaveBeenCalledWith(
       { user_id: expect.any(FakeObjectId), project_id: null },
@@ -221,7 +228,7 @@ describe('NotificationsPreferencesHandler', function () {
           muteAllNotifications: true,
           notificationDelayMinutes: null,
           notificationUrl: null,
-          events: { projectChanges: true, comments: true },
+          events: defaultEvents(),
         },
       },
       { upsert: true }
@@ -236,7 +243,7 @@ describe('NotificationsPreferencesHandler', function () {
       muteAllNotifications: true,
       notificationDelayMinutes: 42,
       notificationUrl: null,
-      events: { projectChanges: true, comments: true },
+      events: defaultEvents(),
     })
 
     // a per-user Apprise channel URL round-trips (and empty string -> null)
@@ -250,5 +257,15 @@ describe('NotificationsPreferencesHandler', function () {
       notificationUrl: '   ',
     })
     expect(cleared.notificationUrl).toBeNull()
+  })
+
+  it('clears the stored browser-push subscription', async function (ctx) {
+    await ctx.Handler.promises.deletePushSubscription('user-1')
+    expect(
+      ctx.notificationsPreferences.updateOne
+    ).toHaveBeenCalledWith(
+      { user_id: expect.any(FakeObjectId), project_id: null },
+      { $unset: { 'channels.browserPush.subscription': '' } }
+    )
   })
 })

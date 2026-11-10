@@ -57,29 +57,9 @@ async function _saveSettings(patch) {
   )
 }
 
-/** Snapshot of dispatch config + recipients + queue for the page. */
+/** Snapshot of dispatch config + queue for the page. */
 export async function buildState() {
   await connectionPromise
-
-  const users = await db.users
-    .find({}, { projection: { _id: 1, email: 1 } })
-    .sort({ email: 1 })
-    .limit(2000)
-    .toArray()
-
-  const prefDocs = await db.notificationsPreferences
-    .find({ project_id: null }, { projection: { _id: 0, user_id: 1, notificationUrl: 1 } })
-    .toArray()
-  const urlByUser = new Map()
-  for (const doc of prefDocs) {
-    urlByUser.set(doc.user_id.toString(), doc.notificationUrl || null)
-  }
-
-  const recipients = users.map(user => ({
-    id: user._id.toString(),
-    email: user.email || '',
-    notificationUrl: urlByUser.get(user._id.toString()) || null,
-  }))
 
   const now = new Date()
   const staleBefore = new Date(now.getTime() - 60 * 60 * 1000)
@@ -115,7 +95,6 @@ export async function buildState() {
       enabled: CATALOG_ORDER.filter(t => enabledTypes.has(t)),
       pinned: settings?.pinned || {},
     },
-    recipients,
     queue: { pending, processing, dead, recent },
   }
 }

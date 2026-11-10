@@ -114,8 +114,23 @@ export async function getVapidKeys() {
     const doc = await db.notificationSettings
       .findOne({ _id: SETTINGS_ID })
       .catch(() => null)
-    if (doc?.webpush?.vapid?.publicKey && doc?.webpush?.vapid?.privateKey) {
-      return doc.webpush.vapid
+    const stored = doc?.webpush?.vapid
+    // A valid Web Push (VAPID) public key is a 65-byte uncompressed P-256
+    // point, i.e. 87-88 base64url chars. Older/invalid keys (e.g. 57-byte
+    // values from an early generation) break the browser's pushManager
+    // subscribe, so treat a wrong-length key as missing and regenerate.
+    const storedIsValid =
+      Boolean(stored?.publicKey && stored?.privateKey) &&
+      (() => {
+        try {
+          const bytes = Buffer.from(stored.publicKey, 'base64url')
+          return bytes.length === 65
+        } catch {
+          return false
+        }
+      })()
+    if (storedIsValid) {
+      return stored
     }
 
     const { generateVAPIDKeys } = await import('web-push')

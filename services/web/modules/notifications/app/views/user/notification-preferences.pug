@@ -8,7 +8,7 @@ block content
 		.container
 			.col-lg-10.offset-lg-1.col-xl-8.offset-xl-2
 				.page-header
-					h1 #{translate("email_preferences")}
+					h1 #{translate("notification_preferences_title")}
 
 				form.notification-settings-container(
 					name='notificationsForm'
@@ -28,19 +28,18 @@ block content
 
 					p.notification-section-title #{translate("notification_events_title")}
 
-					.setting-container
-						input(name='eventProjectChanges' id='eventProjectChanges' type='checkbox' value='on' checked=(events.projectChanges !== false))
-						div
-							label.checkbox-label(for='eventProjectChanges')
-								h2.h4.mb-0 #{translate("notification_event_project_changes")}
-							p.text-muted #{translate("notification_event_project_changes_description")}
-
-					.setting-container
-						input(name='eventComments' id='eventComments' type='checkbox' value='on' checked=(events.comments !== false))
-						div
-							label.checkbox-label(for='eventComments')
-								h2.h4.mb-0 #{translate("notification_event_comments")}
-							p.text-muted #{translate("notification_event_comments_description")}
+					each group in eventCategories
+						- const evs = group.events
+						if evs && evs.length
+							p.event-group-title #{translate(group.labelKey)}
+							each ev in evs
+								- const evId = `event${ev.key}`
+								.setting-container
+									input(name=evId id=evId type='checkbox' value='on' checked=(events[ev.key] !== false))
+									div
+										label.checkbox-label(for=evId)
+											h2.h4.mb-0 #{translate(ev.labelKey)}
+										p.text-muted #{translate(ev.descKey)}
 
 					p.notification-section-title #{translate("notification_channels_title")}
 					p.text-muted #{translate("notification_channels_description")}
@@ -132,11 +131,8 @@ block content
 							span #{translate("save")}
 
 				.page-separator
-				.d-flex.gap-3
-					a.btn.btn-secondary(href='/user/settings') #{translate("back_to_account_settings")}
-					a.btn.btn-secondary(href='/project') #{translate("back_to_your_projects")}
 
-				script.
+				script(nonce=scriptNonce).
 					(function () {
 						const csrf = document.querySelector("input[name='_csrf']")?.value
 
@@ -240,6 +236,16 @@ block content
 						const disableBtn = document.querySelector('[data-push-disable]')
 						if (disableBtn) {
 							disableBtn.addEventListener('click', async () => {
+								// 1) clear the stored subscription on the server so the
+								//    page stops showing "enabled" after the reload
+								const csrfDel = document.querySelector("input[name='_csrf']")?.value
+								try {
+									await fetch('/user/notification-preferences/subscribe', {
+										method: 'DELETE',
+										headers: csrfDel ? { 'X-CSRF-Token': csrfDel } : {},
+									})
+								} catch { /* ignore */ }
+								// 2) unsubscribe this browser's service worker
 								try {
 									const reg = await navigator.serviceWorker.getRegistration('/')
 									const sub = reg && await reg.pushManager.getSubscription()

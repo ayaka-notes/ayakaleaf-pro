@@ -84,6 +84,11 @@ function apply(webRouter, privateApiRouter, publicApiRouter) {
     auth,
     NotificationsPreferencesController.savePushSubscription
   )
+  webRouter.delete(
+    '/user/notification-preferences/subscribe',
+    auth,
+    NotificationsPreferencesController.deletePushSubscription
+  )
 
   // CE: the QueueWorkers consumer is saas-gated and never runs in CE
   // (Settings.overleaf undefined), so own the `project-notification`

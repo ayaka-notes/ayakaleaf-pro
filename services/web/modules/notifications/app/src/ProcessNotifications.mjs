@@ -33,10 +33,12 @@ function _notificationPayload(notification) {
   const projectId = notification.project_id?.toString() || opts.projectId || ''
   const link = projectId ? `${BASE_URL}/project/${projectId}` : null
   const type = notification.emailType || ''
+  const ctx = opts.context || {}
+  const actorName = ctx.actorName || null
 
-  // Per-event content. Project-change emails keep the original wording;
-  // comment notifications name the project and where to read the thread.
-  if (type === 'commentNotification') {
+  // Per-event content. The two legacy types keep their original wording;
+  // everything else is data-driven from the event key.
+  if (type === 'commentNotification' || type === 'comments') {
     const title = 'Overleaf \u2014 new comment'
     const body = link
       ? `**${projectName}** has a new comment.\n\n[Read the comments](${link})`
@@ -44,10 +46,107 @@ function _notificationPayload(notification) {
     return { title, body, projectName, projectId }
   }
 
-  const title = 'Overleaf \u2014 project activity'
+  if (type === 'trackedChangesNotification' || type === 'projectChanges') {
+    const title = 'Overleaf \u2014 project activity'
+    const body = link
+      ? `**${projectName}** has been updated.\n\n[Open the project](${link})`
+      : `**${projectName}** has been updated.`
+    return { title, body, projectName, projectId }
+  }
+
+  // Event-keyed content (see NotificationEvents.mjs).
+  const byName = actorName ? ` by **${actorName}**` : ''
+  const EVENT_CONTENT = {
+    projectExpiring: {
+      title: 'Overleaf \u2014 project will be deleted',
+      body: link
+        ? `**${projectName}** is about to be deleted. Download it now.\n\n[Open the project](${link})`
+        : `**${projectName}** is about to be deleted.`,
+    },
+    projectArchived: {
+      title: 'Overleaf \u2014 project archived',
+      body: link
+        ? `**${projectName}** has been archived${byName}.\n\n[Open the project](${link})`
+        : `**${projectName}** has been archived${byName}.`,
+    },
+    projectDuplicated: {
+      title: 'Overleaf \u2014 project duplicated',
+      body: link
+        ? `**${projectName}** was duplicated${byName}.\n\n[Open the project](${link})`
+        : `**${projectName}** was duplicated${byName}.`,
+    },
+    projectRestored: {
+      title: 'Overleaf \u2014 project restored',
+      body: link
+        ? `**${projectName}** has been restored from the archive.\n\n[Open the project](${link})`
+        : `**${projectName}** has been restored from the archive.`,
+    },
+    projectRenamed: {
+      title: 'Overleaf \u2014 project renamed',
+      body: link
+        ? `**${projectName}** was renamed${byName}.\n\n[Open the project](${link})`
+        : `**${projectName}** was renamed${byName}.`,
+    },
+    projectDeleted: {
+      title: 'Overleaf \u2014 a project you were in was deleted',
+      body:
+        projectName !== 'a project'
+          ? `**${projectName}** has been permanently deleted.`
+          : `A project you were a member of has been permanently deleted.`,
+    },
+    memberAdded: {
+      title: 'Overleaf \u2014 you were added to a project',
+      body: link
+        ? `You were added to **${projectName}**${byName}.\n\n[Open the project](${link})`
+        : `You were added to **${projectName}**${byName}.`,
+    },
+    memberRemoved: {
+      title: 'Overleaf \u2014 you were removed from a project',
+      body: `You were removed from **${projectName}**${byName}.`,
+    },
+    permissionsChanged: {
+      title: 'Overleaf \u2014 your permissions changed',
+      body: link
+        ? `Your role in **${projectName}** was changed${byName}.\n\n[Open the project](${link})`
+        : `Your role in **${projectName}** was changed${byName}.`,
+    },
+    trackChangesToggled: {
+      title: 'Overleaf \u2014 track changes updated',
+      body: link
+        ? `Track changes on **${projectName}** was updated${byName}.\n\n[Open the project](${link})`
+        : `Track changes on **${projectName}** was updated${byName}.`,
+    },
+    emailChanged: {
+      title: 'Overleaf \u2014 your email address changed',
+      body: `Your account email is now **${ctx.newEmail || 'a new address'}**. If this wasn\u2019t you, reset your password immediately.`,
+    },
+    passwordChanged: {
+      title: 'Overleaf \u2014 your password changed',
+      body: `Your account password was changed. If this wasn\u2019t you, reset it immediately and review your active sessions.`,
+    },
+    newLogin: {
+      title: 'Overleaf \u2014 new sign-in to your account',
+      body: [
+        `A sign-in to **${notification.opts?.to || 'your account'}** was recorded.`,
+        ctx.ip ? `IP address: ${ctx.ip}` : null,
+        ctx.userAgent ? `Browser: ${ctx.userAgent}` : null,
+        `If this wasn\u2019t you, reset your password immediately.`,
+      ]
+        .filter(Boolean)
+        .join('\n\n'),
+    },
+  }
+
+  const content = EVENT_CONTENT[type]
+  if (content) {
+    return { title: content.title, body: content.body, projectName, projectId }
+  }
+
+  // Fallback for unknown types.
+  const title = 'Overleaf \u2014 notification'
   const body = link
-    ? `**${projectName}** has been updated.\n\n[Open the project](${link})`
-    : `**${projectName}** has been updated.`
+    ? `**${projectName}** has an update.\n\n[Open the project](${link})`
+    : `**${projectName}** has an update.`
   return { title, body, projectName, projectId }
 }
 

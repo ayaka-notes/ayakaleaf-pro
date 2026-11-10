@@ -1,3 +1,5 @@
+import { allEventKeys } from './NotificationEvents.mjs'
+
 function _defaultProjectPreferences() {
   return {
     commentOnOwnProject: true,
@@ -42,8 +44,9 @@ function normalizeGlobalPreferences(preferences) {
  * notification at all. Per-project granularity (own/invited, comment vs
  * tracked changes, …) lives in the project preferences; these are the
  * master switches. All default to ON so existing behaviour is preserved.
+ * Keys come from the event registry (NotificationEvents.mjs).
  */
-export const GLOBAL_EVENT_KEYS = ['projectChanges', 'comments']
+export const GLOBAL_EVENT_KEYS = allEventKeys()
 
 export function normalizeGlobalEvents(events) {
   const normalized = {}

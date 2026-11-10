@@ -2,19 +2,34 @@ import { describe, expect, it } from 'vitest'
 import {
   normalizeGlobalPreferences,
   normalizeGlobalEvents,
+  GLOBAL_EVENT_KEYS,
 } from '../../../app/src/PreferenceNormalizer.mjs'
+import { allEventKeys } from '../../../app/src/NotificationEvents.mjs'
 
 describe('PreferenceNormalizer — events', function () {
-  it('defaults both events to enabled', () => {
+  it('defaults every registered event to enabled', () => {
     const normalized = normalizeGlobalPreferences({})
-    expect(normalized.events).toEqual({ projectChanges: true, comments: true })
+    for (const key of GLOBAL_EVENT_KEYS) {
+      expect(normalized.events[key]).toBe(true)
+    }
+  })
+
+  it('normalizes exactly the registry keys', () => {
+    const normalized = normalizeGlobalPreferences({})
+    expect(Object.keys(normalized.events).sort()).toEqual(
+      [...allEventKeys()].sort()
+    )
   })
 
   it('honours explicit event switches', () => {
     const normalized = normalizeGlobalPreferences({
-      events: { projectChanges: false, comments: true },
+      events: { projectChanges: false, comments: true, newLogin: false },
     })
-    expect(normalized.events).toEqual({ projectChanges: false, comments: true })
+    expect(normalized.events.projectChanges).toBe(false)
+    expect(normalized.events.comments).toBe(true)
+    expect(normalized.events.newLogin).toBe(false)
+    // untouched keys stay on
+    expect(normalized.events.projectExpiring).toBe(true)
   })
 
   it('coerces non-boolean values', () => {

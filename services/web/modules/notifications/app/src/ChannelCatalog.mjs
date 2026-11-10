@@ -3,12 +3,11 @@
  * Channel catalog: the single source of truth for the notification channel
  * types the site offers.
  *
- * The admin toggles which types are enabled (and may pin values, e.g. the
- * Gotify/ntfy server host) via /admin/notifications; the user then fills in
- * simple per-channel fields on /user/notification-preferences. At dispatch
- * time the user's structured values are built into an Apprise URL — users
- * never see (or type) raw Apprise URLs unless the "custom URL" type is
- * enabled by the admin.
+ * Which channel types are enabled is set in the database (settings);
+ * the user fills in simple per-channel fields on
+ * /user/notification-preferences. At dispatch time the user's structured
+ * values are built into an Apprise URL — users never see (or type) raw
+ * Apprise URLs unless the "custom URL" type is enabled.
  *
  * Each entry:
  *   label / description — user-facing text (i18n keys)

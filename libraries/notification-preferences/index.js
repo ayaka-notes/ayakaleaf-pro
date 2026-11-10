@@ -43,7 +43,26 @@ export function normalizeProjectPreferences(preferences = {}) {
   return normalized
 }
 
-export const GLOBAL_EVENT_KEYS = ['projectChanges', 'comments']
+export const GLOBAL_EVENT_KEYS = [
+  // project
+  'projectChanges',
+  'comments',
+  'projectExpiring',
+  'projectArchived',
+  'projectDuplicated',
+  'projectRestored',
+  'projectRenamed',
+  'projectDeleted',
+  // collaboration
+  'memberAdded',
+  'memberRemoved',
+  'permissionsChanged',
+  'trackChangesToggled',
+  // security / account
+  'emailChanged',
+  'passwordChanged',
+  'newLogin',
+]
 
 export function normalizeGlobalEvents(events = {}) {
   const normalized = {}

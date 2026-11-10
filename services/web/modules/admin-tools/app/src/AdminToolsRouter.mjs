@@ -41,6 +41,17 @@ export default {
       AdminUserController.aiUsage
     )
 
+    webRouter.post(
+      '/admin/user/:userId/ai-usage/reset',
+      admin,
+      AdminUserController.resetAiUsage
+    )
+    webRouter.post(
+      '/admin/user/:userId/clear-sessions',
+      admin,
+      AdminUserController.clearSessions
+    )
+
     // Notification dispatch management (Apprise)
     webRouter.get('/admin/notifications',
       admin,
@@ -73,17 +84,6 @@ export default {
     webRouter.post('/admin/notifications/channels',
       admin,
       NotificationAdminController.saveChannels
-    )
-
-    webRouter.post(
-      '/admin/user/:userId/ai-usage/reset',
-      admin,
-      AdminUserController.resetAiUsage
-    )
-    webRouter.post(
-      '/admin/user/:userId/clear-sessions',
-      admin,
-      AdminUserController.clearSessions
     )
 
     // what happens to an account

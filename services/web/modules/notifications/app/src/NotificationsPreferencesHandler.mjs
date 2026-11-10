@@ -228,6 +228,17 @@ async function getChannelConfiguration(userId) {
   }
 }
 
+/** Clear the user's stored browser-push subscription. Browser push is
+ * additive (delivered alongside the main channel), so the main channel's
+ * activeChannel is left untouched. */
+async function deletePushSubscription(userId) {
+  await db.notificationsPreferences.updateOne(
+    { user_id: new ObjectId(userId), project_id: null },
+    { $unset: { 'channels.browserPush.subscription': '' } }
+  )
+  return { removed: true }
+}
+
 const NotificationsPreferencesHandler = {
   getProjectPreferences,
   saveProjectPreferences,
@@ -235,6 +246,7 @@ const NotificationsPreferencesHandler = {
   saveGlobalPreferences,
   saveChannelConfiguration,
   getChannelConfiguration,
+  deletePushSubscription,
 }
 
 export default {
