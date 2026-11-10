@@ -18,8 +18,8 @@ services:
     image: osixia/openldap:1.5.0
     hostname: ldap
     ports:
-      - "389:389"
-      - "636:636"
+      - "21389:389"
+      - "21636:636"
     environment:
       - LDAP_ORGANISATION=Example
       - LDAP_DOMAIN=example.com
@@ -39,7 +39,7 @@ services:
     build:
       context: ./oidc
     ports:
-      - "8080:80"   # soluto listens on container :80 (ASPNETCORE_URLS=http://+:80)
+      - "21808:80"   # soluto listens on container :80 (ASPNETCORE_URLS=http://+:80)
     networks: [sso-test]
 
   # SAML IdP — boxyhq/mock-saml, the standard 500k+‑download IdP (replaces the hand‑crafted Flask IdP).
@@ -51,7 +51,7 @@ services:
     env_file:
       - ./saml/saml.env
     ports:
-      - "4100:4000"
+      - "24100:4000"
     healthcheck:
       # boxyhq listens on the container's eth0 (not loopback), so the probe must go out via the compose
       # network DNS name (which resolves to eth0) — 127.0.0.1 is refused inside the container.
@@ -66,7 +66,7 @@ services:
       context: ./mailsink
     command: ["postfix", "start-fg"]
     ports:
-      - "25:25"
+      - "21025:25"
     environment:
       - myhostname=mailsink
     healthcheck:

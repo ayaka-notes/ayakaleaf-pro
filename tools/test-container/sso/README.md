@@ -1,75 +1,95 @@
-# SSO / identity test stack
+# SSO / identity test stack (local IdPs for multi-provider E2E)
 
-A minimal, **standard** local server set for exercising the SSO + federation Go code end‑to‑end, using
-well‑used upstream images instead of hand‑rolled identity code (mirrors the benchmark identity servers in
-`/data_1/image_mining/benchmark_overleaf_vm/compose/production`):
+A minimal, standard local set of identity servers for exercising Overleaf CE's
+**multi-provider SSO** (OIDC + SAML, profile filters, existing/invited
+exceptions) end-to-end. It uses well-used upstream images instead of
+hand-rolled identity code.
 
-| Server | Standard image | Endpoint |
-|--------|----------------|----------|
-| **LDAP** | `osixia/openldap:1.5.0` | `ldap://localhost:389` (TLS :636) |
-| **OIDC** | **`soluto/oidc-server-mock`** (dotnet, IdentityServer4‑based), baked as `sso-oidc` | `http://localhost:8080` |
-| **SAML** | **`boxyhq/mock-saml`** (500k+‑download standard IdP) | `http://localhost:4100` |
-| **MAILSINK** | postfix catch‑all (`./mailsink`) | `smtp://localhost:25` |
+| Server    | Image                          | Host port | Purpose                          |
+|-----------|--------------------------------|-----------|----------------------------------|
+| OIDC IdP  | `soluto/oidc-server-mock` (baked as `sso-oidc`) | `21808` | OIDC authz/token/userinfo + 2 test users |
+| SAML IdP  | `boxyhq/mock-saml`             | `24100`   | signed SAML 2.0 assertions + X.509 cert in metadata |
+| LDAP      | `osixia/openldap`              | `21389` / `21636` | optional LDAP fixtures |
+| MAILSINK  | postfix catch-all (`./mailsink`) | `21025`   | captures all mail (for invite-exception testing) |
 
-```
-docker compose -f tests/tools/sso-test/docker-compose.yml up -d
-```
+All host ports were remapped into the free `21xxx` range because this box runs a
+live Overleaf + nginx + seaweedfs stack that owns the usual ports.
 
-> Port note: boxyhq is mapped host **4100**→c:4000 (the live `overleafserver` owns host :4000 here); soluto
-> c:80 mapped to host **8080**; LDAP :389 and mail :25 match the benchmark. Test‑only; credentials are dev fixtures.
+## Bring it up / down
 
-## Credentials / endpoints (all test‑only)
-
-| What | Value |
-|------|-------|
-| LDAP base | `dc=example,dc=com` (people in `ou=people`) |
-| LDAP admin bind | `cn=admin,dc=example,dc=com` / `admin_password` |
-| LDAP reader bind | `cn=ldap_reader,dc=example,dc=com` / `GoodNewsEveryone` |
-| LDAP users | `ssoe2e`(SsoE2ePass123), `ssoadm`(admin, SsoAdmPass123), `jdoe`,`asmith`,`admin`,`bwilson`,`cjones` |
-| **OIDC issuer** | `http://localhost:8080` |
-| **OIDC discovery** | `http://localhost:8080/.well-known/openid-configuration` (200) |
-| **OIDC authorize / token / userinfo** | `…/connect/authorize`, `…/connect/token`, `…/connect/userinfo` |
-| OIDC test client | `overleaf_test` / `SOMEPASSWORD` (authorization_code) |
-| **SAML entityID** | `https://saml.example.com/entityid` |
-| **SAML IdP metadata** | `http://localhost:4100/api/saml/metadata` (real `X509Certificate`) |
-| **SAML SSO** | `http://localhost:4100/api/saml/sso` |
-| Mailsink capture | `docker exec sso-test-mailsink-1 cat /var/mail/dumpuser/Maildir/new/*` |
-
-## How each flow works
-- **LDAP (bind‑as‑user):** optional service‑bind → search by `uid`/email → bind the DN with the user's
-  password → return attributes. (Go: `POST /sso/ldap/login`.) Fixtures + admin in `seeds/ssoe2e.ldif`.
-- **OIDC (soluto/boxyhq‑class standard IdP):** IdentityServer4. Configure a client + users via
-  `*_CONFIGURATION_PATH` **baked into the `sso-oidc` image** (`oidc/config/*.json`) — baking (not runtime `-e`)
-  avoids the fragile long‑JSON `docker run` env. Standard identity resources `openid`/`email`/`profile` are
-  built‑in (do **not** redefine them as API scopes). Login is IS4's built‑in `Account/Login` form.
-- **SAML (boxyhq/mock‑saml):** `GET /api/saml/metadata` → `EntityDescriptor` with a real signing cert +
-  SSO/SLO; `GET/POST /api/saml/sso` runs the SP‑initiated flow and posts a **signed** `SAMLResponse`.
-  Config (`APP_URL`/`ENTITY_ID` + test key pair) in `saml/saml.env`.
-- **MAILSINK:** postfix `virtual` → every recipient to `dump-user@localhost` under `/var/mail/dumpuser`.
-
-## Go live tests (env‑gated, skip cleanly without servers)
-```bash
-# LDAP bind‑as‑user:
-LIVE_LDAP_URL=ldap://localhost:389 LIVE_LDAP_BASE='dc=example,dc=com' \
-LIVE_LDAP_BIND_DN='cn=admin,dc=example,dc=com' LIVE_LDAP_BIND_PW=admin_password \
-LIVE_LDAP_FIXTURE_USER=ssoe2e LIVE_LDAP_FIXTURE_EMAIL=ssoe2e@example.com LIVE_LDAP_FIXTURE_PASS=SsoE2ePass123 \
-LIVE_LDAP_ADMIN_USER=ssoadm LIVE_LDAP_ADMIN_EMAIL=ssoadm@example.com LIVE_LDAP_ADMIN_PASS=SsoAdmPass123 \
-  go test ./go/services/web/features/sso/ -run LDAPLive -v -count=1
-
-# IdP probes: boxyhq SAML metadata + soluto OIDC discovery (both must be up):
-LIVE_SSO_PROBE=1 LIVE_SAML_META_URL=http://127.0.0.1:4100/api/saml/metadata LIVE_OIDC_ISSUER=http://localhost:8080 \
-  go test ./go/services/web/features/sso/ -run LiveSSOProbe -v -count=1
+```sh
+docker compose -f docker-compose.yml up -d     # build the OIDC image first run
+docker compose -f docker-compose.yml ps        # wait for healthy
+docker compose -f docker-compose.yml down      # tear down
 ```
 
-## What this is NOT
-- **Not a full HTTP SSO login E2E** — that needs the app (mongo+redis) and is an image‑level e2e. The
-  OIDC code→token→userinfo and SAML response→SP‑validate round‑trips are best driven here **by the app's
-  OIDC/SAML handlers** against these IdPs (a browser is how these flows are actually exercised).
-- **Not the live M1/M3 bake/push** — owner‑gated.
+## Endpoints
 
-## Layout
-- `docker-compose.yml` — the four services.
-- `oidc/` — `Dockerfile` (FROM `soluto/oidc-server-mock` + baked `*_CONFIGURATION_PATH`) + `config/{server-options,clients,users}.json`.
-- `saml/saml.env` — boxyhq `APP_URL`/`ENTITY_ID` + test‑only IdP key pair.
-- `mailsink/` — postfix catch‑all (`main.cf`).
-- `seeds/ssoe2e.ldif` — extra LDAP users (fixture + admin) for the bind‑as‑user path.
+- OIDC discovery:  `http://localhost:21808/.well-known/openid-configuration`
+- OIDC authz/token/userinfo: `…/connect/authorize`, `…/connect/token`, `…/connect/userinfo`
+- OIDC test users (baked in `oidc/config/users.json`):
+  - `ssoe2e` / `SsoE2ePass123`  → normal user, `email=ssoe2e@example.com`
+  - `ssoadm` / `SsoAdmPass123`  → admin claim `is_admin=true`, `email=ssoadm@example.com`
+- SAML IdP metadata: `http://localhost:24100/api/saml/metadata` (has a real signing cert)
+- SAML SSO:           `http://localhost:24100/api/saml/sso`
+- SAML entityID:      `https://saml.example.com/entityid`
+- Mailsink capture:   `docker exec sso-test-mailsink-1 cat /var/mail/dumpuser/Maildir/new/*`
+
+## Overleaf provider config (this project)
+
+This Overleaf reads providers from a JSON file (default
+`services/web/config/ssos.providers.json`, overridable via
+`OVERLEAF_SSO_PROVIDERS_FILE`), **not** from a database. So the "seed" is just a
+JSON file. `e2e-providers.json` in this folder is a ready-to-load set with two
+providers (OIDC mock + SAML mock) and a sample filter.
+
+The IdP URLs inside `e2e-providers.json` use the overleaf container's docker
+gateway IP (`172.18.0.1`) so the same URL is reachable from **both** the overleaf
+container (token/metadata fetch) and the browser (authorize/SSO redirect).
+Adjust the port/IP if your overleaf container's gateway differs
+(`docker inspect <overleaf> --format '{{range .NetworkSettings.Networks}}{{.Gateway}}'`).
+
+To load the providers into a running overleaf container and restart the web
+service:
+
+```sh
+# 1. copy the provider file into the container
+docker cp e2e-providers.json <overleaf>:/overleaf/config/ssos.e2e.json
+# 2. point overleaf at it and restart the web service (www-data services)
+docker exec <overleaf> bash -lc '
+  echo "OVERLEAF_SSO_PROVIDERS_FILE=/overleaf/config/ssos.e2e.json" >> /etc/overleaf/env.sh
+  sv restart web-overleaf || true
+'
+# 3. wait for the app to come back, then check /login shows both SSO buttons
+```
+
+Or simply create them in the **admin UI**: log in as a site admin →
+`/admin/auths` → *New provider* (OIDC or SAML) → paste the JSON from
+`e2e-providers.json`. The store persists to the same JSON file and re-registers
+the passport strategies live (no restart needed).
+
+## How the OIDC flow works
+
+1. Overleaf redirects the browser to `{issuer}/connect/authorize`
+   (issuer = `http://172.18.0.1:21808`).
+2. Browser hits the mock's login page; enter a test user (`ssoe2e`/`ssoadm`).
+3. Mock redirects back to Overleaf's callback
+   `https://psintern.neuro.uni-bremen.de/oidc/oidc-mock/login/callback`
+   (this exact URL must be in `oidc/config/clients.json` `RedirectUris`).
+4. Overleaf exchanges the code, fetches userinfo, applies the **filter**, and
+   either logs the user in (or, if `allowExistingUsers`/`allowInvited` is set
+   and the account exists / is invited, lets them through despite the filter).
+
+The sample filter in `e2e-providers.json` **denies** `ssoadm@example.com` and
+**allows** `*@example.com`, so `ssoe2e` logs in and `ssoadm` is rejected —
+a clean positive/negative filter pair.
+
+## Files
+
+- `docker-compose.yml` — the stack (ports remapped to the free 21xxx range).
+- `oidc/` — soluto OIDC mock (Dockerfile + baked client/user/config JSON).
+- `saml/` — boxyhq/mock-saml env (`saml.env`: entityID + test key pair, `key.pem`).
+- `mailsink/` — postfix catch-all (`main.cf`).
+- `seeds/ssoe2e.ldif` — extra LDAP users (fixture + admin) for bind-as-user.
+- `e2e-providers.json` — ready Overleaf provider set (OIDC + SAML + filter).
+- `seed-ssos.sh` — copy `e2e-providers.json` into overleaf + restart web.
