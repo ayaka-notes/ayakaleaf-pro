@@ -6,7 +6,8 @@ browser with Cypress.
 
 CI runs them daily against the latest ops image, one group of suites per runner
 (`.github/workflows/test_ops_image.yml`). It can also be started by hand with
-another ops tag.
+another ops tag, on one platform, or for some `suites` and the cases matching
+`grep`.
 
 ## How to run
 

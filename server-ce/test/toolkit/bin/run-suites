@@ -31,6 +31,15 @@ function print_logs() {
   docker inspect "${prefix}mongo" --format 'exit={{.State.ExitCode}} oom={{.State.OOMKilled}} error={{.State.Error}}'
   docker logs --tail 200 "${prefix}sharelatex"
   docker exec "${prefix}sharelatex" bash -c 'tail -n 100 /var/log/overleaf/*.log'
+  # The suite's mocks, the services without a container are skipped
+  local service container
+  for service in $(cat "suites/$1/services" 2>/dev/null); do
+    container=${prefix:-e2e-}$service
+    docker inspect "$container" >/dev/null 2>&1 || continue
+    echo "--- $container"
+    docker logs --tail 200 "$container"
+    docker inspect "$container" --format 'status={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} error={{.State.Error}}'
+  done
 }
 
 rm -rf "$kept"
@@ -38,7 +47,7 @@ for suite in "$@"; do
   echo "::group::$suite"
   if ! { setup "$suite" && make test SUITE="$suite"; }; then
     failed+=("$suite")
-    print_logs
+    print_logs "$suite"
     # make clean removes the results
     mkdir -p "$kept/$suite"
     cp -r "cypress/results$suffix/." "$kept/$suite/"

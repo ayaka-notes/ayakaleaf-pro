@@ -19,6 +19,12 @@ on:
         type: choice
         options: [both, amd64, arm64]
         default: both
+      suites:
+        description: "Only these suites of the groups below, e.g. workbench learn"
+        type: string
+      grep:
+        description: "Only the cases whose title contains this, ';' is OR"
+        type: string
   schedule:
     # One hour after the development images are built
     - cron: '0 1 * * *'
@@ -60,7 +66,11 @@ jobs:
           - group: Git and Tokens
             suites: git-bridge oauth2-server mcp-server
           - group: Editor
-            suites: track-changes workbench error-assistant symbol-palette reference-picker tpr-webmodule learn
+            suites: track-changes symbol-palette
+          - group: AI
+            suites: workbench error-assistant
+          - group: References and Learn
+            suites: reference-picker tpr-webmodule learn
           - group: Compile and Templates
             suites: sandboxed-compiles pandoc python-runner template-gallery open-in-overleaf
     steps: &steps
@@ -75,13 +85,25 @@ jobs:
           password: ${{secrets.GITHUB_TOKEN}}
 
       # --- Deploy And Test ---
-      # The suites of a group share this runner and run one after another
+      # The suites of a group share this runner and run one after another.
+      # With suites picked by hand, a group runs only the ones it has.
       - name: "Deploy And Run E2E Tests"
         working-directory: ./server-ce/test/toolkit
+        env:
+          PICKED: ${{ inputs.suites }}
+          GREP: ${{ inputs.grep }}
         run: |
           # GHCR image names must be lowercase
           export OVERLEAF_IMAGE=${{env.DOCKER_REGISTRY}}/${GITHUB_REPOSITORY_OWNER,,}/overleaf-pro/ops:${{inputs.ops_tag || 'latest'}}
-          bin/run-suites ${{matrix.suites}}
+          suites=()
+          for suite in ${{matrix.suites}}; do
+            if [[ -z $PICKED || " $PICKED " == *" $suite "* ]]; then
+              suites+=("$suite")
+            fi
+          done
+          if ((${#suites[@]} > 0)); then
+            bin/run-suites "${suites[@]}"
+          fi
 
       # --- Collect Results On Failure ---
       # Artifact names cannot contain a space
