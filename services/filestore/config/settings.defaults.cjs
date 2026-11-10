@@ -1,4 +1,12 @@
 const Path = require('node:path')
+const { mirrorIntoEnv } = require('@overleaf/settings/admin-settings')
+
+// Admin-managed settings (Site Settings admin page): the stored values
+// hydrate the env vars this service reads. External docker env (compose)
+// always wins — a non-empty env var is never touched here.
+mirrorIntoEnv([
+  ['LINK_EXPIRY_TIMEOUT', 'sharing', 'linkExpiryTimeout'],
+])
 
 // environment variables renamed for consistency
 // use AWS_ACCESS_KEY_ID-style going forward

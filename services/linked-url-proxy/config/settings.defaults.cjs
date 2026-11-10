@@ -1,3 +1,13 @@
+const { mirrorIntoEnv } = require('@overleaf/settings/admin-settings')
+
+// Admin-managed settings (Site Settings admin page): the stored values
+// hydrate the env vars below. External docker env (compose) always wins —
+// a non-empty env var is never touched here.
+mirrorIntoEnv([
+  ['OVERLEAF_LINKED_URL_BLOCKED_NETWORKS', 'externalUrl', 'blockedNetworks'],
+  ['OVERLEAF_LINKED_URL_ALLOWED_RESOURCES', 'externalUrl', 'allowedResourcesRegex'],
+])
+
 const blockedNetworks = (process.env.OVERLEAF_LINKED_URL_BLOCKED_NETWORKS || '')
   .split(/[,\s]+/)
   .filter(Boolean)
