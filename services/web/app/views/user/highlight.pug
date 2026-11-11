@@ -1,0 +1,15 @@
+extends ../layout-website-redesign
+
+block entrypointVar
+	- entrypoint = 'pages/user/highlight'
+
+block vars
+	- isWebsiteRedesign = true
+
+block append meta
+	meta(name='ol-user' data-type='json' content=user)
+	meta(name='ol-highlightTags' data-type='json' content=highlightTags)
+
+block content
+	main#main-content.content.content-alt
+		#highlight-root

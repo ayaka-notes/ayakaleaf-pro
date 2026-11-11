@@ -26,6 +26,14 @@
   width: 100%;
   height: 100%;
   background-color: var(--outline-container-color-bg);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.outline-container > .outline-pane {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .outline-pane {
@@ -209,4 +217,32 @@
   width: var(--spacing-08);
   font-size: 17px;
   text-align: center;
+}
+
+// Special comment entries (the user's highlight tags) nested inside the file
+// outline, under the (sub)section they appear in.
+.comment-outline-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-02);
+  min-width: 0;
+}
+
+.comment-outline-tag {
+  flex: 0 0 auto;
+  color: #fff;
+  font-size: var(--font-size-01);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0 var(--spacing-01);
+  border-radius: var(--border-radius-base);
+  line-height: var(--line-height-01);
+}
+
+.comment-outline-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--content-secondary-themed);
 }

@@ -22,8 +22,12 @@ const OutlineItem = memo(function OutlineItem({
   const titleElementRef = useRef<HTMLButtonElement>(null)
   const isHighlightedRef = useRef<boolean>(false)
 
+  const comment = outlineItem.comment
+  const isComment = Boolean(comment)
+
   const mainItemClasses = classNames('outline-item', {
     'outline-item-no-children': !outlineItem.children,
+    'outline-item-comment': isComment,
   })
 
   const hasHighlightedChild = !expanded && containsHighlightedLine
@@ -65,19 +69,44 @@ const OutlineItem = memo(function OutlineItem({
       translate="no"
     >
       <div className="outline-item-row">
-        {!!outlineItem.children && (
+        {!isComment && !!outlineItem.children && (
           <OutlineItemToggleButton
             expanded={expanded}
             setExpanded={setExpanded}
           />
         )}
-        <button
-          className={itemLinkClasses}
-          onClick={handleOutlineItemLinkClick}
-          ref={titleElementRef}
-        >
-          {outlineItem.title}
-        </button>
+        {comment ? (
+          <button
+            className={classNames('outline-item-link', 'comment-outline-link', {
+              'outline-item-link-highlight': isHighlighted,
+            })}
+            onClick={handleOutlineItemLinkClick}
+            ref={titleElementRef}
+            aria-label={`${comment.tag}${
+              comment.text ? `: ${comment.text}` : ''
+            }`}
+          >
+            <span
+              className="comment-outline-tag"
+              style={{ backgroundColor: comment.color }}
+            >
+              {comment.tag}
+            </span>
+            {comment.text ? (
+              <span className="comment-outline-text">
+                {comment.text}
+              </span>
+            ) : null}
+          </button>
+        ) : (
+          <button
+            className={itemLinkClasses}
+            onClick={handleOutlineItemLinkClick}
+            ref={titleElementRef}
+          >
+            {outlineItem.title}
+          </button>
+        )}
       </div>
       {expanded && outlineItem.children ? (
         // highlightedLine is only provided to this list if the list contains

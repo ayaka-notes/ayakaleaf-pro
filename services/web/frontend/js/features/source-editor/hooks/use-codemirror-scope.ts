@@ -45,6 +45,7 @@ import { useUserContext } from '@/shared/context/user-context'
 import { useReferencesContext } from '@/features/ide-react/context/references-context'
 import { setMathPreview } from '@/features/source-editor/extensions/math-preview'
 import { setNonBlinkingCursor } from '@/features/source-editor/extensions/non-blinking-cursor'
+import { setTagHighlight } from '@/features/source-editor/extensions/tag-highlight'
 import { useRangesContext } from '@/features/review-panel/context/ranges-context'
 import { updateRanges } from '@/features/source-editor/extensions/ranges'
 import { useThreadsContext } from '@/features/review-panel/context/threads-context'
@@ -94,7 +95,9 @@ function useCodeMirrorScope(view: EditorView) {
     nonBlinkingCursor,
     referencesSearchMode,
     floatingMenu,
+    highlight: highlightSetting,
   } = userSettings
+  const highlight = highlightSetting ?? []
   const activeOverallTheme = useActiveOverallTheme()
   const editorTheme = useActiveEditorTheme()
 
@@ -176,6 +179,7 @@ function useCodeMirrorScope(view: EditorView) {
     nonBlinkingCursor,
     referencesSearchMode,
     floatingMenu,
+    highlight,
   })
 
   const currentDocRef = useRef({
@@ -378,7 +382,9 @@ function useCodeMirrorScope(view: EditorView) {
       view.dispatch(
         restoreCursorPosition(state.doc, currentDocument.doc_id),
         setEditable(editableRef.current),
-        setOptionsTheme(themeRef.current)
+        setOptionsTheme(themeRef.current),
+        // apply the user's highlight tags (see extensions/tag-highlight.ts)
+        setTagHighlight(settingsRef.current.highlight)
       )
 
       // asynchronous config
@@ -518,6 +524,13 @@ function useCodeMirrorScope(view: EditorView) {
       view.dispatch(setNonBlinkingCursor(nonBlinkingCursor))
     })
   }, [view, nonBlinkingCursor])
+
+  useEffect(() => {
+    settingsRef.current.highlight = highlight
+    window.setTimeout(() => {
+      view.dispatch(setTagHighlight(highlight))
+    })
+  }, [view, highlight])
 
   useEffect(() => {
     settingsRef.current.referencesSearchMode = referencesSearchMode

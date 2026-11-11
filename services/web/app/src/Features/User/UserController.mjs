@@ -412,6 +412,15 @@ const updateUserSettingsSchema = z.object({
     referencesSearchMode: z.string().optional(),
     darkModePdf: z.coerce.boolean().optional(),
     floatingMenu: z.coerce.boolean().optional(),
+    highlight: z
+      .array(
+        z.object({
+          tag: z.string().max(100),
+          color: z.string().max(20),
+        })
+      )
+      .max(50)
+      .optional(),
     zotero: refProviderSettingsSchema,
     mendeley: refProviderSettingsSchema,
     papers: refProviderSettingsSchema,
@@ -519,6 +528,9 @@ async function updateUserSettings(req, res, next) {
   }
   if (body.floatingMenu != null) {
     user.ace.floatingMenu = Boolean(body.floatingMenu)
+  }
+  if (body.highlight != null) {
+    user.ace.highlight = body.highlight
   }
   if (body.zotero != null) {
     user.ace.zotero = { ...user.ace.zotero, ...body.zotero }

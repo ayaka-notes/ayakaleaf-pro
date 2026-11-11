@@ -1,7 +1,7 @@
 import { User, Features, FeatureUsage } from '../../../types/user'
 import { User as MinimalUser } from '../../../types/admin/user'
 import { User as ManagedUser } from '../../../types/group-management/user'
-import { UserSettings } from '../../../types/user-settings'
+import { UserSettings, HighlightTag } from '../../../types/user-settings'
 import { OAuthProviders } from '../../../types/oauth-providers'
 import { ExposedSettings } from '../../../types/exposed-settings'
 import {
@@ -376,6 +376,7 @@ export interface Meta {
   'ol-userEmails': UserEmailData[]
   'ol-userNotificationPreferences': UserNotificationPreferences
   'ol-userSettings': UserSettings
+  'ol-highlightTags': HighlightTag[]
   'ol-user_id': string | undefined
   'ol-users': ManagedUser[]
   'ol-usersBestSubscription': ProjectDashboardSubscription | undefined
