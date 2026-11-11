@@ -169,15 +169,17 @@ services:
       - APP_NAME=Overleaf Community Edition
       - ENABLED_LINKED_FILE_TYPES=project_file,project_output_file,url,mendeley,zotero
       - EMAIL_CONFIRMATION_DISABLED=true
+      - EXTERNAL_AUTH=${EXTERNAL_AUTH:-none}
       - NODE_ENV=development
       - OVERLEAF_ALLOW_PUBLIC_ACCESS=true
+      - OVERLEAF_CONFIG=/overleaf/services/web/settings.dev-env.cjs
       - TPDS_HOST=third-party-datastore
     command: ["node", "app.mjs"]
     volumes:
       - sharelatex-data:/var/lib/overleaf
       - web-data:/overleaf/services/web/data
       - ./data/certs/:/var/lib/overleaf/certs/
-      - ./authentication/saml/idp.crt:/etc/saml/idp.crt:ro
+      - ./settings.dev-env.cjs:/overleaf/services/web/settings.dev-env.cjs
     depends_on:
       - mongo
       - redis
@@ -205,7 +207,7 @@ services:
     command:
       ["yarn", "exec", "webpack", "serve", "--config", "webpack.config.dev-env.js"]
     ports:
-      - "127.0.0.1:80:3808"
+      - "127.0.0.1:${OVERLEAF_PORT:-80}:3808"
     volumes:
       - ./webpack.config.dev-env.js:/overleaf/services/web/webpack.config.dev-env.js
 
@@ -261,14 +263,3 @@ services:
       - "8081:8081"
     environment:
       ME_CONFIG_MONGODB_SERVER: mongo
-  
-  # LDAP and SAML test users, see authentication/README.md
-  ldap:
-    build: ./authentication/ldap
-    healthcheck:
-      test: ["CMD-SHELL", "ldapsearch -x -H ldap:/// -b dc=planetexpress,dc=com -s base >/dev/null"]
-
-  saml:
-    build: ./authentication/saml
-    env_file:
-      - dev.env

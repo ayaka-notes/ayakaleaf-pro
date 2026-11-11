@@ -19,6 +19,61 @@ bin/up
 
 Once the services are running, open <http://localhost/launchpad> to create the first admin account.
 
+## Configuration
+
+`dev.rc`, next to `dev.env`, holds the switches of the dev environment, like `overleaf.rc` in the Overleaf Toolkit. Change a value there and run `bin/dev` again to apply it. A feature that is turned off also stops its containers.
+
+| Variable          | Default | What it does                                                                    |
+| ----------------- | ------- | ------------------------------------------------------------------------------- |
+| `OVERLEAF_PORT`   | `80`    | Host port of the site                                                           |
+| `LDAP_ENABLED`    | `true`  | LDAP login with the [test users](authentication/README.md)                      |
+| `SAML_ENABLED`    | `true`  | SAML login with the [test users](authentication/README.md)                      |
+| `MAILPIT_ENABLED` | `true`  | Catches every email from `web` in [Mailpit](https://github.com/axllent/mailpit) |
+| `S3_ENABLED`      | `true`  | Keeps history and template files in [RustFS](https://github.com/rustfs/rustfs)  |
+
+Each feature keeps its `docker-compose.yml` and other files in its own folder: `authentication/ldap`, `authentication/saml`, `mail` and `s3`. A feature that needs a `web` setting without an environment variable mounts a file into `/etc/overleaf/settings.d/`, and `settings.dev-env.cjs` merges all of them.
+
+The local volumes and RustFS are separate stores: a project created with `S3_ENABLED=true` has no history or binary files after switching to `false`, and the other way round.
+
+### Moving existing data into RustFS
+
+To keep the history and template files of an environment that ran before `S3_ENABLED` existed, copy them from the local volumes into RustFS once, while the services are running (`bin/up` or `bin/dev`):
+
+```shell
+docker run --rm --network develop_default \
+  -v develop_history-v1-buckets:/buckets:ro \
+  -v develop_filestore-template-files:/template_files:ro \
+  -e AWS_ACCESS_KEY_ID=rustfsadmin -e AWS_SECRET_ACCESS_KEY=rustfsadmin \
+  -e AWS_DEFAULT_REGION=us-east-1 -e AWS_ENDPOINT_URL=http://rustfs:9000 \
+  --entrypoint sh amazon/aws-cli:2.39.1 -c '
+    aws s3 sync /buckets/chunks s3://overleaf-chunks
+    aws s3 sync /buckets/project_blobs s3://overleaf-project-blobs
+    # filestore names a template file a_b_c on disk and a/b/c in S3
+    mkdir -p /tmp/t && cd /template_files
+    for f in *; do
+      [ -e "$f" ] || continue
+      key=$(echo "$f" | tr _ /)
+      mkdir -p "/tmp/t/$(dirname "$key")"
+      cp -p "$f" "/tmp/t/$key"
+    done
+    aws s3 sync /tmp/t s3://overleaf-template-files
+  '
+```
+
+The volumes are mounted read-only, so the old files stay there for `S3_ENABLED=false`. Running the command again skips the files that RustFS already has.
+
+## Ports
+
+These pages listen on `127.0.0.1` of the host. The site uses `OVERLEAF_PORT` from `dev.rc`, so add the port to its address if you changed it. On a remote machine, forward the ports first, for example `ssh -L 8025:localhost:8025 <host>`.
+
+| Page                   | Address                                 | Login                                                                       |
+| ---------------------- | --------------------------------------- | --------------------------------------------------------------------------- |
+| Site                   | <http://localhost>                      | The accounts of the site, or the [test users](authentication/README.md)     |
+| Email inbox (Mailpit)  | <http://localhost:8025>                 | None                                                                        |
+| S3 console (RustFS)    | <http://localhost:9001/rustfs/console/> | `rustfsadmin` / `rustfsadmin`                                               |
+
+The S3 API (port 9000) and SMTP (port 1025) are only reachable inside the Docker network.
+
 ## Development
 
 To avoid running `bin/build && bin/up` after every code change, you can run Overleaf
@@ -45,6 +100,10 @@ bin/dev [service1] [service2] ... [serviceN]
 > as well.
 
 If no services are named, all services will start in development mode.
+
+## Translations
+
+After adding a translation or changing branch, run `bin/i18n`. It applies `services/web/locales/locales_patches` the way the image builds do and lists the keys the frontend uses. New translations go in `locales_patches/added`; the files it changes are local only, do not commit them. If the webpack image is missing, it syncs `yarn.lock` and builds the image first.
 
 ## Debugging
 

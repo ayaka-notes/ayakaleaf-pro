@@ -1,0 +1,12 @@
+# Catches every email from web. The inbox is the web UI on port 8025.
+services:
+  mailpit:
+    image: axllent/mailpit:v1.31.3
+    ports:
+      - "127.0.0.1:8025:8025"
+
+  web:
+    environment:
+      - EMAIL_CONFIRMATION_DISABLED=false
+    volumes:
+      - ./mail/settings.cjs:/etc/overleaf/settings.d/mail.cjs:ro
