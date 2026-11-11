@@ -52,43 +52,43 @@ block content
 											a.btn.btn-secondary(href='/admin/auths/new?type=oidc&preset=edugain') New OIDC provider (EduGAIN preset)
 								if !providers.length
 									p No SSO sources configured yet.
-									.table
-										thead
+								.table
+									thead
+										tr
+											th Name
+											th Type
+											th ID
+											th Filter
+											th Enabled
+											th Source
+											th Actions
+									tbody
+										each provider in providers
 											tr
-												th Name
-												th Type
-												th ID
-												th Filter
-												th Enabled
-												th Source
-												th Actions
-										tbody
-											each provider in providers
-												tr
-													td #{provider.name}
-													td #{provider.type.toUpperCase()}
-													td code #{provider.id}
-													td
-														if provider.filter.deny.length || provider.filter.allow.length
-															| #{provider.filter.deny.length} deny / #{provider.filter.allow.length} allow
-														else
-															| none
-													td
-														if provider.source !== 'env'
-															form(method='post' action=`/admin/auths/${provider.id}/toggle`)
-																input(name='_csrf' type='hidden' value=csrfToken)
-																input(type='checkbox' checked=provider.enabled)
-														else
-															| —
-													td #{provider.source}
-													td
-														if provider.source !== 'env'
-															a(href=`/admin/auths/${provider.id}/edit`) Edit
-															form(method='post' action=`/admin/auths/${provider.id}/delete` onsubmit="return confirm('Delete this SSO source? Users linked to it keep their accounts, but this source is no longer offered on the login page.')")
-																input(name='_csrf' type='hidden' value=csrfToken)
-																button.btn.btn-sm.btn-danger(type='submit') Delete
-														else
-															| env
+												td #{provider.name}
+												td #{provider.type.toUpperCase()}
+												td code #{provider.id}
+												td
+													if provider.filter.deny.length || provider.filter.allow.length
+														| #{provider.filter.deny.length} deny / #{provider.filter.allow.length} allow
+													else
+														| none
+												td
+													if provider.source !== 'env'
+														form(method='post' action=`/admin/auths/${provider.id}/toggle`)
+															input(name='_csrf' type='hidden' value=csrfToken)
+															input(type='checkbox' checked=provider.enabled)
+													else
+														| —
+												td #{provider.source}
+												td
+													if provider.source !== 'env'
+														a(href=`/admin/auths/${provider.id}/edit`) Edit
+														form(method='post' action=`/admin/auths/${provider.id}/delete` onsubmit="return confirm('Delete this SSO source? Users linked to it keep their accounts, but this source is no longer offered on the login page.')")
+															input(name='_csrf' type='hidden' value=csrfToken)
+															button.btn.btn-sm.btn-danger(type='submit') Delete
+													else
+														| env
 
 							if form
 								// ---------------- new / edit form ----------------
