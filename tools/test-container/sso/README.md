@@ -84,6 +84,24 @@ The sample filter in `e2e-providers.json` **denies** `ssoadm@example.com` and
 **allows** `*@example.com`, so `ssoe2e` logs in and `ssoadm` is rejected —
 a clean positive/negative filter pair.
 
+### Browser vs curl caveat (mock cookie quirk)
+
+The soluto mock sets its session cookie (`idsrv.session`) as
+`SameSite=None` **without** `Secure`. Modern browsers reject a
+`SameSite=None` cookie that is not `Secure`, so a *browser* walk through the
+IdP login loses the session at the authorize-callback step (login loop /
+`access_denied`). This is a **mock limitation, not an Overleaf bug**.
+
+- The mock client must set `"RequireConsent": false` (done in
+  `oidc/config/clients.json`), otherwise the stripped mock auto-**denies**
+  consent.
+- For a reliable end-to-end OIDC check, drive it with `curl` (curl ignores
+  SameSite): follow `/oidc/<id>/login` → IdP `POST /Account/Login`
+  (`button=login` + the `__RequestVerificationToken`) → authorize callback
+  (returns `code`) → Overleaf callback (→ `302 /project`).
+- SAML has no such issue (the IdP POSTs the assertion directly to Overleaf),
+  so SAML can be tested in a browser.
+
 ## Files
 
 - `docker-compose.yml` — the stack (ports remapped to the free 21xxx range).
