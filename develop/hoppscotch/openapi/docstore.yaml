@@ -14,12 +14,16 @@ servers:
 x-hideTryItPanel: true
 tags:
   - name: Status
+    x-page-icon: heart-pulse
     description: Liveness, health check and metrics.
   - name: Docs
+    x-page-icon: file-lines
     description: Single docs.
   - name: Project
+    x-page-icon: folder-open
     description: All docs of one project.
   - name: Archive
+    x-page-icon: box-archive
     description: >-
       Moving docs between Mongo and object storage. Archiving only runs when the
       docstore `BACKEND` env var is set; otherwise these routes do nothing.

@@ -15,8 +15,10 @@ x-hideTryItPanel: true
 security: []
 tags:
   - name: Proxy
+    x-page-icon: globe
     description: Fetch an external URL.
   - name: Monitoring
+    x-page-icon: heart-pulse
     description: Status and metrics.
 paths:
   /:

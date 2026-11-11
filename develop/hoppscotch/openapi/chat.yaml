@@ -14,16 +14,20 @@ servers:
 x-hideTryItPanel: true
 tags:
   - name: Status
+    x-page-icon: heart-pulse
     description: Liveness and metrics.
   - name: Global messages
+    x-page-icon: comments
     description: >-
       The project chat. It is stored as the project's room without a
       `thread_id`.
   - name: Threads
+    x-page-icon: comment-dots
     description: >-
       Comment threads. The thread id is the comment id in the doc ranges (see
       document-updater and docstore).
   - name: Project
+    x-page-icon: folder-open
     description: All rooms of a project.
 paths:
   /status:

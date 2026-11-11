@@ -15,15 +15,19 @@ x-hideTryItPanel: true
 security: []
 tags:
   - name: Templates
+    x-page-icon: shapes
     description: >-
       Files of the template gallery. These routes exist only when
       `TEMPLATE_FILES_BUCKET_NAME` (or the fs fallback) sets the template
       store.
   - name: History blobs
+    x-page-icon: cubes
     description: Read-only access to history-v1's blob buckets.
   - name: Buckets
+    x-page-icon: bucket
     description: Any object in a named bucket.
   - name: Monitoring
+    x-page-icon: heart-pulse
     description: Status, health checks and metrics.
 paths:
   /template/{template_id}/v/{version}/{format}:

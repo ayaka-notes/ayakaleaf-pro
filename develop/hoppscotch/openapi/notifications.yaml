@@ -15,8 +15,10 @@ servers:
 x-hideTryItPanel: true
 tags:
   - name: Notifications
+    x-page-icon: bell
     description: Notifications of a user, or all notifications with a key.
   - name: Health
+    x-page-icon: heart-pulse
     description: Status, health check and metrics.
 paths:
   /user/{user_id}:

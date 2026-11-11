@@ -14,10 +14,13 @@ servers:
 x-hideTryItPanel: true
 tags:
   - name: Status
+    x-page-icon: heart-pulse
     description: Liveness, health checks and metrics.
   - name: Clients
+    x-page-icon: plug
     description: Connected socket.io clients.
   - name: Admin
+    x-page-icon: user-shield
     description: Operations on running connections.
 paths:
   /status:

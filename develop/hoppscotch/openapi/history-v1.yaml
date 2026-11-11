@@ -14,16 +14,22 @@ servers:
 x-hideTryItPanel: true
 tags:
   - name: Projects
+    x-page-icon: folder-open
     description: Create, clone and delete a project's history.
   - name: Blobs
+    x-page-icon: cubes
     description: File content stored by hash.
   - name: History
+    x-page-icon: clock-rotate-left
     description: Chunks, snapshots and changes.
   - name: Zips
+    x-page-icon: file-zipper
     description: The project as a zip file.
   - name: Import
+    x-page-icon: file-import
     description: Write changes into the history.
   - name: Monitoring
+    x-page-icon: heart-pulse
     description: Status, health checks and metrics.
 security:
   - basicAuth: []

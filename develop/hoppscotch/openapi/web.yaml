@@ -22,20 +22,28 @@ security:
   - privateApiBasicAuth: []
 tags:
   - name: Health
+    x-page-icon: heart-pulse
     description: Status, health checks and metrics.
   - name: Users
+    x-page-icon: users
     description: User data and expiry of deleted users.
   - name: Projects
+    x-page-icon: folder-open
     description: Project details, downloads, expiry and deactivation.
   - name: Documents
+    x-page-icon: file-lines
     description: Doc contents, read and written by document-updater.
   - name: Editor
+    x-page-icon: pen-to-square
     description: Joining a project from real-time.
   - name: History
+    x-page-icon: clock-rotate-left
     description: Project history resyncs.
   - name: TPDS
+    x-page-icon: cloud-arrow-up
     description: Third-party datastore updates (Dropbox sync and file updates by path).
   - name: git-bridge
+    x-page-icon: code-branch
     description: >-
       Module `git-bridge` (ours). Git Bridge API v0, registered only when
       `GIT_BRIDGE_ENABLED=true`. Uses a personal access token, not basic auth.

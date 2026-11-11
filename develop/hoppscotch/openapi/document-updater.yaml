@@ -13,14 +13,19 @@ servers:
 x-hideTryItPanel: true
 tags:
   - name: Status
+    x-page-icon: heart-pulse
     description: Liveness, health checks and metrics.
   - name: Docs
+    x-page-icon: file-lines
     description: Single docs held in Redis.
   - name: Ranges
+    x-page-icon: highlighter
     description: Comments and tracked changes of docs held in Redis.
   - name: Project
+    x-page-icon: folder-open
     description: All docs of one project held in Redis.
   - name: History
+    x-page-icon: clock-rotate-left
     description: Project history resync.
 paths:
   /status:

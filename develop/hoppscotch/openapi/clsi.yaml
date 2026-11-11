@@ -15,12 +15,16 @@ servers:
 x-hideTryItPanel: true
 tags:
   - name: Compile
+    x-page-icon: gears
     description: Compiles, stopping them and clearing the compile directory.
   - name: Output
+    x-page-icon: file-pdf
     description: SyncTeX, word count and output zip, read from the compile output.
   - name: Conversion
+    x-page-icon: arrow-right-arrow-left
     description: Pandoc and PDF conversions.
   - name: Health
+    x-page-icon: heart-pulse
     description: Status, health checks and metrics.
 paths:
   /status:

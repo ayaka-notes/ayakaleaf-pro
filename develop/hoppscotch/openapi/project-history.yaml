@@ -15,18 +15,25 @@ x-hideTryItPanel: true
 security: []
 tags:
   - name: Project
+    x-page-icon: folder-open
     description: Create, delete, clone and flush a project's history.
   - name: Diffs and updates
+    x-page-icon: code-compare
     description: Diffs and the summarized change list shown in the history pane.
   - name: Snapshots
+    x-page-icon: camera
     description: Files and file lists at a version.
   - name: Labels
+    x-page-icon: tag
     description: Named versions ("labels").
   - name: Resync
+    x-page-icon: rotate
     description: Resync state and debugging of one project.
   - name: Failures
+    x-page-icon: triangle-exclamation
     description: Projects whose queue failed to process, and their retry.
   - name: Monitoring
+    x-page-icon: heart-pulse
     description: Status, health checks and metrics.
 paths:
   /project:

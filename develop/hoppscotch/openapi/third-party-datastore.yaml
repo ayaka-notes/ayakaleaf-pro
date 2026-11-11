@@ -14,8 +14,10 @@ x-hideTryItPanel: true
 security: []
 tags:
   - name: Queue
+    x-page-icon: list-check
     description: The per-user job queue.
   - name: Monitoring
+    x-page-icon: heart-pulse
     description: Status, health checks and metrics.
 paths:
   /enqueue/web_to_tpds_http_requests:
