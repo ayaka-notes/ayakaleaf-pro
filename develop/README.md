@@ -23,15 +23,17 @@ Once the services are running, open <http://localhost/launchpad> to create the f
 
 `dev.rc`, next to `dev.env`, holds the switches of the dev environment, like `overleaf.rc` in the Overleaf Toolkit. Change a value there and run `bin/dev` again to apply it. A feature that is turned off also stops its containers.
 
-| Variable          | Default | What it does                                                                    |
-| ----------------- | ------- | ------------------------------------------------------------------------------- |
-| `OVERLEAF_PORT`   | `80`    | Host port of the site                                                           |
-| `LDAP_ENABLED`    | `true`  | LDAP login with the [test users](authentication/README.md)                      |
-| `SAML_ENABLED`    | `true`  | SAML login with the [test users](authentication/README.md)                      |
-| `MAILPIT_ENABLED` | `true`  | Catches every email from `web` in [Mailpit](https://github.com/axllent/mailpit) |
-| `S3_ENABLED`      | `true`  | Keeps history and template files in [RustFS](https://github.com/rustfs/rustfs)  |
+| Variable             | Default | What it does                                                                                                               |
+| -------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `OVERLEAF_PORT`      | `80`    | Host port of the site                                                                                                      |
+| `LDAP_ENABLED`       | `true`  | LDAP login with the [test users](authentication/README.md)                                                                 |
+| `SAML_ENABLED`       | `true`  | SAML login with the [test users](authentication/README.md)                                                                 |
+| `MAILPIT_ENABLED`    | `true`  | Catches every email from `web` in [Mailpit](https://github.com/axllent/mailpit)                                            |
+| `S3_ENABLED`         | `true`  | Keeps history and template files in [RustFS](https://github.com/rustfs/rustfs)                                             |
+| `HOPPSCOTCH_ENABLED` | `true`  | [Hoppscotch](https://github.com/hoppscotch/hoppscotch) with a proxy into the Docker network, see [Hoppscotch](#hoppscotch) |
+| `HOPPSCOTCH_PORT`    | `9170`  | Host port of Hoppscotch                                                                                                    |
 
-Each feature keeps its `docker-compose.yml` and other files in its own folder: `authentication/ldap`, `authentication/saml`, `mail` and `s3`. A feature that needs a `web` setting without an environment variable mounts a file into `/etc/overleaf/settings.d/`, and `settings.dev-env.cjs` merges all of them.
+Each feature keeps its `docker-compose.yml` and other files in its own folder: `authentication/ldap`, `authentication/saml`, `mail`, `s3` and `hoppscotch`. A feature that needs a `web` setting without an environment variable mounts a file into `/etc/overleaf/settings.d/`, and `settings.dev-env.cjs` merges all of them.
 
 The local volumes and RustFS are separate stores: a project created with `S3_ENABLED=true` has no history or binary files after switching to `false`, and the other way round.
 
@@ -71,8 +73,15 @@ These pages listen on `127.0.0.1` of the host. The site uses `OVERLEAF_PORT` fro
 | Site                   | <http://localhost>                      | The accounts of the site, or the [test users](authentication/README.md)     |
 | Email inbox (Mailpit)  | <http://localhost:8025>                 | None                                                                        |
 | S3 console (RustFS)    | <http://localhost:9001/rustfs/console/> | `rustfsadmin` / `rustfsadmin`                                               |
+| Hoppscotch             | <http://localhost:9170>                 | None                                                                        |
 
 The S3 API (port 9000) and SMTP (port 1025) are only reachable inside the Docker network.
+
+## Hoppscotch
+
+Hoppscotch sends requests from the browser, which cannot reach the services by their Docker names. To call them, for example `http://docstore:3016/status`, open Settings → Interceptor in Hoppscotch once, pick Proxy and set its URL to the Hoppscotch address plus `/proxy`, such as `http://localhost:9170/proxy`. The setting stays in the browser.
+
+`hoppscotch/openapi/` has an OpenAPI file for the internal API of each service. Import them in Collections → Import → Import from File, all files at once. Each file becomes a collection whose requests go to the service's Docker address.
 
 ## Development
 

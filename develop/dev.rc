@@ -14,3 +14,8 @@ MAILPIT_ENABLED=true
 # Keeps history and template files in RustFS instead of local volumes,
 # console on http://localhost:9001/rustfs/console/
 S3_ENABLED=true
+
+# Hoppscotch API client, with a proxy into the Docker network on /proxy,
+# see README.md
+HOPPSCOTCH_ENABLED=true
+HOPPSCOTCH_PORT=9170

@@ -231,20 +231,6 @@ services:
   # ...
   
   # Add those for your development
-  # API debug
-  hoppscotch-frontend:
-    image: hoppscotch/hoppscotch-frontend:latest
-    ports:
-      - "3000:3000"
-
-  hoppscotch-proxy:
-    image: hoppscotch/proxyscotch:latest
-    environment:
-      - PORT=9159
-    ports:
-      - "9159:9159"
-
-
   # Redis-insight
   redis-insight:
     image: redislabs/redisinsight:latest
