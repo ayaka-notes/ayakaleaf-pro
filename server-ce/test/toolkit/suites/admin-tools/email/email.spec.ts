@@ -404,4 +404,66 @@ describe('secondary emails', function () {
       cy.contains('li', primary)
     })
   })
+
+  // Deleting frees the emails, so another account can take one before the
+  // restore: the admin removes it from the deleted account, then restores
+  it('restores a deleted account without the secondary email another account took', function () {
+    const { primary, secondary } = accountWithSecondary('taken')
+    const taker = email('taken-taker')
+    login(ADMIN_EMAIL)
+    userId(primary).then(id => {
+      cy.visit('/admin/user')
+      postWithCsrf(`/admin/user/${id}/delete`, {}).its('status').should('equal', 200)
+      createUser(taker)
+      login(taker)
+      addConfirmedEmail(secondary)
+
+      login(ADMIN_EMAIL)
+      visitUser(id)
+      headerAction('Restore').click()
+      dialog().findByRole('button', { name: 'Restore' }).click()
+      dialog().should('contain.text', `Another account already uses ${secondary}`)
+      dialog().findByRole('button', { name: 'Cancel' }).click()
+      dialog().should('not.exist')
+
+      cy.contains('li', secondary).findByRole('button', { name: 'Remove' }).click()
+      cy.contains('li', secondary).should('not.exist')
+      expectLogged(`/admin/user/${id}`, 'remove-email')
+        .its('info.removedEmail')
+        .should('equal', secondary)
+      headerAction('Restore').click()
+      confirmDialog('Restore')
+      listedIds(primary, 'all').should('include', id)
+      listedIds(secondary, 'all').should('not.include', id)
+      userId(taker).then(takerId => {
+        listedIds(secondary, 'all').should('include', takerId)
+      })
+    })
+  })
+
+  it('does not restore a deleted account whose primary email another account took', function () {
+    const primary = email('taken-primary')
+    createUser(primary)
+    login(ADMIN_EMAIL)
+    userId(primary).then(id => {
+      cy.visit('/admin/user')
+      postWithCsrf(`/admin/user/${id}/delete`, {}).its('status').should('equal', 200)
+      createUser(email('taken-primary-taker'))
+      login(email('taken-primary-taker'))
+      addConfirmedEmail(primary)
+
+      login(ADMIN_EMAIL)
+      visitUser(id)
+      cy.contains('li', primary).findByRole('button', { name: 'Remove' }).should('not.exist')
+      postWithCsrf(`/admin/user/${id}/remove-email`, { email: primary })
+        .its('status')
+        .should('equal', 404)
+      headerAction('Restore').click()
+      dialog().findByRole('button', { name: 'Restore' }).click()
+      dialog().should('contain.text', `Another account already uses ${primary}`)
+      dialog().findByRole('button', { name: 'Cancel' }).click()
+      dialog().should('not.exist')
+      listedIds(primary, 'deleted').should('include', id)
+    })
+  })
 })

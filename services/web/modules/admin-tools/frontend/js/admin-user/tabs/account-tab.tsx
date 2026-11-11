@@ -167,7 +167,9 @@ function AccountTab({
                 {t('unconfirmed')}
               </span>
             )}
-            {editing && !email.primary && (
+            {/* a deleted user has no editing, and needs this to come back
+                without an email another account uses now */}
+            {(editing || user.deleted) && !email.primary && (
               <OLButton
                 variant="secondary"
                 size="sm"
