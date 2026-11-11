@@ -1,4 +1,4 @@
-import { beforeEach, describe, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 // TODO: This file was created by bulk-decaffeinate.
 // Fix any style issues and re-enable lint.
 /*
@@ -61,6 +61,27 @@ describe('ProjectZipStreamManager', function () {
       () => ({
         default: (ctx.FileStoreHandler = {}),
       })
+    )
+
+    ctx.DocstoreManager = {
+      promises: {
+        getAllDocsWithRanges: sinon
+          .stub()
+          .resolves([{ _id: 'doc-1', lines: ['hello'], ranges: {} }]),
+      },
+    }
+    ctx.ChatApiHandler = {
+      promises: {
+        getThreads: sinon.stub().resolves({}),
+      },
+    }
+    vi.doMock(
+      '../../../../app/src/Features/Docstore/DocstoreManager.mjs',
+      () => ({ default: ctx.DocstoreManager })
+    )
+    vi.doMock(
+      '../../../../app/src/Features/Chat/ChatApiHandler.mjs',
+      () => ({ default: ctx.ChatApiHandler })
     )
 
     ctx.ProjectZipStreamManager = (await import(modulePath)).default
@@ -474,6 +495,121 @@ describe('ProjectZipStreamManager', function () {
           name: path,
         })
       }
+    })
+  })
+
+  describe('review state bundle', function () {
+    beforeEach(async function (ctx) {
+      ctx.logger.warn = sinon.stub()
+      const archive = {
+        on() {},
+        append: sinon.stub(),
+        finalize: sinon.stub(),
+      }
+      ctx.archive = archive
+      ctx.archiver.returns(archive)
+      ctx.DocstoreManager.promises.getAllDocsWithRanges.resolves([
+        {
+          _id: 'doc-1',
+          lines: ['hello world'],
+          ranges: {
+            comments: [
+              { id: 'thr-1', op: { c: 'world', p: 6, t: 'thr-1' }, metadata: {} },
+            ],
+            changes: [],
+          },
+        },
+      ])
+      ctx.ChatApiHandler.promises.getThreads.resolves({
+        'thr-1': {
+          resolved: false,
+          messages: [
+            { user_id: 'user-1', content: 'world', timestamp: 123 },
+          ],
+        },
+      })
+      ctx.ProjectZipStreamManager.addAllDocsToArchive = (p, a, cb) => cb(null)
+      ctx.ProjectZipStreamManager.addAllFilesToArchive = (p, a, cb) => cb(null)
+      ctx.archive = await new Promise(resolve => {
+        ctx.ProjectZipStreamManager.createZipStreamForProject(
+          'project-1',
+          false,
+          undefined,
+          (err, stream) => resolve(stream)
+        )
+      })
+      // the bundle is appended asynchronously after the files callback
+      await new Promise(resolve => setImmediate(resolve))
+    })
+
+    it('appends the review state JSON with comments and threads', function (ctx) {
+      const call = ctx.archive.append.args.find(
+        a => a[1]?.name === 'overleaf-comments-and-changes.json'
+      )
+      expect(call, 'review JSON append missing').to.not.equal(undefined)
+      const parsed = JSON.parse(call[0])
+      expect(parsed.format).to.equal('overleaf-comments-and-changes')
+      expect(parsed.docs[0].ranges.comments[0].op.t).to.equal('thr-1')
+      expect(parsed.threads['thr-1'].messages[0].content).to.equal('world')
+      expect(ctx.archive.finalize.called).to.equal(true)
+    })
+
+    it('still finalizes the zip when the chat service fails', async function (ctx) {
+      ctx.ChatApiHandler.promises.getThreads.rejects(new Error('chat down'))
+      const archive = ctx.archive
+      archive.append.resetHistory()
+      archive.finalize.resetHistory()
+      await new Promise(resolve => {
+        ctx.ProjectZipStreamManager.createZipStreamForProject(
+          'project-1',
+          false,
+          undefined,
+          (err, stream) => resolve(stream)
+        )
+      })
+      await new Promise(resolve => setImmediate(resolve))
+      const call = archive.append.args.find(
+        a => a[1]?.name === 'overleaf-comments-and-changes.json'
+      )
+      const parsed = JSON.parse(call[0])
+      expect(parsed.threads).to.deep.equal({})
+      expect(archive.finalize.called).to.equal(true)
+    })
+
+    it('getReviewState propagates a docstore failure', async function (ctx) {
+      const { getReviewState } = await import(modulePath)
+      ctx.DocstoreManager.promises.getAllDocsWithRanges.rejects(
+        new Error('docstore down')
+      )
+      let threw = null
+      try {
+        await getReviewState('project-1')
+      } catch (err) {
+        threw = err
+      }
+      expect(threw).to.not.equal(null)
+      expect(threw.message).to.match(/docstore down/)
+    })
+
+    it('does not bundle the review JSON when includeReviewState is false (templates)', async function (ctx) {
+      ctx.archive.append.resetHistory()
+      ctx.archive.finalize.resetHistory()
+      const archive = ctx.archive
+      await new Promise(resolve => {
+        ctx.ProjectZipStreamManager.createZipStreamForProject(
+          'project-1',
+          false,
+          undefined,
+          (err, stream) => resolve(stream),
+          { includeReviewState: false }
+        )
+      })
+      await new Promise(resolve => setImmediate(resolve))
+      const call = archive.append.args.find(
+        a => a[1]?.name === 'overleaf-comments-and-changes.json'
+      )
+      expect(call).to.equal(undefined)
+      expect(archive.finalize.called).to.equal(true)
     })
   })
 })

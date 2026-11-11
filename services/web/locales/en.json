@@ -3384,6 +3384,7 @@
   "your_git_access_info_bullet_3": "You can generate a token using the <0>Generate token</0> button.",
   "your_git_access_info_bullet_4": "You won’t be able to view the full token after the first time you generate it. Please copy it and keep it safe",
   "your_git_access_info_bullet_5": "Previously generated tokens will be shown here.",
+  "your_git_access_info_review_comments_api": "The same tokens also authenticate the review comments API of your projects, documented at /api/v1.",
   "your_git_access_tokens": "Your Git authentication tokens",
   "your_limit_will_reset_in_time_or_speak_to_admin": "Your limit will reset in __time__. Or speak to your group admin about upgrading.",
   "your_message_to_collaborators": "Send a message to your collaborators",
