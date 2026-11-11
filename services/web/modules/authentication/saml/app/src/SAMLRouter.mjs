@@ -17,6 +17,15 @@ function requireSamlProvider(req, res, next) {
   next()
 }
 
+function loginWhitelistPaths() {
+  const paths = []
+  for (const provider of store.ofType('saml')) {
+    const id = encodeURIComponent(provider.id)
+    paths.push(`/saml/${id}/login`, `/saml/${id}/login/callback`)
+  }
+  return paths
+}
+
 export default {
   apply(webRouter) {
     logger.debug({}, 'Init SAML router')
@@ -61,7 +70,7 @@ export default {
         SAMLAuthenticationController.getSPMetadata(req.ssoProvider)(req, res)
     )
 
-    for (const path of ['/saml/login', '/saml/meta']) {
+    for (const path of [...loginWhitelistPaths(), '/saml/login', '/saml/meta']) {
       AuthenticationController.addEndpointToLoginWhitelist(path)
     }
 
@@ -69,10 +78,8 @@ export default {
 
     // keep the login whitelist current when the admin adds IdPs
     store.onChange(() => {
-      for (const provider of store.ofType('saml')) {
-        AuthenticationController.addEndpointToLoginWhitelist(
-          `/saml/${encodeURIComponent(provider.id)}/login`
-        )
+      for (const path of loginWhitelistPaths()) {
+        AuthenticationController.addEndpointToLoginWhitelist(path)
       }
     })
   },
