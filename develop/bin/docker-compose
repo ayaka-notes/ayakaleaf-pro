@@ -21,6 +21,7 @@ add_feature SAML_ENABLED authentication/saml
 add_feature MAILPIT_ENABLED mail
 add_feature S3_ENABLED s3
 add_feature HOPPSCOTCH_ENABLED hoppscotch
+add_feature GRAFANA_ENABLED grafana
 
 auth=()
 [[ $LDAP_ENABLED == true ]] && auth+=(ldap)

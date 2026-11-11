@@ -1,0 +1,679 @@
+#!/usr/bin/env python3
+"""Writes the Grafana dashboards into one "Overleaf Develop" folder:
+"All services" (the home dashboard), Server, Errors, Data flow, Containers and
+one dashboard per service, git-bridge, mongo and redis included. Run it after changing this file."""
+
+import json
+import pathlib
+import shutil
+
+HERE = pathlib.Path(__file__).resolve().parent / "dashboards" / "Overleaf Develop"
+SERVICES = [
+    "web", "document-updater", "docstore", "real-time", "chat", "project-history",
+    "history-v1", "filestore", "clsi", "notifications", "linked-url-proxy",
+    "third-party-datastore",
+]
+MONGO_SERVICES = {
+    "web", "document-updater", "docstore", "chat", "project-history", "history-v1",
+    "notifications", "third-party-datastore",
+}
+COLORS = dict(zip(SERVICES + ["git-bridge"], [
+    "#5794F2", "#FF9830", "#73BF69", "#F2CC0C", "#B877D9", "#FF7383",
+    "#8AB8FF", "#C0D8FF", "#FADE2A", "#96D98D", "#CA95E5", "#FFA6B0", "#FFB357",
+]))
+PROM = {"type": "prometheus", "uid": "prometheus"}
+LOKI = {"type": "loki", "uid": "loki"}
+TAG = "overleaf-develop"
+LINKS = [
+    {"title": "All services", "type": "link", "url": "/d/develop/all-services", "icon": "dashboard", "keepTime": True},
+    {"title": "Server", "type": "link", "url": "/d/develop-server/server", "icon": "dashboard", "keepTime": True},
+    {"title": "Errors", "type": "link", "url": "/d/develop-errors/errors", "icon": "bolt", "keepTime": True},
+    {"title": "Dashboards", "type": "dashboards", "tags": [TAG], "asDropdown": True, "keepTime": True},
+]
+RESTARTS = {
+    "name": "Restarts", "datasource": PROM, "enable": True, "iconColor": "orange",
+    "expr": "changes(process_start_time_seconds[1m]) > 0", "step": "30s",
+    "titleFormat": "{{service}} restarted",
+}
+GREEN, YELLOW, RED, BLUE, PURPLE = "#73BF69", "#F2CC0C", "#F2495C", "#5794F2", "#B877D9"
+SERVICE_LINK = {"title": "Open ${__field.labels.service}", "url": "/d/develop-${__field.labels.service}?${__url_time_range}"}
+
+
+def steps(*pairs):
+    return {"mode": "absolute", "steps": [{"color": c, "value": v} for v, c in pairs]}
+
+
+class Board:
+    def __init__(self):
+        self.panels, self.y = [], 0
+
+    def add(self, panel, w, h, x=0):
+        panel["id"] = len(self.panels) + 1
+        panel["gridPos"] = {"x": x, "y": self.y, "w": w, "h": h}
+        self.panels.append(panel)
+
+    def row(self, title):
+        self.add({"type": "row", "title": title, "collapsed": False, "panels": []}, 24, 1)
+        self.y += 1
+
+    def line(self, panels, h):
+        """Puts the panels next to each other, with equal widths."""
+        w = 24 // len(panels)
+        for i, panel in enumerate(panels):
+            self.add(panel, w, h, i * w)
+        self.y += h
+
+
+def targets(queries, ds, instant=False):
+    out = []
+    for i, (expr, legend) in enumerate(queries):
+        t = {"refId": chr(65 + i), "datasource": ds, "expr": expr, "legendFormat": legend}
+        if instant:
+            t.update({"instant": True, "range": False, "queryType": "instant"})
+        out.append(t)
+    return out
+
+
+def service_colors():
+    return [{"matcher": {"id": "byName", "options": s}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": c}}]}
+            for s, c in COLORS.items()]
+
+
+def series(title, queries, unit, ds=PROM, description=None, stack=False, bars=False, links=None, legend="table"):
+    custom = {"lineWidth": 2, "fillOpacity": 12, "gradientMode": "opacity", "lineInterpolation": "smooth",
+              "showPoints": "never", "spanNulls": True}
+    if bars:
+        custom.update({"drawStyle": "bars", "fillOpacity": 70, "gradientMode": "none", "lineWidth": 0})
+    if stack:
+        custom["stacking"] = {"mode": "normal", "group": "A"}
+    defaults = {"unit": unit, "custom": custom, "min": 0}
+    if links:
+        defaults["links"] = links
+    panel = {
+        "type": "timeseries", "title": title, "datasource": ds, "targets": targets(queries, ds),
+        "fieldConfig": {"defaults": defaults, "overrides": service_colors()},
+        "options": {"legend": {"displayMode": legend, "placement": "right" if legend == "table" else "bottom",
+                               "calcs": ["lastNotNull", "max"] if legend == "table" else []},
+                    "tooltip": {"mode": "multi", "sort": "desc"}},
+    }
+    if description:
+        panel["description"] = description
+    return panel
+
+
+def kpi(title, expr, unit, thresholds, ds=PROM, description=None, spark=True, decimals=None, mappings=None, links=None):
+    """One big number with a trend line behind it. Only numbers with a good and a
+    bad range (more than one threshold step) get a coloured background."""
+    defaults = {"unit": unit, "color": {"mode": "thresholds"}, "thresholds": thresholds, "noValue": "0"}
+    if decimals is not None:
+        defaults["decimals"] = decimals
+    if mappings:
+        defaults["mappings"] = mappings
+    if links:
+        defaults["links"] = links
+    panel = {
+        "type": "stat", "title": title, "datasource": ds, "targets": targets([(expr, "")], ds),
+        "fieldConfig": {"defaults": defaults, "overrides": []},
+        "options": {"colorMode": "background" if len(thresholds["steps"]) > 1 else "none",
+                    "graphMode": "area" if spark else "none", "textMode": "value",
+                    "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False}},
+    }
+    if description:
+        panel["description"] = description
+    return panel
+
+
+def grid(title, expr, legend, defaults, color="background"):
+    """One tile per series, laid out in rows."""
+    return {
+        "type": "stat", "title": title, "datasource": PROM, "targets": targets([(expr, legend)], PROM),
+        "fieldConfig": {"defaults": defaults, "overrides": []},
+        "options": {"colorMode": color, "graphMode": "none", "textMode": "value_and_name", "orientation": "auto",
+                    "minVizWidth": 150, "minVizHeight": 50,
+                    "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False}},
+    }
+
+
+def bars(title, queries, unit, ds=PROM, description=None, color=BLUE, links=None):
+    """Horizontal bars, one per series, biggest first."""
+    defaults = {"unit": unit, "min": 0, "color": {"mode": "fixed", "fixedColor": color}, "noValue": "None"}
+    if links:
+        defaults["links"] = links
+    panel = {
+        "type": "bargauge", "title": title, "datasource": ds, "targets": targets(queries, ds, instant=True),
+        "fieldConfig": {"defaults": defaults, "overrides": []},
+        "options": {"orientation": "horizontal", "displayMode": "gradient", "valueMode": "color", "showUnfilled": True,
+                    "namePlacement": "left", "sizing": "manual", "minVizHeight": 18, "maxVizHeight": 26,
+                    "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False}},
+        "transformations": [{"id": "sortBy", "options": {"sort": [{"field": "Value", "desc": True}]}}],
+    }
+    if description:
+        panel["description"] = description
+    return panel
+
+
+def gauge(title, expr, legend, unit, thresholds, maximum, description=None):
+    panel = {
+        "type": "gauge", "title": title, "datasource": PROM, "targets": targets([(expr, legend)], PROM),
+        "fieldConfig": {"defaults": {"unit": unit, "min": 0, "max": maximum, "color": {"mode": "thresholds"},
+                                     "thresholds": thresholds}, "overrides": []},
+        "options": {"showThresholdLabels": False, "showThresholdMarkers": True,
+                    "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False}},
+    }
+    if description:
+        panel["description"] = description
+    return panel
+
+
+def logs(title, expr):
+    return {"type": "logs", "title": title, "datasource": LOKI, "targets": [{"refId": "A", "datasource": LOKI, "expr": expr}],
+            # showLevel adds the level to each line, showControls the bar on the side
+            # of the panel that filters by level, sorts and wraps
+            "options": {"showTime": True, "showLevel": True, "showControls": True, "syntaxHighlighting": True,
+                        "enableInfiniteScrolling": True, "wrapLogMessage": True, "prettifyLogMessage": False,
+                        "enableLogDetails": True, "sortOrder": "Descending", "dedupStrategy": "none"}}
+
+
+UP = {
+    "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": RED}, "1": {"text": "UP", "color": GREEN}}}],
+    "color": {"mode": "thresholds"}, "thresholds": steps((None, RED), (1, GREEN)),
+}
+LEVEL_VAR = {"name": "level", "label": "Log level", "type": "custom", "query": "fatal,error,warn,info,debug,trace",
+             "multi": True, "includeAll": True, "allValue": ".*", "current": {"text": "All", "value": "$__all"}}
+SEARCH_VAR = {"name": "search", "label": "Log search", "type": "textbox", "query": "", "current": {"text": "", "value": ""}}
+SERVICE_VAR = {"name": "service", "label": "Service", "type": "query", "datasource": LOKI, "query": "label_values(service)",
+               "refresh": 2, "multi": True, "includeAll": True, "allValue": ".+", "sort": 1,
+               "current": {"text": "All", "value": "$__all"}}
+LEVEL_COLORS = [{"matcher": {"id": "byName", "options": n}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": c}}]}
+                for n, c in [("fatal", PURPLE), ("error", RED), ("warn", YELLOW), ("info", GREEN), ("debug", BLUE), ("trace", "#8e8e8e")]]
+
+
+def log_panels(board, selector):
+    logq = selector[:-1] + ', level=~"$level"} |= "$search"'
+    board.row("Logs")
+    lines = series("Log lines", [(f"sum by (level) (count_over_time({logq} [$__interval]))", "{{level}}")], "short", LOKI,
+                   stack=True, bars=True, legend="list")
+    lines["fieldConfig"]["overrides"] = LEVEL_COLORS
+    board.line([lines], 6)
+    board.line([logs("Logs", logq)], 20)
+
+
+def avg(metric, selector, by=""):
+    """Mean of a histogram or summary over 5 minutes."""
+    by = f" by ({by})" if by else ""
+    return f"sum{by} (rate({metric}_sum{{{selector}}}[5m])) / sum{by} (rate({metric}_count{{{selector}}}[5m]))"
+
+
+def dashboard(uid, title, board, variables, description):
+    return {
+        "uid": uid, "title": title, "description": description, "tags": [TAG], "links": LINKS,
+        "timezone": "browser", "refresh": "10s", "time": {"from": "now-1h", "to": "now"}, "schemaVersion": 39,
+        "editable": True, "graphTooltip": 1, "panels": board.panels,
+        "templating": {"list": variables}, "annotations": {"list": [RESTARTS]},
+    }
+
+
+def state(sel):
+    """up of the Node.js services, with mongo and redis from their exporters, which
+    prometheus.yml labels with service="mongo" and service="redis"."""
+    return f"up{{job=\"overleaf\",{sel}}} or mongodb_up{{{sel}}} or redis_up{{{sel}}}"
+
+
+def host_memory(kind):
+    """Used memory of the host in GiB; the total comes from node-exporter and sets
+    the maximum, so the colours and the gauge follow the share of the total."""
+    used = "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes"
+    panel = {
+        "type": kind, "title": "Memory used", "datasource": PROM,
+        "targets": targets([(used, "used"), ("node_memory_MemTotal_bytes", "total")], PROM),
+        "fieldConfig": {"defaults": {"unit": "bytes", "decimals": 1, "min": 0, "color": {"mode": "thresholds"},
+                                     "thresholds": {"mode": "percentage", "steps": [{"color": GREEN, "value": None},
+                                                                                    {"color": YELLOW, "value": 75},
+                                                                                    {"color": RED, "value": 90}]}},
+                        "overrides": []},
+        "transformations": [{"id": "configFromData", "options": {"configRefId": "B", "mappings": [
+            {"fieldName": "total", "handlerKey": "max"}]}}],
+        "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False}},
+    }
+    if kind == "gauge":
+        panel["options"].update({"showThresholdLabels": False, "showThresholdMarkers": True})
+    else:
+        panel["options"].update({"colorMode": "background", "graphMode": "area", "textMode": "value", "justifyMode": "center"})
+    return panel
+
+
+def all_services():
+    b, sel = Board(), 'service=~"$service"'
+    http = "timer_http_request_count"
+    b.line([
+        kpi("Services up", f'count(({state('service!=""')}) == 1)', "none", steps((None, RED), (len(SERVICES) + 3, GREEN)),
+            description=f"Of the {len(SERVICES)} Node.js services, git-bridge, mongo and redis."),
+        kpi("Requests", f"sum(rate({http}[1m]))", "reqps", steps((None, BLUE)), decimals=1),
+        kpi("5xx responses", f'(sum(rate({http}{{status_code=~"5.."}}[5m])) / (sum(rate({http}[5m])) > 0)) or vector(0)',
+            "percentunit", steps((None, GREEN), (0.01, YELLOW), (0.05, RED)), decimals=1,
+            links=[{"title": "Open Errors", "url": "/d/develop-errors/errors?${__url_time_range}"}]),
+        kpi("Error logs, 5 min", 'sum(count_over_time({service=~".+", level=~"error|fatal"} [5m]))', "none",
+            steps((None, GREEN), (1, YELLOW), (20, RED)), LOKI,
+            links=[{"title": "Open Errors", "url": "/d/develop-errors/errors?${__url_time_range}"}]),
+        kpi("Active users", 'max(num_active_users{service="web"})', "none", steps((None, PURPLE)),
+            description="Users seen by web in the last hour."),
+        kpi("Containers", 'count(container_memory_working_set_bytes{service!="", service!="compile"})', "none", steps((None, BLUE)), spark=False,
+            description="Containers of the development environment, without the sandboxed compiles."),
+        kpi("CPU, all containers", 'sum(rate(container_cpu_usage_seconds_total{service!=""}[1m]))', "percentunit",
+            steps((None, GREEN), (4, YELLOW), (7, RED)), description="100% is one core.", decimals=0),
+        kpi("Memory, all containers", 'sum(container_memory_working_set_bytes{service!=""})', "bytes",
+            steps((None, GREEN), (16e9, YELLOW), (24e9, RED)), decimals=1),
+    ], 4)
+    b.row("Services")
+    # One click on a tile opens the dashboard of that service
+    up = dict(UP, links=[dict(SERVICE_LINK, oneClick=True)])
+    b.add(grid("State", state(sel), "{{service}}", up), 12, 8)
+    cores = 'count(node_cpu_seconds_total{mode="idle"})'
+    to_server = [{"title": "Open Server", "url": "/d/develop-server/server?${__url_time_range}"}]
+    host = [
+        gauge("CPU busy", f'1 - sum(rate(node_cpu_seconds_total{{mode="idle"}}[1m])) / {cores}', "", "percentunit",
+              steps((None, GREEN), (0.6, YELLOW), (0.85, RED)), 1),
+        gauge("Load per core", f"node_load1 / scalar({cores})", "", "percentunit", steps((None, GREEN), (0.7, YELLOW), (1, RED)), 2,
+              "The 1 minute load average divided by the number of cores."),
+        host_memory("gauge"),
+        kpi("Compiles per minute", "sum(rate(clsi_compiles_total[1m])) * 60", "none", steps((None, PURPLE)), decimals=1),
+    ]
+    # 2 x 2 next to State
+    for i, panel in enumerate(host):
+        panel["links"] = to_server
+        b.add(panel, 6, 4, 12 + 6 * (i % 2))
+        b.panels[-1]["gridPos"]["y"] = b.y + 4 * (i // 2)
+    b.y += 8
+    b.row("Resources")
+    b.line([series("CPU", [(f"rate(process_cpu_seconds_total{{{sel}}}[1m])", "{{service}}")], "percentunit", links=[SERVICE_LINK]),
+            series("Memory (RSS)", [(f"process_resident_memory_bytes{{{sel}}}", "{{service}}")], "bytes", links=[SERVICE_LINK])], 8)
+    b.line([series("Heap used", [(f"nodejs_heap_size_used_bytes{{{sel}}}", "{{service}}")], "bytes", links=[SERVICE_LINK]),
+            series("Event loop lag (p99)", [(f"nodejs_eventloop_lag_p99_seconds{{{sel}}}", "{{service}}")], "s", links=[SERVICE_LINK])], 8)
+    b.row("HTTP")
+    b.line([series("Requests", [(f"sum by (service) (rate({http}{{{sel}}}[1m]))", "{{service}}")], "reqps", links=[SERVICE_LINK]),
+            series("5xx responses", [(f'sum by (service) (rate({http}{{{sel},status_code=~"5.."}}[5m]))', "{{service}}")], "reqps", links=[SERVICE_LINK]),
+            series("Response time (p95)", [(f'max by (service) (timer_http_request{{{sel},quantile="0.95"}})', "{{service}}")], "ms", links=[SERVICE_LINK])], 8)
+    log_panels(b, '{service=~"$service"}')
+    return dashboard("develop", "All services", b, [SERVICE_VAR, LEVEL_VAR, SEARCH_VAR],
+                     "State, load and logs of every service of the development environment.")
+
+
+def errors():
+    b = Board()
+    err = '{service=~"$service", level=~"error|fatal"} |= "$search"'
+    http5 = 'timer_http_request_count{service=~"$service",status_code=~"5.."}'
+    http4 = 'timer_http_request_count{service=~"$service",status_code=~"4.."}'
+    b.line([
+        kpi("Error logs", f"sum(count_over_time({err} [$__range]))", "none", steps((None, GREEN), (1, YELLOW), (50, RED)), LOKI, spark=False),
+        kpi("Fatal logs", 'sum(count_over_time({service=~"$service", level="fatal"} [$__range]))', "none", steps((None, GREEN), (1, RED)), LOKI, spark=False),
+        kpi("5xx responses", f"sum(increase({http5}[$__range])) or vector(0)", "none", steps((None, GREEN), (1, YELLOW), (50, RED)), decimals=0, spark=False),
+        kpi("4xx responses", f"sum(increase({http4}[$__range])) or vector(0)", "none", steps((None, BLUE)), decimals=0, spark=False),
+    ], 4)
+    b.row("Where")
+    b.line([series("Error logs by service", [(f"sum by (service) (count_over_time({err} [$__interval]))", "{{service}}")], "short", LOKI,
+                   stack=True, bars=True, links=[SERVICE_LINK]),
+            series("5xx responses by service", [(f"sum by (service) (increase({http5}[$__rate_interval]))", "{{service}}")], "short",
+                   stack=True, bars=True, links=[SERVICE_LINK])], 8)
+    b.row("What")
+    b.line([bars("Most frequent error messages",
+                 [(f'topk(15, sum by (service, msg) (count_over_time({err} | json msg="msg" | msg != "" [$__range])))', "{{service}} · {{msg}}")],
+                 "none", LOKI, "The msg field of the bunyan error and fatal lines, over the time range.", RED, [SERVICE_LINK]),
+            bars("Routes that return 5xx",
+                 [(f"topk(15, sum by (service, method, path, status_code) (increase({http5}[$__range])) > 0)", "{{service}} · {{method}} {{path}} · {{status_code}}")],
+                 "none", description="Over the time range. path is the route name that the service gives to its metrics.", color=RED, links=[SERVICE_LINK])], 12)
+    b.line([bars("Routes that return 4xx",
+                 [(f"topk(15, sum by (service, method, path, status_code) (increase({http4}[$__range])) > 0)", "{{service}} · {{method}} {{path}} · {{status_code}}")],
+                 "none", color=YELLOW, links=[SERVICE_LINK]),
+            series("Warnings by service", [('sum by (service) (count_over_time({service=~"$service", level="warn"} |= "$search" [$__interval]))', "{{service}}")],
+                   "short", LOKI, stack=True, bars=True, links=[SERVICE_LINK])], 9)
+    b.row("Logs")
+    b.line([logs("Error and fatal logs", err)], 22)
+    return dashboard("develop-errors", "Errors", b, [SERVICE_VAR, SEARCH_VAR],
+                     "Error logs and failed requests of every service, in one place.")
+
+
+def data_flow():
+    b = Board()
+    du, ph, hv = 'service="document-updater"', 'service="project-history"', 'service="history-v1"'
+    b.row("Editor to Redis: document-updater")
+    b.line([series("Pending updates per flush", [(avg("histogram_redis_pendingUpdates_llen", du, "path"), "{{path}}")], "short",
+                   description="Mean length of the pending updates list in Redis each time document-updater reads it."),
+            series("Loading a doc", [(f'max(timer_redis_get_doc{{{du},quantile="0.95"}})', "from Redis, p95"),
+                                     (f'max(timer_http_getDoc{{{du},quantile="0.95"}})', "from web and docstore, p95")], "ms"),
+            series("Doc size in Redis", [(f'max(redis_docLines{{{du},quantile="0.95"}})', "p95"), (f'max(redis_docLines{{{du},quantile="0.5"}})', "p50")], "bytes")], 8)
+    b.row("Redis to history: project-history")
+    b.line([series("Projects waiting for a flush", [(f"max(queued_projects{{{ph}}})", "queued projects"), (f"max(max_queue_size{{{ph}}})", "longest queue")], "short",
+                   description="project-history processes a project every 500 ops, on an unload, by a cron or on a read that flushes first."),
+            series("Flush", [(avg("history_flush_duration_seconds", ph), "mean duration")], "s"),
+            series("Updates per flush", [(avg("history_flush_queue_size", ph), "mean queue size")], "short"),
+            series("Flush attempts", [(f"max(attempts{{{ph}}})", "attempts"), (f"max(failed{{{ph}}})", "failed"), (f"max(requests{{{ph}}})", "requests")], "short")], 8)
+    b.row("history-v1")
+    b.line([series("Reading changes", [(f"sum(rate(chunk_store_redis_get_non_persisted_changes{{{hv}}}[5m]))", "not yet persisted, from Redis"),
+                                       (f"sum(rate(chunk_store_redis_get_changes_since_version{{{hv}}}[5m]))", "since a version, from Redis"),
+                                       (f"sum(rate(chunk_store_get_changes_since_version{{{hv}}}[5m]))", "since a version")], "ops"),
+            series("Requests by route", [(f"sum by (method, path) (rate(timer_http_request_count{{{hv}}}[1m]))", "{{method}} {{path}}")], "reqps")], 8)
+    b.row("Mongo, as the services see it")
+    b.line([series("Commands by service", [("sum by (service) (rate(mongo_command_started[1m]))", "{{service}}")], "ops", links=[SERVICE_LINK]),
+            series("Commands by collection", [("sum by (collection, method) (rate(mongo_command_started[1m]))", "{{collection}} {{method}}")], "ops"),
+            series("Command time (mean)", [(avg("mongo_command_time", "", "service"), "{{service}}")], "ms", links=[SERVICE_LINK])], 9)
+    b.line([series("Connections in use", [("mongo_connection_pool_size - mongo_connection_pool_available", "{{service}}")], "short", links=[SERVICE_LINK]),
+            series("Requests waiting for a connection", [("mongo_connection_pool_waiting", "{{service}}")], "short", links=[SERVICE_LINK])], 7)
+    b.row("Object storage: filestore and history-v1")
+    b.line([series("Reads by bucket", [("sum by (service, bucket) (rate(s3_ingress[1m]))", "{{service}} · {{bucket}}")], "Bps",
+                   description="Bytes read from the object store, RustFS when S3_ENABLED is on."),
+            series("Read latency", [(avg("histogram_s3_ingress_latency", "", "service"), "{{service}}, whole read"),
+                                    (avg("histogram_s3_ingress_latency_first_byte", "", "service"), "{{service}}, first byte")], "ms")], 8)
+    return dashboard("develop-data-flow", "Data flow", b, [],
+                     "The path of an edit: document-updater and Redis, project-history, history-v1, Mongo and the object store.")
+
+
+def git_bridge():
+    """git-bridge is Java: JVM metrics, no HTTP request metrics."""
+    b, sel = Board(), 'service="git-bridge"'
+    heap = f'jvm_memory_bytes_used{{{sel},area="heap"}}'
+    b.line([
+        kpi("State", f"up{{{sel}}}", "none", steps((None, RED), (1, GREEN)), spark=False, mappings=UP["mappings"]),
+        kpi("Uptime", f"time() - process_start_time_seconds{{{sel}}}", "s", steps((None, BLUE)), spark=False, decimals=0),
+        kpi("Heap used", f'{heap} / jvm_memory_bytes_max{{{sel},area="heap"}}', "percentunit",
+            steps((None, GREEN), (0.75, YELLOW), (0.9, RED)), decimals=0),
+        kpi("Threads", f"jvm_threads_current{{{sel}}}", "none", steps((None, BLUE))),
+        kpi("Time in GC", f"sum(rate(jvm_gc_collection_seconds_sum{{{sel}}}[1m]))", "percentunit",
+            steps((None, GREEN), (0.05, YELLOW), (0.2, RED)), decimals=1),
+        kpi("Error logs, 1 h", 'sum(count_over_time({%s, level=~"error|fatal"} [1h]))' % sel, "none",
+            steps((None, GREEN), (1, YELLOW), (20, RED)), LOKI, spark=False),
+    ], 4)
+    b.row("Resources")
+    b.line([series("CPU", [(f"rate(process_cpu_seconds_total{{{sel}}}[1m])", "process"),
+                           (f"sum(rate(container_cpu_usage_seconds_total{{{sel}}}[1m]))", "container")], "percentunit"),
+            series("Memory", [(f"process_resident_memory_bytes{{{sel}}}", "rss"), (heap, "heap used"),
+                              (f'jvm_memory_bytes_committed{{{sel},area="heap"}}', "heap committed"),
+                              (f'jvm_memory_bytes_max{{{sel},area="heap"}}', "heap max"),
+                              (f'jvm_memory_bytes_used{{{sel},area="nonheap"}}', "non-heap used")], "bytes")], 8)
+    b.row("JVM")
+    b.line([series("Garbage collection", [(f"sum by (gc) (rate(jvm_gc_collection_seconds_sum{{{sel}}}[1m]))", "{{gc}}")], "percentunit",
+                   description="Share of time spent in each collector."),
+            series("Collections", [(f"sum by (gc) (rate(jvm_gc_collection_seconds_count{{{sel}}}[1m]))", "{{gc}}")], "ops"),
+            series("Memory pools", [(f"jvm_memory_pool_bytes_used{{{sel}}}", "{{pool}}")], "bytes")], 8)
+    b.line([series("Threads by state", [(f"jvm_threads_state{{{sel}}}", "{{state}}")], "short", stack=True),
+            series("Open files", [(f"process_open_fds{{{sel}}}", "open"), (f"process_max_fds{{{sel}}}", "limit")], "short"),
+            series("Classes loaded", [(f"jvm_classes_loaded{{{sel}}}", "loaded")], "short")], 8)
+    log_panels(b, "{" + sel + "}")
+    return dashboard("develop-git-bridge", "git-bridge", b, [LEVEL_VAR, SEARCH_VAR],
+                     "git-bridge, the Git access to projects. It is written in Java, so this shows JVM metrics and its logs.")
+
+
+def mongo():
+    b = Board()
+    b.line([
+        kpi("State", "mongodb_up", "none", steps((None, RED), (1, GREEN)), spark=False, mappings=UP["mappings"]),
+        kpi("Connections", 'mongodb_ss_connections{conn_type="current"}', "none", steps((None, BLUE))),
+        kpi("Operations", "sum(rate(mongodb_ss_opcounters[1m]))", "ops", steps((None, BLUE)), decimals=1),
+        kpi("Memory", "mongodb_ss_mem_resident * 1024 * 1024", "bytes", steps((None, GREEN), (2e9, YELLOW), (4e9, RED)), decimals=1),
+        kpi("Data size", 'mongodb_dbstats_dataSize{database="sharelatex"}', "bytes", steps((None, PURPLE)), decimals=1, spark=False),
+        kpi("Documents", 'mongodb_dbstats_objects{database="sharelatex"}', "short", steps((None, PURPLE)), spark=False),
+    ], 4)
+    b.row("Load")
+    b.line([series("Operations by type", [("rate(mongodb_ss_opcounters[1m])", "{{legacy_op_type}}")], "ops"),
+            series("Latency by type", [("rate(mongodb_ss_opLatencies_latency[5m]) / rate(mongodb_ss_opLatencies_ops[5m])", "{{op_type}}")], "µs"),
+            series("Network", [("rate(mongodb_ss_network_bytesIn[1m])", "in"), ("rate(mongodb_ss_network_bytesOut[1m])", "out")], "Bps")], 8)
+    b.row("Collections")
+    b.line([bars("Largest collections", [('topk(15, mongodb_collstats_storageStats_size{database="sharelatex"})', "{{collection}}")], "bytes", color=PURPLE),
+            bars("Collections with most documents", [('topk(15, mongodb_collstats_storageStats_count{database="sharelatex"})', "{{collection}}")], "short", color=BLUE),
+            series("Connections", [("mongodb_ss_connections", "{{conn_type}}"),
+                                   ("mongodb_ss_globalLock_activeClients_total", "active clients")], "short")], 11)
+    log_panels(b, '{service="mongo"}')
+    return dashboard("develop-mongo", "mongo", b, [LEVEL_VAR, SEARCH_VAR], "MongoDB, from mongodb-exporter.")
+
+
+def redis():
+    b = Board()
+    b.line([
+        kpi("State", "redis_up", "none", steps((None, RED), (1, GREEN)), spark=False, mappings=UP["mappings"]),
+        kpi("Clients", "redis_connected_clients", "none", steps((None, BLUE))),
+        kpi("Commands", "rate(redis_commands_processed_total[1m])", "ops", steps((None, BLUE)), decimals=1),
+        kpi("Memory", "redis_memory_used_bytes", "bytes", steps((None, GREEN), (1e9, YELLOW), (2e9, RED)), decimals=1),
+        kpi("Keys", "sum(redis_db_keys)", "short", steps((None, PURPLE))),
+        kpi("Cache hits", "rate(redis_keyspace_hits_total[5m]) / (rate(redis_keyspace_hits_total[5m]) + rate(redis_keyspace_misses_total[5m]))",
+            "percentunit", steps((None, BLUE)), decimals=0),
+    ], 4)
+    b.row("Load")
+    b.line([series("Commands by name", [("topk(10, rate(redis_commands_total[1m]))", "{{cmd}}")], "ops"),
+            series("Time per command", [("topk(10, rate(redis_commands_duration_seconds_total[5m]) / rate(redis_commands_total[5m]))", "{{cmd}}")], "s"),
+            series("Memory", [("redis_memory_used_bytes", "memory")], "bytes")], 8)
+    log_panels(b, '{service="redis"}')
+    return dashboard("develop-redis", "redis", b, [LEVEL_VAR, SEARCH_VAR], "Redis, from redis_exporter.")
+
+
+def trend(title, queries, unit, thresholds, maximum=None, total=None):
+    """A small time series with axes, for under a big number. thresholds shade
+    the warning ranges; total draws that series as a dashed limit line."""
+    panel = series(title, queries, unit, legend="hidden")
+    defaults = panel["fieldConfig"]["defaults"]
+    panel["options"]["legend"] = {"showLegend": False, "displayMode": "list", "placement": "bottom", "calcs": []}
+    panel["fieldConfig"]["overrides"] = []
+    if thresholds:
+        defaults["thresholds"] = thresholds
+        defaults["custom"]["thresholdsStyle"] = {"mode": "area"}
+        defaults["color"] = {"mode": "fixed", "fixedColor": "text"}
+    else:
+        defaults["color"] = {"mode": "fixed", "fixedColor": PURPLE if unit == "none" else BLUE}
+    if maximum is not None:
+        defaults["max"] = maximum
+    if total:
+        panel["fieldConfig"]["overrides"] = [{"matcher": {"id": "byName", "options": total}, "properties": [
+            {"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [8, 6]}},
+            {"id": "custom.fillOpacity", "value": 0}, {"id": "color", "value": {"mode": "fixed", "fixedColor": RED}}]}]
+    return panel
+
+
+def server():
+    b = Board()
+    cores = 'count(node_cpu_seconds_total{mode="idle"})'
+    busy = f'1 - sum(rate(node_cpu_seconds_total{{mode="idle"}}[1m])) / {cores}'
+    mem = "1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes"
+    compile_bucket = "sum by (le) (rate(clsi_compile_duration_seconds_bucket[2m]))"
+    numbers = [
+        kpi("CPU busy", busy, "percentunit", steps((None, GREEN), (0.6, YELLOW), (0.85, RED)), decimals=0),
+        kpi("Load per core", f"node_load1 / scalar({cores})", "percentunit", steps((None, GREEN), (0.7, YELLOW), (1, RED)), decimals=0,
+            description="The 1 minute load average divided by the number of cores. Above 100% means tasks wait for a core."),
+        host_memory("stat"),
+        kpi("Compiles per minute", "sum(rate(clsi_compiles_total[1m])) * 60", "none", steps((None, PURPLE)), decimals=1),
+        kpi("Compile time, p95", f"histogram_quantile(0.95, {compile_bucket})", "s", steps((None, GREEN), (10, YELLOW), (30, RED)), decimals=1),
+        kpi("Failed compiles, 5 min", 'sum(increase(clsi_compiles_total{status!="success"}[5m])) or vector(0)', "none",
+            steps((None, GREEN), (1, YELLOW), (10, RED)), decimals=0),
+    ]
+    # The same six numbers over time, with the warning ranges shaded behind
+    trends = [
+        trend("CPU busy", [(busy, "busy")], "percentunit", steps((None, GREEN), (0.6, YELLOW), (0.85, RED)), maximum=1),
+        trend("Load per core", [(f"node_load1 / scalar({cores})", "1 min")], "percentunit", steps((None, GREEN), (0.7, YELLOW), (1, RED))),
+        trend("Memory used", [("node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes", "used"),
+                              ("node_memory_MemTotal_bytes", "total")], "bytes", None, total="total"),
+        trend("Compiles per minute", [("sum(rate(clsi_compiles_total[1m])) * 60", "compiles")], "none", None),
+        trend("Compile time, p95", [(f"histogram_quantile(0.95, {compile_bucket})", "p95")], "s", steps((None, GREEN), (10, YELLOW), (30, RED))),
+        trend("Failed compiles, 5 min", [('sum(increase(clsi_compiles_total{status!="success"}[5m])) or vector(0)', "failed")], "none",
+              steps((None, GREEN), (1, YELLOW), (10, RED))),
+    ]
+    # The numbers stay in one line at the top; their curves sit in a row that
+    # can be collapsed, three columns and two rows
+    b.line(numbers, 4)
+    b.row("Trends")
+    b.line(trends[:3], 7)
+    b.line(trends[3:], 7)
+    b.row("Host")
+    cpu = series("CPU by mode", [(f'sum by (mode) (rate(node_cpu_seconds_total{{mode!="idle"}}[1m])) / scalar({cores})', "{{mode}}")],
+                 "percentunit", stack=True, description="Share of all cores. iowait is time spent waiting for the disk, steal is time the hypervisor took.")
+    cpu["fieldConfig"]["defaults"]["max"] = 1
+    load = series("Load average", [("node_load1", "1 min"), ("node_load5", "5 min"), ("node_load15", "15 min"), (cores, "cores")], "short",
+                  description="Tasks running or waiting for a core. Above the cores line, the host is overloaded.")
+    load["fieldConfig"]["overrides"] = [{"matcher": {"id": "byName", "options": "cores"}, "properties": [
+        {"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [10, 10]}}, {"id": "color", "value": {"mode": "fixed", "fixedColor": RED}},
+        {"id": "custom.fillOpacity", "value": 0}]}]
+    b.line([cpu, load], 9)
+    memory = series("Memory", [("node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes", "used"),
+                               ("node_memory_Cached_bytes + node_memory_Buffers_bytes", "cache"),
+                               ("node_memory_MemAvailable_bytes", "available")], "bytes")
+    disk = series("Disk", [('sum(rate(node_disk_read_bytes_total{device!~"loop.*|sr.*"}[1m]))', "read"),
+                           ('sum(rate(node_disk_written_bytes_total{device!~"loop.*|sr.*"}[1m]))', "written")], "Bps")
+    net = series("Network", [('sum(rate(node_network_receive_bytes_total{device!~"lo|veth.*|br-.*|docker.*"}[1m]))', "received"),
+                             ('sum(rate(node_network_transmit_bytes_total{device!~"lo|veth.*|br-.*|docker.*"}[1m]))', "sent")], "Bps")
+    b.line([memory, disk, net], 8)
+    b.row("Compiles")
+    b.line([series("Compiles", [('sum by (status) (increase(clsi_compiles_total[$__rate_interval]))', "{{status}}")], "short", stack=True, bars=True),
+            series("Compile time", [(f"histogram_quantile(0.5, {compile_bucket})", "p50"), (f"histogram_quantile(0.95, {compile_bucket})", "p95")], "s"),
+            series("Compiles by engine", [('sum by (engine) (rate(clsi_compiles_total[1m])) * 60', "{{engine}}")], "short",
+                   description="Compiles per minute.")], 8)
+    b.line([series("CPU of the busiest containers", [('topk(8, sum by (service) (rate(container_cpu_usage_seconds_total{service!=""}[1m])))', "{{service}}")],
+                   "percentunit", stack=True, description="compile is the sandboxed compile containers that clsi starts. cAdvisor looks every 15 seconds, so very short compiles can be missed."),
+            series("Memory of the busiest containers", [('topk(8, sum by (service) (container_memory_working_set_bytes{service!=""}))', "{{service}}")], "bytes")], 9)
+    return dashboard("develop-server", "Server", b, [],
+                     "The host under load: CPU, load, memory, disk and network from node-exporter, with the compiles of clsi.")
+
+
+def containers():
+    b, c = Board(), 'service=~"$container"'
+    b.line([
+        kpi("Containers", f"count(container_memory_working_set_bytes{{{c}}})", "none", steps((None, BLUE)), spark=False),
+        kpi("CPU", f"sum(rate(container_cpu_usage_seconds_total{{{c}}}[1m]))", "percentunit", steps((None, GREEN), (4, YELLOW), (7, RED)),
+            description="100% is one core.", decimals=0),
+        kpi("Memory", f"sum(container_memory_working_set_bytes{{{c}}})", "bytes", steps((None, GREEN), (16e9, YELLOW), (24e9, RED)), decimals=1),
+        kpi("Network in", f"sum(rate(container_network_receive_bytes_total{{{c}}}[1m]))", "Bps", steps((None, BLUE)), decimals=1),
+        kpi("Network out", f"sum(rate(container_network_transmit_bytes_total{{{c}}}[1m]))", "Bps", steps((None, BLUE)), decimals=1),
+        kpi("Disk writes", f"sum(rate(container_fs_writes_bytes_total{{{c}}}[1m]))", "Bps", steps((None, PURPLE)), decimals=1),
+    ], 4)
+    b.line([bars("Memory now", [(f"sort_desc(sum by (service) (container_memory_working_set_bytes{{{c}}}))", "{{service}}")], "bytes", color=BLUE),
+            bars("CPU now", [(f"sort_desc(sum by (service) (rate(container_cpu_usage_seconds_total{{{c}}}[1m])))", "{{service}}")], "percentunit", color=GREEN)], 14)
+    b.line([series("CPU", [(f"sum by (service) (rate(container_cpu_usage_seconds_total{{{c}}}[1m]))", "{{service}}")], "percentunit"),
+            series("Memory", [(f"sum by (service) (container_memory_working_set_bytes{{{c}}})", "{{service}}")], "bytes")], 9)
+    b.line([series("Network in", [(f"sum by (service) (rate(container_network_receive_bytes_total{{{c}}}[1m]))", "{{service}}")], "Bps"),
+            series("Network out", [(f"sum by (service) (rate(container_network_transmit_bytes_total{{{c}}}[1m]))", "{{service}}")], "Bps"),
+            series("Disk writes", [(f"sum by (service) (rate(container_fs_writes_bytes_total{{{c}}}[1m]))", "{{service}}")], "Bps")], 8)
+    variable = {"name": "container", "label": "Container", "type": "query", "datasource": PROM,
+                "query": {"query": "label_values(container_memory_working_set_bytes, service)", "refId": "A"},
+                "refresh": 2, "multi": True, "includeAll": True, "allValue": ".+", "sort": 1,
+                "current": {"text": "All", "value": "$__all"}}
+    return dashboard("develop-containers", "Containers", b, [variable],
+                     "CPU, memory, network and disk of every container of the development environment, from cAdvisor.")
+
+
+def extras(name, sel):
+    """The rows that only this service has: (row title, panels, height)."""
+    rows = []
+    if name == "web":
+        rows.append(("Users and sessions", [
+            series("Active users", [(f"max(num_active_users{{{sel}}})", "users in the last hour")], "short"),
+            series("Session store", [(f"sum by (method, type) (rate(session_store_count{{{sel}}}[5m]))", "{{method}}, {{type}}")], "ops"),
+            series("Session cookies", [(f"sum by (status) (rate(session_cookie{{{sel}}}[5m]))", "{{status}}")], "ops")], 8))
+    if name == "clsi":
+        bucket = f"sum by (le) (rate(clsi_compile_duration_seconds_bucket{{{sel}}}[5m]))"
+        rows.append(("Compiles", [
+            series("Compiles", [(f"sum by (status, engine) (increase(clsi_compiles_total{{{sel}}}[$__rate_interval]))", "{{engine}}, {{status}}")], "short", stack=True, bars=True),
+            series("Compile time", [(f"histogram_quantile(0.5, {bucket})", "p50"), (f"histogram_quantile(0.95, {bucket})", "p95"),
+                                    (avg("clsi_e2e_compile_duration_seconds", sel), "end to end, mean")], "s"),
+            series("latexmk rules", [(avg("clsi_latexmk_rule_duration_seconds", sel, "rule"), "{{rule}}")], "s",
+                   description="Mean time of each latexmk rule, such as pdflatex or bibtex.")], 9))
+        rows.append(("Compile steps", [
+            series("Around the compile", [(avg("clsi_sync_resources_duration_seconds", sel), "sync resources"),
+                                          (avg("clsi_process_output_files_duration_seconds", sel), "process output files"),
+                                          (avg("clsi_image_processing_duration_seconds", sel), "image processing")], "s"),
+            gauge("Free disk for compiles", f"min(disk_available_percent{{{sel}}})", "", "percent", steps((None, RED), (10, YELLOW), (25, GREEN)), 100),
+            series("Open sockets", [(f"sum by (path) (sockets{{{sel}}})", "{{path}}")], "short")], 8))
+    if name == "document-updater":
+        rows.append(("Docs in Redis", [
+            series("Pending updates per flush", [(avg("histogram_redis_pendingUpdates_llen", sel, "path"), "{{path}}")], "short"),
+            series("Loading a doc", [(f'max(timer_redis_get_doc{{{sel},quantile="0.95"}})', "from Redis, p95"),
+                                     (f'max(timer_http_getDoc{{{sel},quantile="0.95"}})', "from web and docstore, p95")], "ms"),
+            series("Doc size in Redis", [(f'max(redis_docLines{{{sel},quantile="0.95"}})', "p95")], "bytes")], 8))
+    if name == "project-history":
+        rows.append(("History queue", [
+            series("Projects waiting for a flush", [(f"max(queued_projects{{{sel}}})", "queued projects"), (f"max(max_queue_size{{{sel}}})", "longest queue")], "short"),
+            series("Flush", [(avg("history_flush_duration_seconds", sel), "mean duration")], "s"),
+            series("Project lock", [(f'max(timer_lock_project{{{sel},quantile="0.95"}})', "time to get the lock, p95")], "ms")], 8))
+    if name == "history-v1":
+        rows.append(("Chunks", [
+            series("Reading changes", [(f"sum(rate(chunk_store_redis_get_non_persisted_changes{{{sel}}}[5m]))", "not yet persisted, from Redis"),
+                                       (f"sum(rate(chunk_store_redis_get_changes_since_version{{{sel}}}[5m]))", "since a version, from Redis"),
+                                       (f"sum(rate(chunk_store_get_changes_since_version{{{sel}}}[5m]))", "since a version")], "ops")], 8))
+    if name in ("filestore", "history-v1"):
+        rows.append(("Object storage", [
+            series("Reads by bucket", [(f"sum by (bucket) (rate(s3_ingress{{{sel}}}[1m]))", "{{bucket}}")], "Bps"),
+            series("Read latency", [(avg("histogram_s3_ingress_latency", sel), "whole read"),
+                                    (avg("histogram_s3_ingress_latency_first_byte", sel), "first byte")], "ms")], 8))
+    if name == "notifications":
+        rows.append(("Notifications", [
+            series("Reads of a user's notifications", [(f"sum(rate(getUserNotifications{{{sel}}}[5m]))", "reads")], "ops")], 7))
+    if name in MONGO_SERVICES:
+        rows.append(("Mongo", [
+            series("Commands by collection", [(f"sum by (collection, method) (rate(mongo_command_started{{{sel}}}[1m]))", "{{collection}} {{method}}")], "ops"),
+            series("Command time (mean)", [(avg("mongo_command_time", sel, "method, ns"), "{{ns}} {{method}}")], "ms"),
+            series("Connection pool", [(f"max(mongo_connection_pool_size{{{sel}}} - mongo_connection_pool_available{{{sel}}})", "in use"),
+                                       (f"max(mongo_connection_pool_waiting{{{sel}}})", "waiting"),
+                                       (f"max(mongo_connection_pool_max{{{sel}}})", "limit")], "short")], 8))
+    return rows
+
+
+def service(name, description):
+    b, sel = Board(), f'service="{name}"'
+    http = f"timer_http_request_count{{{sel}}}"
+    b.line([
+        kpi("State", f"up{{{sel}}}", "none", steps((None, RED), (1, GREEN)), spark=False, mappings=UP["mappings"]),
+        kpi("Uptime", f"time() - process_start_time_seconds{{{sel}}}", "s", steps((None, BLUE)), spark=False, decimals=0),
+        kpi("Requests", f"sum(rate({http}[1m]))", "reqps", steps((None, BLUE)), decimals=1),
+        kpi("5xx, 1 h", f'sum(increase(timer_http_request_count{{{sel},status_code=~"5.."}}[1h])) or vector(0)', "none",
+            steps((None, GREEN), (1, YELLOW), (20, RED)), decimals=0, spark=False),
+        kpi("Error logs, 1 h", 'sum(count_over_time({%s, level=~"error|fatal"} [1h]))' % sel, "none",
+            steps((None, GREEN), (1, YELLOW), (20, RED)), LOKI, spark=False),
+        kpi("Container memory", f"sum(container_memory_working_set_bytes{{{sel}}})", "bytes", steps((None, GREEN), (1e9, YELLOW), (2e9, RED)), decimals=0),
+    ], 4)
+    b.row("Resources")
+    b.line([series("CPU", [(f"rate(process_cpu_seconds_total{{{sel}}}[1m])", "process"),
+                           (f"sum(rate(container_cpu_usage_seconds_total{{{sel}}}[1m]))", "container")], "percentunit"),
+            series("Memory", [(f"process_resident_memory_bytes{{{sel}}}", "rss"), (f"nodejs_heap_size_used_bytes{{{sel}}}", "heap used"),
+                              (f"nodejs_heap_size_total_bytes{{{sel}}}", "heap total")], "bytes")], 8)
+    b.line([series("Event loop lag", [(f"nodejs_eventloop_lag_p50_seconds{{{sel}}}", "p50"), (f"nodejs_eventloop_lag_p99_seconds{{{sel}}}", "p99")], "s"),
+            series("Garbage collection", [(f"sum by (kind) (rate(nodejs_gc_duration_seconds_sum{{{sel}}}[1m]))", "{{kind}}")], "percentunit",
+                   description="Share of time spent in garbage collection.")], 8)
+    b.row("HTTP")
+    b.line([series("Requests by route", [(f"sum by (method, path) (rate({http}[1m]))", "{{method}} {{path}}")], "reqps"),
+            series("Responses by status", [(f"sum by (status_code) (rate({http}[1m]))", "{{status_code}}")], "reqps")], 9)
+    b.line([series("Response time by route (p95)", [(f'max by (method, path) (timer_http_request{{{sel},quantile="0.95"}})', "{{method}} {{path}}")], "ms"),
+            bars("Busiest routes", [(f"topk(12, sum by (method, path) (increase({http}[$__range])) > 0)", "{{method}} {{path}}")], "none",
+                 description="Requests over the time range.")], 9)
+    for title, panels, height in extras(name, sel):
+        b.row(title)
+        b.line(panels, height)
+    log_panels(b, "{" + sel + "}")
+    return dashboard(f"develop-{name}", name, b, [LEVEL_VAR, SEARCH_VAR], description)
+
+
+DESCRIPTIONS = {
+    "web": "The main app: pages, the editor API and the private API for the other services.",
+    "document-updater": "Holds the docs open in the editor in Redis and applies edits.",
+    "docstore": "Stores every doc of every project in Mongo.",
+    "real-time": "Holds the editor's socket.io connections.",
+    "chat": "Stores the project chat and the comment threads.",
+    "project-history": "Turns queued edits into history changes for history-v1.",
+    "history-v1": "Stores the history of every project and the file blobs.",
+    "filestore": "Serves template files and history blobs from the object store.",
+    "clsi": "Compiles projects.",
+    "notifications": "Stores the notifications of the project list.",
+    "linked-url-proxy": "Fetches external URLs for web.",
+    "third-party-datastore": "Syncs projects with Dropbox.",
+}
+
+
+def write(name, board):
+    (HERE / f"{name}.json").write_text(json.dumps(board, indent=2) + "\n")
+
+
+shutil.rmtree(HERE, ignore_errors=True)
+HERE.mkdir(parents=True)
+write("all-services", all_services())
+write("server", server())
+write("errors", errors())
+write("data-flow", data_flow())
+write("git-bridge", git_bridge())
+write("mongo", mongo())
+write("redis", redis())
+write("containers", containers())
+for service_name in SERVICES:
+    write(service_name, service(service_name, DESCRIPTIONS[service_name]))

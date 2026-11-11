@@ -32,8 +32,9 @@ Once the services are running, open <http://localhost/launchpad> to create the f
 | `S3_ENABLED`         | `true`  | Keeps history and template files in [RustFS](https://github.com/rustfs/rustfs)                                             |
 | `HOPPSCOTCH_ENABLED` | `true`  | [Hoppscotch](https://github.com/hoppscotch/hoppscotch) with a proxy into the Docker network, see [Hoppscotch](#hoppscotch) |
 | `HOPPSCOTCH_PORT`    | `9170`  | Host port of Hoppscotch                                                                                                    |
+| `GRAFANA_ENABLED`    | `true`  | Grafana on `/grafana` of the site, with the state, metrics and logs of every service, see [Grafana](#grafana)              |
 
-Each feature keeps its `docker-compose.yml` and other files in its own folder: `authentication/ldap`, `authentication/saml`, `mail`, `s3` and `hoppscotch`. A feature that needs a `web` setting without an environment variable mounts a file into `/etc/overleaf/settings.d/`, and `settings.dev-env.cjs` merges all of them.
+Each feature keeps its `docker-compose.yml` and other files in its own folder: `authentication/ldap`, `authentication/saml`, `mail`, `s3`, `hoppscotch` and `grafana`. A feature that needs a `web` setting without an environment variable mounts a file into `/etc/overleaf/settings.d/`, and `settings.dev-env.cjs` merges all of them.
 
 The local volumes and RustFS are separate stores: a project created with `S3_ENABLED=true` has no history or binary files after switching to `false`, and the other way round.
 
@@ -74,6 +75,7 @@ These pages listen on `127.0.0.1` of the host. The site uses `OVERLEAF_PORT` fro
 | Email inbox (Mailpit)  | <http://localhost:8025>                 | None                                                                        |
 | S3 console (RustFS)    | <http://localhost:9001/rustfs/console/> | `rustfsadmin` / `rustfsadmin`                                               |
 | Hoppscotch             | <http://localhost:9170>                 | None                                                                        |
+| Grafana                | <http://localhost/grafana>              | None, anonymous users are admins                                            |
 
 The S3 API (port 9000) and SMTP (port 1025) are only reachable inside the Docker network.
 
@@ -82,6 +84,23 @@ The S3 API (port 9000) and SMTP (port 1025) are only reachable inside the Docker
 Hoppscotch sends requests from the browser, which cannot reach the services by their Docker names. To call them, for example `http://docstore:3016/status`, open Settings → Interceptor in Hoppscotch once, pick Proxy and set its URL to the Hoppscotch address plus `/proxy`, such as `http://localhost:9170/proxy`. The setting stays in the browser.
 
 `hoppscotch/openapi/` has an OpenAPI file for the internal API of each service. Import them in Collections → Import → Import from File, all files at once. Each file becomes a collection whose requests go to the service's Docker address.
+
+## Grafana
+
+Grafana is served by the site on `/grafana`, through webpack-dev-server, so it needs no port of its own. Its "Overleaf Develop" folder has:
+
+| Dashboard                 | What it shows                                                                                      |
+| ------------------------- | -------------------------------------------------------------------------------------------------- |
+| All services (home)       | State of every service, host gauges, load and logs. A click on a service opens its dashboard      |
+| Server                    | CPU, load, memory, disk and network of the host, and the compiles of clsi                         |
+| Errors                    | Error logs, 5xx and 4xx responses, most frequent error messages and failing routes                 |
+| Data flow                 | The path of an edit: document-updater and Redis, project-history, history-v1, Mongo, object store |
+| Containers                | CPU, memory, network and disk of every container, sandboxed compiles included                     |
+| One per service           | The Node.js services, git-bridge (JVM), mongo and redis                                            |
+
+Prometheus scrapes `/metrics` of the services, `mongodb-exporter`, `redis-exporter`, `cadvisor` and `node-exporter`; Alloy sends the logs of every container of this project to Loki. Their data lives in the containers only, so recreating them empties it. cAdvisor runs privileged and reads the host's `/`, `/sys`, Docker data and the containerd socket, read-only; node-exporter reads the host's `/`.
+
+The dashboards are generated: change `grafana/make-dashboards` and run it, instead of editing the JSON files.
 
 ## Development
 

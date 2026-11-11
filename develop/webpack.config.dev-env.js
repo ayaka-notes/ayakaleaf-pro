@@ -24,6 +24,11 @@ module.exports = merge(base, {
         target: 'http://saml:4000',
       },
       {
+        context: '/grafana',
+        target: 'http://grafana:3000',
+        ws: true,
+      },
+      {
         context: ['!**/*.js', '!**/*.css', '!**/*.json'],
         target: 'http://web:3000',
       },

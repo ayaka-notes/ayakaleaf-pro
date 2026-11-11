@@ -19,3 +19,7 @@ S3_ENABLED=true
 # see README.md
 HOPPSCOTCH_ENABLED=true
 HOPPSCOTCH_PORT=9170
+
+# Grafana on /grafana of the site, with the state, metrics and logs of every
+# service, see README.md
+GRAFANA_ENABLED=true

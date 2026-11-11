@@ -1,0 +1,86 @@
+# Grafana on /grafana of the site, with the state, metrics and logs of every
+# service, see README.md.
+# Prometheus scrapes /metrics of the services, the exporters and cAdvisor;
+# Alloy sends the logs of every container of this project to Loki. Their data
+# lives in the containers only.
+services:
+  grafana:
+    image: grafana/grafana:13.2.5
+    environment:
+      # Served on /grafana of the site, through webpack-dev-server
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s:%(http_port)s/grafana/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: "/etc/grafana/dashboards/Overleaf Develop/all-services.json"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=2d
+    volumes:
+      - ./grafana/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  # The image's own local-config.yaml: one process, files under /loki
+  loki:
+    image: grafana/loki:3.7.9
+
+  alloy:
+    image: grafana/alloy:v1.21.3
+    command: ["run", "/etc/alloy/config.alloy", "--storage.path=/var/lib/alloy/data"]
+    volumes:
+      - ./grafana/config.alloy:/etc/alloy/config.alloy:ro
+      - ${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock:ro
+
+  mongodb-exporter:
+    image: percona/mongodb_exporter:0.54.0
+    command:
+      - --mongodb.uri=mongodb://mongo:27017
+      - --mongodb.direct-connect
+      - --collector.diagnosticdata
+      - --collector.dbstats
+      - --collector.collstats
+      - --mongodb.collstats-colls=sharelatex
+      - --discovering-mode
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.96.0
+    environment:
+      REDIS_ADDR: redis://redis:6379
+
+  # CPU, memory and network of every container on the host
+  cadvisor:
+    image: ghcr.io/google/cadvisor:v0.60.6
+    privileged: true
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=15s
+      - --store_container_labels=false
+      - --whitelisted_container_labels=com.docker.compose.project,com.docker.compose.service
+      - --disable_metrics=advtcp,cpu_topology,cpuset,hugetlb,memory_numa,percpu,process,referenced_memory,resctrl,sched,tcp,udp
+    volumes:
+      - /:/rootfs:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - ${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock:ro
+      # Docker's containerd, which cAdvisor asks about the containers
+      - /run/containerd/containerd.sock:/run/containerd/containerd.sock:ro
+
+  # CPU, load, memory, disk and network of the host
+  node-exporter:
+    image: prom/node-exporter:v1.12.1
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|run|sys|snap|var/lib/docker/.+)($$|/)
+    volumes:
+      - /:/host:ro,rslave
