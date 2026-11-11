@@ -15,15 +15,19 @@ export { default as store, providersFile } from './store.mjs'
 /** Collect per-provider login buttons on Settings for the login/register
  *  pages (one button per SSO source). */
 export function registerSsoProviders(settings, type, providers) {
-  settings.ssoProviders = settings.ssoProviders || []
-  for (const provider of providers) {
-    settings.ssoProviders.push({
+  // Replace the entries for this type (keep other types) so that providers
+  // removed via the admin UI disappear from the login/register buttons
+  // instead of lingering from an earlier registration.
+  const existing = Array.isArray(settings.ssoProviders) ? settings.ssoProviders : []
+  settings.ssoProviders = [
+    ...existing.filter(provider => provider.type !== type),
+    ...providers.map(provider => ({
       type,
       id: provider.id,
       name: provider.name,
       linkPath: `/${type}/${encodeURIComponent(provider.id)}/login`,
-    })
-  }
+    })),
+  ]
 }
 export { normalizeProvider, normalizeProviders, readCertMaterial } from './schema.mjs'
 export {

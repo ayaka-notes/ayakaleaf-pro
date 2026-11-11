@@ -58,6 +58,15 @@ const OIDCModuleManager = {
       providers,
     }
     Settings.oauthProviders = Settings.oauthProviders || {}
+    // Drop stale OIDC entries (identified by their /oidc/ link path) so that
+    // providers removed via the admin UI disappear from the linked-accounts UI.
+    const activeOidc = new Set(providers.map(provider => provider.id))
+    for (const key of Object.keys(Settings.oauthProviders)) {
+      const linkPath = String(Settings.oauthProviders[key]?.linkPath ?? '')
+      if (linkPath.startsWith('/oidc/') && !activeOidc.has(key)) {
+        delete Settings.oauthProviders[key]
+      }
+    }
     for (const provider of providers) {
       Settings.oauthProviders[provider.id] = {
         name: provider.name,
