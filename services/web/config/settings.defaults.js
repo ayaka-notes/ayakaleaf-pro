@@ -1129,6 +1129,10 @@ module.exports = {
         __dirname,
         '../modules/reference-picker/frontend/js/components/reference-picker-controller.tsx'
       ),
+      Path.resolve(
+        __dirname,
+        '../modules/typst-picker/frontend/js/components/typst-picker-controller.tsx'
+      ),
     ],
     mainEditorLayoutPanels: [
       Path.resolve(
@@ -1253,6 +1257,10 @@ module.exports = {
       Path.resolve(
         __dirname,
         '../modules/reference-picker/frontend/js/extensions/reference-search-hint.ts'
+      ),
+      Path.resolve(
+        __dirname,
+        '../modules/typst-picker/frontend/js/extensions/typst-picker-keybinding.ts'
       ),
     ],
     sectionTitleGenerators: [],

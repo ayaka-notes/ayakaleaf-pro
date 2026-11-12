@@ -16,6 +16,7 @@ import HistoryContainer from '@/features/ide-react/components/history-container'
 import { DefaultSynctexControl } from '@/features/pdf-preview/components/detach-synctex-control'
 import importOverleafModules from '../../../../../macros/import-overleaf-module.macro'
 import ReferencePickerController from '../../../../../../modules/reference-picker/frontend/js/components/reference-picker-controller'
+import TypstPickerController from '../../../../../../modules/typst-picker/frontend/js/components/typst-picker-controller'
 
 const mainEditorLayoutPanels: Array<{
   import: { default: ElementType }
@@ -137,6 +138,7 @@ export default function MainLayout() {
         </PanelGroup>
       </div>
       <ReferencePickerController />
+      <TypstPickerController />
       {mainEditorLayoutModalsModules.map(
         ({ import: { default: Component }, path }) => (
           <Component key={path} />

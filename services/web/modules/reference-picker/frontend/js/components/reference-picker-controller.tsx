@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import ReferencePickerModal from './reference-picker-modal'
 import { useEditorViewContext } from '@/features/ide-react/context/editor-view-context'
 import { useProjectContext } from '@/shared/context/project-context'
@@ -15,11 +15,6 @@ export default function ReferencePickerController() {
   const [braceFrom, setBraceFrom] = useState<number | null>(null)
   const [braceTo, setBraceTo] = useState<number | null>(null)
   const [initialKeys, setInitialKeys] = useState<string[]>([])
-  const [atStyle, setAtStyle] = useState(false)
-
-  // Guard against re-opening right after apply (cursor lands on the
-  // newly inserted @key text and openPickerIfInCite re-fires).
-  const justAppliedRef = useRef(false)
 
   const onClose = useCallback(() => setOpen(false), [])
 
@@ -31,13 +26,7 @@ export default function ReferencePickerController() {
       const bFrom = braceFrom ?? from
       const bTo = braceTo ?? to
 
-      // Typst @key syntax only allows letters, digits, underscores, colons.
-      // Keys with hyphens/dots/etc. need #cite("key") instead.
-      const isValidAtKey = (k: string) => /^[a-zA-Z0-9_:]+$/.test(k)
-      
-      let insertCore = atStyle
-        ? selectedKeys.map((k) => isValidAtKey(k) ? `@${k}` : `#cite("${k}")`).join(' ')
-        : isTypst
+      let insertCore = isTypst
         ? selectedKeys.map((k) => `"${k}"`).join(', ')
         : selectedKeys.join(', ')
 
@@ -49,14 +38,8 @@ export default function ReferencePickerController() {
 
       let prefix = ''
       let suffix = ''
-      if (atStyle) {
-        // @key style: no commas, just space-separated @references
-        if (start > bFrom && doc.sliceString(start - 1, start) !== ' ' && doc.sliceString(start - 1, start) !== '\n') prefix = ' '
-        if (end < bTo && doc.sliceString(end, end + 1) !== ' ' && doc.sliceString(end, end + 1) !== '\n') suffix = ' '
-      } else {
-        if (start > bFrom && doc.sliceString(start - 1, start) !== '\n') prefix = ', '
-        if (end < bTo && insertCore) suffix = ', '
-      }
+      if (start > bFrom && doc.sliceString(start - 1, start) !== '\n') prefix = ', '
+      if (end < bTo && insertCore) suffix = ', '
 
       const insert = prefix + insertCore + suffix
 
@@ -68,18 +51,12 @@ export default function ReferencePickerController() {
         selection: { anchor: cursorPos },
       })
       view.focus()
-      justAppliedRef.current = true
     },
-    [view, from, to, braceFrom, braceTo, isTypst, atStyle]
+    [view, from, to, braceFrom, braceTo, isTypst]
   )
 
   useEffect(() => {
     const handler = (evt: CustomEvent) => {
-      // Ignore re-trigger from cursor landing on freshly inserted text
-      if (justAppliedRef.current) {
-        justAppliedRef.current = false
-        return
-      }
       const detail = evt.detail || {}
 
       if (detail.insertFrom == null) {
@@ -96,14 +73,12 @@ export default function ReferencePickerController() {
         setBraceFrom(newFrom)
         setBraceTo(newFrom)
         setInitialKeys([])
-        setAtStyle(false)
       } else {
         setFrom(detail.insertFrom)
         setTo(detail.insertTo)
         setBraceFrom(detail.braceFrom ?? detail.insertFrom)
         setBraceTo(detail.braceTo ?? detail.insertTo)
         setInitialKeys(detail.selectedTokens || [])
-        setAtStyle(!!detail.atStyle)
       }
 
       setOpen(true)

@@ -25,49 +25,6 @@ export function openPickerIfInCite(view: EditorView): boolean {
   try {
     const mainSel = view.state.selection.main
     const pos = mainSel.head
-    
-    // Typst @key citation: detect cursor on or near an @reference
-    const line = view.state.doc.lineAt(pos)
-    const lineText = view.state.sliceDoc(line.from, line.to)
-    // Find @key patterns in the line
-    const atRefRegex = /@(\w[\w:-]*)/g
-    let atMatch: RegExpExecArray | null = null
-    let atMatchIndex = -1
-    while ((atMatch = atRefRegex.exec(lineText)) !== null) {
-      const matchStart = line.from + atMatch.index
-      const matchEnd = matchStart + atMatch[0].length
-      // Cursor is within or adjacent to the @ref
-      if (pos >= matchStart && pos <= matchEnd) {
-        atMatchIndex = atMatch.index
-        break
-      }
-    }
-    
-    if (atMatchIndex >= 0) {
-      // Cursor is on a Typst @citation
-      const matchStart = line.from + atMatchIndex
-      const matchEnd = matchStart + atMatch![0].length
-      const keyText = atMatch![1] // the citation key (without @)
-      
-      // Dispatch the picker event with the @ref boundaries
-      // Include the @ in the replacement range so atStyle insert
-      // (which adds @ before each key) doesn't double it.
-      window.dispatchEvent(
-        new CustomEvent('reference:openPicker', {
-          detail: {
-            braceFrom: matchStart, // include the @
-            braceTo: matchEnd,
-            insertFrom: matchStart, // include the @
-            insertTo: matchEnd,
-            selectedTokens: [keyText],
-            atStyle: true,
-          },
-        })
-      )
-      return true
-    }
-    
-    // LaTeX \cite{...} or Typst #cite("...") — existing logic
     const node = getBibkeyArgumentNode(view.state, pos)
     if (node) {
       // Verify the node has proper matching braces — the tree parser
