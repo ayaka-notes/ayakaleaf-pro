@@ -1252,15 +1252,15 @@ module.exports = {
     autoCompleteExtensions: [
       Path.resolve(
         __dirname,
+        '../modules/typst-picker/frontend/js/extensions/typst-picker-keybinding.ts'
+      ),
+      Path.resolve(
+        __dirname,
         '../modules/reference-picker/frontend/js/extensions/reference-picker-keybinding.ts'
       ),
       Path.resolve(
         __dirname,
         '../modules/reference-picker/frontend/js/extensions/reference-search-hint.ts'
-      ),
-      Path.resolve(
-        __dirname,
-        '../modules/typst-picker/frontend/js/extensions/typst-picker-keybinding.ts'
       ),
     ],
     sectionTitleGenerators: [],

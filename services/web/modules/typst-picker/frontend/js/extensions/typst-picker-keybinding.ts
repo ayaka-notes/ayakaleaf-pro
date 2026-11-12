@@ -3,12 +3,30 @@ import { Prec, Extension } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 
 /**
+ * True when the cursor sits in a Typst document (language data registered
+ * by the typst language module). Used to keep this keybinding out of LaTeX
+ * documents, where the reference-picker owns Ctrl-Space.
+ */
+function isTypstDocument(view: EditorView): boolean {
+  try {
+    const pos = view.state.selection.main.head
+    return view.state
+      .languageDataAt(pos)
+      .some((d: { name?: string }) => d.name === 'typst')
+  } catch {
+    return false
+  }
+}
+
+/**
  * Typst reference picker keybinding.
  * Detects @key citation patterns and opens the reference picker.
  * Independent from the LaTeX reference picker to avoid conflicts.
  */
 export function openTypstPickerIfInCite(view: EditorView): boolean {
   try {
+    if (!isTypstDocument(view)) return false
+
     const mainSel = view.state.selection.main
     const pos = mainSel.head
     const line = view.state.doc.lineAt(pos)
