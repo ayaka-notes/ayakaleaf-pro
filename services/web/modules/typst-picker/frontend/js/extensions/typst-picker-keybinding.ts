@@ -1,7 +1,7 @@
 import { keymap } from '@codemirror/view'
 import { Prec, Extension } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
-import { docKindOf } from '../../../../frontend/js/features/source-editor/extensions/doc-kind'
+import { docKindOf } from '@/features/source-editor/extensions/doc-kind'
 
 /**
  * Keep this keybinding out of LaTeX documents: the reference-picker's
