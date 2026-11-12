@@ -50,15 +50,17 @@ export function openPickerIfInCite(view: EditorView): boolean {
       const keyText = atMatch![1] // the citation key (without @)
       
       // Dispatch the picker event with the @ref boundaries
+      // Include the @ in the replacement range so atStyle insert
+      // (which adds @ before each key) doesn't double it.
       window.dispatchEvent(
         new CustomEvent('reference:openPicker', {
           detail: {
-            braceFrom: matchStart + 1, // after @
+            braceFrom: matchStart, // include the @
             braceTo: matchEnd,
-            insertFrom: matchStart + 1,
+            insertFrom: matchStart, // include the @
             insertTo: matchEnd,
             selectedTokens: [keyText],
-            atStyle: true, // bare keys, no quotes
+            atStyle: true,
           },
         })
       )

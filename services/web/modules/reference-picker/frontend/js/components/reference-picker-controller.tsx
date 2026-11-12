@@ -27,8 +27,12 @@ export default function ReferencePickerController() {
       const bFrom = braceFrom ?? from
       const bTo = braceTo ?? to
 
+      // Typst @key syntax only allows letters, digits, underscores, colons.
+      // Keys with hyphens/dots/etc. need #cite("key") instead.
+      const isValidAtKey = (k: string) => /^[a-zA-Z0-9_:]+$/.test(k)
+      
       let insertCore = atStyle
-        ? selectedKeys.join(', ')
+        ? selectedKeys.map((k) => isValidAtKey(k) ? `@${k}` : `#cite("${k}")`).join(' ')
         : isTypst
         ? selectedKeys.map((k) => `"${k}"`).join(', ')
         : selectedKeys.join(', ')
@@ -41,8 +45,14 @@ export default function ReferencePickerController() {
 
       let prefix = ''
       let suffix = ''
-      if (start > bFrom && doc.sliceString(start - 1, start) !== '\n') prefix = ', '
-      if (end < bTo && insertCore) suffix = ', '
+      if (atStyle) {
+        // @key style: no commas, just space-separated @references
+        if (start > bFrom && doc.sliceString(start - 1, start) !== ' ' && doc.sliceString(start - 1, start) !== '\n') prefix = ' '
+        if (end < bTo && doc.sliceString(end, end + 1) !== ' ' && doc.sliceString(end, end + 1) !== '\n') suffix = ' '
+      } else {
+        if (start > bFrom && doc.sliceString(start - 1, start) !== '\n') prefix = ', '
+        if (end < bTo && insertCore) suffix = ', '
+      }
 
       const insert = prefix + insertCore + suffix
 
