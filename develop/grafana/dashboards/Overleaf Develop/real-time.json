@@ -28,6 +28,13 @@
       "keepTime": true
     },
     {
+      "title": "Containers",
+      "type": "link",
+      "url": "/d/develop-containers/containers",
+      "icon": "dashboard",
+      "keepTime": true
+    },
+    {
       "title": "Dashboards",
       "type": "dashboards",
       "tags": [

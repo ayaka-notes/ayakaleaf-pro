@@ -28,6 +28,13 @@
       "keepTime": true
     },
     {
+      "title": "Containers",
+      "type": "link",
+      "url": "/d/develop-containers/containers",
+      "icon": "dashboard",
+      "keepTime": true
+    },
+    {
       "title": "Dashboards",
       "type": "dashboards",
       "tags": [
@@ -61,7 +68,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "mongodb_up",
+          "expr": "max without (cluster_role) (mongodb_up)",
           "legendFormat": ""
         }
       ],

@@ -28,6 +28,13 @@
       "keepTime": true
     },
     {
+      "title": "Containers",
+      "type": "link",
+      "url": "/d/develop-containers/containers",
+      "icon": "dashboard",
+      "keepTime": true
+    },
+    {
       "title": "Dashboards",
       "type": "dashboards",
       "tags": [
@@ -61,7 +68,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count((up{job=\"overleaf\",service!=\"\"} or mongodb_up{service!=\"\"} or redis_up{service!=\"\"}) == 1)",
+          "expr": "count((up{job=\"overleaf\",service!=\"\"} or max without (cluster_role) (mongodb_up{service!=\"\"}) or redis_up{service!=\"\"}) == 1)",
           "legendFormat": ""
         }
       ],
@@ -406,7 +413,13 @@
               }
             ]
           },
-          "noValue": "0"
+          "noValue": "0",
+          "links": [
+            {
+              "title": "Open Containers",
+              "url": "/d/develop-containers/containers?${__url_time_range}"
+            }
+          ]
         },
         "overrides": []
       },
@@ -594,7 +607,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "up{job=\"overleaf\",service=~\"$service\"} or mongodb_up{service=~\"$service\"} or redis_up{service=~\"$service\"}",
+          "expr": "up{job=\"overleaf\",service=~\"$service\"} or max without (cluster_role) (mongodb_up{service=~\"$service\"}) or redis_up{service=~\"$service\"}",
           "legendFormat": "{{service}}"
         }
       ],

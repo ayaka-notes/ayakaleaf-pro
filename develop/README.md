@@ -67,17 +67,19 @@ The volumes are mounted read-only, so the old files stay there for `S3_ENABLED=f
 
 ## Ports
 
-These pages listen on `127.0.0.1` of the host. The site uses `OVERLEAF_PORT` from `dev.rc`, so add the port to its address if you changed it. On a remote machine, forward the ports first, for example `ssh -L 8025:localhost:8025 <host>`.
+These pages listen on `127.0.0.1` of the host. The site uses `OVERLEAF_PORT` from `dev.rc`, so add the port to its address if you changed it. On a remote machine, forward the ports first, for example `ssh -L 9001:localhost:9001 <host>`.
 
 | Page                   | Address                                 | Login                                                                       |
 | ---------------------- | --------------------------------------- | --------------------------------------------------------------------------- |
 | Site                   | <http://localhost>                      | The accounts of the site, or the [test users](authentication/README.md)     |
-| Email inbox (Mailpit)  | <http://localhost:8025>                 | None                                                                        |
+| Email inbox (Mailpit)  | <http://localhost/mailpit/>             | None                                                                        |
 | S3 console (RustFS)    | <http://localhost:9001/rustfs/console/> | `rustfsadmin` / `rustfsadmin`                                               |
 | Hoppscotch             | <http://localhost:9170>                 | None                                                                        |
 | Grafana                | <http://localhost/grafana>              | None, anonymous users are admins                                            |
 
 The S3 API (port 9000) and SMTP (port 1025) are only reachable inside the Docker network.
+
+Once you are logged in, the Dev tools menu in the navbar of the site links to the pages that the site serves on its own paths, through webpack-dev-server: Grafana, Mailpit, Mongo Express and Redis Insight. A page whose feature is turned off in `dev.rc` is left out.
 
 ## Hoppscotch
 
@@ -95,7 +97,7 @@ Grafana is served by the site on `/grafana`, through webpack-dev-server, so it n
 | Server                    | CPU, load, memory, disk and network of the host, and the compiles of clsi                         |
 | Errors                    | Error logs, 5xx and 4xx responses, most frequent error messages and failing routes                 |
 | Data flow                 | The path of an edit: document-updater and Redis, project-history, history-v1, Mongo, object store |
-| Containers                | CPU, memory, network and disk of every container, sandboxed compiles included                     |
+| Containers                | State of every container, CPU, memory, network and disk, sandboxed compiles included              |
 | One per service           | The Node.js services, git-bridge (JVM), mongo and redis                                            |
 
 Prometheus scrapes `/metrics` of the services, `mongodb-exporter`, `redis-exporter`, `cadvisor` and `node-exporter`; Alloy sends the logs of every container of this project to Loki. Their data lives in the containers only, so recreating them empties it. cAdvisor runs privileged and reads the host's `/`, `/sys`, Docker data and the containerd socket, read-only; node-exporter reads the host's `/`.

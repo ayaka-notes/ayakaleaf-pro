@@ -284,6 +284,9 @@ services:
   # Redis-insight
   redis-insight:
     image: redislabs/redisinsight:latest
+    environment:
+      # Served on /redis-insight of the site, through webpack-dev-server
+      RI_PROXY_PATH: /redis-insight
     ports:
       - "5540:5540"
     depends_on:
@@ -292,10 +295,13 @@ services:
       - ./data/redis-insight:/data
 
   # mongo-express
-  # basicAuth credentials are "admin:pass"
   mongo-express:
     image: mongo-express
     ports:
       - "8081:8081"
     environment:
       ME_CONFIG_MONGODB_SERVER: mongo
+      # Served on /mongo-express of the site, through webpack-dev-server
+      ME_CONFIG_SITE_BASEURL: /mongo-express/
+      # The basic auth of the image is the well-known admin:pass, it only adds a prompt
+      ME_CONFIG_BASICAUTH: "false"

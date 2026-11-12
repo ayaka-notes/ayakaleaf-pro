@@ -1,7 +1,7 @@
 {
   "uid": "develop-containers",
   "title": "Containers",
-  "description": "CPU, memory, network and disk of every container of the development environment, from cAdvisor.",
+  "description": "State, CPU, memory, network and disk of every container of the development environment, from cAdvisor.",
   "tags": [
     "overleaf-develop"
   ],
@@ -25,6 +25,13 @@
       "type": "link",
       "url": "/d/develop-errors/errors",
       "icon": "bolt",
+      "keepTime": true
+    },
+    {
+      "title": "Containers",
+      "type": "link",
+      "url": "/d/develop-containers/containers",
+      "icon": "dashboard",
       "keepTime": true
     },
     {
@@ -418,6 +425,129 @@
       }
     },
     {
+      "type": "stat",
+      "title": "State",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "((time() - max by (service) (max_over_time(container_last_seen{service=~\"$container\", service!=\"compile\", service!~\"rustfs-buckets\"}[$__range]))) < bool 60) + on(service) ((((time() - max by (service) (max_over_time(container_last_seen{service=~\"$container\", service!=\"compile\", service!~\"rustfs-buckets\"}[$__range]))) < bool 60) * on(service) (1 - max by (service) (up{job=\"overleaf\",service!=\"\"} or max without (cluster_role) (mongodb_up{service!=\"\"}) or redis_up{service!=\"\"}))) or ((time() - max by (service) (max_over_time(container_last_seen{service=~\"$container\", service!=\"compile\", service!~\"rustfs-buckets\"}[$__range]))) < bool 60) * 0)",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "STOPPED",
+                  "color": "#F2495C"
+                },
+                "1": {
+                  "text": "RUNNING",
+                  "color": "#73BF69"
+                },
+                "2": {
+                  "text": "APP DOWN",
+                  "color": "#F2CC0C"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#F2495C",
+                "value": null
+              },
+              {
+                "color": "#73BF69",
+                "value": 1
+              },
+              {
+                "color": "#F2CC0C",
+                "value": 2
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(web|document-updater|docstore|real-time|chat|project-history|history-v1|filestore|clsi|notifications|linked-url-proxy|third-party-datastore|git-bridge|mongo|redis)$"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open ${__field.labels.service}",
+                    "url": "/d/develop-${__field.labels.service}?${__url_time_range}",
+                    "oneClick": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(?!(web|document-updater|docstore|real-time|chat|project-history|history-v1|filestore|clsi|notifications|linked-url-proxy|third-party-datastore|git-bridge|mongo|redis)$).*"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open ${__field.labels.service}",
+                    "oneClick": true,
+                    "url": "/d/develop-containers/containers?var-container=${__field.labels.service}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "orientation": "auto",
+        "minVizWidth": 150,
+        "minVizHeight": 50,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "description": "Every container seen in the time range, without the sandboxed compiles and rustfs-buckets. STOPPED: not seen by cAdvisor in the last minute. APP DOWN: the container runs, but its service does not answer Prometheus (Node.js services, git-bridge, mongo, redis). A container that stopped before Prometheus first saw it is not listed.",
+      "id": 7,
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 8
+      }
+    },
+    {
       "type": "bargauge",
       "title": "Memory now",
       "datasource": {
@@ -480,10 +610,10 @@
           }
         }
       ],
-      "id": 7,
+      "id": 8,
       "gridPos": {
         "x": 0,
-        "y": 4,
+        "y": 12,
         "w": 12,
         "h": 14
       }
@@ -551,10 +681,10 @@
           }
         }
       ],
-      "id": 8,
+      "id": 9,
       "gridPos": {
         "x": 12,
-        "y": 4,
+        "y": 12,
         "w": 12,
         "h": 14
       }
@@ -802,10 +932,10 @@
           "sort": "desc"
         }
       },
-      "id": 9,
+      "id": 10,
       "gridPos": {
         "x": 0,
-        "y": 18,
+        "y": 26,
         "w": 12,
         "h": 9
       }
@@ -1053,10 +1183,10 @@
           "sort": "desc"
         }
       },
-      "id": 10,
+      "id": 11,
       "gridPos": {
         "x": 12,
-        "y": 18,
+        "y": 26,
         "w": 12,
         "h": 9
       }
@@ -1304,10 +1434,10 @@
           "sort": "desc"
         }
       },
-      "id": 11,
+      "id": 12,
       "gridPos": {
         "x": 0,
-        "y": 27,
+        "y": 35,
         "w": 8,
         "h": 8
       }
@@ -1555,10 +1685,10 @@
           "sort": "desc"
         }
       },
-      "id": 12,
+      "id": 13,
       "gridPos": {
         "x": 8,
-        "y": 27,
+        "y": 35,
         "w": 8,
         "h": 8
       }
@@ -1806,10 +1936,10 @@
           "sort": "desc"
         }
       },
-      "id": 13,
+      "id": 14,
       "gridPos": {
         "x": 16,
-        "y": 27,
+        "y": 35,
         "w": 8,
         "h": 8
       }

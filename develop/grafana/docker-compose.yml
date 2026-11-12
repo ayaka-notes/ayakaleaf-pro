@@ -84,3 +84,7 @@ services:
       - --collector.filesystem.mount-points-exclude=^/(dev|proc|run|sys|snap|var/lib/docker/.+)($$|/)
     volumes:
       - /:/host:ro,rslave
+
+  web:
+    volumes:
+      - ./grafana/settings.cjs:/etc/overleaf/settings.d/grafana.cjs:ro

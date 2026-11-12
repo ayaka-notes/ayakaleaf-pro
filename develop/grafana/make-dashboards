@@ -28,6 +28,7 @@ LINKS = [
     {"title": "All services", "type": "link", "url": "/d/develop/all-services", "icon": "dashboard", "keepTime": True},
     {"title": "Server", "type": "link", "url": "/d/develop-server/server", "icon": "dashboard", "keepTime": True},
     {"title": "Errors", "type": "link", "url": "/d/develop-errors/errors", "icon": "bolt", "keepTime": True},
+    {"title": "Containers", "type": "link", "url": "/d/develop-containers/containers", "icon": "dashboard", "keepTime": True},
     {"title": "Dashboards", "type": "dashboards", "tags": [TAG], "asDropdown": True, "keepTime": True},
 ]
 RESTARTS = {
@@ -181,6 +182,13 @@ UP = {
 LEVEL_VAR = {"name": "level", "label": "Log level", "type": "custom", "query": "fatal,error,warn,info,debug,trace",
              "multi": True, "includeAll": True, "allValue": ".*", "current": {"text": "All", "value": "$__all"}}
 SEARCH_VAR = {"name": "search", "label": "Log search", "type": "textbox", "query": "", "current": {"text": "", "value": ""}}
+# Containers that exit when their job is done, like rustfs-buckets in s3/docker-compose.yml
+ONE_SHOT = ["rustfs-buckets"]
+RUNNING = {
+    "mappings": [{"type": "value", "options": {"0": {"text": "STOPPED", "color": RED}, "1": {"text": "RUNNING", "color": GREEN},
+                                               "2": {"text": "APP DOWN", "color": YELLOW}}}],
+    "color": {"mode": "thresholds"}, "thresholds": steps((None, RED), (1, GREEN), (2, YELLOW)),
+}
 SERVICE_VAR = {"name": "service", "label": "Service", "type": "query", "datasource": LOKI, "query": "label_values(service)",
                "refresh": 2, "multi": True, "includeAll": True, "allValue": ".+", "sort": 1,
                "current": {"text": "All", "value": "$__all"}}
@@ -215,8 +223,19 @@ def dashboard(uid, title, board, variables, description):
 
 def state(sel):
     """up of the Node.js services, with mongo and redis from their exporters, which
-    prometheus.yml labels with service="mongo" and service="redis"."""
-    return f"up{{job=\"overleaf\",{sel}}} or mongodb_up{{{sel}}} or redis_up{{{sel}}}"
+    prometheus.yml labels with service="mongo" and service="redis". mongodb-exporter
+    adds cluster_role only once it reaches mongo, so a 0 from before that is another
+    series; dropping the label keeps one state per service."""
+    return f"up{{job=\"overleaf\",{sel}}} or max without (cluster_role) (mongodb_up{{{sel}}}) or redis_up{{{sel}}}"
+
+
+def container_state(sel):
+    """1 for a running container, 0 for one that cAdvisor saw in the time range but
+    not in the last minute, 2 for a running container whose service has an up from
+    state() that is 0, like node --watch waiting for file changes after a crash."""
+    seen = f"((time() - max by (service) (max_over_time(container_last_seen{{{sel}}}[$__range]))) < bool 60)"
+    down = f"(1 - max by (service) ({state('service!=\"\"')}))"
+    return f"{seen} + on(service) (({seen} * on(service) {down}) or {seen} * 0)"
 
 
 def host_memory(kind):
@@ -258,7 +277,8 @@ def all_services():
         kpi("Active users", 'max(num_active_users{service="web"})', "none", steps((None, PURPLE)),
             description="Users seen by web in the last hour."),
         kpi("Containers", 'count(container_memory_working_set_bytes{service!="", service!="compile"})', "none", steps((None, BLUE)), spark=False,
-            description="Containers of the development environment, without the sandboxed compiles."),
+            description="Containers of the development environment, without the sandboxed compiles.",
+            links=[{"title": "Open Containers", "url": "/d/develop-containers/containers?${__url_time_range}"}]),
         kpi("CPU, all containers", 'sum(rate(container_cpu_usage_seconds_total{service!=""}[1m]))', "percentunit",
             steps((None, GREEN), (4, YELLOW), (7, RED)), description="100% is one core.", decimals=0),
         kpi("Memory, all containers", 'sum(container_memory_working_set_bytes{service!=""})', "bytes",
@@ -405,7 +425,7 @@ def git_bridge():
 def mongo():
     b = Board()
     b.line([
-        kpi("State", "mongodb_up", "none", steps((None, RED), (1, GREEN)), spark=False, mappings=UP["mappings"]),
+        kpi("State", "max without (cluster_role) (mongodb_up)", "none", steps((None, RED), (1, GREEN)), spark=False, mappings=UP["mappings"]),
         kpi("Connections", 'mongodb_ss_connections{conn_type="current"}', "none", steps((None, BLUE))),
         kpi("Operations", "sum(rate(mongodb_ss_opcounters[1m]))", "ops", steps((None, BLUE)), decimals=1),
         kpi("Memory", "mongodb_ss_mem_resident * 1024 * 1024", "bytes", steps((None, GREEN), (2e9, YELLOW), (4e9, RED)), decimals=1),
@@ -540,6 +560,23 @@ def containers():
         kpi("Network out", f"sum(rate(container_network_transmit_bytes_total{{{c}}}[1m]))", "Bps", steps((None, BLUE)), decimals=1),
         kpi("Disk writes", f"sum(rate(container_fs_writes_bytes_total{{{c}}}[1m]))", "Bps", steps((None, PURPLE)), decimals=1),
     ], 4)
+    one_shot = "|".join(ONE_SHOT)
+    # One click opens the dashboard of the service, or this one with only that
+    # container for the containers without a dashboard of their own
+    only = {"title": "Open ${__field.labels.service}", "oneClick": True,
+            "url": "/d/develop-containers/containers?var-container=${__field.labels.service}&${__url_time_range}"}
+    # Each tile gets one link: links in an override are added to the default ones
+    own = "|".join(SERVICES + ["git-bridge", "mongo", "redis"])
+    state_panel = grid("State", container_state(f'{c}, service!="compile", service!~"{one_shot}"'), "{{service}}", RUNNING)
+    state_panel["fieldConfig"]["overrides"] = [
+        {"matcher": {"id": "byRegexp", "options": f"^({own})$"}, "properties": [{"id": "links", "value": [dict(SERVICE_LINK, oneClick=True)]}]},
+        {"matcher": {"id": "byRegexp", "options": f"^(?!({own})$).*"}, "properties": [{"id": "links", "value": [only]}]},
+    ]
+    state_panel["description"] = ("Every container seen in the time range, without the sandboxed compiles and " + ", ".join(ONE_SHOT)
+                                  + ". STOPPED: not seen by cAdvisor in the last minute. APP DOWN: the container runs, but its "
+                                  "service does not answer Prometheus (Node.js services, git-bridge, mongo, redis). "
+                                  "A container that stopped before Prometheus first saw it is not listed.")
+    b.line([state_panel], 8)
     b.line([bars("Memory now", [(f"sort_desc(sum by (service) (container_memory_working_set_bytes{{{c}}}))", "{{service}}")], "bytes", color=BLUE),
             bars("CPU now", [(f"sort_desc(sum by (service) (rate(container_cpu_usage_seconds_total{{{c}}}[1m])))", "{{service}}")], "percentunit", color=GREEN)], 14)
     b.line([series("CPU", [(f"sum by (service) (rate(container_cpu_usage_seconds_total{{{c}}}[1m]))", "{{service}}")], "percentunit"),
@@ -552,7 +589,7 @@ def containers():
                 "refresh": 2, "multi": True, "includeAll": True, "allValue": ".+", "sort": 1,
                 "current": {"text": "All", "value": "$__all"}}
     return dashboard("develop-containers", "Containers", b, [variable],
-                     "CPU, memory, network and disk of every container of the development environment, from cAdvisor.")
+                     "State, CPU, memory, network and disk of every container of the development environment, from cAdvisor.")
 
 
 def extras(name, sel):

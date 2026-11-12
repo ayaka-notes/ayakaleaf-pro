@@ -8,7 +8,7 @@ OVERLEAF_PORT=80
 LDAP_ENABLED=true
 SAML_ENABLED=true
 
-# Catches every email from web, inbox on http://localhost:8025
+# Catches every email from web, inbox on /mailpit of the site
 MAILPIT_ENABLED=true
 
 # Keeps history and template files in RustFS instead of local volumes,

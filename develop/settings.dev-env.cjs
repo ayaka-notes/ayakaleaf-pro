@@ -26,6 +26,25 @@ const settings = fs
   .sort()
   .reduce((settings, file) => merge(require(file), settings), {})
 
+// A "Dev tools" menu in the navbar for logged-in users, with the tools that
+// webpack-dev-server serves on paths of the site, each in a new window. A
+// feature adds its own tool to devTools in its settings file; mongo-express
+// and Redis Insight always run.
+settings.nav = {
+  header_extras: [
+    {
+      text: 'Dev tools',
+      class: 'subdued',
+      only_when_logged_in: true,
+      dropdown: [
+        ...Object.values(settings.devTools || {}),
+        { text: 'Mongo Express', url: '/mongo-express/' },
+        { text: 'Redis Insight', url: '/redis-insight/' },
+      ].map(tool => ({ ...tool, openInNewWindow: true })),
+    },
+  ],
+}
+
 // The image reads this in server-ce/config/settings.js; settings.defaults.js,
 // which the dev environment loads, does not
 settings.projectInviteEncryptorOptions = {

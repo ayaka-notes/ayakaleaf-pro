@@ -10,4 +10,8 @@ module.exports = {
       ignoreTLS: true,
     },
   },
+  // The inbox in the Dev tools menu of the navbar, see settings.dev-env.cjs
+  devTools: {
+    mailpit: { text: 'Mailpit', url: '/mailpit/' },
+  },
 }
