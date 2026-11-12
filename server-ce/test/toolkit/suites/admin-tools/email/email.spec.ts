@@ -330,11 +330,15 @@ describe('secondary emails', function () {
       .then((users: { id: string }[]) => users.map(user => user.id))
   }
 
-  it('finds an account by a secondary email', function () {
+  it('finds an account by a secondary email, and shows which one', function () {
     const { primary, secondary } = accountWithSecondary('found')
     login(ADMIN_EMAIL)
     searchList(secondary)
-    row(primary).should('exist')
+    row(primary).should('contain.text', secondary).and('contain.text', 'Primary')
+
+    // found by the primary email, the row shows no other
+    searchList(primary)
+    row(primary).should('not.contain.text', secondary).and('not.contain.text', 'Primary')
   })
 
   it('finds the projects of an owner by a secondary email', function () {
@@ -347,7 +351,7 @@ describe('secondary emails', function () {
     cy.visit('/admin/project')
     cy.get('.tab-pane.active').findByRole('textbox', { name: 'Search' }).type(secondary)
     cy.wait(`@${list}`)
-    row(name).should('exist')
+    row(name).should('contain.text', secondary).and('contain.text', 'Primary')
   })
 
   it('finds a deleted account by a secondary email, and does not offer editing it', function () {

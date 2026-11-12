@@ -16,7 +16,11 @@ export type AdminUser = {
   authMethods: AuthMethod[]
   deleted: boolean
   deletedAt?: string
+  // the secondary emails the list's search found this user by
+  matchedEmails?: MatchedEmail[]
 }
+
+export type MatchedEmail = { email: string; confirmed: boolean }
 
 export type UserStatus =
   | 'all'

@@ -66,6 +66,19 @@ export function nameOrEmailMatches(term, prefix = '') {
   ]
 }
 
+// The emails besides the primary one that a search matches, as containing()
+// does, so a row found by one of them can show it
+export function matchedSecondaryEmails(user, term) {
+  if (!term) return []
+  const regex = new RegExp(_.escapeRegExp(term), 'i')
+  return (user.emails ?? [])
+    .filter(({ email }) => email !== user.email && regex.test(email))
+    .map(({ email, confirmedAt }) => ({
+      email,
+      confirmed: Boolean(confirmedAt),
+    }))
+}
+
 // ---- paging ----
 
 // a page past the end, as after deleting its last rows, shows the last one
