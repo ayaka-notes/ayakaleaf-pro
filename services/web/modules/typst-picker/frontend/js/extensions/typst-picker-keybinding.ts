@@ -1,18 +1,16 @@
 import { keymap } from '@codemirror/view'
 import { Prec, Extension } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
-import { language } from '@codemirror/language'
+import { docKindOf } from '../../../../frontend/js/features/source-editor/extensions/doc-kind'
 
 /**
- * True when the editor's active language is Typst. Used to keep this
- * keybinding out of LaTeX documents, where the reference-picker owns
- * Ctrl-Space (its startCompletion fallback would otherwise swallow the key).
+ * Keep this keybinding out of LaTeX documents: the reference-picker's
+ * Ctrl-Space fallback (startCompletion) returns true and would otherwise
+ * swallow the key before this handler runs.
  */
 function isTypstDocument(view: EditorView): boolean {
   try {
-    return view.state
-      .facet(language)
-      .some((l: { name?: string }) => l.name === 'typst')
+    return docKindOf(view) === 'typst'
   } catch {
     return false
   }
