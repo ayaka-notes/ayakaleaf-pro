@@ -136,8 +136,12 @@ function nearestByOffset(locations, file, offset) {
 // Checking containment first avoids the "wide box center" problem where a
 // click on the left edge of a wide heading maps to a different (nearer-center)
 // location on the line above or below.
+// Among multiple containing boxes (nested elements), the smallest (most
+// specific) is preferred, so a click on an inner span maps to the span, not
+// the enclosing paragraph.
 function nearestByPoint(locations, page, x, y) {
-  // Pass 1: containment (click is inside the box)
+  // Pass 1: containment (click is inside the box) — smallest containing box wins
+  let contained = null
   for (let i = 0; i < locations.length; i++) {
     const loc = locations[i]
     if (loc.page !== page) continue
@@ -147,9 +151,12 @@ function nearestByPoint(locations, page, x, y) {
       y >= loc.y &&
       y <= loc.y + loc.h
     ) {
-      return loc
+      if (contained === null || loc.w * loc.h < contained.w * contained.h) {
+        contained = loc
+      }
     }
   }
+  if (contained) return contained
   // Pass 2: nearest center (fallback)
   let best = -1
   const dist = loc => {

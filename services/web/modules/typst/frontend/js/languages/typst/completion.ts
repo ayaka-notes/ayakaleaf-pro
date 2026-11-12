@@ -71,24 +71,24 @@ export function typstCompletionSource(
   // completion span covers the existing reference.
   const afterTrigger = after.match(/^(@(\w[\w:-]*))|^#label\s*["'(]?\s*§?\s*([^\s)\n"']*)|^#ref\s*\(?\s*§?\s*([^\s)\n]*)|^#cite\s*\(?\s*§?\s*([^\s)\n]*)/)
   if (afterTrigger) {
-    // Determine the full trigger text and the partial
-    let triggerText = ''
+    // afterTrigger[0] is the full matched trigger text (from the start of the
+    // line-after up to the end of the existing name). Using it directly avoids
+    // the indexOf() pitfall where a short label name that is also a substring
+    // of the keyword prefix (e.g. `#label(§a)` — "a" inside "label") resolves
+    // to the wrong, earlier position.
+    const triggerText = afterTrigger[0]
     let partial = ''
     if (afterTrigger[1]) {
       // @ref
-      triggerText = afterTrigger[1]
       partial = afterTrigger[2] || ''
     } else if (afterTrigger[3] !== undefined) {
       // #label
-      triggerText = after.slice(0, after.indexOf(afterTrigger[3]) + afterTrigger[3].length)
       partial = afterTrigger[3]
     } else if (afterTrigger[4] !== undefined) {
       // #ref
-      triggerText = after.slice(0, after.indexOf(afterTrigger[4]) + afterTrigger[4].length)
       partial = afterTrigger[4]
     } else if (afterTrigger[5] !== undefined) {
       // #cite
-      triggerText = after.slice(0, after.indexOf(afterTrigger[5]) + afterTrigger[5].length)
       partial = afterTrigger[5]
     }
     

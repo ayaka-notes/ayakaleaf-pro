@@ -132,8 +132,8 @@ export const typstInsertRef: Command = view => {
   
   // Check if cursor is already on an @ref
   const beforeMatch = before.match(/(@\w[\w:-]*)$/)
-  const afterMatch = after.match(/^(\w[\w:-]*)/)
-  
+  const afterMatch = after.match(/^@(\w[\w:-]*)/)
+
   if (beforeMatch) {
     // Cursor is after part of an @ref — select the whole reference and trigger completion
     const refStart = pos - beforeMatch[1].length
@@ -146,9 +146,9 @@ export const typstInsertRef: Command = view => {
     })
     return true
   }
-  
-  if (afterMatch && after.startsWith('@')) {
-    // Cursor is before an @ref — select the reference and trigger completion
+
+  if (afterMatch) {
+    // Cursor is directly before an @ref — select the reference (without the @) and trigger completion
     dispatch({
       selection: { anchor: pos + 1, head: pos + 1 + afterMatch[1].length },
       userEvent: 'inputType',
@@ -158,7 +158,15 @@ export const typstInsertRef: Command = view => {
     })
     return true
   }
-  
+
+  if (before.endsWith('@')) {
+    // Cursor is right after a bare @ (just typed) — just trigger completion
+    requestAnimationFrame(() => {
+      if (!view.destroyed) startCompletion(view)
+    })
+    return true
+  }
+
   // Not on a reference — insert @ and trigger completion
   dispatch({
     changes: { from: pos, to: pos, insert: '@' },
