@@ -17,7 +17,7 @@ import {
   wrapInDescriptionList,
   wrapInNumberedList,
 } from './lists'
-import { snippet } from '@codemirror/autocomplete'
+import { snippet, startCompletion } from '@codemirror/autocomplete'
 import { snippets } from './snippets'
 import { minimumListDepthForSelection } from '../../utils/tree-operations/ancestors'
 import { isVisual } from '../visual/visual'
@@ -135,26 +135,39 @@ export const typstInsertRef: Command = view => {
   const afterMatch = after.match(/^(\w[\w:-]*)/)
   
   if (beforeMatch) {
-    // Cursor is after part of an @ref — select the whole reference
+    // Cursor is after part of an @ref — select the whole reference and trigger completion
     const refStart = pos - beforeMatch[1].length
     dispatch({
-      selection: { anchor: refStart + 1, head: pos }, // select after @
+      selection: { anchor: refStart + 1, head: pos },
+      userEvent: 'inputType',
+    })
+    requestAnimationFrame(() => {
+      if (!view.destroyed) startCompletion(view)
     })
     return true
   }
   
   if (afterMatch && after.startsWith('@')) {
-    // Cursor is before an @ref — position after the @
+    // Cursor is before an @ref — select the reference and trigger completion
     dispatch({
       selection: { anchor: pos + 1, head: pos + 1 + afterMatch[1].length },
+      userEvent: 'inputType',
+    })
+    requestAnimationFrame(() => {
+      if (!view.destroyed) startCompletion(view)
     })
     return true
   }
   
-  // Not on a reference — insert @
+  // Not on a reference — insert @ and trigger completion
   dispatch({
     changes: { from: pos, to: pos, insert: '@' },
     selection: { anchor: pos + 1 },
+    userEvent: 'inputType',
+  })
+  // Trigger completion explicitly
+  requestAnimationFrame(() => {
+    if (!view.destroyed) startCompletion(view)
   })
   return true
 }

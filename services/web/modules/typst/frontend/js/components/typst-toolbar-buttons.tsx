@@ -82,7 +82,7 @@ const TypstToolbarButtons: FC = () => {
         id="toolbar-typst-ref"
         label={t('toolbar_ref')}
         command={commands.typstInsertRef}
-        icon="link"
+        icon="tag"
       />
       <ToolbarButton
         id="toolbar-typst-link"

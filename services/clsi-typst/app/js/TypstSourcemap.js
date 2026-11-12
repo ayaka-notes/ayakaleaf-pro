@@ -131,9 +131,26 @@ function nearestByOffset(locations, file, offset) {
   return best === -1 ? null : locations[best]
 }
 
-// nearestByPoint returns the location on a 0-based page whose center is
-// nearest (x, y) in user space. null when the page has no locations.
+// nearestByPoint returns the location on a 0-based page whose box contains
+// (x, y) — or, if no box contains the point, whose center is nearest.
+// Checking containment first avoids the "wide box center" problem where a
+// click on the left edge of a wide heading maps to a different (nearer-center)
+// location on the line above or below.
 function nearestByPoint(locations, page, x, y) {
+  // Pass 1: containment (click is inside the box)
+  for (let i = 0; i < locations.length; i++) {
+    const loc = locations[i]
+    if (loc.page !== page) continue
+    if (
+      x >= loc.x &&
+      x <= loc.x + loc.w &&
+      y >= loc.y &&
+      y <= loc.y + loc.h
+    ) {
+      return loc
+    }
+  }
+  // Pass 2: nearest center (fallback)
   let best = -1
   const dist = loc => {
     const dx = x - (loc.x + loc.w / 2)
