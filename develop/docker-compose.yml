@@ -17,6 +17,9 @@ services:
       dockerfile: services/chat/Dockerfile
     env_file:
       - dev.env
+    depends_on:
+      mongo:
+        condition: service_healthy
 
   clsi:
     build:
@@ -52,6 +55,9 @@ services:
       dockerfile: services/docstore/Dockerfile
     env_file:
       - dev.env
+    depends_on:
+      mongo:
+        condition: service_healthy
 
   document-updater:
     build:
@@ -63,6 +69,11 @@ services:
       # Dropbox gets a doc when it is written to Mongo, as with
       # server-ce/init_scripts/100_dropbox_background_flush.sh
       - CONTINUOUS_BACKGROUND_FLUSH=true
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   filestore:
     build:
@@ -93,6 +104,11 @@ services:
       PERSISTOR_BACKEND: fs
     volumes:
       - history-v1-buckets:/buckets
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   linked-url-proxy:
     build:
@@ -120,6 +136,11 @@ services:
       # replica set. This override is not needed when running the setup after
       # starting up mongo.
       - mongo:127.0.0.1
+    healthcheck:
+      test: echo 'db.stats().ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
 
   notifications:
     build:
@@ -127,6 +148,9 @@ services:
       dockerfile: services/notifications/Dockerfile
     env_file:
       - dev.env
+    depends_on:
+      mongo:
+        condition: service_healthy
 
   project-history:
     build:
@@ -134,6 +158,11 @@ services:
       dockerfile: services/project-history/Dockerfile
     env_file:
       - dev.env
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   real-time:
     build:
@@ -141,6 +170,9 @@ services:
       dockerfile: services/real-time/Dockerfile
     env_file:
       - dev.env
+    depends_on:
+      redis:
+        condition: service_started
 
   third-party-datastore:
     build:
@@ -148,6 +180,11 @@ services:
       dockerfile: services/third-party-datastore/Dockerfile
     env_file:
       - dev.env
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   redis:
     image: redis:7
@@ -181,19 +218,32 @@ services:
       - ./data/certs/:/var/lib/overleaf/certs/
       - ./settings.dev-env.cjs:/overleaf/services/web/settings.dev-env.cjs
     depends_on:
-      - mongo
-      - redis
-      - chat
-      - clsi
-      - docstore
-      - document-updater
-      - filestore
-      - history-v1
-      - linked-url-proxy
-      - notifications
-      - project-history
-      - real-time
-      - third-party-datastore
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      chat:
+        condition: service_started
+      clsi:
+        condition: service_started
+      docstore:
+        condition: service_started
+      document-updater:
+        condition: service_started
+      filestore:
+        condition: service_started
+      history-v1:
+        condition: service_started
+      linked-url-proxy:
+        condition: service_started
+      notifications:
+        condition: service_started
+      project-history:
+        condition: service_started
+      real-time:
+        condition: service_started
+      third-party-datastore:
+        condition: service_started
 
   webpack:
     build:
