@@ -1,13 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import ReferencePickerModal from './reference-picker-modal'
 import { useEditorViewContext } from '@/features/ide-react/context/editor-view-context'
-import { useProjectContext } from '@/shared/context/project-context'
 
 export default function ReferencePickerController() {
   const { view } = useEditorViewContext()
-  const { project } = useProjectContext()
-  // Typst cites are #cite("key", ...); LaTeX uses \cite{key, ...}.
-  const isTypst = project?.compiler === 'typst'
 
   const [open, setOpen] = useState(false)
   const [from, setFrom] = useState<number | null>(null)
@@ -26,9 +22,7 @@ export default function ReferencePickerController() {
       const bFrom = braceFrom ?? from
       const bTo = braceTo ?? to
 
-      let insertCore = isTypst
-        ? selectedKeys.map((k) => `"${k}"`).join(', ')
-        : selectedKeys.join(', ')
+      let insertCore = selectedKeys.join(', ')
 
       // Expand over spaces/tabs and commas around selection
       let start = from
@@ -52,7 +46,7 @@ export default function ReferencePickerController() {
       })
       view.focus()
     },
-    [view, from, to, braceFrom, braceTo, isTypst]
+    [view, from, to, braceFrom, braceTo]
   )
 
   useEffect(() => {
@@ -62,12 +56,11 @@ export default function ReferencePickerController() {
       if (detail.insertFrom == null) {
         if (!view) return
         const pos = view.state.selection.main.head
-        const insertText = isTypst ? '#cite()' : '\\cite{}'
-        const delim = isTypst ? '(' : '{'
+        const insertText = '\\cite{}'
         view.dispatch({
           changes: { from: pos, to: pos, insert: insertText }
         })
-        const newFrom = pos + insertText.indexOf(delim) + 1
+        const newFrom = pos + insertText.indexOf('{') + 1
         setFrom(newFrom)
         setTo(newFrom)
         setBraceFrom(newFrom)
@@ -86,7 +79,7 @@ export default function ReferencePickerController() {
 
     window.addEventListener('reference:openPicker', handler as EventListener)
     return () => window.removeEventListener('reference:openPicker', handler as EventListener)
-  }, [view, isTypst])
+  }, [view])
 
   return (
     <ReferencePickerModal

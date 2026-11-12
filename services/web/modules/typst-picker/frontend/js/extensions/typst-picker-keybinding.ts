@@ -1,7 +1,6 @@
 import { keymap } from '@codemirror/view'
 import { Prec, Extension } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
-import { startCompletion } from '@codemirror/autocomplete'
 
 /**
  * Typst reference picker keybinding.
@@ -51,7 +50,7 @@ export function openTypstPickerIfInCite(view: EditorView): boolean {
   }
 }
 
-export const typstPickerKeybindingExtension: Extension =
+export const extension = (): Extension =>
   Prec.highest(
     keymap.of([
       { key: 'Ctrl-Space', run: openTypstPickerIfInCite },
