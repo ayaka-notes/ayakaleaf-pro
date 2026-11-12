@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import ReferencePickerModal from './reference-picker-modal'
 import { useEditorViewContext } from '@/features/ide-react/context/editor-view-context'
 import { useProjectContext } from '@/shared/context/project-context'
@@ -16,6 +16,10 @@ export default function ReferencePickerController() {
   const [braceTo, setBraceTo] = useState<number | null>(null)
   const [initialKeys, setInitialKeys] = useState<string[]>([])
   const [atStyle, setAtStyle] = useState(false)
+
+  // Guard against re-opening right after apply (cursor lands on the
+  // newly inserted @key text and openPickerIfInCite re-fires).
+  const justAppliedRef = useRef(false)
 
   const onClose = useCallback(() => setOpen(false), [])
 
@@ -64,12 +68,18 @@ export default function ReferencePickerController() {
         selection: { anchor: cursorPos },
       })
       view.focus()
+      justAppliedRef.current = true
     },
     [view, from, to, braceFrom, braceTo, isTypst, atStyle]
   )
 
   useEffect(() => {
     const handler = (evt: CustomEvent) => {
+      // Ignore re-trigger from cursor landing on freshly inserted text
+      if (justAppliedRef.current) {
+        justAppliedRef.current = false
+        return
+      }
       const detail = evt.detail || {}
 
       if (detail.insertFrom == null) {
