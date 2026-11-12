@@ -67,6 +67,11 @@ function NewProjectButton({
   const docxImportEnabled =
     useFeatureFlag('import-docx') &&
     getMeta('ol-ExposedSettings').enablePandocConversions
+  const typstEnabled = getMeta('ol-ExposedSettings').typstEnabled === true
+  const [typstNewProjectMenu] = importOverleafModules('typstNewProjectMenu')
+  const TypstNewProjectMenu: JSXElementConstructor<{
+    onClick: (e: React.MouseEvent) => void
+  }> = typstNewProjectMenu?.import.default
   const markdownImportEnabled =
     useFeatureFlag('import-markdown') &&
     getMeta('ol-ExposedSettings').enablePandocConversions
@@ -219,6 +224,18 @@ function NewProjectButton({
                 {t('blank_project')}
               </OLDropdownItem>
             </li>
+            {typstEnabled && TypstNewProjectMenu ? (
+              <li role="none">
+                <TypstNewProjectMenu
+                  onClick={e =>
+                    handleModalMenuClick(e, {
+                      modalVariant: 'blank_typst_project',
+                      dropdownMenuEvent: 'blank-typst-project',
+                    })
+                  }
+                />
+              </li>
+            ) : null}
             <OLDropdownDivider />
             <OLDropdownHeader aria-hidden="true">
               {t('import')}

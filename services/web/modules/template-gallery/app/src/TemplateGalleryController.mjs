@@ -192,7 +192,9 @@ async function templatesCategoryPage(req, res, next) {
 
     let title
     if (result.categoryName) {
-      title = t('latex_templates') + ' — ' + result.categoryName
+      // Compiler-neutral: the gallery now serves both LaTeX and Typst templates
+      // (each template stores its own `compiler`).
+      title = t('templates') + ' — ' + result.categoryName
     } else {
       category = null
       title = t('templates_page_title')

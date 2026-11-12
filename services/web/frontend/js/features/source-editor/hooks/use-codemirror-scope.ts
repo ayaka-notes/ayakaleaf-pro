@@ -33,7 +33,7 @@ import { EditorView } from '@codemirror/view'
 import { useErrorBoundary } from 'react-error-boundary'
 import { isVisual, setVisual } from '../extensions/visual/visual'
 import { setFilePreview } from '../extensions/file-preview'
-import { setDocFolder } from '../extensions/doc-folder'
+import { setDocFolder, setOpenDocPath } from '../extensions/doc-folder'
 import { useFileTreePathContext } from '@/features/file-tree/contexts/file-tree-path'
 import { useUserSettingsContext } from '@/shared/context/user-settings-context'
 import { setDocName } from '@/features/source-editor/extensions/doc-name'
@@ -435,7 +435,9 @@ function useCodeMirrorScope(view: EditorView) {
     window.setTimeout(() => {
       view.dispatch(
         setFilePreview(previewByPath),
-        setDocFolder(currentDocument ? dirname(currentDocument.doc_id) : null)
+        setDocFolder(currentDocument ? dirname(currentDocument.doc_id) : null),
+        // Typst #include/#import offers use this to filter out the open doc.
+        setOpenDocPath(currentDocument ? currentDocument.doc_id : null)
       )
     })
   }, [view, previewByPath, dirname, currentDocument])

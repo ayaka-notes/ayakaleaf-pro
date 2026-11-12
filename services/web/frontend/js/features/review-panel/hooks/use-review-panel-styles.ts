@@ -8,18 +8,14 @@ export const useReviewPanelStyles = () => {
 
   const updateScrollDomVariables = useCallback((element: HTMLDivElement) => {
     const { top } = element.getBoundingClientRect()
-
-    setStyles(value => ({
-      ...value,
-      '--review-panel-top': `${top}px`,
-    }))
-  }, [])
-
-  const updateContentDomVariables = useCallback((element: HTMLDivElement) => {
+    // Use the scroll DOM's height (visible area) for the panel height,
+    // not the content DOM's height (full content), so the panel background
+    // fills the visible editor area without scrolling out of view.
     const height = element.clientHeight
 
     setStyles(value => ({
       ...value,
+      '--review-panel-top': `${top}px`,
       '--review-panel-height': `${height}px`,
     }))
   }, [])
@@ -31,17 +27,11 @@ export const useReviewPanelStyles = () => {
       )
       scrollDomObserver.observe(view.scrollDOM)
 
-      const contentDomObserver = new window.ResizeObserver(entries =>
-        updateContentDomVariables(entries[0]?.target as HTMLDivElement)
-      )
-      contentDomObserver.observe(view.contentDOM)
-
       return () => {
         scrollDomObserver.disconnect()
-        contentDomObserver.disconnect()
       }
     }
-  }, [view, updateScrollDomVariables, updateContentDomVariables])
+  }, [view, updateScrollDomVariables])
 
   return styles
 }

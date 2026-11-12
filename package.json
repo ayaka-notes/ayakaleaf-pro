@@ -182,7 +182,8 @@
     "fast-xml-builder": "1.1.7",
     "fast-xml-parser": "5.7.3",
     "ip-address": "10.3.1",
-    "express": "patch:express@npm%3A4.22.1#~/.yarn/patches/express-npm-4.22.1-0ea5210390.patch"
+    "express": "patch:express@npm%3A4.22.1#~/.yarn/patches/express-npm-4.22.1-0ea5210390.patch",
+    "@lezer/highlight": "1.2.3"
   },
   "scripts": {
     "format": "prettier --cache --cache-location ./.cache/prettier/.prettier-cache --check",
@@ -208,6 +209,7 @@
     "services/chat",
     "services/clsi",
     "services/clsi-cache",
+    "services/clsi-typst",
     "services/clsi-lb",
     "services/clsi-perf",
     "services/docstore",

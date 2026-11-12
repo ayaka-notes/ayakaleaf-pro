@@ -75,7 +75,7 @@ const httpPermissionsPolicy = {
   },
 }
 
-const safeCompilers = ['xelatex', 'pdflatex', 'latex', 'lualatex']
+const safeCompilers = ['xelatex', 'pdflatex', 'latex', 'lualatex', 'typst']
 
 module.exports = {
   env: 'server-ce',
@@ -228,6 +228,16 @@ module.exports = {
         process.env.CLSI_STANDARD_COMPILE_BACKEND_CLASS || 'free',
       priorityCompileBackendClass:
         process.env.CLSI_PRIORITY_COMPILE_BACKEND_CLASS || 'premium',
+    },
+    clsi_typst: {
+      // The Typst compile service (services/clsi-typst), a sibling of clsi.
+      // Separate port so both can run on the same host (server-ce single
+      // container: clsi on 3013, clsi-typst on 3014 by default there).
+      url: `http://${process.env.CLSI_TYPST_HOST || '127.0.0.1'}:${process.env.CLSI_TYPST_PORT || 3014}`,
+      downloadHost:
+        process.env.CLSI_TYPST_LB_IP || process.env.CLSI_TYPST_LB_HOST
+          ? `http://${process.env.CLSI_TYPST_LB_IP || process.env.CLSI_TYPST_LB_HOST}:80`
+          : `http://${process.env.DOWNLOAD_HOST || '127.0.0.1'}:8080`,
     },
     clsiCache: {
       instances: JSON.parse(process.env.CLSI_CACHE_INSTANCES || '[]'),
@@ -459,6 +469,13 @@ module.exports = {
   disableChat: process.env.OVERLEAF_DISABLE_CHAT === 'true',
   disableLinkSharing: process.env.OVERLEAF_DISABLE_LINK_SHARING === 'true',
   safeCompilers,
+  // Typst support (services/clsi-typst + the typst webmodule). Enabled by
+  // default; set COMPILE_TYPEST_ENABLED=false to hide the Typst new-project
+  // entry and disable Typst compiles. Exposed to the client as
+  // ol-ExposedSettings.typstEnabled (the runtime UI gate).
+  typst: {
+    enabled: process.env.COMPILE_TYPEST_ENABLED !== 'false',
+  },
   defaultLatexCompiler: safeCompilers.includes(
     process.env.DEFAULT_LATEX_COMPILER
   )
@@ -885,7 +902,7 @@ module.exports = {
     process.env.FILE_IGNORE_PATTERN ||
     '**/{{__MACOSX,.git,.texpadtmp,.R,.venv,venv}{,/**},.!(latexmkrc),*.{dvi,aux,log,toc,out,pdfsync,synctex,synctex(busy),fdb_latexmk,fls,nlo,ind,glo,gls,glg,bbl,blg,doc,docx,gz,swp}}',
 
-  validRootDocExtensions: ['tex', 'Rtex', 'ltx', 'Rnw'],
+  validRootDocExtensions: ['tex', 'Rtex', 'ltx', 'Rnw', 'typ'],
 
   emailConfirmationDisabled:
     process.env.EMAIL_CONFIRMATION_DISABLED === 'true' || false,
@@ -1003,6 +1020,18 @@ module.exports = {
     //
     // Restart webpack after making changes.
     //
+    typstNewProjectMenu: [
+      Path.resolve(
+        __dirname,
+        '../modules/typst/frontend/js/components/typst-new-project-menu'
+      ),
+    ],
+    typstNewProjectModalWrapper: [
+      Path.resolve(
+        __dirname,
+        '../modules/typst/frontend/js/components/typst-new-project-modal-wrapper'
+      ),
+    ],
     createFileModes: [
       Path.resolve(
         __dirname,
@@ -1081,7 +1110,12 @@ module.exports = {
       ),
     ],
     sourceEditorToolbarStartButtons: [],
-    sourceEditorToolbarButtonGroups: [],
+    sourceEditorToolbarButtonGroups: [
+      Path.resolve(
+        __dirname,
+        '../modules/typst/frontend/js/components/typst-toolbar-buttons'
+      ),
+    ],
     sourceEditorToolbarComponents: [],
     sourceEditorToolbarEndButtons: [],
     rootContextProviders: [
@@ -1329,6 +1363,7 @@ module.exports = {
     'gitea-sync',
     'dropbox',
     'tpr-webmodule',
+    'typst',
     'workbench',
     'error-assistant',
     'instance-features',

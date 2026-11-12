@@ -10,6 +10,7 @@ import { EDITOR_SESSION_ID } from '@/features/pdf-preview/util/metrics'
 import { LogEntry } from './types'
 import { CompileResponseData, PDFFile } from '@ol-types/compile'
 import { LatexLogEntry } from '@/ide/log-parser/latex-log-parser'
+import { parseTypstLogEntries } from '@/ide/log-parser/typst-log-parser'
 import { Annotation } from '@ol-types/annotation'
 import { Folder } from '@ol-types/folder'
 
@@ -92,10 +93,10 @@ export async function handleLogFiles(
 
   function accumulateResults(
     newEntries: {
-      errors?: (LatexLogEntry | BibLogEntry)[]
-      warnings?: (LatexLogEntry | BibLogEntry)[]
-      typesetting?: (LatexLogEntry | BibLogEntry)[]
-      all?: (LatexLogEntry | BibLogEntry)[]
+      errors?: (LatexLogEntry | BibLogEntry | LogEntry)[]
+      warnings?: (LatexLogEntry | BibLogEntry | LogEntry)[]
+      typesetting?: (LatexLogEntry | BibLogEntry | LogEntry)[]
+      all?: (LatexLogEntry | BibLogEntry | LogEntry)[]
     },
     type?: string
   ) {
@@ -126,6 +127,20 @@ export async function handleLogFiles(
       signal,
       MAX_LOG_SIZE
     )
+    // Typst projects compile via clsi-typst and emit a miette-style log; use
+    // the Typst parser (LaTeX projects use HumanReadableLogs below).
+    if (data.options?.compiler === 'typst') {
+      const { errors, warnings, typesetting } = parseTypstLogEntries(
+        result.log
+      )
+      accumulateResults({ errors, warnings, typesetting })
+      result.logEntries.all = [
+        ...result.logEntries.errors,
+        ...result.logEntries.warnings,
+        ...result.logEntries.typesetting,
+      ]
+      return result
+    }
     try {
       let { errors, warnings, typesetting } = HumanReadableLogs.parse(
         result.log,

@@ -26,6 +26,97 @@ import { sendSearchEvent } from '@/features/event-tracking/search-events'
 export const toggleBold = toggleRanges('\\textbf')
 export const toggleItalic = toggleRanges('\\textit')
 
+// Typst bold/italic use `*…*` / `_…_` wrapping (the lezer grammar marks
+// these as Strong/Emph spans). Used by the typst toolbar group.
+export const typstToggleBold = wrapRanges('*', '*')
+export const typstToggleItalic = wrapRanges('_', '_')
+
+// --- Typst toolbar commands (ported from texlyre reference) ---
+
+export const typstInsertHeading: Command = view => {
+  const { state, dispatch } = view
+  const { from, to } = state.selection.main
+  const line = state.doc.lineAt(from)
+  const text = state.sliceDoc(line.from, to)
+  const heading = `= ${text || 'Heading'}`
+  dispatch({
+    changes: { from: line.from, to, insert: heading },
+    selection: { anchor: line.from + heading.length },
+  })
+  return true
+}
+
+export const typstInsertInlineMath: Command = view => {
+  const { state, dispatch } = view
+  const { from, to } = state.selection.main
+  const text = state.sliceDoc(from, to)
+  const insert = text ? `$${text}$` : '$ '
+  dispatch({
+    changes: { from, to, insert },
+    selection: { anchor: from + insert.length },
+  })
+  return true
+}
+
+export const typstInsertCodeBlock: Command = view => {
+  const { state, dispatch } = view
+  const { from, to } = state.selection.main
+  const text = state.sliceDoc(from, to)
+  const insert = text ? `\n\u0060\u0060\u0060\n${text}\n\u0060\u0060\u0060\n` : '\n\u0060\u0060\u0060\n\n\u0060\u0060\u0060\n'
+  dispatch({
+    changes: { from, to, insert },
+    selection: { anchor: from + insert.length },
+  })
+  return true
+}
+
+export const typstInsertLink: Command = view => {
+  const { state, dispatch } = view
+  const { from, to } = state.selection.main
+  const text = state.sliceDoc(from, to)
+  const insert = text ? `#link("")[${text}]` : '#link("")[]'
+  dispatch({
+    changes: { from, to, insert },
+    selection: { anchor: from + insert.length },
+  })
+  return true
+}
+
+export const typstInsertFigure: Command = view => {
+  const { state, dispatch } = view
+  const { from, to } = state.selection.main
+  const insert = '#figure(\n  image("", width: 80%),\n  caption: []\n)'
+  dispatch({
+    changes: { from, to, insert },
+    selection: { anchor: from + insert.length },
+  })
+  return true
+}
+
+export const typstInsertTable: Command = view => {
+  const { state, dispatch } = view
+  const { from, to } = state.selection.main
+  const insert =
+    '#figure(\n  table(\n    columns: (1fr, 1fr),\n    table.header([Column 1], [Column 2]),\n    [A], [B],\n  ),\n  caption: []\n)'
+  dispatch({
+    changes: { from, to, insert },
+    selection: { anchor: from + insert.length },
+  })
+  return true
+}
+
+export const typstInsertQuote: Command = view => {
+  const { state, dispatch } = view
+  const { from, to } = state.selection.main
+  const text = state.sliceDoc(from, to)
+  const insert = text ? `#quote[\n${text}\n]` : '#quote[\n\n]'
+  dispatch({
+    changes: { from, to, insert },
+    selection: { anchor: from + insert.length },
+  })
+  return true
+}
+
 // TODO: apply as a snippet?
 // TODO: read URL from clipboard?
 export const wrapInHref = wrapRanges('\\href{}{', '}', false, (range, view) =>
