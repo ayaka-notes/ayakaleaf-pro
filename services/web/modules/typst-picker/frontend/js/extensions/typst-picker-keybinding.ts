@@ -1,18 +1,18 @@
 import { keymap } from '@codemirror/view'
 import { Prec, Extension } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
+import { language } from '@codemirror/language'
 
 /**
- * True when the cursor sits in a Typst document (language data registered
- * by the typst language module). Used to keep this keybinding out of LaTeX
- * documents, where the reference-picker owns Ctrl-Space.
+ * True when the editor's active language is Typst. Used to keep this
+ * keybinding out of LaTeX documents, where the reference-picker owns
+ * Ctrl-Space (its startCompletion fallback would otherwise swallow the key).
  */
 function isTypstDocument(view: EditorView): boolean {
   try {
-    const pos = view.state.selection.main.head
     return view.state
-      .languageDataAt(pos)
-      .some((d: { name?: string }) => d.name === 'typst')
+      .facet(language)
+      .some((l: { name?: string }) => l.name === 'typst')
   } catch {
     return false
   }

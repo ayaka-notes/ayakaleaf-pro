@@ -31,7 +31,9 @@ export async function typst(): Promise<LanguageSupport> {
     documentOutline,
     shortcuts(),
     EditorState.languageData.of(() => [
-      { autocomplete: typstCompletionSource as CompletionSource },
+      // name: 'typst' is used by runtime language detection (e.g. the
+      // typst-picker keybinding guard) via state.languageDataAt(pos)
+      { name: 'typst', autocomplete: typstCompletionSource as CompletionSource },
     ]),
   ])
 }
