@@ -634,6 +634,15 @@ function _isTypstCompiler(compiler) {
   return compiler === 'typst'
 }
 
+// Strip a leading slash from an image name (Docker rejects "/name:tag" as
+// an invalid reference). Also resolves bare names against the configured
+// registry prefix when the CLSI needs a fully-qualified reference.
+function _normalizeImageName(name) {
+  if (!name) return name
+  let n = name.replace(/^\/+/, '') // strip leading slashes
+  return n
+}
+
 function _clsiBaseURL(compiler) {
   return _isTypstCompiler(compiler) && Settings.apis.clsi_typst?.url
     ? Settings.apis.clsi_typst.url
@@ -1219,7 +1228,7 @@ function _finaliseRequest(projectId, options, project, docs, files) {
         editorId: options.editorId,
         compiler: project.compiler,
         timeout: options.timeout,
-        imageName: project.imageName,
+        imageName: _normalizeImageName(project.imageName),
         draft: Boolean(options.draft),
         // enable for premium compiles only
         png2pdf: Boolean(options.png2pdf) && hasPremiumCompiles,
@@ -1227,7 +1236,7 @@ function _finaliseRequest(projectId, options, project, docs, files) {
         enableCheckpoint:
           Boolean(options.checkpointing) &&
           hasPremiumCompiles &&
-          _imageHasCheckpointing(project.imageName),
+          _imageHasCheckpointing(_normalizeImageName(project.imageName)),
         stopOnFirstError: Boolean(options.stopOnFirstError),
         check: options.check,
         syncType: options.syncType,
@@ -1316,7 +1325,7 @@ async function wordCount(
     req.compile.options.compiler
   )
   url.searchParams.set('file', filename)
-  url.searchParams.set('image', req.compile.options.imageName)
+  url.searchParams.set('image', _normalizeImageName(req.compile.options.imageName))
 
   const requestWordCount = async opts => {
     const { body } = await _makeRequestWithClsiServerId(
@@ -1386,7 +1395,7 @@ async function syncTeX(
     'compileFromClsiCache',
     compileFromClsiCache && ['alpha', 'priority'].includes(compileGroup)
   )
-  url.searchParams.set('imageName', imageName)
+  url.searchParams.set('imageName', _normalizeImageName(imageName))
   for (const [key, value] of Object.entries(validatedOptions)) {
     url.searchParams.set(key, value)
   }

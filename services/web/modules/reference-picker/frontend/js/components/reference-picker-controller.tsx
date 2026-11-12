@@ -15,6 +15,7 @@ export default function ReferencePickerController() {
   const [braceFrom, setBraceFrom] = useState<number | null>(null)
   const [braceTo, setBraceTo] = useState<number | null>(null)
   const [initialKeys, setInitialKeys] = useState<string[]>([])
+  const [atStyle, setAtStyle] = useState(false)
 
   const onClose = useCallback(() => setOpen(false), [])
 
@@ -26,7 +27,9 @@ export default function ReferencePickerController() {
       const bFrom = braceFrom ?? from
       const bTo = braceTo ?? to
 
-      let insertCore = isTypst
+      let insertCore = atStyle
+        ? selectedKeys.join(', ')
+        : isTypst
         ? selectedKeys.map((k) => `"${k}"`).join(', ')
         : selectedKeys.join(', ')
 
@@ -52,7 +55,7 @@ export default function ReferencePickerController() {
       })
       view.focus()
     },
-    [view, from, to, braceFrom, braceTo, isTypst]
+    [view, from, to, braceFrom, braceTo, isTypst, atStyle]
   )
 
   useEffect(() => {
@@ -73,12 +76,14 @@ export default function ReferencePickerController() {
         setBraceFrom(newFrom)
         setBraceTo(newFrom)
         setInitialKeys([])
+        setAtStyle(false)
       } else {
         setFrom(detail.insertFrom)
         setTo(detail.insertTo)
         setBraceFrom(detail.braceFrom ?? detail.insertFrom)
         setBraceTo(detail.braceTo ?? detail.insertTo)
         setInitialKeys(detail.selectedTokens || [])
+        setAtStyle(!!detail.atStyle)
       }
 
       setOpen(true)
