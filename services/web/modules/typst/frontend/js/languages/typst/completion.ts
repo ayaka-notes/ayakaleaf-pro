@@ -50,17 +50,72 @@ export function typstCompletionSource(
   const docFolder = state.facet(docFolderFacet) as string | null
   const openDocPath = state.facet(openDocPathFacet) as string | null
   const line = state.doc.lineAt(pos)
-  // `before` is the line slice ending at the cursor; `pos` is the cursor's
-  // document offset, so the engine's `from = pos - partialLength` is the
-  // absolute document offset where the typed partial begins.
-  return buildTypstCompletion(
-    state.sliceDoc(line.from, pos),
+  const before = state.sliceDoc(line.from, pos)
+  const after = state.sliceDoc(pos, line.to)
+  
+  // First try with the text before the cursor (normal typing case).
+  let result = buildTypstCompletion(
+    before,
     pos,
     meta,
     docFolder,
     state.doc.toString(),
     openDocPath
   )
+  if (result) return result
+  
+  // "Edit-existing" case: cursor is positioned at or before an existing
+  // reference (e.g. `@fig:frog`, `#label(§x)`, `#ref(§x)`). The text AFTER
+  // the cursor starts with a known trigger pattern. We synthesise a `before`
+  // that includes the trigger so the regex matches, and adjust `pos` so the
+  // completion span covers the existing reference.
+  const afterTrigger = after.match(/^(@(\w[\w:-]*))|^#label\s*["'(]?\s*§?\s*([^\s)\n"']*)|^#ref\s*\(?\s*§?\s*([^\s)\n]*)|^#cite\s*\(?\s*§?\s*([^\s)\n]*)/)
+  if (afterTrigger) {
+    // Determine the full trigger text and the partial
+    let triggerText = ''
+    let partial = ''
+    if (afterTrigger[1]) {
+      // @ref
+      triggerText = afterTrigger[1]
+      partial = afterTrigger[2] || ''
+    } else if (afterTrigger[3] !== undefined) {
+      // #label
+      triggerText = after.slice(0, after.indexOf(afterTrigger[3]) + afterTrigger[3].length)
+      partial = afterTrigger[3]
+    } else if (afterTrigger[4] !== undefined) {
+      // #ref
+      triggerText = after.slice(0, after.indexOf(afterTrigger[4]) + afterTrigger[4].length)
+      partial = afterTrigger[4]
+    } else if (afterTrigger[5] !== undefined) {
+      // #cite
+      triggerText = after.slice(0, after.indexOf(afterTrigger[5]) + afterTrigger[5].length)
+      partial = afterTrigger[5]
+    }
+    
+    if (triggerText && partial) {
+      // Synthesise: pretend the cursor is at the end of the existing reference
+      const syntheticBefore = before + triggerText
+      const syntheticPos = pos + triggerText.length
+      result = buildTypstCompletion(
+        syntheticBefore,
+        syntheticPos,
+        meta,
+        docFolder,
+        state.doc.toString(),
+        openDocPath
+      )
+      if (result) {
+        // Adjust the span so it covers the existing reference
+        if (result.from !== undefined && result.to !== undefined) {
+          result.from = pos
+          result.to = pos + triggerText.length
+        }
+        return result
+      }
+    }
+  }
+  
+  return null
 }
 
 export default typstCompletionSource

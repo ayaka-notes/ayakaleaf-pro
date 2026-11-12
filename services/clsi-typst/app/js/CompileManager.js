@@ -339,8 +339,12 @@ async function syncFromCode(projectId, userId, filename, line, column, opts) {
     // binary returns an empty parse list the same way).
     return { codePositions: [], downloadedFromCache: false }
   }
+  const record = TypstSourcemap.viewRecord(loc)
+  // Flip v from PDF user space (y-bottom) to wire format (y-top).
+  const pageH = sm.pageSizes[loc.page]?.[1] ?? 792
+  record.v = pageH - record.v
   return {
-    codePositions: [TypstSourcemap.viewRecord(loc)],
+    codePositions: [record],
     downloadedFromCache: false,
   }
 }
@@ -348,7 +352,12 @@ async function syncFromCode(projectId, userId, filename, line, column, opts) {
 async function syncFromPdf(projectId, userId, page, h, v, opts) {
   const sidecarDir = _syncSidecarDir(projectId, userId, opts)
   const sm = await _loadSidecar(sidecarDir, projectId)
-  const loc = TypstSourcemap.nearestByPoint(sm.locations, page - 1, h, v)
+  // The wire format uses y-from-top (LaTeX synctex convention); the
+  // Typst sourcemap uses PDF user space (y-from-bottom). Flip v.
+  const pageIdx = page - 1
+  const pageH = sm.pageSizes[pageIdx]?.[1] ?? 792
+  const vFromBottom = pageH - v
+  const loc = TypstSourcemap.nearestByPoint(sm.locations, pageIdx, h, vFromBottom)
   if (loc == null) {
     // no location on the page: 200 with the "code" array empty.
     return { pdfPositions: [], downloadedFromCache: false }

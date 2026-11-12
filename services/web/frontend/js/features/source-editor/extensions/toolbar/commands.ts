@@ -117,6 +117,48 @@ export const typstInsertQuote: Command = view => {
   return true
 }
 
+/**
+ * Typst reference picker: inserts `@` at the cursor to start a reference.
+ * The user then types to get completions from available labels/citation keys.
+ * If the cursor is already inside an `@ref`, it selects the reference
+ * so the user can replace it.
+ */
+export const typstInsertRef: Command = view => {
+  const { state, dispatch } = view
+  const pos = state.selection.main.anchor
+  const line = state.doc.lineAt(pos)
+  const before = state.sliceDoc(line.from, pos)
+  const after = state.sliceDoc(pos, line.to)
+  
+  // Check if cursor is already on an @ref
+  const beforeMatch = before.match(/(@\w[\w:-]*)$/)
+  const afterMatch = after.match(/^(\w[\w:-]*)/)
+  
+  if (beforeMatch) {
+    // Cursor is after part of an @ref — select the whole reference
+    const refStart = pos - beforeMatch[1].length
+    dispatch({
+      selection: { anchor: refStart + 1, head: pos }, // select after @
+    })
+    return true
+  }
+  
+  if (afterMatch && after.startsWith('@')) {
+    // Cursor is before an @ref — position after the @
+    dispatch({
+      selection: { anchor: pos + 1, head: pos + 1 + afterMatch[1].length },
+    })
+    return true
+  }
+  
+  // Not on a reference — insert @
+  dispatch({
+    changes: { from: pos, to: pos, insert: '@' },
+    selection: { anchor: pos + 1 },
+  })
+  return true
+}
+
 // TODO: apply as a snippet?
 // TODO: read URL from clipboard?
 export const wrapInHref = wrapRanges('\\href{}{', '}', false, (range, view) =>
