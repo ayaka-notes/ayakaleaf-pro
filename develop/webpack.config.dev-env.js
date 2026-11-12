@@ -24,6 +24,25 @@ module.exports = merge(base, {
         target: 'http://saml:4000',
       },
       {
+        context: '/grafana',
+        target: 'http://grafana:3000',
+        ws: true,
+      },
+      {
+        context: '/mailpit',
+        target: 'http://mailpit:8025',
+        ws: true,
+      },
+      {
+        context: '/mongo-express',
+        target: 'http://mongo-express:8081',
+      },
+      {
+        context: '/redis-insight',
+        target: 'http://redis-insight:5540',
+        ws: true,
+      },
+      {
         context: ['!**/*.js', '!**/*.css', '!**/*.json'],
         target: 'http://web:3000',
       },

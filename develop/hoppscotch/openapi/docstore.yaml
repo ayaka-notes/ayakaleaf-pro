@@ -1,0 +1,754 @@
+openapi: 3.0.3
+info:
+  title: docstore
+  version: '6.3'
+  description: >-
+    Stores every doc (lines, version, ranges) of every project in the Mongo
+    `docs` collection, and archives docs to object storage when a backend is
+    set. Called by web; document-updater reaches it through web.
+security: []
+servers:
+  - url: http://docstore:3016
+    description: Inside the Docker network, through the Hoppscotch proxy
+# The servers are Docker addresses that a docs reader cannot reach
+x-hideTryItPanel: true
+tags:
+  - name: Status
+    x-page-icon: heart-pulse
+    description: Liveness, health check and metrics.
+  - name: Docs
+    x-page-icon: file-lines
+    description: Single docs.
+  - name: Project
+    x-page-icon: folder-open
+    description: All docs of one project.
+  - name: Archive
+    x-page-icon: box-archive
+    description: >-
+      Moving docs between Mongo and object storage. Archiving only runs when the
+      docstore `BACKEND` env var is set; otherwise these routes do nothing.
+paths:
+  /status:
+    get:
+      operationId: getStatus
+      summary: Check that the service is running
+      description: Returns a fixed text. Registered in app.js.
+      tags: [Status]
+      responses:
+        '200':
+          description: The service is running.
+          content:
+            text/html:
+              schema:
+                type: string
+                example: docstore is alive
+  /health_check:
+    get:
+      operationId: healthCheck
+      summary: Write and read a test doc
+      description: >-
+        Not read only. POSTs a smoke-test doc with a new id to this service
+        (project id from `HEALTH_CHECK_PROJECT_ID`, or a new id if unset),
+        reads it back, then deletes it from Mongo.
+      tags: [Status]
+      responses:
+        '200':
+          description: The doc was written and read back.
+        '500':
+          description: The check failed. The reason is only logged.
+  /metrics:
+    get:
+      operationId: getMetrics
+      summary: Get Prometheus metrics
+      description: >-
+        Prometheus metrics of this process, added by `injectMetricsRoute` from
+        `@overleaf/metrics`.
+      tags: [Status]
+      responses:
+        '200':
+          description: Metrics in the Prometheus text format.
+          content:
+            text/plain:
+              schema:
+                type: string
+  /project/{project_id}/doc/{doc_id}:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+      - $ref: '#/components/parameters/doc_id'
+    get:
+      operationId: getDoc
+      summary: Get a doc
+      description: >-
+        Returns the doc with lines, rev, version and ranges. If the doc is
+        archived, it is first restored into Mongo. Deleted docs return 404 unless
+        `include_deleted=true`. Caller: web `DocstoreManager.getDoc`
+        (ProjectEntityHandler.getDoc, which web's own doc endpoint uses when
+        document-updater loads a doc).
+      tags: [Docs]
+      parameters:
+        - name: include_deleted
+          in: query
+          description: Also return docs that are marked as deleted.
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: The doc.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Doc'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      operationId: updateDoc
+      summary: Create or update a doc
+      description: >-
+        Writes lines, version and ranges, creating the doc if it does not exist.
+        Only changed fields are written; `rev` goes up when lines or ranges
+        change. Rejects a version lower than the stored one (409). Retries once
+        on a concurrent write. Caller: web `DocstoreManager.updateDoc`
+        (ProjectEntityUpdateHandler when document-updater flushes a doc,
+        ProjectDuplicator, ProjectUploadManager).
+      tags: [Docs]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [lines, version, ranges]
+              properties:
+                lines:
+                  type: array
+                  items:
+                    type: string
+                version:
+                  type: number
+                ranges:
+                  $ref: '#/components/schemas/Ranges'
+      responses:
+        '200':
+          description: Whether the doc changed, and its rev.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  modified:
+                    type: boolean
+                  rev:
+                    type: integer
+        '400':
+          description: >-
+            `lines`, `version` or `ranges` is missing (plain text `Bad Request`), or
+            the body is invalid (JSON, only when validation is enforced).
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: >-
+            The version is lower than the stored one, or the doc changed during
+            the write.
+        '413':
+          description: The lines are longer than `max_doc_length` (2 MB by default).
+          content:
+            text/html:
+              schema:
+                type: string
+                example: document body too large
+        '500':
+          $ref: '#/components/responses/ServerError'
+    patch:
+      operationId: patchDoc
+      summary: Mark a doc as deleted
+      description: >-
+        Soft-deletes the doc by storing `deleted`, `deletedAt` and `name`. With
+        `ARCHIVE_ON_SOFT_DELETE=true` the doc is also archived in the background.
+        Caller: web `DocstoreManager.deleteDoc` (ProjectEntityUpdateHandler,
+        ProjectDeleter).
+      tags: [Docs]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [deleted, deletedAt, name]
+              properties:
+                deleted:
+                  type: boolean
+                  enum: [true]
+                deletedAt:
+                  type: string
+                  format: date-time
+                name:
+                  type: string
+                  example: main.tex
+      responses:
+        '204':
+          description: Marked as deleted.
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      operationId: deleteDoc
+      summary: Deprecated, always fails
+      description: >-
+        Always returns 500 with a message to use PATCH instead. Changes nothing.
+      tags: [Docs]
+      responses:
+        '500':
+          description: Deprecated.
+          content:
+            text/html:
+              schema:
+                type: string
+                example: DELETE-ing a doc is DEPRECATED. PATCH the doc instead.
+  /project/{project_id}/doc/{doc_id}/peek:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+      - $ref: '#/components/parameters/doc_id'
+    get:
+      operationId: peekDoc
+      summary: Get a doc without restoring it
+      description: >-
+        Like getDoc, but an archived doc is read from object storage without
+        being written back to Mongo, and deleted docs are returned too. Caller:
+        web `DocstoreManager.getDoc` with `peek` (web's doc endpoint with
+        `peek=true`, which document-updater uses for history resyncs).
+      tags: [Docs]
+      responses:
+        '200':
+          description: The doc.
+          headers:
+            x-doc-status:
+              description: Where the doc is stored.
+              schema:
+                type: string
+                enum: [active, archived]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Doc'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/doc/{doc_id}/deleted:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+      - $ref: '#/components/parameters/doc_id'
+    get:
+      operationId: isDocDeleted
+      summary: Check whether a doc is deleted
+      description: >-
+        Read only. Caller: web `DocstoreManager.isDocDeleted`
+        (ProjectEntityUpdateHandler).
+      tags: [Docs]
+      responses:
+        '200':
+          description: The deleted flag.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/doc/{doc_id}/raw:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+      - $ref: '#/components/parameters/doc_id'
+    get:
+      operationId: getRawDoc
+      summary: Get the doc content as text
+      description: >-
+        Returns the lines joined with newlines. Restores the doc into Mongo first
+        if it is archived. Used as the `streamOrigin` of docs sent to
+        third-party-datastore (web `TpdsUpdateSender.addDoc`, through
+        `apis.docstore.pubUrl`).
+      tags: [Docs]
+      responses:
+        '200':
+          description: The doc content.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/doc/{doc_id}/archive:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+      - $ref: '#/components/parameters/doc_id'
+    post:
+      operationId: archiveDoc
+      summary: Archive one doc
+      description: >-
+        Uploads the doc's lines and ranges to object storage and removes them
+        from Mongo. Returns 204 without doing anything when archiving is off or
+        the doc is missing or already archived. No caller in this repository.
+      tags: [Archive]
+      responses:
+        '204':
+          description: Archived, or nothing to do.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/doc:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+    get:
+      operationId: getAllDocs
+      summary: Get all docs of a project
+      description: >-
+        Returns lines and rev of every doc that is not deleted. Restores archived
+        docs into Mongo first. Docs in document-updater may be newer; flush the
+        project there first (as ProjectDuplicator does). Caller: web
+        `DocstoreManager.getAllDocs` (ProjectEntityHandler, ProjectDuplicator).
+      tags: [Project]
+      responses:
+        '200':
+          description: The docs.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Doc'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/doc-with-ranges:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+    get:
+      operationId: getAllDocsWithRanges
+      summary: Get all docs of a project with ranges
+      description: >-
+        Like getAllDocs, with ranges included. Restores archived docs into Mongo
+        first. Caller: web `DocstoreManager.getAllDocsWithRanges`
+        (ProjectDuplicator).
+      tags: [Project]
+      responses:
+        '200':
+          description: The docs.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Doc'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/doc-deleted:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+    get:
+      operationId: getAllDeletedDocs
+      summary: List the deleted docs of a project
+      description: >-
+        Returns id, name and deletion time of deleted docs, newest first, at most
+        `MAX_DELETED_DOCS` (2000 by default). Read only. Caller: web
+        `DocstoreManager.getAllDeletedDocs` (admin-tools
+        AdminProjectManager, scripts/restore_soft_deleted_docs).
+      tags: [Project]
+      responses:
+        '200':
+          description: The deleted docs.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    _id:
+                      type: string
+                    name:
+                      type: string
+                    deletedAt:
+                      type: string
+                      format: date-time
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/doc-versions:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+    get:
+      operationId: getAllDocVersions
+      summary: Get the version of each doc
+      description: >-
+        Returns id and version of every doc that is not deleted, without
+        restoring archived docs (their version stays in Mongo). Read only.
+        Wrapped by web `DocstoreManager.getAllDocVersions`, which has no caller
+        in this repository.
+      tags: [Project]
+      responses:
+        '200':
+          description: The doc versions.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    _id:
+                      type: string
+                    version:
+                      type: integer
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/ranges:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+    get:
+      operationId: getAllRanges
+      summary: Get the ranges of all docs
+      description: >-
+        Returns id and ranges of every doc that is not deleted. Restores archived
+        docs into Mongo first. Caller: web `DocstoreManager.getAllRanges`
+        (track-changes and mcp-server modules, comment cleanup scripts).
+      tags: [Project]
+      responses:
+        '200':
+          description: Ranges per doc.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Doc'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/comment-thread-ids:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+    get:
+      operationId: getCommentThreadIds
+      summary: Get the comment thread ids per doc
+      description: >-
+        Returns a map from doc id to the thread ids of the comments in that doc.
+        Docs without comments are left out. Restores archived docs into Mongo
+        first. Caller: web `DocstoreManager.getCommentThreadIds`
+        (RestoreManager).
+      tags: [Project]
+      responses:
+        '200':
+          description: Thread ids by doc id.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/tracked-changes-user-ids:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+    get:
+      operationId: getTrackedChangesUserIds
+      summary: List the authors of tracked changes
+      description: >-
+        Returns the distinct user ids of tracked changes in all docs, without
+        `anonymous-user`. Restores archived docs into Mongo first. Caller: web
+        `DocstoreManager.getTrackedChangesUserIds` (track-changes module).
+      tags: [Project]
+      responses:
+        '200':
+          description: User ids.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/has-ranges:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+    get:
+      operationId: projectHasRanges
+      summary: Check whether any doc has comments or tracked changes
+      description: >-
+        Peeks at each doc (archived ones are read without being restored) until
+        one has ranges. Deleted docs are skipped. Read only. Caller: web
+        `DocstoreManager.projectHasRanges` (HistoryRangesSupportMigration,
+        scripts/resync_projects).
+      tags: [Project]
+      parameters:
+        - name: useSecondary
+          in: query
+          description: Read from a Mongo secondary.
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: The result.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  projectHasRanges:
+                    type: boolean
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/archive:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+    post:
+      operationId: archiveAllDocs
+      summary: Archive all docs of a project
+      description: >-
+        Archives every doc of the project that is not archived yet (see
+        archiveDoc). Caller: web `DocstoreManager.archiveProject`
+        (InactiveProjectManager, ProjectDeleter).
+      tags: [Archive]
+      responses:
+        '204':
+          description: Archived, or archiving is off.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/unarchive:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+    post:
+      operationId: unArchiveAllDocs
+      summary: Restore all archived docs of a project
+      description: >-
+        Moves every archived doc back into Mongo. With
+        `KEEP_SOFT_DELETED_DOCS_ARCHIVED=true`, deleted docs stay archived.
+        Caller: web `DocstoreManager.unarchiveProject` (InactiveProjectManager,
+        when a user opens an inactive project).
+      tags: [Archive]
+      responses:
+        '200':
+          description: Restored. The body is the text `OK`.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: OK
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: A doc's rev did not match while restoring it.
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/destroy:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+    post:
+      operationId: destroyProject
+      summary: Delete all docs of a project for good
+      description: >-
+        Deletes every doc of the project from Mongo and, when archiving is on,
+        from object storage. Cannot be undone. Caller: web
+        `DocstoreManager.destroyProject` (ProjectDeleter, when a deleted project
+        expires; orphaned-doc scripts).
+      tags: [Archive]
+      responses:
+        '204':
+          description: Deleted.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+components:
+  parameters:
+    project_id:
+      name: project_id
+      in: path
+      required: true
+      description: Project id (Mongo ObjectId).
+      schema:
+        type: string
+        pattern: '^[0-9a-f]{24}$'
+        example: 64b7f1a2c3d4e5f601234567
+    doc_id:
+      name: doc_id
+      in: path
+      required: true
+      description: Doc id (Mongo ObjectId).
+      schema:
+        type: string
+        pattern: '^[0-9a-f]{24}$'
+        example: 64b7f1a2c3d4e5f601234568
+  schemas:
+    Doc:
+      type: object
+      description: >-
+        A doc as returned by `_buildDocView`. Fields that the route did not read
+        or that are empty in Mongo are left out.
+      required: [_id]
+      properties:
+        _id:
+          type: string
+          example: 64b7f1a2c3d4e5f601234568
+        lines:
+          type: array
+          items:
+            type: string
+        rev:
+          type: integer
+          description: Goes up each time lines or ranges change.
+        version:
+          type: integer
+          description: The doc version from document-updater.
+        ranges:
+          $ref: '#/components/schemas/Ranges'
+        deleted:
+          type: boolean
+    Ranges:
+      type: object
+      description: >-
+        Comments and tracked changes in the RangesTracker format
+        (`@overleaf/ranges-tracker/schemas.js`).
+      properties:
+        comments:
+          type: array
+          items:
+            type: object
+            required: [op]
+            properties:
+              id:
+                type: string
+                description: Same as `op.t`, the chat thread id.
+              op:
+                type: object
+                required: [c, p, t]
+                properties:
+                  c:
+                    type: string
+                    description: Commented text.
+                  p:
+                    type: integer
+                    minimum: 0
+                  t:
+                    type: string
+                    description: Thread id.
+                  u:
+                    type: boolean
+                  resolved:
+                    type: boolean
+                    description: Accepted on write and removed before storing.
+              metadata:
+                type: object
+                properties:
+                  user_id:
+                    type: string
+                  ts:
+                    type: string
+        changes:
+          type: array
+          items:
+            type: object
+            required: [op, metadata]
+            properties:
+              id:
+                type: string
+              op:
+                type: object
+                description: Either `i` (inserted text) or `d` (deleted text) is set.
+                required: [p]
+                properties:
+                  i:
+                    type: string
+                  d:
+                    type: string
+                  p:
+                    type: integer
+                    minimum: 0
+                  u:
+                    type: boolean
+                  fixedRemoveChange:
+                    type: boolean
+                  orderedRejections:
+                    type: boolean
+              metadata:
+                type: object
+                required: [user_id, ts]
+                properties:
+                  user_id:
+                    type: string
+                  ts:
+                    type: string
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+        statusCode:
+          type: integer
+  responses:
+    ValidationError:
+      description: >-
+        Invalid query or body. Sent when `REQ_VALIDATION_MODE` is `enforce-log`
+        (set in the server image) or `enforce`. When it is unset (`log`, as in
+        the dev environment), most routes only log the problem and go on.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+    NotFound:
+      description: >-
+        The doc or project is not found (plain text `Not Found`), or a path
+        parameter is not a valid id (JSON, only when validation is enforced).
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: Not Found
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+    ServerError:
+      description: Unexpected error, including a JSON body over the size limit.
+      content:
+        text/html:
+          schema:
+            type: string
+            example: Oops, something went wrong
