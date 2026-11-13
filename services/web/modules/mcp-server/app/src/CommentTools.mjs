@@ -1,4 +1,7 @@
+import { setTimeout } from 'timers/promises'
 import { z, zz } from '../../../../app/src/infrastructure/Validation.mjs'
+import RedisWrapper from '../../../../app/src/infrastructure/RedisWrapper.mjs'
+import { ObjectId } from '../../../../app/src/infrastructure/mongodb.mjs'
 import AuthorizationManager from '../../../../app/src/Features/Authorization/AuthorizationManager.mjs'
 import ChatApiHandler from '../../../../app/src/Features/Chat/ChatApiHandler.mjs'
 import ChatManager from '../../../../app/src/Features/Chat/ChatManager.mjs'
@@ -8,7 +11,14 @@ import EditorRealTimeController from '../../../../app/src/Features/Editor/Editor
 import ProjectEntityHandler from '../../../../app/src/Features/Project/ProjectEntityHandler.mjs'
 import UserInfoController from '../../../../app/src/Features/User/UserInfoController.mjs'
 import UserInfoManager from '../../../../app/src/Features/User/UserInfoManager.mjs'
-import { checkAccess, rateLimiters, text } from './McpUtils.mjs'
+import {
+  checkAccess,
+  filePath,
+  person,
+  rateLimiters,
+  text,
+} from './McpUtils.mjs'
+import { readDoc } from './FileTools.mjs'
 
 // Comments are threads in chat, anchored to text by the ranges of a doc, as
 // the review panel reads and changes them (modules/track-changes)
@@ -16,6 +26,14 @@ import { checkAccess, rateLimiters, text } from './McpUtils.mjs'
 const threadId = zz
   .objectId()
   .describe('threadId returned by list_comments.')
+
+const messageId = zz
+  .objectId()
+  .describe('id of the message, returned by list_comments.')
+
+// The queues of the document updater, as real-time's DocumentUpdaterManager
+// fills them with the edits of the editor
+const rclient = RedisWrapper.client('documentupdater')
 
 // The comments of every doc, with the edits not saved yet: the document
 // updater only knows the docs open lately
@@ -27,6 +45,14 @@ async function getComments(projectId) {
   )
 }
 
+// A message of a comment, with the thread it starts or answers
+async function findMessage(projectId, threadId, messageId) {
+  const thread = (await ChatApiHandler.promises.getThreads(projectId))[threadId]
+  const message = thread?.messages.find(message => message.id === messageId)
+  if (!message) throw new Error('Message not found, list_comments again')
+  return { message, isFirst: thread.messages[0] === message }
+}
+
 async function findCommentDoc(projectId, id) {
   const found = (await getComments(projectId)).find(
     ({ comment }) => comment.op.t === id
@@ -35,11 +61,54 @@ async function findCommentDoc(projectId, id) {
   return found.docId
 }
 
-// Who wrote or resolved: name and email, as the review panel shows them
-function person(user) {
-  if (!user?.email) return null
-  const name = [user.first_name, user.last_name].filter(Boolean).join(' ')
-  return name ? `${name} <${user.email}>` : user.email
+// Where the comment goes: text, found once in the content, or in context
+function findCommented(content, path, commented, context) {
+  const count = (haystack, needle) => haystack.split(needle).length - 1
+  if (context == null) {
+    const matches = count(content, commented)
+    if (matches === 0) throw new Error(`text not found in ${path}, read_file again`)
+    if (matches > 1) {
+      throw new Error(`text appears ${matches} times in ${path}, give context`)
+    }
+    return content.indexOf(commented)
+  }
+  const matches = count(content, context)
+  if (matches === 0) throw new Error(`context not found in ${path}, read_file again`)
+  if (matches > 1) {
+    throw new Error(`context appears ${matches} times in ${path}, give more of it`)
+  }
+  if (count(context, commented) !== 1) {
+    throw new Error('text must appear exactly once in context')
+  }
+  return content.indexOf(context) + context.indexOf(commented)
+}
+
+// A comment range is an op of the doc, which the editor sends through
+// real-time: queue it for the document updater the way real-time does
+// (DocumentUpdaterManager.queueChange), at the version the position is from,
+// so it moves with the edits made since. Done once the doc has the range.
+async function addCommentRange(projectId, docId, userId, op, v) {
+  const update = {
+    doc: docId,
+    op: [op],
+    v,
+    meta: { source: `mcp-${op.t}`, user_id: userId },
+  }
+  await rclient.rpush(
+    `PendingProjectUpdates:{${projectId}}`,
+    JSON.stringify(update)
+  )
+  await rclient.rpush('pending-updates-list', projectId)
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const { ranges } = await DocumentUpdaterHandler.promises.getDocument(
+      projectId,
+      docId,
+      -1
+    )
+    if (ranges?.comments?.some(comment => comment.op.t === op.t)) return
+    await setTimeout(100)
+  }
+  throw new Error('The comment could not be added, read_file and try again')
 }
 
 export function buildCommentTools({ userId, projectId }) {
@@ -54,6 +123,14 @@ export function buildCommentTools({ userId, projectId }) {
       userId,
       projectId,
       'You cannot resolve or reopen this comment'
+    )
+
+  const checkCanComment = () =>
+    checkAccess(
+      AuthorizationManager.promises.canUserWriteOrReviewProjectContent,
+      userId,
+      projectId,
+      'You cannot comment on this project'
     )
 
   return {
@@ -103,6 +180,7 @@ export function buildCommentTools({ userId, projectId }) {
                   resolvedBy: person(thread.resolved_by_user),
                 }),
                 messages: thread.messages.map(message => ({
+                  id: message.id,
                   author: person(message.user),
                   content: message.content,
                   timestamp: new Date(message.timestamp).toISOString(),
@@ -123,12 +201,7 @@ export function buildCommentTools({ userId, projectId }) {
         content: z.string().min(1).describe('The reply.'),
       },
       handler: async ({ threadId, content }) => {
-        await checkAccess(
-          AuthorizationManager.promises.canUserWriteOrReviewProjectContent,
-          userId,
-          projectId,
-          'You cannot comment on this project'
-        )
+        await checkCanComment()
         await findCommentDoc(projectId, threadId)
         const message = await ChatApiHandler.promises.sendComment(
           projectId,
@@ -189,6 +262,143 @@ export function buildCommentTools({ userId, projectId }) {
           userId
         )
         return text('Reopened.')
+      },
+    },
+
+    add_comment: {
+      rateLimiter: rateLimiters.addComment,
+      description:
+        'Comment on a piece of text of a file, as the editor does; the ' +
+        "comment shows live in Overleaf, under the user's name. text must " +
+        'appear exactly once in the latest content: read_file again when it ' +
+        'is not found, and give context when it appears more than once.',
+      inputSchema: {
+        path: filePath,
+        text: z.string().min(1).describe('The exact text to comment on.'),
+        context: z
+          .string()
+          .optional()
+          .describe(
+            'A longer piece of the file around text, found once in it, when ' +
+              'text alone appears more than once. Only text is commented.'
+          ),
+        content: z.string().min(1).describe('The comment.'),
+      },
+      handler: async ({ path, text: commented, context, content }) => {
+        await checkCanComment()
+        const { doc, content: docText, version } = await readDoc(projectId, path)
+        const position = findCommented(docText, path, commented, context)
+        // as the review panel: the thread first, then its range
+        const id = new ObjectId().toString()
+        const message = await ChatApiHandler.promises.sendComment(
+          projectId,
+          id,
+          userId,
+          content
+        )
+        const user = await UserInfoManager.promises.getPersonalInfo(userId)
+        message.user = UserInfoController.formatPersonalInfo(user)
+        EditorRealTimeController.emitToRoom(projectId, 'new-comment', id, message)
+        await addCommentRange(
+          projectId,
+          doc._id.toString(),
+          userId,
+          { c: commented, p: position, t: id },
+          version
+        )
+        return text({ threadId: id })
+      },
+    },
+
+    edit_comment_message: {
+      rateLimiter: rateLimiters.editCommentMessage,
+      description:
+        'Change the text of a message of a comment; only your own messages.',
+      inputSchema: {
+        threadId,
+        messageId,
+        content: z.string().min(1).describe('The new text of the message.'),
+      },
+      handler: async ({ threadId, messageId, content }) => {
+        await checkCanComment()
+        await findCommentDoc(projectId, threadId)
+        const { message } = await findMessage(projectId, threadId, messageId)
+        if (message.user_id !== userId) {
+          throw new Error('You can only edit your own messages')
+        }
+        await ChatApiHandler.promises.editMessage(
+          projectId,
+          threadId,
+          messageId,
+          userId,
+          content
+        )
+        EditorRealTimeController.emitToRoom(
+          projectId,
+          'edit-message',
+          threadId,
+          messageId,
+          content
+        )
+        return text('Edited.')
+      },
+    },
+
+    delete_comment_message: {
+      rateLimiter: rateLimiters.deleteCommentMessage,
+      description:
+        'Delete a message of a comment. As in the review panel, deleting ' +
+        'the first message deletes the whole comment.',
+      inputSchema: { threadId, messageId },
+      handler: async ({ threadId, messageId }) => {
+        await checkCanComment()
+        const docId = await findCommentDoc(projectId, threadId)
+        const { message, isFirst } = await findMessage(
+          projectId,
+          threadId,
+          messageId
+        )
+        if (isFirst) {
+          await checkAccess(
+            (userId, projectId) =>
+              AuthorizationManager.promises.canUserDeleteOrResolveThread(
+                userId,
+                projectId,
+                threadId
+              ),
+            userId,
+            projectId,
+            'You cannot delete this comment'
+          )
+          await ChatApiHandler.promises.deleteThread(projectId, threadId)
+          EditorRealTimeController.emitToRoom(projectId, 'delete-thread', threadId)
+          await DocumentUpdaterHandler.promises.deleteThread(
+            projectId,
+            docId,
+            threadId,
+            userId
+          )
+          return text('Deleted the comment.')
+        }
+        // reviewers delete only their own messages, as the review panel
+        if (
+          !(await AuthorizationManager.promises.canUserWriteProjectContent(
+            userId,
+            projectId
+          ))
+        ) {
+          if (message.user_id !== userId) {
+            throw new Error('You can only delete your own messages')
+          }
+        }
+        await ChatApiHandler.promises.deleteMessage(projectId, threadId, messageId)
+        EditorRealTimeController.emitToRoom(
+          projectId,
+          'delete-message',
+          threadId,
+          messageId
+        )
+        return text('Deleted the message.')
       },
     },
   }
