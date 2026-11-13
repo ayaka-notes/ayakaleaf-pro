@@ -734,6 +734,43 @@ describe('Editing a project through MCP', function () {
     readFile('main.tex').should('not.equal', 'Kept')
   })
 
+  it('moves and renames past files with the old or the new name', function () {
+    for (const [path, content] of [
+      ['clash/a.tex', 'A'],
+      ['clash/b.tex', 'B'],
+      ['reverse/a.tex', 'Reverse A'],
+      ['reverse-target/a.tex', 'Target A'],
+      ['both/a.tex', 'Both A'],
+      ['both/b.tex', 'Both B'],
+      ['both-target/a.tex', 'Both target A'],
+    ]) {
+      callTool(projectId, token, 'write_file', { path, content })
+    }
+    // the old folder has the new name: moved first, then renamed
+    callTool(projectId, token, 'move_file', {
+      path: 'clash/a.tex',
+      newPath: 'clash-target/b.tex',
+    }).then(result => expect(result.isError, result.content[0].text).not.to.equal(true))
+    readFile('clash-target/b.tex').should('equal', 'A')
+    readFile('clash/b.tex').should('equal', 'B')
+    // the new folder has the old name: renamed first, then moved
+    callTool(projectId, token, 'move_file', {
+      path: 'reverse/a.tex',
+      newPath: 'reverse-target/c.tex',
+    }).then(result => expect(result.isError, result.content[0].text).not.to.equal(true))
+    readFile('reverse-target/c.tex').should('equal', 'Reverse A')
+    readFile('reverse-target/a.tex').should('equal', 'Target A')
+    // both: nothing changes
+    callTool(projectId, token, 'move_file', {
+      path: 'both/a.tex',
+      newPath: 'both-target/b.tex',
+    }).then(result => {
+      expect(result.isError).to.equal(true)
+      expect(result.content[0].text).to.contain('two steps')
+    })
+    readFile('both/a.tex').should('equal', 'Both A')
+  })
+
   it('shows a move live in the open file tree', function () {
     callTool(projectId, token, 'write_file', {
       path: 'live-move.tex',
@@ -1268,6 +1305,31 @@ describe('History through MCP', function () {
           expect(result.isError).to.equal(true)
           expect(result.content[0].text).to.contain('not found')
         })
+      })
+    })
+  })
+
+  it('shows a line break added at the end of a file, as git diff', function () {
+    callTool(projectId, tokens.owner, 'write_file', {
+      path: 'eol.tex',
+      content: 'Last line',
+    })
+    saveVersion(tokens.owner, 'Without the line break').then(without => {
+      callTool(projectId, tokens.owner, 'write_file', {
+        path: 'eol.tex',
+        content: 'Last line\n',
+      })
+      saveVersion(tokens.owner, 'With the line break').then(withBreak => {
+        callTool(projectId, tokens.viewer, 'diff', {
+          fromVersion: without,
+          toVersion: withBreak,
+          path: 'eol.tex',
+        })
+          .its('content.0.text')
+          .should(
+            'contain',
+            '-Last line\n\\ No newline at end of file\n+Last line'
+          )
       })
     })
   })

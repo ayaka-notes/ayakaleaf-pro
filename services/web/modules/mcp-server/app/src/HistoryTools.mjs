@@ -127,9 +127,11 @@ export async function readFileAtVersion(projectId, userId, path, v) {
 }
 
 // A unified diff, like git diff, from the parts of project-history's diff:
-// unchanged (u), inserted (i) and deleted (d) text
+// unchanged (u), inserted (i) and deleted (d) text. A line is { text, eol },
+// eol telling whether a line break ends it, so that adding or removing the
+// last line break shows, with git's "\ No newline at end of file".
 export function unifiedDiff(path, parts, context = 3) {
-  const lines = [] // { type: ' ' | '-' | '+', text }
+  const lines = [] // { type: ' ' | '-' | '+', text, eol }
   // the old and new line being read, and whether a change touched them
   let oldLine = ''
   let newLine = ''
@@ -138,40 +140,44 @@ export function unifiedDiff(path, parts, context = 3) {
   // changed lines, shown as removed then added before the next unchanged one
   let removed = []
   let added = []
+  const sameLine = (a, b) => a.text === b.text && a.eol === b.eol
   const flush = () => {
     // the same lines at both ends did not change, e.g. a line break inserted
     // at the end of a line
     let start = 0
     while (
       start < Math.min(removed.length, added.length) &&
-      removed[start] === added[start]
+      sameLine(removed[start], added[start])
     ) {
       start++
     }
     let end = 0
     while (
       end < Math.min(removed.length, added.length) - start &&
-      removed.at(-1 - end) === added.at(-1 - end)
+      sameLine(removed.at(-1 - end), added.at(-1 - end))
     ) {
       end++
     }
-    const same = text => ({ type: ' ', text })
+    const as = type => line => ({ type, ...line })
     lines.push(
-      ...removed.slice(0, start).map(same),
-      ...removed.slice(start, removed.length - end).map(text => ({ type: '-', text })),
-      ...added.slice(start, added.length - end).map(text => ({ type: '+', text })),
-      ...removed.slice(removed.length - end).map(same)
+      ...removed.slice(0, start).map(as(' ')),
+      ...removed.slice(start, removed.length - end).map(as('-')),
+      ...added.slice(start, added.length - end).map(as('+')),
+      ...removed.slice(removed.length - end).map(as(' '))
     )
     removed = []
     added = []
   }
-  const endBoth = () => {
-    if (oldTouched || newTouched || oldLine !== newLine) {
-      removed.push(oldLine)
-      added.push(newLine)
-    } else {
+  // both lines end, with a line break, or at the end of the file
+  const endBoth = eol => {
+    const hasOld = eol || oldLine !== ''
+    const hasNew = eol || newLine !== ''
+    if (hasOld && hasNew && !oldTouched && !newTouched && oldLine === newLine) {
       flush()
-      lines.push({ type: ' ', text: oldLine })
+      lines.push({ type: ' ', text: oldLine, eol })
+    } else {
+      if (hasOld) removed.push({ text: oldLine, eol })
+      if (hasNew) added.push({ text: newLine, eol })
     }
     oldLine = newLine = ''
     oldTouched = newTouched = false
@@ -183,13 +189,13 @@ export function unifiedDiff(path, parts, context = 3) {
       if (part.u != null) {
         oldLine += segment
         newLine += segment
-        if (ends) endBoth()
+        if (ends) endBoth(true)
       } else if (part.d != null) {
         oldLine += segment
         if (segment) oldTouched = true
         if (ends) {
           // a deleted line break: the new line goes on with what came before
-          removed.push(oldLine)
+          removed.push({ text: oldLine, eol: true })
           if (newLine) newTouched = true
           oldLine = ''
           oldTouched = false
@@ -198,7 +204,7 @@ export function unifiedDiff(path, parts, context = 3) {
         newLine += segment
         if (segment) newTouched = true
         if (ends) {
-          added.push(newLine)
+          added.push({ text: newLine, eol: true })
           if (oldLine) oldTouched = true
           newLine = ''
           newTouched = false
@@ -206,8 +212,7 @@ export function unifiedDiff(path, parts, context = 3) {
       }
     })
   }
-  // the last line, without a line break
-  if (oldLine || newLine || oldTouched || newTouched) endBoth()
+  endBoth(false)
   flush()
 
   // hunks: the changed lines with up to `context` lines around them
@@ -237,8 +242,9 @@ export function unifiedDiff(path, parts, context = 3) {
     const [oldStart, newStart] = [oldNumber, newNumber]
     const hunk = []
     while (index < lines.length && keep[index]) {
-      const { type, text } = lines[index]
+      const { type, text, eol } = lines[index]
       hunk.push(type + text)
+      if (!eol) hunk.push('\\ No newline at end of file')
       if (type !== '+') oldNumber++
       if (type !== '-') newNumber++
       index++

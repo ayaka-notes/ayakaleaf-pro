@@ -251,8 +251,11 @@ export function buildFileTools({ userId, projectId }) {
           throw new Error(`${newPath} already exists`)
         }
         const { element, type } = entity
+        const from = Path.posix.dirname(path)
+        const to = Path.posix.dirname(newPath)
         const name = Path.posix.basename(newPath)
-        if (name !== element.name) {
+        const rename = async () => {
+          if (name === element.name) return
           await EditorController.promises.renameEntity(
             projectId,
             element._id,
@@ -262,16 +265,37 @@ export function buildFileTools({ userId, projectId }) {
             EDIT_SOURCE
           )
         }
-        const folder = Path.posix.dirname(newPath)
-        if (folder !== Path.posix.dirname(path)) {
+        const move = async () => {
+          if (to === from) return
           await EditorController.promises.moveEntity(
             projectId,
             element._id,
-            await folderId(projectId, userId, folder),
+            await folderId(projectId, userId, to),
             type,
             userId,
             EDIT_SOURCE
           )
+        }
+        // core checks a name in the folder the entity is in at that moment:
+        // rename first, unless the old folder has the new name already
+        const renamedInPlace = Path.posix.join(from, name)
+        if (
+          name !== element.name &&
+          to !== from &&
+          (await findEntityOrNull(projectId, renamedInPlace))
+        ) {
+          const movedAsIs = Path.posix.join(to, element.name)
+          if (await findEntityOrNull(projectId, movedAsIs)) {
+            throw new Error(
+              `${renamedInPlace} and ${movedAsIs} exist, move ${path} in ` +
+                'two steps through a free name'
+            )
+          }
+          await move()
+          await rename()
+        } else {
+          await rename()
+          await move()
         }
         return text(`Moved ${path} to ${newPath}. ${pullHint(projectId)}`)
       },
