@@ -227,7 +227,10 @@ export const keybindings = () => {
 export const setKeybindings = async (
   selectedKeybindings = 'default'
 ): Promise<TransactionSpec> => {
-  if (selectedKeybindings === 'none') {
+  if (selectedKeybindings === 'none' || selectedKeybindings === 'custom') {
+    // 'custom' = the default keymap with the user's custom bindings layered on
+    // top (the custom bindings are applied by the CustomKeybindingsActivator
+    // regardless of mode, so here we just fall back to the stock keymap).
     selectedKeybindings = 'default'
   }
 

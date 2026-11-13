@@ -1,6 +1,6 @@
 import { FontFamily, LineHeight, OverallTheme } from '@/shared/utils/styles'
 
-export type Keybindings = 'none' | 'default' | 'vim' | 'emacs'
+export type Keybindings = 'none' | 'default' | 'vim' | 'emacs' | 'custom'
 export type PdfViewer = 'pdfjs' | 'native'
 
 export type RefProviderSettings = {
@@ -33,4 +33,7 @@ export type UserSettings = {
   zotero: RefProviderSettings
   mendeley: RefProviderSettings
   papers: RefProviderSettings
+  // Custom key bindings — rebindable-action id → CodeMirror key string
+  // (e.g. "Mod-Shift-K"); null/'' = binding cleared (uses stock default).
+  customKeybindings?: Record<string, string | null>
 }

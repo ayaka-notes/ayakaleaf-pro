@@ -111,6 +111,10 @@ export const UserSchema = new Schema(
       referencesSearchMode: { type: String, default: 'advanced' }, // 'advanced' or 'simple'
       darkModePdf: { type: Boolean, default: false },
       floatingMenu: { type: Boolean, default: true },
+      // Custom key bindings: a map of rebindable-action id → CodeMirror key
+      // string (e.g. "Mod-Shift-K"). A null/empty value clears the binding
+      // back to the stock default.
+      customKeybindings: { type: Object, default: undefined },
       zotero: refProviderSettingsSchema,
       mendeley: refProviderSettingsSchema,
       papers: refProviderSettingsSchema,
