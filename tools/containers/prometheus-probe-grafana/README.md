@@ -164,6 +164,33 @@ own network, and asserts:
 Takes a few minutes, leaves no containers/networks behind, and is safe to
 re-run any time.
 
+## Instance status in the Overleaf admin UI
+
+The Overleaf web app ships an admin-only **Instance status** page
+(`/admin/status`, link in the navbar's Admin dropdown) that shows this
+stack's overview dashboard in a full-screen, same-origin iframe — site
+admins see the monitoring without any Grafana login, regular users never
+see the menu item, and the browser never talks to Grafana directly (no
+mixed-content, no public Grafana route).
+
+How it works (the `admingrafana` pattern from the OlliTeX toolkit era):
+
+- The web app's `monitoring` module proxies `/admin/status/grafana/**`
+  with **server-side Basic auth** (`GRAFANA_ADMIN_USER` /
+  `GRAFANA_ADMIN_PASSWORD` from the web app's env, same credentials as the
+  `GRAFANA_ADMIN_PASSWORD` in this `.env`).
+- Grafana is configured to serve under that subpath:
+  `GRAFANA_SERVE_FROM_SUB_PATH=true` +
+  `GRAFANA_ROOT_URL=https://<site>/admin/status/grafana/` (both set in the
+  test `.env` above), so every asset/API call the embedded UI makes stays
+  under the proxied prefix.
+- Wiring it up in the web app's env:
+  `GRAFANA_INTERNAL_URL=http://grafana:3000` (server-reachable URL),
+  `GRAFANA_PUBLIC_BASE_URL=https://<site>`, plus the admin credentials.
+
+The `:3000` Grafana port stays for admin/debug only; the public route is the
+app's `/admin/status`.
+
 ## Layout
 
 ```
@@ -178,7 +205,7 @@ prometheus-probe-grafana/
 │   │   ├── datasources/prometheus.yml   # pinned uid `prometheus`
 │   │   └── dashboards/overleaf.yml      # file provider (folder "Overleaf")
 │   └── dashboards/
-│       └── overview.json         # "Overleaf — instance overview" (44+ panels)
+│       └── overview.json         # "Overleaf — instance overview" (access: public, kiosk embed)
 └── instance-sensor/
     ├── Dockerfile                # node:22-alpine, deps installed in-image
     ├── package.json              # mongodb + ioredis only

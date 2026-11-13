@@ -1893,6 +1893,7 @@
   "one_step_away_from_professional_features": "You are one step away from accessing <0>Overleaf premium features</0>!",
   "ongoing_experiments": "Ongoing experiments",
   "online_latex_editor": "Online LaTeX Editor",
+  "instance_status": "Instance status",
   "only_add_people_who_dont_yet_have_access": "Only add people who don’t yet have access.",
   "only_group_admin_or_managers_can_delete_your_account_1": "By becoming a managed user, your organization will have admin rights over your account and control over your stuff, including the right to close your account and access, delete and share your stuff. As a result:",
   "only_group_admin_or_managers_can_delete_your_account_10": "If you have an individual subscription, we’ll automatically terminate it and cancel its renewal when your account becomes managed. To request a pro-rata refund for the remainder, please contact Support.",

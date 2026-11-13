@@ -257,6 +257,11 @@ services:
       GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3000/}
       GF_SERVER_SERVE_FROM_SUB_PATH: ${GRAFANA_SERVE_FROM_SUB_PATH:-false}
       GF_SECURITY_ALLOW_EMBEDDING: "true"
+      # Grafana Live (websocket push) is useless for a read-only overview
+      # dashboard, and the admin-UI proxy in the web app is HTTP-only (no WS
+      # upgrade). Grafana 11.6 has no live_enabled setting — max_connections
+      # 0 disables Live entirely (see the [live] section of grafana.ini).
+      GF_LIVE_MAX_CONNECTIONS: ${GF_LIVE_MAX_CONNECTIONS:-100}
       # SMTP optional (Grafana reset-password mail); disabled by default.
       GF_SMTP_ENABLED: ${GF_SMTP_ENABLED:-false}
       GF_SMTP_HOST: ${GF_SMTP_HOST:-}

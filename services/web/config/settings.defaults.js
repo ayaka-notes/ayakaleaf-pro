@@ -802,6 +802,24 @@ module.exports = {
     ? JSON.parse(process.env.ADMIN_DOMAINS)
     : undefined,
 
+  // Instance status (admin-only Grafana embed)
+  // -------------------------------------------------
+  //
+  // The /admin/status page embeds the monitoring Grafana same-origin through
+  // a server-side proxy (see services/web/modules/monitoring): site admins
+  // see the dashboards without any Grafana login, and regular users never
+  // see the menu item. The browser never talks to Grafana directly.
+  grafana: {
+    // Internal (server-reachable) base URL of Grafana, e.g. http://grafana:3000
+    internal_url: process.env.GRAFANA_INTERNAL_URL || '',
+    // Server-side Basic auth for the proxy
+    admin_user: process.env.GRAFANA_ADMIN_USER || 'admin',
+    admin_password: process.env.GRAFANA_ADMIN_PASSWORD || '',
+    // Public app origin used as Grafana's root URL (subpath serving under
+    // /admin/status/grafana/), e.g. https://psintern.neuro.uni-bremen.de
+    public_base_url: process.env.GRAFANA_PUBLIC_BASE_URL || '',
+  },
+
   nav: {
     title: process.env.APP_NAME || 'Overleaf Community Edition',
 
@@ -1314,6 +1332,7 @@ module.exports = {
     'authentication/saml',
     'authentication/oidc',
     'admin-tools',
+    'monitoring',
     'user-activate',
     'sandboxed-compiles',
     'symbol-palette',

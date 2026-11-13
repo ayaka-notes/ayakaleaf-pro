@@ -10,6 +10,7 @@ export default function AdminMenu({
   canDisplaySplitTestMenu,
   canDisplaySurveyMenu,
   canDisplayScriptLogMenu,
+  canDisplayStatusMenu,
   adminUrl,
 }: Pick<
   DefaultNavbarMetadata,
@@ -19,6 +20,7 @@ export default function AdminMenu({
   | 'canDisplaySplitTestMenu'
   | 'canDisplaySurveyMenu'
   | 'canDisplayScriptLogMenu'
+  | 'canDisplayStatusMenu'
   | 'adminUrl'
 >) {
   const sendProjectListMB = useSendProjectListMB()
@@ -42,6 +44,11 @@ export default function AdminMenu({
             Manage Users
           </NavDropdownLinkItem>
         </>
+      ) : null}
+      {canDisplayStatusMenu ? (
+        <NavDropdownLinkItem href="/admin/status">
+          Instance Status
+        </NavDropdownLinkItem>
       ) : null}
       {canDisplayProjectUrlLookup ? (
         <NavDropdownLinkItem href="/admin/project">
