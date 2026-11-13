@@ -1,0 +1,282 @@
+extends ../../../../../app/views/layout-website-redesign
+
+block vars
+	- isWebsiteRedesign = true
+
+block content
+	main#main-content.content
+		.container
+			.col-lg-10.offset-lg-1.col-xl-8.offset-xl-2
+				.page-header
+					h1 #{translate("notification_preferences_title")}
+
+				form.notification-settings-container(
+					name='notificationsForm'
+					action='/user/notification-preferences'
+					method='POST'
+					data-ol-async-form
+					data-ol-reload-on-success
+				)
+					input(name='_csrf' type='hidden' value=csrfToken)
+
+					.setting-container
+						input(name='muteAllNotifications' id='muteAllNotifications' type='checkbox' value='notificationsOn' checked=notificationsEnabled)
+						div
+							label.checkbox-label(for='muteAllNotifications')
+								h2.h4.mb-0 #{translate("notifications_on_project_activity")}
+							p #{translate("notifications_on_project_activity_description")}
+
+					p.notification-section-title #{translate("notification_events_title")}
+
+					each group in eventCategories
+						- const evs = group.events
+						if evs && evs.length
+							p.event-group-title #{translate(group.labelKey)}
+							each ev in evs
+								- const evId = `event${ev.key}`
+								.setting-container
+									input(name=evId id=evId type='checkbox' value='on' checked=(events[ev.key] !== false))
+									div
+										label.checkbox-label(for=evId)
+											h2.h4.mb-0 #{translate(ev.labelKey)}
+										p.text-muted #{translate(ev.descKey)}
+
+					p.notification-section-title #{translate("notification_channels_title")}
+					p.text-muted #{translate("notification_channels_description")}
+
+					if ! appriseConfigured
+						.alert.alert-warning.channel-apprise-hint
+							span #{translate("notification_apprise_not_configured")}
+
+					each channelType in channelOrder
+						- const ch = channelConfiguration.channels[channelType]
+						if ch
+							.channel-card(class=(channelConfiguration.activeChannel === channelType ? 'active-channel' : null))
+								.channel-card-head
+									- const isActive = channelConfiguration.activeChannel === channelType
+									if ch.browserPush || ch.customUrl
+										input(type='radio' name='activeChannel' value=channelType checked=isActive disabled=ch.browserPush)
+										label.channel-title
+											span #{ch.label}
+											if ch.browserPush
+												span.text-muted (additive: delivers alongside your main channel)
+									else
+										input(type='radio' name='activeChannel' value=channelType checked=isActive)
+										label.channel-title
+											span #{ch.label}
+											if isActive
+												span.channel-active-badge #{translate("notification_channel_active")}
+								.channel-card-body
+									if ch.browserPush
+										p.text-muted #{translate("notification_browser_push_description")}
+										if ch.values.subscriptionSet
+											.text-success ✓ #{translate("notification_browser_push_enabled")}
+											- let endpointHost = ch.values.endpointHost || ''
+											p.text-muted #{endpointHost}
+											button.btn.btn-sm.btn-link(type='button' data-push-disable)
+												span #{translate("notification_browser_push_disable")}
+										else
+											button.btn.btn-sm.btn-primary(type='button' data-push-enable
+												data-vapid=(vapidPublicKey || ''))
+												span #{translate("notification_browser_push_enable")}
+									else
+										each field in channelFields[channelType]
+											- const value = ch.values[field.key]
+											- const isPinned = ch.pinned[field.key]
+											.channel-field
+												if isPinned
+													label #{field.label}
+													.input-group
+														input.form-control(readonly value=ch.pinned[field.key])
+														span.input-group-text #{translate("notification_field_pinned")}
+												else
+													label #{field.label}
+													if field.secret
+														input.form-control.form-control-secret(type='password'
+															name=`chval_${channelType}_${field.key}`
+															placeholder=(field.placeholder || '')
+															value=(typeof value === 'string' ? value : ''))
+													else
+														input.form-control(type='text'
+															name=`chval_${channelType}_${field.key}`
+															placeholder=(field.placeholder || '')
+															value=(typeof value === 'string' ? value : ''))
+										if ch.pinned && Object.keys(ch.pinned).length > 0
+											each val, key in ch.pinned
+												.channel-field.channel-field-pinned
+													label #{key}
+													.input-group
+														input.form-control(readonly value=val)
+														span.input-group-text #{translate("notification_field_pinned")}
+										.d-flex.align-items-center.gap-2.mt-2
+											button.btn.btn-sm.btn-secondary(data-test-channel=channelType type='button')
+												span #{translate("notification_test_channel")}
+											span.test-result(data-test-result=channelType)
+									if ch.customUrl
+										p.text-muted #{translate("notification_custom_url_description")}
+	
+					.setting-container
+						input(name='notificationUrl' id='notificationUrl' type='text' placeholder='mailto://you@example.com' value=(notificationUrl != null ? notificationUrl : ''))
+						div
+							label.checkbox-label(for='notificationUrl')
+								h2.h4.mb-0 #{translate("notification_channel_label")}
+							p.text-muted #{translate("notification_channel_fallback_hint")} #{userEmail}
+
+					p #{translate("note_still_receives_important_emails")}
+
+					.d-flex.justify-content-between.mt-4.gap-3.flex-wrap
+						button.btn.btn-secondary.test-notification(type='button' data-csrf=csrfToken)
+							span #{translate("send_test_notification")}
+						button.btn-primary.btn(type='submit' data-ol-disabled-inflight)
+							span #{translate("save")}
+
+				.page-separator
+
+				script(nonce=scriptNonce).
+					(function () {
+						const csrf = document.querySelector("input[name='_csrf']")?.value
+
+						async function post(url, payload) {
+							const res = await fetch(url, {
+								method: 'POST',
+								headers: {
+									'Content-Type': 'application/json',
+									'X-CSRF-Token': csrf,
+								},
+								body: JSON.stringify(payload),
+							})
+							const data = await res.json().catch(() => ({}))
+							return { ok: res.ok, data }
+						}
+
+						function resultSpan(type, text, isError) {
+							const span = document.querySelector(`[data-test-result="${type}"]`)
+							if (!span) return
+							span.textContent = text
+							span.className = isError ? 'text-danger small' : 'text-success small'
+						}
+
+						// Per-channel "send test"
+						document.querySelectorAll('[data-test-channel]').forEach(btn => {
+							btn.addEventListener('click', async () => {
+								const type = btn.dataset.testChannel
+								const form = document.querySelector('form[name=notificationsForm]')
+								if (form) form.dispatchEvent(new Event('submit', { cancelable: true }))
+								const card = btn.closest('.channel-card')
+								const inputs = card ? card.querySelectorAll('input[name^="chval_"]') : []
+								const values = {}
+								inputs.forEach(input => {
+									const parts = input.name.split('_') // chval_<type>_<key>
+									const key = parts.slice(2).join('_')
+									if (input.value.trim()) values[key] = input.value.trim()
+								})
+								btn.disabled = true
+								resultSpan(type, 'Sending…', false)
+								const { ok, data } = await post('/user/notification-preferences/test-channel', { channel: type, values })
+								resultSpan(type, data.message || (ok ? 'Sent.' : 'Failed.'), !ok)
+								btn.disabled = false
+							})
+						})
+
+						// Browser push: subscribe / unsubscribe
+						const vapidKey = document.querySelector('[data-push-enable]')?.dataset.vapid
+						function urlBase64ToUint8Array(base64) {
+							const padding = '='.repeat((4 - base64.length % 4) % 4)
+							const base64Url = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/')
+							const rawData = atob(base64Url)
+							const outputArray = new Uint8Array(rawData.length)
+							for (let i = 0; i < rawData.length; ++i) {
+								outputArray[i] = rawData.charCodeAt(i)
+							}
+							return outputArray
+						}
+
+						const enableBtn = document.querySelector('[data-push-enable]')
+						if (enableBtn && vapidKey) {
+							enableBtn.addEventListener('click', async () => {
+								const btnSpan = enableBtn.querySelector('span')
+								const original = btnSpan.textContent
+								btnSpan.textContent = 'Working…'
+								try {
+									if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+										alert('This browser does not support Web Push.')
+										btnSpan.textContent = original
+										return
+									}
+									const permission = await Notification.requestPermission()
+									if (permission !== 'granted') {
+										alert('Notification permission was not granted.')
+										btnSpan.textContent = original
+										return
+									}
+									const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+									await navigator.serviceWorker.ready
+									const subscription = await reg.pushManager.subscribe({
+										userVisibleOnly: true,
+										applicationServerKey: urlBase64ToUint8Array(vapidKey),
+									})
+									const { ok, data } = await post('/user/notification-preferences/subscribe', {
+										subscription: subscription.toJSON(),
+										makeActive: true,
+									})
+									if (ok) {
+										alert(data.message || 'Browser notifications enabled.')
+										location.reload()
+									} else {
+										alert(data.message || 'Failed to enable browser notifications.')
+									}
+								} catch (err) {
+										alert('Failed: ' + err.message)
+								} finally {
+									btnSpan.textContent = original
+								}
+							})
+						}
+
+						const disableBtn = document.querySelector('[data-push-disable]')
+						if (disableBtn) {
+							disableBtn.addEventListener('click', async () => {
+								// 1) clear the stored subscription on the server so the
+								//    page stops showing "enabled" after the reload
+								const csrfDel = document.querySelector("input[name='_csrf']")?.value
+								try {
+									await fetch('/user/notification-preferences/subscribe', {
+										method: 'DELETE',
+										headers: csrfDel ? { 'X-CSRF-Token': csrfDel } : {},
+									})
+								} catch { /* ignore */ }
+								// 2) unsubscribe this browser's service worker
+								try {
+									const reg = await navigator.serviceWorker.getRegistration('/')
+									const sub = reg && await reg.pushManager.getSubscription()
+									if (sub) await sub.unsubscribe()
+								} catch { /* ignore */ }
+								location.reload()
+							})
+						}
+
+						// Legacy "send test email" button
+						const testBtn = document.querySelector('.test-notification')
+						if (testBtn) {
+							testBtn.addEventListener('click', async () => {
+								testBtn.disabled = true
+								const span = testBtn.querySelector('span')
+								const original = span.textContent
+								span.textContent = 'Sending...'
+								try {
+									const res = await fetch('/user/send-test-email', {
+										method: 'POST',
+										headers: { 'X-CSRF-Token': testBtn.dataset.csrf },
+									})
+									const data = await res.json().catch(() => ({}))
+									const ok = res.ok
+									alert(ok ? (data.message || 'Test notification sent.') : ('Test notification failed: ' + (data.message || res.status)))
+								} catch (err) {
+									alert('Test notification failed: ' + err.message)
+								} finally {
+									span.textContent = original
+									testBtn.disabled = false
+								}
+							})
+						}
+					})();

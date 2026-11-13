@@ -148,6 +148,15 @@ async function changePassword(req, res, next) {
     'password'
   )
 
+  // Notify the user that their password changed (best-effort).
+  try {
+    await Modules.promises.hooks.fire('passwordChanged', {
+      targetUserId: String(userId),
+    })
+  } catch (err) {
+    logger.warn({ err, userId }, 'failed to fire passwordChanged hook')
+  }
+
   return res.json({
     message: {
       type: 'success',

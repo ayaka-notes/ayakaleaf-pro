@@ -68,6 +68,8 @@ ADD server-ce/config/crontab-history /etc/cron.d/crontab-history
 RUN chmod 600 /etc/cron.d/crontab-history
 ADD server-ce/config/crontab-deletion /etc/cron.d/crontab-deletion
 RUN chmod 600 /etc/cron.d/crontab-deletion
+ADD server-ce/config/crontab-notifications /etc/cron.d/crontab-notifications
+RUN chmod 600 /etc/cron.d/crontab-notifications
 
 # Copy Phusion Image startup and shutdown scripts to their locations
 # ------------------------------------------------------------------
