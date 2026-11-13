@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import Button from '@/shared/components/ol/ol-button'
 import MaterialIcon, {
   type AvailableUnfilledIcon,
@@ -28,7 +29,7 @@ import '../../stylesheets/project-inspection.scss'
 const PAGE_SIZE = 100
 const MAX_ENTRY_POINTS = 50
 
-function getErrorMessage(error: unknown) {
+function getErrorMessage(error: unknown, t: (key: string) => string) {
   if (
     error &&
     typeof error === 'object' &&
@@ -37,7 +38,7 @@ function getErrorMessage(error: unknown) {
   ) {
     return String(error.getUserFacingMessage())
   }
-  return 'Project inspection could not be completed. Please try again.'
+  return t('project_inspection_error_default')
 }
 
 function StatusDot({ status }: { status: string }) {
@@ -318,12 +319,13 @@ function CircularIssue({
   issue: InspectionIssue
   onNavigate: Navigate
 }) {
+  const { t } = useTranslation()
   return (
     <>
       <div className="project-inspection-issue">
         <MaterialIcon
           type="autorenew"
-          accessibilityLabel="Circular dependency"
+          accessibilityLabel={t('project_inspection_circular_dependency')}
           className="project-inspection-category-icon project-inspection-circular-icon"
         />
         <span
@@ -358,10 +360,15 @@ function IssueList({
   onNavigate: Navigate
 }) {
   const [limit, setLimit] = useState(PAGE_SIZE)
+  const { t } = useTranslation()
   useEffect(() => setLimit(PAGE_SIZE), [ids])
 
   if (ids.length === 0) {
-    return <p className="project-inspection-empty">No issues found.</p>
+    return (
+      <p className="project-inspection-empty">
+        {t('project_inspection_no_issues')}
+      </p>
+    )
   }
 
   return (
@@ -430,7 +437,7 @@ function IssueList({
           size="sm"
           onClick={() => setLimit(value => value + PAGE_SIZE)}
         >
-          Show more
+          {t('project_inspection_show_more')}
         </Button>
       )}
     </>
@@ -600,6 +607,7 @@ function DependencyTree({
   result: ProjectInspectionResult
   onNavigate: Navigate
 }) {
+  const { t } = useTranslation()
   const { nodes, childrenByParent, incomingKindByNode, subtreeStatusByNode } =
     useMemo(() => {
       const nodeMap = new Map(result.graph.nodes.map(node => [node.id, node]))
@@ -659,7 +667,7 @@ function DependencyTree({
       open
     >
       <summary>
-        <span>Dependency Tree</span>
+        <span>{t('project_inspection_dependency_tree')}</span>
       </summary>
       <ul className="project-inspection-tree">
         {result.graph.roots.map(root => (
@@ -678,7 +686,7 @@ function DependencyTree({
       </ul>
       {result.graph.truncated && (
         <p className="project-inspection-note">
-          The displayed graph was truncated because the project is large.
+          {t('project_inspection_graph_truncated')}
         </p>
       )}
     </details>
@@ -686,6 +694,7 @@ function DependencyTree({
 }
 
 function ProjectInspectionPanel() {
+  const { t } = useTranslation()
   const { projectId, project } = useProjectContext()
   const { docs } = useFileTreeData()
   const { findEntityByPath } = useFileTreePathContext()
@@ -755,7 +764,7 @@ function ProjectInspectionPanel() {
       } catch (error) {
         if (!controller.signal.aborted) {
           debugConsole.error(error)
-          setError(getErrorMessage(error))
+          setError(getErrorMessage(error, t))
         }
       } finally {
         if (!controller.signal.aborted) setLoading(false)
@@ -815,11 +824,20 @@ function ProjectInspectionPanel() {
 
   return (
     <div className="project-inspection-panel">
-      <RailPanelHeader title="Project inspection" />
-      <div ref={contentRef} className="project-inspection-content">
+      <RailPanelHeader title={t('project_inspection_title')} />
+      <div className="visually-hidden" role="status" aria-live="polite">
+        {loading
+          ? t('project_inspection_status_analyzing')
+          : error
+            ? t('project_inspection_status_error')
+            : result
+              ? t('project_inspection_status_complete')
+              : ''}
+      </div>
+      <div ref={contentRef} className="project-inspection-content" aria-busy={loading}>
         <form onSubmit={onSubmit}>
           <fieldset disabled={loading}>
-            <legend>Entry points</legend>
+            <legend>{t('project_inspection_entry_points')}</legend>
             <div className="project-inspection-entry-points">
               {displayedEntryPoints.map(item => {
                 const id = String(item.doc.id)
@@ -854,22 +872,24 @@ function ProjectInspectionPanel() {
             </div>
             {entryPoints.length === 0 && (
               <p className="project-inspection-note">
-                This project has no compilable entry point.
+                {t('project_inspection_no_entry_point')}
               </p>
             )}
             {selectedIds.size >= MAX_ENTRY_POINTS && (
               <p className="project-inspection-note">
-                Up to {MAX_ENTRY_POINTS} entry points can be analyzed at once.
+                {t('project_inspection_max_entry_points', {
+                  count: MAX_ENTRY_POINTS,
+                })}
               </p>
             )}
             <Button
               type="submit"
               size="sm"
               isLoading={loading}
-              loadingLabel="Analyzing project"
+              loadingLabel={t('project_inspection_analyzing')}
               disabled={selectedIds.size === 0}
             >
-              Analyze Project
+              {t('project_inspection_analyze')}
             </Button>
           </fieldset>
         </form>
@@ -879,26 +899,33 @@ function ProjectInspectionPanel() {
         {result && (
           <>
             <p className="project-inspection-timestamp">
-              Last analyzed: {new Date(result.analyzedAt).toLocaleTimeString()}
+              {t('project_inspection_last_analyzed', {
+                time: new Date(result.analyzedAt).toLocaleTimeString(),
+              })}
             </p>
             {hasCoverageWarning && (
               <Notification
                 type="warning"
                 className="project-inspection-coverage-warning"
-                content={`${coverageWarningCount} item(s) could not be analyzed conclusively or the displayed result was truncated. Results favor fewer false positives.`}
+                content={t('project_inspection_coverage_warning', {
+                  count: coverageWarningCount,
+                })}
               />
             )}
             <section className="project-inspection-overview">
-              <h3>Overview</h3>
+              <h3>{t('project_inspection_overview')}</h3>
               <p className="project-inspection-totals">
-                {result.overview.fileCount} files · {result.overview.figureCount}{' '}
-                figures · {result.overview.tableCount} tables ·{' '}
-                {result.overview.citationCount} citations
+                {t('project_inspection_totals', {
+                  files: result.overview.fileCount,
+                  figures: result.overview.figureCount,
+                  tables: result.overview.tableCount,
+                  citations: result.overview.citationCount,
+                })}
               </p>
               <div className="project-inspection-summary-grid">
                 <OLTooltip
                   id="project-inspection-overview-circular"
-                  description="Shows the number of circular file-dependency cycles."
+                  description={t('project_inspection_tooltip_circular')}
                   overlayProps={{
                     placement: 'right',
                     trigger: ['hover', 'focus'],
@@ -908,13 +935,13 @@ function ProjectInspectionPanel() {
                     type="button"
                     onClick={() => scrollToSection('inspection-circular')}
                   >
-                    <StatusDot status="circular" /> Circular
+                    <StatusDot status="circular" /> {t('project_inspection_circular')}
                     <strong>{result.overview.circular}</strong>
                   </button>
                 </OLTooltip>
                 <OLTooltip
                   id="project-inspection-overview-missing"
-                  description="Shows the number of missing components."
+                  description={t('project_inspection_tooltip_missing')}
                   overlayProps={{
                     placement: 'right',
                     trigger: ['hover', 'focus'],
@@ -924,13 +951,13 @@ function ProjectInspectionPanel() {
                     type="button"
                     onClick={() => scrollToSection('inspection-missing')}
                   >
-                    <StatusDot status="missing" /> Missing
+                    <StatusDot status="missing" /> {t('project_inspection_missing')}
                     <strong>{result.overview.missing}</strong>
                   </button>
                 </OLTooltip>
                 <OLTooltip
                   id="project-inspection-overview-duplicate"
-                  description="Shows the number of duplicate labels, figure or table captions, bibliography keys, or bibliography titles."
+                  description={t('project_inspection_tooltip_duplicate')}
                   overlayProps={{
                     placement: 'right',
                     trigger: ['hover', 'focus'],
@@ -940,13 +967,13 @@ function ProjectInspectionPanel() {
                     type="button"
                     onClick={() => scrollToSection('inspection-duplicate')}
                   >
-                    <StatusDot status="duplicate" /> Duplicate
+                    <StatusDot status="duplicate" /> {t('project_inspection_duplicate')}
                     <strong>{result.overview.duplicate}</strong>
                   </button>
                 </OLTooltip>
                 <OLTooltip
                   id="project-inspection-overview-unused"
-                  description="Shows the number of unused or unreferenced components."
+                  description={t('project_inspection_tooltip_unused')}
                   overlayProps={{
                     placement: 'right',
                     trigger: ['hover', 'focus'],
@@ -956,7 +983,7 @@ function ProjectInspectionPanel() {
                     type="button"
                     onClick={() => scrollToSection('inspection-unused')}
                   >
-                    <StatusDot status="unused" /> Unused / Unreferenced
+                    <StatusDot status="unused" /> {t('project_inspection_unused')}
                     <strong>{result.overview.unusedUnreferenced}</strong>
                   </button>
                 </OLTooltip>
@@ -965,14 +992,14 @@ function ProjectInspectionPanel() {
             <DependencyTree result={result} onNavigate={onNavigate} />
             <IssueSection
               id="inspection-circular"
-              title="Circular Dependencies"
+              title={t('project_inspection_section_circular')}
               issueIds={result.views.circular}
               result={result}
               onNavigate={onNavigate}
             />
             <IssueSection
               id="inspection-missing"
-              title="Missing Components"
+              title={t('project_inspection_section_missing')}
               issueIds={result.views.missing}
               result={result}
               onNavigate={onNavigate}
@@ -980,14 +1007,14 @@ function ProjectInspectionPanel() {
             />
             <IssueSection
               id="inspection-duplicate"
-              title="Duplicate Components"
+              title={t('project_inspection_section_duplicate')}
               issueIds={result.views.duplicate}
               result={result}
               onNavigate={onNavigate}
             />
             <IssueSection
               id="inspection-unused"
-              title="Unused / Unreferenced Components"
+              title={t('project_inspection_section_unused')}
               issueIds={result.views.unused}
               result={result}
               onNavigate={onNavigate}
