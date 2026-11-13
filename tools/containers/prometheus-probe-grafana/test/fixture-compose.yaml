@@ -1,0 +1,28 @@
+# Track A fixture — a throwaway mongo + redis for the deterministic sensor test.
+#
+# The containers carry unique container_names (ppb-fixture-*) because the host
+# may already run app mongo/redis containers under those names; on the shared
+# `ppb-test` network they are ALIASED as `mongo` / `redis`, which is what the
+# bundle's env defaults (MONGO_HOSTNAME / REDIS_HOSTNAME) and the Prometheus
+# scrape targets resolve to.
+services:
+  mongo:
+    image: mongo:9.0
+    container_name: ppb-fixture-mongo
+    hostname: ppb-fixture-mongo
+    networks:
+      ppb-test:
+        aliases: [mongo]
+  redis:
+    image: redis:8.10-alpine
+    container_name: ppb-fixture-redis
+    hostname: ppb-fixture-redis
+    # NOTE: no --enable-appendonly flag — some redis:8.10 builds here abort on
+    # it ("Module Configuration without loadmodule"); run.sh enables AOF via
+    # CONFIG SET instead.
+    networks:
+      ppb-test:
+        aliases: [redis]
+networks:
+  ppb-test:
+    name: ppb-test

@@ -1,0 +1,293 @@
+# prometheus-probe-grafana — self-contained Prometheus + Grafana + exporter
+# monitoring stack for the Overleaf (overleaf-cep) deployment and, generically,
+# for any stack that exposes MongoDB + Redis (+ optionally the Overleaf app,
+# a SeaweedFS filestore, and a host filesystem).
+#
+# Design:
+#   * ONE compose project — no external network required. Set NETWORK_NAME /
+#     NETWORK_EXTERNAL=true to join an existing deployment network (e.g.
+#     Overleaf's `overleaf-network`) where mongo/redis/overleaf already run.
+#   * Service endpoints (mongo/redis/app/filestore) are env-driven in
+#     compose.yaml (see env.sample); the Prometheus scrape TARGETS in
+#     prometheus/prometheus.yml are literal — adjust the names there if your
+#     deployment's service names differ (Prometheus does no interpolation).
+#   * Data lives in named volumes (prometheus-data, grafana-data) — portable,
+#     nothing to gitignore.
+#
+# Quickstart:
+#   1) cp env.sample .env  (fill in GRAFANA_ADMIN_PASSWORD, target hostnames)
+#   2) docker compose build
+#   3) docker compose up -d
+#   4) Grafana  -> http://<host>:${GRAFANA_HOST_PORT:-3000}/
+#      Prometheus -> http://<host>:${PROMETHEUS_HOST_PORT:-9090}/
+#
+# Note: node-exporter reads the HOST's /proc, / and /sys read-only — running
+# this stack requires docker with access to the host (i.e. the docker socket
+# of a host you are allowed to monitor).
+
+services:
+  # ---------------------------------------------------------------------------
+  # instance-sensor — PR yu-i-i/overleaf-cep#178 "instance statistics" sensors
+  # as live Prometheus gauges (users/projects/files totals + active window,
+  # storage: mongodb / filestore / redis ram+disk). Built from ./instance-sensor.
+  # ---------------------------------------------------------------------------
+  instance-sensor:
+    build:
+      context: ./instance-sensor
+      dockerfile: Dockerfile
+    image: ${INSTANCE_SENSOR_IMAGE:-overleaf-instance-sensor:local}
+    container_name: instance-sensor
+    hostname: instance-sensor
+    restart: unless-stopped
+    environment:
+      MONGO_URL: "mongodb://${MONGO_HOSTNAME:-mongo}:${MONGO_PORT:-27017}/${MONGODB_DATABASE:-sharelatex}"
+      REDIS_ADDR: "redis://${REDIS_HOSTNAME:-redis}:${REDIS_PORT:-6379}"
+      # In-container mount point the sensor runs du on (fixed). The host
+      # path is the mount source below (FILESTORE_HOST_DIR). Pointing the
+      # source at /dev/null (the default) yields 0 bytes — the probe stays
+      # up and the metric shape stays stable on stacks without a filestore.
+      FILESTORE_DATA_DIR: /hostdata/filestore
+      # 'true' adds the standard/guest user split (guest = 'guest-user' in
+      # users.adminRoles — the PR#176 definition)
+      SEGMENTATION: ${INSTANCE_STATS_SEGMENTATION:-false}
+      ACTIVE_WINDOW_HOURS: ${ACTIVE_WINDOW_HOURS:-24}
+      PROBE_TIMEOUT_MS: ${PROBE_TIMEOUT_MS:-8000}
+      COLLECT_TIMEOUT_MS: ${COLLECT_TIMEOUT_MS:-20000}
+      PORT: "9464"
+    expose:
+      - "9464"
+    volumes:
+      # Host path of the SeaweedFS/S3 filestore data dir (Overleaf deployments).
+      # Default /dev/null → the filestore component reports 0 bytes.
+      - ${FILESTORE_HOST_DIR:-/dev/null}:/hostdata/filestore:ro
+    depends_on:
+      mongo-probe:
+        condition: service_healthy
+    healthcheck:
+      # /healthz is cheap (no probes) — do not healthcheck /metrics
+      test: ["CMD-SHELL", "wget -q --spider --timeout=5 http://127.0.0.1:9464/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - monitoring
+
+  # ---------------------------------------------------------------------------
+  # Probes — protocol/HTTP liveness sidecars (healthy == the thing answers).
+  # They double as readiness gates for the dependents below.
+  # ---------------------------------------------------------------------------
+  mongo-probe:
+    image: mongo:${MONGO_VERSION:-9.0}
+    container_name: mongo-probe
+    hostname: mongo-probe
+    restart: unless-stopped
+    command: ["sh", "-c", "sleep infinity"]
+    environment:
+      MONGO_HOSTNAME: ${MONGO_HOSTNAME:-mongo}
+      MONGO_PORT: ${MONGO_PORT:-27017}
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --host ${MONGO_HOSTNAME:-mongo} --port ${MONGO_PORT:-27017} --eval 'db.adminCommand({ping:1})' >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - monitoring
+
+  mongodb-exporter-probe:
+    image: ${PROBE_IMAGE:-busybox:1.36}
+    container_name: mongodb-exporter-probe
+    hostname: mongodb-exporter-probe
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider --timeout=5 http://mongodb-exporter:9216/metrics >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    entrypoint: ["sh", "-c", "sleep infinity"]
+    networks:
+      - monitoring
+
+  redis-exporter-probe:
+    image: ${PROBE_IMAGE:-busybox:1.36}
+    container_name: redis-exporter-probe
+    hostname: redis-exporter-probe
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider --timeout=5 http://redis-exporter:9121/metrics >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    entrypoint: ["sh", "-c", "sleep infinity"]
+    networks:
+      - monitoring
+
+  # ---------------------------------------------------------------------------
+  # Exporters
+  # ---------------------------------------------------------------------------
+  mongodb-exporter:
+    image: ${MONGODB_EXPORTER_IMAGE:-percona/mongodb_exporter:0.43.0}
+    container_name: mongodb-exporter
+    hostname: mongodb-exporter
+    restart: unless-stopped
+    command:
+      - "--mongodb.uri=mongodb://${MONGO_HOSTNAME:-mongo}:${MONGO_PORT:-27017}/${MONGODB_DATABASE:-sharelatex}"
+      # NOTE: percona 0.43 ships most collectors OFF by default (a default run
+      # answers only mongodb_up + go/process metrics) — the --collector.*
+      # toggles below are part of the supported surface; keep them.
+      - "--collector.diagnosticdata"
+      - "--collector.dbstats"
+      - "--collector.dbstatsfreestorage"
+      - "--collector.replicasetstatus"
+    expose:
+      - "9216"
+    # scratch image: single binary, no shell — liveness = the binary starts.
+    # The HTTP serving proof lives in mongodb-exporter-probe.
+    healthcheck:
+      test: ["CMD", "/mongodb_exporter", "--version"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+    networks:
+      - monitoring
+
+  redis-exporter:
+    image: ${REDIS_EXPORTER_IMAGE:-oliver006/redis_exporter:v1.58.0-alpine}
+    container_name: redis-exporter
+    hostname: redis-exporter
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: "redis://${REDIS_HOSTNAME:-redis}:${REDIS_PORT:-6379}"
+    expose:
+      - "9121"
+    # alpine edition has no wget — liveness = the exporter binary runs.
+    healthcheck:
+      test: ["CMD", "/redis_exporter", "--version"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+    networks:
+      - monitoring
+
+  node-exporter:
+    image: ${NODE_EXPORTER_IMAGE:-prom/node-exporter:v1.9.1}
+    container_name: node-exporter
+    hostname: node-exporter
+    restart: unless-stopped
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.rootfs=/host"
+      - "--path.sysfs=/host/sys"
+    expose:
+      - "9100"
+    volumes:
+      - /:/host:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9100/metrics"]
+      start_period: 15s
+      interval: 30s
+      retries: 5
+      timeout: 5s
+    networks:
+      - monitoring
+
+  # ---------------------------------------------------------------------------
+  # Prometheus — TSDB + alert rules
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:v2.53.5}
+    container_name: prometheus
+    hostname: prometheus
+    restart: unless-stopped
+    entrypoint: ["/bin/prometheus"]
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-15d}"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/prometheus.rules.yml:/etc/prometheus/prometheus.rules.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      # 127.0.0.1 by default (SSH-tunnel / admin only); set
+      # PROMETHEUS_HOST_BIND=0.0.0.0 to expose on all interfaces.
+      - "${PROMETHEUS_HOST_BIND:-127.0.0.1}:${PROMETHEUS_HOST_PORT:-9090}:9090"
+    depends_on:
+      mongodb-exporter-probe:
+        condition: service_healthy
+      redis-exporter-probe:
+        condition: service_healthy
+      instance-sensor:
+        condition: service_healthy
+      node-exporter:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9090/-/healthy"]
+      start_period: 20s
+      interval: 30s
+      retries: 5
+      timeout: 5s
+    networks:
+      - monitoring
+
+  # ---------------------------------------------------------------------------
+  # Grafana — UI + provisioned datasource + provisioned dashboards
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: ${GRAFANA_IMAGE:-grafana/grafana-oss:11.6.0}
+    container_name: grafana
+    hostname: grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env (see env.sample)}
+      # Honored ONLY when Grafana creates the admin user (fresh grafana-data);
+      # it never rewrites an existing user row.
+      GF_SECURITY_ADMIN_EMAIL: ${GRAFANA_ADMIN_EMAIL:-admin@localhost}
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_USERS_SIGNUP_ENABLED: "false"
+      # Standalone by default (full path at :3000); for subpath serving behind
+      # a reverse proxy set GF_SERVER_SERVE_FROM_SUB_PATH=true + GF_SERVER_ROOT_URL.
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3000/}
+      GF_SERVER_SERVE_FROM_SUB_PATH: ${GRAFANA_SERVE_FROM_SUB_PATH:-false}
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      # SMTP optional (Grafana reset-password mail); disabled by default.
+      GF_SMTP_ENABLED: ${GF_SMTP_ENABLED:-false}
+      GF_SMTP_HOST: ${GF_SMTP_HOST:-}
+      GF_SMTP_USER: ${GF_SMTP_USER:-}
+      GF_SMTP_PASSWORD: ${GF_SMTP_PASSWORD:-}
+      GF_SMTP_FROM_ADDRESS: ${GF_SMTP_FROM_ADDRESS:-}
+      GF_SMTP_FROM_NAME: "Overleaf Monitoring"
+      GF_SMTP_SKIP_VERIFY: ${GF_SMTP_SKIP_VERIFY:-false}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_HOST_BIND:-0.0.0.0}:${GRAFANA_HOST_PORT:-3000}:3000"
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+    networks:
+      - monitoring
+
+networks:
+  monitoring:
+    name: ${NETWORK_NAME:-prometheus-probe-grafana}
+    external: ${NETWORK_EXTERNAL:-false}
+
+volumes:
+  prometheus-data:
+  grafana-data:
