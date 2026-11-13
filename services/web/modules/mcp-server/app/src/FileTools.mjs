@@ -5,6 +5,7 @@ import ProjectEntityHandler from '../../../../app/src/Features/Project/ProjectEn
 import ProjectLocator from '../../../../app/src/Features/Project/ProjectLocator.mjs'
 import DocumentUpdaterHandler from '../../../../app/src/Features/DocumentUpdater/DocumentUpdaterHandler.mjs'
 import Errors from '../../../../app/src/Features/Errors/Errors.js'
+import { projectOwnerHasFeature } from '../../../instance-features/app/src/UserFeatures.mjs'
 import { checkAccess, filePath, rateLimiters, text } from './McpUtils.mjs'
 
 // Writes are sent like git-bridge pushes, so open editors apply them
@@ -23,6 +24,41 @@ const checkCanEdit = (userId, projectId) =>
     projectId,
     'You cannot edit this project'
   )
+
+const trackChangesArg = z
+  .boolean()
+  .optional()
+  .describe(
+    'Make the change a tracked change for the user to review, when they ask ' +
+      'for it. Without it the change follows the track changes setting of ' +
+      'the project.'
+  )
+
+// Without trackChanges a write follows the project's track changes setting,
+// as core's upsert does. With it, an existing doc takes the write as a tracked
+// change of the token's user, as when track changes is on for them.
+async function writeDoc(projectId, userId, path, docId, lines, trackChanges) {
+  if (!trackChanges || !docId) {
+    return await EditorController.promises.upsertDocWithPath(
+      projectId,
+      `/${path}`,
+      lines,
+      EDIT_SOURCE,
+      userId
+    )
+  }
+  if (!(await projectOwnerHasFeature(projectId, 'trackChanges'))) {
+    throw new Error('Track changes is off for this project')
+  }
+  await DocumentUpdaterHandler.promises.setDocument(
+    projectId,
+    docId,
+    userId,
+    lines,
+    EDIT_SOURCE,
+    true
+  )
+}
 
 async function findEntity(projectId, path) {
   return await ProjectLocator.promises.findElementByPath({
@@ -83,10 +119,11 @@ export function buildFileTools({ userId, projectId }) {
         path: filePath,
         oldString: z.string().min(1).describe('Exact text to replace.'),
         newString: z.string().describe('Replacement text.'),
+        trackChanges: trackChangesArg,
       },
-      handler: async ({ path, oldString, newString }) => {
+      handler: async ({ path, oldString, newString, trackChanges }) => {
         await checkCanEdit(userId, projectId)
-        const { content } = await readDoc(projectId, path)
+        const { doc, content } = await readDoc(projectId, path)
         const matches = content.split(oldString).length - 1
         if (matches === 0) {
           throw new Error(`oldString not found in ${path}, read_file again`)
@@ -96,12 +133,13 @@ export function buildFileTools({ userId, projectId }) {
             `oldString appears ${matches} times in ${path}, add context`
           )
         }
-        await EditorController.promises.upsertDocWithPath(
+        await writeDoc(
           projectId,
-          `/${path}`,
+          userId,
+          path,
+          doc._id,
           content.replace(oldString, () => newString).split('\n'),
-          EDIT_SOURCE,
-          userId
+          trackChanges
         )
         return text(`Edited ${path}. ${pullHint(projectId)}`)
       },
@@ -111,12 +149,14 @@ export function buildFileTools({ userId, projectId }) {
       rateLimiter: rateLimiters.writeFile,
       description:
         'Create a text file, or replace all its content; folders are ' +
-        'created as needed. Prefer edit_file to change part of a file.',
+        'created as needed. Prefer edit_file to change part of a file. A new ' +
+        'file is never a tracked change.',
       inputSchema: {
         path: filePath,
         content: z.string().describe('The whole content of the file.'),
+        trackChanges: trackChangesArg,
       },
-      handler: async ({ path, content }) => {
+      handler: async ({ path, content, trackChanges }) => {
         await checkCanEdit(userId, projectId)
         // binary files stay binary, as git-bridge keeps them on push
         const existing = await findEntity(projectId, path).catch(err => {
@@ -126,12 +166,13 @@ export function buildFileTools({ userId, projectId }) {
         if (existing?.type === 'file') {
           throw new Error(`${path} is a binary file, it cannot be written as text`)
         }
-        await EditorController.promises.upsertDocWithPath(
+        await writeDoc(
           projectId,
-          `/${path}`,
+          userId,
+          path,
+          existing?.type === 'doc' ? existing.element._id : null,
           content.split('\n'),
-          EDIT_SOURCE,
-          userId
+          trackChanges
         )
         return text(`Wrote ${path}. ${pullHint(projectId)}`)
       },

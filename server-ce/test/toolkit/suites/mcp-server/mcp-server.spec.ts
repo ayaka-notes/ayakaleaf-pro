@@ -18,6 +18,7 @@ import {
   addComment,
   commentEntry,
   openReviewPanel,
+  waitForServer,
 } from '../../../helpers/review'
 import { shareProject, shareProjectByLink } from '../../../helpers/sharing'
 import { ADMIN_EMAIL, ensureUserExists } from '../../../helpers/users'
@@ -487,6 +488,70 @@ describe('Editing a project through MCP', function () {
       expect(result.content[0].text).to.contain('appears 2 times')
     })
     readFile('twice.tex').should('equal', 'same\nsame')
+  })
+
+  // The review panel reads the tracked changes and their authors from these
+  // routes of the track-changes module
+  it('makes an edit a tracked change of the user when asked', function () {
+    login(owner)
+    callTool(projectId, token, 'write_file', {
+      path: 'tracked.tex',
+      content: 'First line',
+    })
+    callTool(projectId, token, 'edit_file', {
+      path: 'tracked.tex',
+      oldString: 'First line',
+      newString: 'First line\nNot tracked',
+    })
+    cy.request(`/project/${projectId}/ranges`)
+      .then(response => JSON.stringify(response.body))
+      .should('not.contain', 'Not tracked')
+
+    callTool(projectId, token, 'edit_file', {
+      path: 'tracked.tex',
+      oldString: 'Not tracked',
+      newString: 'Not tracked\nTracked edit',
+      trackChanges: true,
+    }).then(result => expect(result.isError).not.to.equal(true))
+    callTool(projectId, token, 'write_file', {
+      path: 'tracked.tex',
+      content: 'First line\nNot tracked\nTracked edit\nTracked write',
+      trackChanges: true,
+    }).then(result => expect(result.isError).not.to.equal(true))
+    readFile('tracked.tex').should(
+      'equal',
+      'First line\nNot tracked\nTracked edit\nTracked write'
+    )
+    waitForServer(`/project/${projectId}/ranges`, 'Tracked edit')
+    waitForServer(`/project/${projectId}/ranges`, 'Tracked write')
+    cy.request(`/project/${projectId}/changes/users`)
+      .its('body')
+      .then((users: { email: string }[]) => users.map(user => user.email))
+      .should('deep.equal', [owner])
+  })
+
+  it('refuses a tracked change when track changes is off for the owner', function () {
+    const member = `track-changes-off-${uuid()}@example.com`
+    ensureUserExists(member)
+    login(member)
+    createProject(projectName('Mcp tracked off')).then(id => {
+      createGitToken().then(memberToken => {
+        login(ADMIN_EMAIL)
+        setUserFeatures(member, { trackChanges: false })
+        callTool(id, memberToken, 'edit_file', {
+          path: 'main.tex',
+          oldString: '\\section{Introduction}',
+          newString: '\\section{Introduction}\nTracked edit',
+          trackChanges: true,
+        }).then(result => {
+          expect(result.isError).to.equal(true)
+          expect(result.content[0].text).to.contain('Track changes is off')
+        })
+        callTool(id, memberToken, 'read_file', { path: 'main.tex' })
+          .its('content.0.text')
+          .should('not.contain', 'Tracked edit')
+      })
+    })
   })
 
   it('keeps binary files binary', function () {
