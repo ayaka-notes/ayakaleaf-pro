@@ -1299,6 +1299,10 @@ module.exports = {
         __dirname,
         '../modules/workbench/frontend/js/assistant-rail-entry'
       ),
+      Path.resolve(
+        __dirname,
+        '../modules/project-inspection/frontend/js/project-inspection-rail-entry.tsx'
+      ),
     ],
     railPopovers: [],
     railActions: [],
@@ -1331,6 +1335,7 @@ module.exports = {
     'tpr-webmodule',
     'workbench',
     'error-assistant',
+    'project-inspection',
     'instance-features',
     'open-in-overleaf',
     'user-emails'
