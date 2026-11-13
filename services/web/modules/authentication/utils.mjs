@@ -48,7 +48,19 @@ async function hasPassword(userId) {
   return Boolean(user?.hashedPassword)
 }
 
+// A first login whose email is another account's secondary email. That account
+// is not logged in to, as a reissued address would then take it over.
+function emailOnAnotherAccountInfo(req) {
+  return {
+    status: 409,
+    type: 'error',
+    key: 'email-on-another-account',
+    text: req.i18n.translate('email_already_registered_secondary'),
+  }
+}
+
 export {
+  emailOnAnotherAccountInfo,
   readFilesContentFromEnv,
   numFromEnv,
   boolFromEnv,

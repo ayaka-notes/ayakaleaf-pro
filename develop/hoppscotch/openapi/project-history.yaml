@@ -1,0 +1,1674 @@
+openapi: 3.0.3
+info:
+  title: project-history
+  version: '6.3'
+  description: >-
+    Queues the edits of each project in Redis, turns them into history changes
+    and sends them to history-v1; it also keeps history labels, resync state and
+    failure records in Mongo. Called by web, document-updater, history-v1 and the
+    server-ce cron scripts; it has no authentication.
+servers:
+  - url: http://project-history:3054
+    description: Inside the Docker network, through the Hoppscotch proxy
+# The servers are Docker addresses that a docs reader cannot reach
+x-hideTryItPanel: true
+security: []
+tags:
+  - name: Project
+    x-page-icon: folder-open
+    description: Create, delete, clone and flush a project's history.
+  - name: Diffs and updates
+    x-page-icon: code-compare
+    description: Diffs and the summarized change list shown in the history pane.
+  - name: Snapshots
+    x-page-icon: camera
+    description: Files and file lists at a version.
+  - name: Labels
+    x-page-icon: tag
+    description: Named versions ("labels").
+  - name: Resync
+    x-page-icon: rotate
+    description: Resync state and debugging of one project.
+  - name: Failures
+    x-page-icon: triangle-exclamation
+    description: Projects whose queue failed to process, and their retry.
+  - name: Monitoring
+    x-page-icon: heart-pulse
+    description: Status, health checks and metrics.
+paths:
+  /project:
+    post:
+      tags: [Project]
+      operationId: initializeProject
+      summary: Create the history of a new project
+      description: >-
+        Asks history-v1 (`POST /api/projects`) to create the project's history
+        and returns its id. Web passes the project id as `historyId`, so the
+        history id equals the project id. Caller:
+        `services/web/app/src/Features/History/HistoryManager.mjs`
+        (`initializeProject`, used by ProjectCreationHandler, ProjectDuplicator
+        and ProjectHistoryHandler).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                historyId:
+                  description: Id for the new history. history-v1 picks one when left out.
+                  oneOf:
+                    - $ref: '#/components/schemas/ObjectId'
+                    - type: integer
+      responses:
+        '200':
+          description: History created.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  project:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        description: The history id returned by history-v1.
+                        example: 6aec98777287243198a05332
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}:
+    delete:
+      tags: [Project]
+      operationId: deleteProject
+      summary: Clear the queue and state of a project
+      description: >-
+        Deletes the project's Redis queue, first-op timestamp and cached
+        history id, its resync state and its failure record. It does not touch
+        history-v1 or labels. Caller:
+        `services/web/app/src/Features/History/HistoryManager.mjs`
+        (`deleteProject` and `deleteProjectHistory`, used when a project is
+        hard deleted).
+      parameters:
+        - $ref: '#/components/parameters/ProjectOrLegacyId'
+      responses:
+        '204':
+          description: Deleted.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/snapshot:
+    get:
+      tags: [Snapshots]
+      operationId: getLatestSnapshot
+      summary: Get the latest snapshot of a project
+      description: >-
+        Reads the latest chunk from history-v1 and applies its changes. Edits
+        still in the Redis queue are not included. Files are returned as stored
+        in the chunk (hashes or lazy files), not with their content. No caller
+        in this repository.
+      parameters:
+        - $ref: '#/components/parameters/ProjectOrLegacyId'
+      responses:
+        '200':
+          description: The snapshot and the version it is at.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  snapshot:
+                    $ref: '#/components/schemas/RawSnapshot'
+                  version:
+                    type: integer
+                    description: End version of the latest chunk.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/diff:
+    get:
+      tags: [Diffs and updates]
+      operationId: getDiff
+      summary: Get the diff of one file between two versions
+      description: >-
+        Processes the project's queued edits first (a flush), then builds the
+        diff of `pathname` from version `from` to version `to`. Binary files
+        return `{"diff": {"binary": true}}`. Caller: web proxies
+        `GET /project/:Project_id/diff` here
+        (`services/web/app/src/Features/History/HistoryController.mjs`,
+        `proxyToHistoryApiAndInjectUserDetails`), which replaces user ids with
+        user details.
+      parameters:
+        - $ref: '#/components/parameters/ProjectOrLegacyId'
+        - name: pathname
+          in: query
+          required: true
+          description: Path of the file in the project, without a leading slash.
+          schema:
+            type: string
+            example: main.tex
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: The diff.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  diff:
+                    oneOf:
+                      - type: array
+                        items:
+                          $ref: '#/components/schemas/DiffPart'
+                      - type: object
+                        properties:
+                          binary:
+                            type: boolean
+                            enum: [true]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/filetree/diff:
+    get:
+      tags: [Diffs and updates]
+      operationId: getFileTreeDiff
+      summary: Get the changed files between two versions
+      description: >-
+        Processes the project's queued edits first (a flush), then lists every
+        file with what happened to it between `from` and `to`. Caller: web
+        proxies `GET /project/:Project_id/filetree/diff` here
+        (`services/web/app/src/Features/History/HistoryController.mjs`,
+        `proxyToHistoryApi`).
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: One entry per file. Files without `operation` are unchanged.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  diff:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FileTreeDiffFile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: The chunks between the two versions are inconsistent.
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/updates:
+    get:
+      tags: [Diffs and updates]
+      operationId: getUpdates
+      summary: List summarized updates, newest first
+      description: >-
+        Processes the project's queued edits first (a flush), then reads chunks
+        backwards from history-v1 and merges changes into summarized updates
+        until it has `min_count` of them. Callers: web proxies
+        `GET /project/:Project_id/updates` here
+        (`services/web/app/src/Features/History/HistoryController.mjs`,
+        `proxyToHistoryApiAndInjectUserDetails`), and the project-history
+        health check (`app/js/HealthChecker.js`).
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: before
+          in: query
+          required: false
+          description: Only return updates before this version. Use `nextBeforeTimestamp` of the previous page.
+          schema:
+            type: integer
+        - name: min_count
+          in: query
+          required: false
+          description: Minimum number of summarized updates to collect. Defaults to 25.
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: A page of summarized updates.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updates:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SummarizedUpdate'
+                  nextBeforeTimestamp:
+                    type: integer
+                    description: >-
+                      Despite its name, a version: pass it as `before` to get the
+                      next page. Absent when there are no older updates.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/changes-in-chunk:
+    get:
+      tags: [Diffs and updates]
+      operationId: getChangesInChunkSince
+      summary: Get the raw changes of one chunk since a version
+      description: >-
+        Returns the changes after `since` in the chunk that holds `since`, and
+        the start version of the latest chunk. Does not flush the queue. No
+        caller in this repository.
+      parameters:
+        - $ref: '#/components/parameters/ProjectOrLegacyId'
+        - name: since
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: The changes.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  latestStartVersion:
+                    type: integer
+                  changes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RawChange'
+        '400':
+          description: >-
+            `since` is past the end of the history (plain text), or a query
+            parameter failed validation (JSON).
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/version:
+    get:
+      tags: [Snapshots]
+      operationId: latestVersion
+      summary: Flush the queue and get the latest version
+      description: >-
+        Processes the project's queued edits first (a flush), then returns the
+        latest version from history-v1 with the timestamp and authors of the
+        newest change. Callers:
+        `services/web/modules/git-bridge/app/src/GitBridgeApiController.mjs`
+        and `services/web/app/src/Features/Exports/ExportsHandler.mjs`.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: The latest version.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version:
+                    type: integer
+                    example: 23
+                  timestamp:
+                    type: string
+                    format: date-time
+                    description: Timestamp of the newest change in the latest chunk.
+                  v2Authors:
+                    type: array
+                    description: Authors of the newest change.
+                    items:
+                      type: string
+                      nullable: true
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/flush:
+    post:
+      tags: [Project]
+      operationId: flushProject
+      summary: Process the queued edits of a project
+      description: >-
+        Turns the project's queued Redis updates into changes and sends them to
+        history-v1. `debug=true` processes one update at a time; `bisect=true`
+        processes in halving batches to find a bad update. Callers:
+        `services/document-updater/app/js/HistoryManager.js` (with
+        `background=true`), `services/web/app/src/Features/History/HistoryManager.mjs`
+        (`flushProject`), the web route `POST /project/:Project_id/flush`
+        (proxied), `app/js/HealthChecker.js` and `scripts/flush_old.js`.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: debug
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: bisect
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: background
+          in: query
+          required: false
+          description: Sent by document-updater's background flush. Accepted but not used.
+          schema:
+            type: boolean
+      responses:
+        '204':
+          description: Flushed.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: A resync is ongoing.
+        '423':
+          $ref: '#/components/responses/Locked'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/resync-pending:
+    get:
+      tags: [Resync]
+      operationId: getResyncPending
+      summary: Check whether a resync is running
+      description: Reads the project's resync state from Mongo. No caller in this repository.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: Resync state.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  resyncPending:
+                    type: boolean
+                  syncStuck:
+                    type: boolean
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/debug-info:
+    get:
+      tags: [Resync]
+      operationId: getDebugInfo
+      summary: Get the failure record and resync state
+      description: >-
+        Returns the project's failure record (null when none) and its resync
+        state. Caller: `services/web/app/src/Features/History/HistoryManager.mjs`
+        (`getDebugInfo`).
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: Debug info.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  failureRecord:
+                    type: object
+                    nullable: true
+                    allOf:
+                      - $ref: '#/components/schemas/FailureRecord'
+                  syncState:
+                    type: object
+                    properties:
+                      resyncPending:
+                        type: boolean
+                      resyncCount:
+                        type: integer
+                      resyncPendingSince:
+                        type: string
+                        format: date-time
+                      lastUpdated:
+                        type: string
+                        format: date-time
+                      history:
+                        type: array
+                        description: Recent resync state changes. Shape not fixed in the controller.
+                        items:
+                          type: object
+                      resyncProjectStructure:
+                        type: boolean
+                      resyncDocContents:
+                        type: array
+                        items:
+                          type: string
+                      origin:
+                        type: object
+                        properties:
+                          kind:
+                            type: string
+                      hardResync:
+                        type: boolean
+                      recoverCorruptedFiles:
+                        type: boolean
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/resync:
+    post:
+      tags: [Resync]
+      operationId: resyncProject
+      summary: Start a resync of a project
+      description: >-
+        Starts a resync: project-history asks web to send the whole project
+        structure and doc contents again, then flushes the resync updates.
+        `force` starts a hard resync that also drops the queue and the sync
+        state. `force` and `recoverCorruptedFiles` can be given in the query or
+        the body. Callers:
+        `services/web/app/src/Features/History/HistoryManager.mjs`
+        (`resyncProject`) and `services/history-v1/storage/lib/resync_project.js`.
+      parameters:
+        - $ref: '#/components/parameters/ProjectOrLegacyId'
+        - name: force
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: recoverCorruptedFiles
+          in: query
+          required: false
+          description: Only used together with `force`.
+          schema:
+            type: boolean
+            default: false
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                force:
+                  type: boolean
+                  default: false
+                recoverCorruptedFiles:
+                  type: boolean
+                  default: false
+                origin:
+                  $ref: '#/components/schemas/RawOrigin'
+                historyRangesMigration:
+                  type: string
+                  enum: [forwards, backwards]
+      responses:
+        '204':
+          description: Resync done.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: A resync is already ongoing.
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/dump:
+    get:
+      tags: [Resync]
+      operationId: dumpProject
+      summary: Read the queued updates and the latest chunk
+      description: >-
+        Returns the updates waiting in the project's Redis queue (parsed, not
+        removed) together with the latest chunk from history-v1. Used for
+        debugging with `scripts/debug_translate_updates.js`; no HTTP caller in
+        this repository.
+      parameters:
+        - $ref: '#/components/parameters/ProjectOrLegacyId'
+        - name: count
+          in: query
+          required: false
+          description: Number of updates to read. Defaults to the processing batch size.
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: The dump.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  project_id:
+                    type: string
+                  chunk:
+                    type: object
+                    description: The latest chunk, as history-v1's `latest/history` returns it.
+                    properties:
+                      chunk:
+                        type: object
+                        properties:
+                          history:
+                            type: object
+                            properties:
+                              snapshot:
+                                $ref: '#/components/schemas/RawSnapshot'
+                              changes:
+                                type: array
+                                items:
+                                  $ref: '#/components/schemas/RawChange'
+                          startVersion:
+                            type: integer
+                  updates:
+                    type: array
+                    description: Queued updates from document-updater and web. Their shapes vary by update type.
+                    items:
+                      type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/labels:
+    get:
+      tags: [Labels]
+      operationId: getLabels
+      summary: List the labels of a project
+      description: >-
+        Callers: `services/web/app/src/Features/History/HistoryController.mjs`
+        (`getLabels`), `services/web/modules/git-bridge/app/src/GitBridgeApiController.mjs`
+        and `services/web/modules/mcp-server/app/src/ProjectTools.mjs`.
+      parameters:
+        - $ref: '#/components/parameters/ProjectOrLegacyId'
+      responses:
+        '200':
+          description: The labels.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Label'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: The project does not use this history service.
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags: [Labels]
+      operationId: createLabel
+      summary: Create a label
+      description: >-
+        Stores a label for `version` in Mongo. With `validate_exists` (default)
+        it first checks that history-v1 has a chunk for that version. Caller:
+        `services/web/app/src/Features/History/HistoryController.mjs`
+        (`createLabel`).
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [version, comment]
+              properties:
+                version:
+                  type: integer
+                comment:
+                  type: string
+                created_at:
+                  type: string
+                  format: date-time
+                  description: Defaults to now.
+                validate_exists:
+                  type: boolean
+                  default: true
+                user_id:
+                  type: string
+                  nullable: true
+                  pattern: '^[0-9a-f]{24}$'
+      responses:
+        '200':
+          description: The new label.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Label'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: The project does not use this history service.
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/user/{user_id}/labels/{label_id}:
+    delete:
+      tags: [Labels]
+      operationId: deleteLabelForUser
+      summary: Delete a label owned by a user
+      description: >-
+        Deletes the label only if `user_id` created it. Caller:
+        `services/web/app/src/Features/History/HistoryController.mjs`
+        (`deleteLabel`, for users who are not the project owner).
+      parameters:
+        - $ref: '#/components/parameters/ProjectOrLegacyId'
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ObjectId'
+        - $ref: '#/components/parameters/LabelId'
+      responses:
+        '204':
+          description: Deleted.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/labels/{label_id}:
+    delete:
+      tags: [Labels]
+      operationId: deleteLabel
+      summary: Delete a label
+      description: >-
+        Deletes the label whoever created it. Caller:
+        `services/web/app/src/Features/History/HistoryController.mjs`
+        (`deleteLabel`, for the project owner).
+      parameters:
+        - $ref: '#/components/parameters/ProjectOrLegacyId'
+        - $ref: '#/components/parameters/LabelId'
+      responses:
+        '204':
+          description: Deleted.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /user/{from_user}/labels/transfer/{to_user}:
+    post:
+      tags: [Labels]
+      operationId: transferLabels
+      summary: Move all labels of one user to another
+      description: Sets `user_id` of every label of `from_user` to `to_user`. No caller in this repository.
+      parameters:
+        - name: from_user
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ObjectId'
+        - name: to_user
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ObjectId'
+      responses:
+        '204':
+          description: Transferred.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/version/{version}/{pathname}:
+    get:
+      tags: [Snapshots]
+      operationId: getFileSnapshot
+      summary: Download one file at a version
+      description: >-
+        Streams the file's content at `version`. Text files have tracked
+        deletions removed; binary files are streamed from history-v1. Does not
+        flush the queue. Callers:
+        `services/web/app/src/Features/History/RestoreManager.mjs`
+        (`_writeFileVersionToDisk`) and the `HistoryManager.mjs` of the
+        github-sync, gitlab-sync and gitea-sync modules.
+      parameters:
+        - $ref: '#/components/parameters/ProjectOrLegacyId'
+        - $ref: '#/components/parameters/Version'
+        - $ref: '#/components/parameters/Pathname'
+      responses:
+        '200':
+          description: >-
+            File content. The service sets no `Content-Type`; Hoppscotch's Caddy
+            may add a sniffed one.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/ranges/version/{version}/{pathname}:
+    get:
+      tags: [Snapshots]
+      operationId: getRangesSnapshot
+      summary: Get tracked changes and comments of a file at a version
+      description: >-
+        Returns ranges in document-updater's format, with positions relative to
+        the text without tracked deletions. Binary files return empty lists.
+        No caller in this repository.
+      parameters:
+        - $ref: '#/components/parameters/ProjectOrLegacyId'
+        - $ref: '#/components/parameters/Version'
+        - $ref: '#/components/parameters/Pathname'
+      responses:
+        '200':
+          description: The ranges.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  changes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RangeChange'
+                  comments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RangeComment'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/metadata/version/{version}/{pathname}:
+    get:
+      tags: [Snapshots]
+      operationId: getFileMetadataSnapshot
+      summary: Get the metadata of a file at a version
+      description: >-
+        Returns the file's history metadata (for example linked-file data), or
+        an empty object when it has none. No caller in this repository.
+      parameters:
+        - $ref: '#/components/parameters/ProjectOrLegacyId'
+        - $ref: '#/components/parameters/Version'
+        - $ref: '#/components/parameters/Pathname'
+      responses:
+        '200':
+          description: >-
+            `metadata` is left out when the file has none. Its shape is
+            history-v1's file metadata (see `RawFileMetadata` in history-v1.yaml).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  metadata:
+                    type: object
+                    additionalProperties: true
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/version/{version}:
+    get:
+      tags: [Snapshots]
+      operationId: getProjectSnapshot
+      summary: Get all files of a project at a version
+      description: >-
+        Returns each file with its content (text files, tracked deletions
+        removed) or its blob hash (binary files). Does not flush the queue.
+        Callers: the `HistoryManager.mjs` of the github-sync, gitlab-sync and
+        gitea-sync modules.
+      parameters:
+        - $ref: '#/components/parameters/ProjectOrLegacyId'
+        - $ref: '#/components/parameters/Version'
+      responses:
+        '200':
+          description: The files, keyed by path.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  projectId:
+                    type: string
+                  files:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        data:
+                          type: object
+                          properties:
+                            content:
+                              type: string
+                              description: Set for text files.
+                            hash:
+                              type: string
+                              description: Set for binary files.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/paths/version/{version}:
+    get:
+      tags: [Snapshots]
+      operationId: getPathsAtVersion
+      summary: List the file paths at a version
+      description: >-
+        Does not flush the queue. Callers: the `HistoryManager.mjs` of the
+        github-sync, gitlab-sync and gitea-sync modules.
+      parameters:
+        - $ref: '#/components/parameters/ProjectOrLegacyId'
+        - $ref: '#/components/parameters/Version'
+      responses:
+        '200':
+          description: The paths.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  paths:
+                    type: array
+                    items:
+                      type: string
+                    example: [main.tex, frog.jpg]
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/force:
+    post:
+      tags: [Failures]
+      operationId: forceDebugProject
+      summary: Set or clear the forceDebug flag
+      description: >-
+        Sets `forceDebug` on the project's failure record (clears it with
+        `clear=true`) and returns the record. No caller in this repository.
+      parameters:
+        - $ref: '#/components/parameters/ProjectOrLegacyId'
+        - name: clear
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: The failure record, or an empty body when there is none.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FailureRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{history_id}/blob/{hash}:
+    get:
+      tags: [Snapshots]
+      operationId: getProjectBlob
+      summary: Download a blob from history-v1
+      description: >-
+        Streams the blob from history-v1, so that callers need no history-v1
+        credentials. Sets `Cache-Control: private, max-age=86400`. Caller:
+        `services/web/app/src/Features/ThirdPartyDataStore/TpdsUpdateSender.mjs`
+        (`addFile` sets it as `streamOrigin`, which third-party-datastore
+        fetches).
+      parameters:
+        - name: history_id
+          in: path
+          required: true
+          description: History id (`project.overleaf.history.id`), an ObjectId or a legacy number.
+          schema:
+            type: string
+            example: 6aec98777287243198a05332
+        - $ref: '#/components/parameters/BlobHash'
+      responses:
+        '200':
+          description: >-
+            Blob content. The service sets no `Content-Type`; Hoppscotch's Caddy
+            may add a sniffed one.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/clone:
+    post:
+      tags: [Project]
+      operationId: cloneProject
+      summary: Copy the history of a project to another project
+      description: >-
+        Flushes the source project, asks history-v1 to clone its history into
+        the target project's history, then copies labels, resync state and the
+        failure record. The response is a plain-text progress stream; it ends
+        with a line `done`, or a line starting with `error:` on failure. Wrapped by `cloneProject` in
+        `services/web/app/src/Features/History/HistoryManager.mjs`, which has
+        no caller in this repository.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [targetProjectId]
+              properties:
+                targetProjectId:
+                  $ref: '#/components/schemas/ObjectId'
+      responses:
+        '200':
+          description: Progress lines.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /status/failures:
+    get:
+      tags: [Failures]
+      operationId: getFailures
+      summary: Count failed projects by error type
+      description: >-
+        Summarizes the failure records by short error name (for example
+        `history-store-422`, `other`) and also reports them as metrics. No
+        caller in this repository.
+      responses:
+        '200':
+          description: Counts per error name.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  failures:
+                    type: object
+                    properties:
+                      counts:
+                        $ref: '#/components/schemas/CountsByErrorName'
+                      attempts:
+                        $ref: '#/components/schemas/CountsByErrorName'
+                      requests:
+                        $ref: '#/components/schemas/CountsByErrorName'
+                      maxQueueSize:
+                        $ref: '#/components/schemas/CountsByErrorName'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /status/failures-full:
+    get:
+      tags: [Failures]
+      operationId: getFailuresFull
+      summary: List all failure records
+      description: >-
+        Caller: `services/web/app/src/Features/History/HistoryManager.mjs`
+        (`getHistoryFailures`).
+      responses:
+        '200':
+          description: Every failure record with its short error name.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                    - $ref: '#/components/schemas/FailureRecord'
+                    - type: object
+                      properties:
+                        category:
+                          type: string
+                          description: Short error name; absent for unknown errors.
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /status/queue:
+    get:
+      tags: [Failures]
+      operationId: getQueueCounts
+      summary: Count projects with queued edits
+      description: No caller in this repository.
+      responses:
+        '200':
+          description: The count.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  queuedProjects:
+                    type: integer
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /retry/failures:
+    post:
+      tags: [Failures]
+      operationId: retryFailures
+      summary: Retry failed projects
+      description: >-
+        `soft` retries process the queue again; `hard` retries resync the
+        project. With `callbackUrl` it answers at once, runs in the background
+        and then sends a GET to `callbackUrl`, forwarding any `X-CALLBACK-*`
+        request headers without the prefix. Callers:
+        `server-ce/cron/project-history-retry-soft.sh` and
+        `server-ce/cron/project-history-retry-hard.sh`.
+      parameters:
+        - name: failureType
+          in: query
+          required: false
+          description: Without it nothing is retried.
+          schema:
+            type: string
+            enum: [soft, hard]
+        - name: timeout
+          in: query
+          required: false
+          description: Stop starting new retries after this many milliseconds.
+          schema:
+            type: integer
+            default: 300
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+        - name: callbackUrl
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uri
+      responses:
+        '200':
+          description: >-
+            `retryStatus` is `{succeeded, failed}` (project id lists) when run in
+            the foreground, or a text message with `callbackUrl`.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  retryStatus:
+                    oneOf:
+                      - type: string
+                      - type: object
+                        properties:
+                          succeeded:
+                            type: array
+                            items:
+                              type: string
+                          failed:
+                            type: array
+                            items:
+                              type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /flush/old:
+    post:
+      tags: [Failures]
+      operationId: flushOld
+      summary: Flush projects with old queued edits
+      description: >-
+        Flushes every project whose oldest queued edit is older than `maxAge`,
+        skipping projects with a failure record. Caller:
+        `server-ce/cron/project-history-periodic-flush.sh` (with `background=1`).
+      parameters:
+        - name: maxAge
+          in: query
+          required: false
+          description: Seconds.
+          schema:
+            type: integer
+            default: 21600
+        - name: queueDelay
+          in: query
+          required: false
+          description: Milliseconds to wait between projects.
+          schema:
+            type: integer
+            default: 100
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of queues to check.
+          schema:
+            type: integer
+            default: 1000
+        - name: timeout
+          in: query
+          required: false
+          description: Milliseconds.
+          schema:
+            type: integer
+            default: 60000
+        - name: background
+          in: query
+          required: false
+          description: Answer at once and run in the background.
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: >-
+            `{message}` with `background`, else `{success, failure,
+            failedProjects}`. `failedProjects` is a Set in the code and
+            serializes as an empty object.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      message:
+                        type: string
+                        example: running flush in background
+                  - type: object
+                    properties:
+                      success:
+                        type: array
+                        items:
+                          type: string
+                      failure:
+                        type: array
+                        items:
+                          type: string
+                      failedProjects:
+                        type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /status:
+    get:
+      tags: [Monitoring]
+      operationId: getStatus
+      summary: Check that the service is up
+      responses:
+        '200':
+          description: Up.
+          content:
+            text/html:
+              schema:
+                type: string
+                example: project-history is up
+  /check_lock:
+    get:
+      tags: [Monitoring]
+      operationId: checkLock
+      summary: Check the Redis lock
+      description: >-
+        Takes and releases a Redis lock. Caller: `app/js/HealthChecker.js`
+        (part of `/health_check`).
+      responses:
+        '200':
+          description: Lock works.
+        '500':
+          description: Lock check failed.
+  /health_check:
+    get:
+      tags: [Monitoring]
+      operationId: healthCheck
+      summary: Run the full health check
+      description: >-
+        Calls its own `/check_lock`, then `POST /project/{id}/flush` and
+        `GET /project/{id}/updates` for the project in `HEALTH_CHECK_PROJECT_ID`.
+        Fails with 500 when that variable is not set. No caller in this
+        repository.
+      responses:
+        '200':
+          description: Healthy.
+        '500':
+          description: A step failed.
+  /metrics:
+    get:
+      tags: [Monitoring]
+      operationId: getMetrics
+      summary: Get Prometheus metrics
+      description: Added by `@overleaf/metrics` (`injectMetricsRoute`).
+      responses:
+        '200':
+          description: Metrics in Prometheus text format.
+          content:
+            text/plain:
+              schema:
+                type: string
+components:
+  parameters:
+    ProjectId:
+      name: project_id
+      in: path
+      required: true
+      description: Project id. This route accepts only a Mongo ObjectId.
+      schema:
+        $ref: '#/components/schemas/ObjectId'
+    ProjectOrLegacyId:
+      name: project_id
+      in: path
+      required: true
+      description: Project id, a Mongo ObjectId or a legacy numeric v1 id.
+      schema:
+        type: string
+        example: 6aec98777287243198a05332
+    Version:
+      name: version
+      in: path
+      required: true
+      schema:
+        type: integer
+        example: 23
+    Pathname:
+      name: pathname
+      in: path
+      required: true
+      description: >-
+        File path in the project, without a leading slash. Encode `/` as `%2F`,
+        since the route matches one path segment.
+      schema:
+        type: string
+        example: chapters%2Fintroduction.tex
+    LabelId:
+      name: label_id
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/ObjectId'
+    BlobHash:
+      name: hash
+      in: path
+      required: true
+      description: SHA-1 of the blob (git blob hash).
+      schema:
+        $ref: '#/components/schemas/BlobHash'
+  responses:
+    BadRequest:
+      description: A query or body parameter failed validation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+    NotFound:
+      description: >-
+        Not found (plain text `Not Found`), or a path parameter failed validation
+        (JSON).
+      content:
+        text/plain:
+          schema:
+            type: string
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+    Locked:
+      description: The project's Redis lock is taken.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: redis lock is taken
+    TooManyRequests:
+      description: Too many updates to process; retry later.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            example: 300
+    ServerError:
+      description: Internal error.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: an internal error occurred
+  schemas:
+    ObjectId:
+      type: string
+      pattern: '^[0-9a-f]{24}$'
+      example: 6aec98777287243198a05332
+    BlobHash:
+      type: string
+      pattern: '^[0-9a-f]{40}$'
+      example: 5b889ef3cf71c83a4c027c4e4dc3d1a106b27809
+    ValidationError:
+      type: object
+      description: >-
+        From `@overleaf/validation-tools`. With `REQ_VALIDATION_MODE` unset
+        (`log`), most routes log a failed check and go on with a looser schema
+        instead of answering with this error.
+      properties:
+        error:
+          type: string
+        statusCode:
+          type: integer
+    Label:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/ObjectId'
+        comment:
+          type: string
+        version:
+          type: integer
+        user_id:
+          $ref: '#/components/schemas/ObjectId'
+        created_at:
+          type: string
+          format: date-time
+    DiffPart:
+      type: object
+      description: >-
+        One part of a diff: `u` is unchanged text, `i` inserted, `d` deleted.
+        Inserted and deleted parts carry `meta`.
+      properties:
+        u:
+          type: string
+        i:
+          type: string
+        d:
+          type: string
+        meta:
+          $ref: '#/components/schemas/UpdateMeta'
+    UpdateMeta:
+      type: object
+      properties:
+        users:
+          type: array
+          description: User ids; null for an anonymous user.
+          items:
+            type: string
+            nullable: true
+        start_ts:
+          type: integer
+          description: Milliseconds since the epoch.
+        end_ts:
+          type: integer
+          description: Milliseconds since the epoch.
+        origin:
+          $ref: '#/components/schemas/RawOrigin'
+    FileTreeDiffFile:
+      type: object
+      properties:
+        pathname:
+          type: string
+          description: Path at `from`, or the path a file was added at.
+        newPathname:
+          type: string
+          description: New path of a renamed file.
+        operation:
+          type: string
+          enum: [added, edited, renamed, removed]
+        deletedAtV:
+          type: integer
+          description: Version a removed file was removed at.
+        editable:
+          type: boolean
+          nullable: true
+          description: Null when not known.
+    SummarizedUpdate:
+      type: object
+      properties:
+        fromV:
+          type: integer
+        toV:
+          type: integer
+        meta:
+          $ref: '#/components/schemas/UpdateMeta'
+        labels:
+          type: array
+          items:
+            $ref: '#/components/schemas/Label'
+        pathnames:
+          type: array
+          description: Edited files, sorted.
+          items:
+            type: string
+        project_ops:
+          type: array
+          items:
+            type: object
+            description: One of `add`, `remove` or `rename`, with the version it happened at.
+            properties:
+              add:
+                type: object
+                properties:
+                  pathname:
+                    type: string
+              remove:
+                type: object
+                properties:
+                  pathname:
+                    type: string
+              rename:
+                type: object
+                properties:
+                  pathname:
+                    type: string
+                  newPathname:
+                    type: string
+              atV:
+                type: integer
+    RawOrigin:
+      type: object
+      description: >-
+        Origin of a change. Kinds `restore`, `project-restore` (with `version`,
+        `timestamp`) and `file-restore` (also `path`) have their own fields;
+        any other kind carries only `kind`.
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          example: history-resync
+        version:
+          type: integer
+        path:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        historyClientId:
+          type: string
+          format: uuid
+    RawSnapshot:
+      type: object
+      description: history-v1 snapshot. The full file shapes are in history-v1.yaml.
+      properties:
+        files:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties: true
+        projectVersion:
+          type: string
+        v2DocVersions:
+          type: object
+          nullable: true
+          additionalProperties:
+            type: object
+            properties:
+              pathname:
+                type: string
+              v:
+                type: integer
+        timestamp:
+          type: string
+          format: date-time
+    RawChange:
+      type: object
+      description: history-v1 change. The full operation shapes are in history-v1.yaml.
+      properties:
+        operations:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        timestamp:
+          type: string
+          format: date-time
+        authors:
+          type: array
+          items:
+            type: integer
+            nullable: true
+        v2Authors:
+          type: array
+          items:
+            type: string
+            nullable: true
+        origin:
+          $ref: '#/components/schemas/RawOrigin'
+        projectVersion:
+          type: string
+        v2DocVersions:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              pathname:
+                type: string
+              v:
+                type: integer
+    RangeChange:
+      type: object
+      description: A tracked change in document-updater's format.
+      properties:
+        op:
+          type: object
+          properties:
+            p:
+              type: integer
+            i:
+              type: string
+            d:
+              type: string
+        metadata:
+          type: object
+          properties:
+            ts:
+              type: string
+              format: date-time
+            user_id:
+              type: string
+    RangeComment:
+      type: object
+      description: A comment in document-updater's format. Detached comments have `p` 0 and empty `c`.
+      properties:
+        op:
+          type: object
+          properties:
+            p:
+              type: integer
+            c:
+              type: string
+            t:
+              type: string
+              description: Comment (thread) id.
+            resolved:
+              type: boolean
+        id:
+          type: string
+    FailureRecord:
+      type: object
+      description: A document of the `projectHistoryFailures` collection.
+      properties:
+        _id:
+          $ref: '#/components/schemas/ObjectId'
+        project_id:
+          type: string
+        attempts:
+          type: integer
+        resyncAttempts:
+          type: integer
+        resyncStartedAt:
+          type: string
+          format: date-time
+        requestCount:
+          type: integer
+        error:
+          type: string
+        stack:
+          type: string
+        queueSize:
+          type: integer
+        ts:
+          type: string
+          format: date-time
+        forceDebug:
+          type: boolean
+        history:
+          type: array
+          description: Up to 10 recent error or resync-start records.
+          items:
+            type: object
+            properties:
+              error:
+                type: string
+              stack:
+                type: string
+              queueSize:
+                type: integer
+              ts:
+                type: string
+                format: date-time
+              resyncStartedAt:
+                type: string
+                format: date-time
+    CountsByErrorName:
+      type: object
+      description: Keyed by short error name, for example `history-store-422` or `other`.
+      additionalProperties:
+        type: integer

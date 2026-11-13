@@ -17,6 +17,9 @@ services:
       dockerfile: services/chat/Dockerfile
     env_file:
       - dev.env
+    depends_on:
+      mongo:
+        condition: service_healthy
 
   clsi:
     build:
@@ -52,6 +55,9 @@ services:
       dockerfile: services/docstore/Dockerfile
     env_file:
       - dev.env
+    depends_on:
+      mongo:
+        condition: service_healthy
 
   document-updater:
     build:
@@ -63,6 +69,11 @@ services:
       # Dropbox gets a doc when it is written to Mongo, as with
       # server-ce/init_scripts/100_dropbox_background_flush.sh
       - CONTINUOUS_BACKGROUND_FLUSH=true
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   filestore:
     build:
@@ -93,6 +104,11 @@ services:
       PERSISTOR_BACKEND: fs
     volumes:
       - history-v1-buckets:/buckets
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   linked-url-proxy:
     build:
@@ -113,11 +129,18 @@ services:
       - ../bin/shared/mongodb-init-replica-set.js:/docker-entrypoint-initdb.d/mongodb-init-replica-set.js
     environment:
       MONGO_INITDB_DATABASE: sharelatex
+      # mongo 8 fails on kernel 6.19+ (SERVER-121912), as in the e2e config
+      GLIBC_TUNABLES: glibc.pthread.rseq=1
     extra_hosts:
       # Required when using the automatic database setup for initializing the
       # replica set. This override is not needed when running the setup after
       # starting up mongo.
       - mongo:127.0.0.1
+    healthcheck:
+      test: echo 'db.stats().ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
 
   notifications:
     build:
@@ -125,6 +148,9 @@ services:
       dockerfile: services/notifications/Dockerfile
     env_file:
       - dev.env
+    depends_on:
+      mongo:
+        condition: service_healthy
 
   project-history:
     build:
@@ -132,6 +158,11 @@ services:
       dockerfile: services/project-history/Dockerfile
     env_file:
       - dev.env
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   real-time:
     build:
@@ -139,6 +170,9 @@ services:
       dockerfile: services/real-time/Dockerfile
     env_file:
       - dev.env
+    depends_on:
+      redis:
+        condition: service_started
 
   third-party-datastore:
     build:
@@ -146,6 +180,11 @@ services:
       dockerfile: services/third-party-datastore/Dockerfile
     env_file:
       - dev.env
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   redis:
     image: redis:7
@@ -160,34 +199,51 @@ services:
       dockerfile: services/web/Dockerfile
       target: dev
     env_file:
+      - authentication/authentication.env
       - dev.env
     environment:
       - NODE_OPTIONS=--require /overleaf/.pnp.cjs --import /overleaf/.pnp.register.mjs
       - APP_NAME=Overleaf Community Edition
       - ENABLED_LINKED_FILE_TYPES=project_file,project_output_file,url,mendeley,zotero
       - EMAIL_CONFIRMATION_DISABLED=true
+      - EXTERNAL_AUTH=${EXTERNAL_AUTH:-none}
       - NODE_ENV=development
       - OVERLEAF_ALLOW_PUBLIC_ACCESS=true
+      - OVERLEAF_CONFIG=/overleaf/services/web/settings.dev-env.cjs
       - TPDS_HOST=third-party-datastore
     command: ["node", "app.mjs"]
     volumes:
       - sharelatex-data:/var/lib/overleaf
       - web-data:/overleaf/services/web/data
       - ./data/certs/:/var/lib/overleaf/certs/
+      - ./settings.dev-env.cjs:/overleaf/services/web/settings.dev-env.cjs
     depends_on:
-      - mongo
-      - redis
-      - chat
-      - clsi
-      - docstore
-      - document-updater
-      - filestore
-      - history-v1
-      - linked-url-proxy
-      - notifications
-      - project-history
-      - real-time
-      - third-party-datastore
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      chat:
+        condition: service_started
+      clsi:
+        condition: service_started
+      docstore:
+        condition: service_started
+      document-updater:
+        condition: service_started
+      filestore:
+        condition: service_started
+      history-v1:
+        condition: service_started
+      linked-url-proxy:
+        condition: service_started
+      notifications:
+        condition: service_started
+      project-history:
+        condition: service_started
+      real-time:
+        condition: service_started
+      third-party-datastore:
+        condition: service_started
 
   webpack:
     build:
@@ -201,7 +257,7 @@ services:
     command:
       ["yarn", "exec", "webpack", "serve", "--config", "webpack.config.dev-env.js"]
     ports:
-      - "127.0.0.1:80:3808"
+      - "127.0.0.1:${OVERLEAF_PORT:-80}:3808"
     volumes:
       - ./webpack.config.dev-env.js:/overleaf/services/web/webpack.config.dev-env.js
 
@@ -225,23 +281,12 @@ services:
   # ...
   
   # Add those for your development
-  # API debug
-  hoppscotch-frontend:
-    image: hoppscotch/hoppscotch-frontend:latest
-    ports:
-      - "3000:3000"
-
-  hoppscotch-proxy:
-    image: hoppscotch/proxyscotch:latest
-    environment:
-      - PORT=9159
-    ports:
-      - "9159:9159"
-
-
   # Redis-insight
   redis-insight:
     image: redislabs/redisinsight:latest
+    environment:
+      # Served on /redis-insight of the site, through webpack-dev-server
+      RI_PROXY_PATH: /redis-insight
     ports:
       - "5540:5540"
     depends_on:
@@ -250,18 +295,13 @@ services:
       - ./data/redis-insight:/data
 
   # mongo-express
-  # basicAuth credentials are "admin:pass"
   mongo-express:
     image: mongo-express
     ports:
       - "8081:8081"
     environment:
       ME_CONFIG_MONGODB_SERVER: mongo
-  
-  # For ldap testing
-  # https://github.com/rroemhild/docker-test-openldap
-  ldap:
-    restart: always
-    image: ghcr.io/rroemhild/docker-test-openldap:v2.5.0
-    healthcheck:
-      test: ["CMD-SHELL", "ldapsearch -H ldap://127.0.0.1:10389 -D \"$${LDAP_BINDDN}\" -w \"$${LDAP_SECRET}\" -b dc=planetexpress,dc=com -s base >/dev/null"]
+      # Served on /mongo-express of the site, through webpack-dev-server
+      ME_CONFIG_SITE_BASEURL: /mongo-express/
+      # The basic auth of the image is the well-known admin:pass, it only adds a prompt
+      ME_CONFIG_BASICAUTH: "false"

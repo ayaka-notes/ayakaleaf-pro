@@ -1,4 +1,5 @@
 import { login } from '../../../helpers/login'
+import { expectOwnAuditEntry } from '../../../helpers/auditLog'
 import {
   createProject,
   openProject,
@@ -6,6 +7,7 @@ import {
 } from '../../../helpers/project'
 import {
   bibEntry,
+  describeTurnedOffForAUser,
   clickRefresh,
   countEntries,
   expectReferencesSearchable,
@@ -82,6 +84,12 @@ describe('linking a Zotero account', function () {
 
     unlinkReferenceManager('zotero')
     zoteroKeys().should('deep.equal', [{ revoked: true }])
+    expectOwnAuditEntry(ADMIN_EMAIL, 'integration-account-linked')
+      .its('info.integration')
+      .should('equal', 'zotero')
+    expectOwnAuditEntry(ADMIN_EMAIL, 'integration-account-unlinked')
+      .its('info.integration')
+      .should('equal', 'zotero')
   })
 
   it('keeps the account when unlinking is cancelled', function () {
@@ -336,3 +344,5 @@ describe('importing from Zotero', function () {
     })
   })
 })
+
+describeTurnedOffForAUser('zotero')

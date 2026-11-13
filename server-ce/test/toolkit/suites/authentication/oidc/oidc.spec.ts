@@ -2,7 +2,6 @@ import {
   AUTHENTIK_URL,
   authentikLogin,
   currentUser,
-  expectSsoPasswordRefused,
   idpEmail,
   isSiteAdmin,
   requestPasswordReset,
@@ -13,7 +12,8 @@ import {
   ssoLogin,
   updatePassword,
 } from '../../../../helpers/auth'
-import { login } from '../../../../helpers/login'
+import { expectOwnAuditEntry } from '../../../../helpers/auditLog'
+import { login, randomPassword } from '../../../../helpers/login'
 import {
   deleteEmails,
   passwordResetLink,
@@ -26,6 +26,7 @@ import {
   setUserPassword,
 } from '../../../../helpers/adminTools'
 import { postWithCsrf } from '../../../../helpers/request'
+import { addConfirmedEmail, makePrimary } from '../../../../helpers/userEmails'
 
 // OIDC login against authentik (services/authentik). Admins are mapped from
 // the groups claim containing "Admins". With OIDC the launchpad keeps the
@@ -107,15 +108,10 @@ describe('OIDC login', function () {
 })
 
 describe('password reset of an OIDC account', function () {
-  it('refuses to send a reset email to an account made by OIDC', function () {
-    oidcLogin('bob')
-    requestPasswordReset(idpEmail('bob')).then(expectSsoPasswordRefused)
-  })
-
   it('does not let an account made by OIDC change the password on the settings page', function () {
     oidcLogin('bob')
     cy.visit('/user/settings')
-    cy.contains('p', 'because your group or organization uses single sign-on')
+    cy.contains('p', 'Password settings are managed externally')
     // CE does not check change-password on the route, the current password
     // of an account without one never matches
     updatePassword('anything', `New-${Cypress._.random(1e9)}-Pass`)
@@ -161,6 +157,17 @@ describe('password reset of an OIDC account', function () {
       .should('equal', 422)
   })
 
+  it('does not let an admin change the role that OIDC keeps up to date', function () {
+    oidcLogin('bob')
+    oidcLogin('alice')
+    adminUserInfo(idpEmail('bob')).then(user => {
+      postWithCsrf(`/admin/user/${user.id}/update`, { isAdmin: true })
+        .its('status')
+        .should('equal', 422)
+    })
+    adminUserInfo(idpEmail('bob')).its('isAdmin').should('equal', false)
+  })
+
   it('lets an admin set the password of a local account that OIDC is linked to', function () {
     const newPassword = `Admin-${Cypress._.random(1e9)}-Pass`
     oidcLogin('alice')
@@ -179,7 +186,7 @@ describe('password reset of an OIDC account', function () {
 // SAML. An admin can still change it.
 describe('email of a local account on an OIDC instance', function () {
   const email = `local-${Cypress._.random(1e9)}@example.com`
-  const password = `Local-${Cypress._.random(1e9)}-Pass`
+  const password = randomPassword()
 
   before(function () {
     oidcLogin('alice')
@@ -195,7 +202,8 @@ describe('email of a local account on an OIDC instance', function () {
       .its('status')
       .should('equal', 200)
     currentUser().its('email').should('equal', email)
-    cy.get('#email-input').should('have.attr', 'readonly')
+    // With the email settings the list of emails replaces the field
+    cy.get('#email-input').should('not.exist')
     oidcLogin('alice')
     adminUserInfo(idpEmail('eve')).should('equal', null)
   })
@@ -300,6 +308,8 @@ describe('OIDC logout', function () {
     cy.get('a[href="/oidc/login"]').click()
     authentikLogin('alice')
     cy.url({ timeout: 30_000 }).should('contain', '/project')
+    // alice is an admin
+    expectOwnAuditEntry(idpEmail('alice'), 'logout')
   })
 })
 
@@ -316,5 +326,78 @@ describe('OIDC login of a disabled account', function () {
     setSuspended(idpEmail('dave'), false)
     oidcLogin('dave')
     currentUser().its('email').should('equal', idpEmail('dave'))
+  })
+})
+
+describe('OIDC audit log', function () {
+  it('tells about the account a first login creates and links', function () {
+    oidcLogin('dave')
+    oidcLogin('alice')
+    expectOwnAuditEntry(idpEmail('dave'), 'create-account')
+      .its('info.method')
+      .should('equal', 'OIDC login')
+    expectOwnAuditEntry(idpEmail('dave'), 'link-sso')
+  })
+
+  it('tells when a login changes the admin flag and the name', function () {
+    setAuthentikGroup('alice', 'Admins', false)
+    setAuthentikName('alice', 'Alicia Renamed')
+    oidcLogin('alice')
+    setAuthentikGroup('alice', 'Admins', true)
+    setAuthentikName('alice', 'Alice Admin')
+    oidcLogin('alice')
+    expectOwnAuditEntry(idpEmail('alice'), 'change-admin-access')
+      .its('info.isAdmin')
+      .should('equal', true)
+    expectOwnAuditEntry(idpEmail('alice'), 'change-name')
+      .its('info.method')
+      .should('equal', 'OIDC login')
+  })
+})
+
+describe('a first login with the secondary email of another account', function () {
+  it('is refused', function () {
+    // eve must not get an account here: allowed-domains expects none
+    const email = 'eve@other.test'
+    oidcLogin('bob')
+    addConfirmedEmail(email)
+    ssoLogin('/oidc/login', 'eve', '/oidc/login/callback')
+    cy.contains('This email is already registered as a secondary email')
+
+    oidcLogin('bob')
+    cy.visit('/user/settings')
+    postWithCsrf('/user/emails/delete', { email })
+      .its('status')
+      .should('equal', 200)
+  })
+})
+
+// Last, this changes the primary email of dave
+describe('emails of an account made by OIDC', function () {
+  const personal = `dave-${Cypress._.random(1e9)}@example.com`
+  const password = randomPassword()
+
+  it('still logs in with OIDC after a confirmed email became primary', function () {
+    oidcLogin('dave')
+    addConfirmedEmail(personal)
+    makePrimary(personal)
+    cy.contains('[data-testid="email-row"]', personal).contains('Primary')
+    cy.clearAllCookies()
+    oidcLogin('dave')
+    currentUser().its('email').should('equal', personal)
+  })
+
+  it('sets a password with a reset email and logs in without the IdP', function () {
+    deleteEmails()
+    requestPasswordReset(personal).its('status').should('equal', 200)
+    waitForEmail(personal).then(text => {
+      cy.visit(passwordResetLink(text))
+      cy.get('input[name="password"]').type(password)
+      cy.findByRole('button', { name: 'Set new password' }).click()
+      cy.contains('Your password has been successfully changed')
+    })
+    cy.clearAllCookies()
+    login(personal, password)
+    currentUser().its('email').should('equal', personal)
   })
 })

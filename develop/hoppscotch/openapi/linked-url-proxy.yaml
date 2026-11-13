@@ -1,0 +1,147 @@
+openapi: 3.0.3
+info:
+  title: linked-url-proxy
+  version: '6.3'
+  description: >-
+    Fetches an external URL for web and streams the answer back, refusing
+    internal addresses so that users cannot reach the Docker network. Web
+    sends URL files, Open in Overleaf imports and the AI agent's web_fetch
+    through it.
+servers:
+  - url: http://linked-url-proxy:3066
+    description: Inside the Docker network, through the Hoppscotch proxy
+# The servers are Docker addresses that a docs reader cannot reach
+x-hideTryItPanel: true
+security: []
+tags:
+  - name: Proxy
+    x-page-icon: globe
+    description: Fetch an external URL.
+  - name: Monitoring
+    x-page-icon: heart-pulse
+    description: Status and metrics.
+paths:
+  /:
+    get:
+      tags: [Proxy]
+      operationId: proxy
+      summary: Fetch an external URL
+      description: >-
+        Sanitizes `url`, allows only `http:` and `https:`, resolves the host and
+        refuses addresses that are not public unicast or that fall in
+        `OVERLEAF_LINKED_URL_BLOCKED_NETWORKS`, unless the URL matches the
+        `OVERLEAF_LINKED_URL_ALLOWED_RESOURCES` regex. The connection is pinned
+        to the checked address. With `OVERLEAF_LINKED_URL_OUTBOUND_PROXY` the
+        request goes through that proxy and only IP literals are checked.
+        Redirects are followed by hand (up to 5), each one checked again. The
+        timeout is 30 s, and an answer whose `Content-Length` is over
+        `MAX_UPLOAD_SIZE` MB (default 50) is refused. The upstream status and
+        `Content-Type` are passed on, with `Cache-Control: no-store`. Callers:
+        `services/web/app/src/Features/Helpers/UrlHelper.mjs`
+        (`wrapUrlWithProxy`, used by
+        `services/web/app/src/Features/LinkedFiles/UrlAgent.mjs`,
+        `services/web/modules/open-in-overleaf/app/src/OpenInOverleafManager.mjs`
+        and `services/web/modules/workbench/app/src/WebFetchTool.mjs`).
+      parameters:
+        - name: url
+          in: query
+          required: true
+          description: The URL to fetch, URL-encoded.
+          schema:
+            type: string
+            format: uri
+            example: https://example.com/
+      responses:
+        '200':
+          description: >-
+            The upstream body, with the upstream status (2xx) and
+            `Content-Type` (`application/octet-stream` when it has none).
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: >-
+            `url` is missing (`Missing ?url parameter`), unsafe, not http(s), or
+            has an unsafe path.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: 'Error: ftp: protocol is not allowed'
+        '403':
+          description: The host resolves to a blocked address.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: 'Error: Blocked IP address: 127.0.0.1'
+        '408':
+          description: The upstream request timed out.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '413':
+          description: The upstream `Content-Length` is over the limit.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: 'Error: file too large'
+        '421':
+          description: DNS lookup failed, too many redirects, or a redirect without `Location`.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '422':
+          description: Any other fetch error.
+          content:
+            text/plain:
+              schema:
+                type: string
+        default:
+          description: >-
+            An upstream 4xx or 5xx is passed on with the body `Error: request
+            failed`; a broken `OVERLEAF_LINKED_URL_BLOCKED_NETWORKS` entry gives
+            500.
+          content:
+            text/plain:
+              schema:
+                type: string
+  /status:
+    get:
+      tags: [Monitoring]
+      operationId: getStatus
+      summary: Check that the service is up
+      responses:
+        '200':
+          description: Up.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: linked-url-proxy is up
+  /metrics:
+    get:
+      tags: [Monitoring]
+      operationId: getMetrics
+      summary: Get Prometheus metrics
+      description: Added by `@overleaf/metrics` (`injectMetricsRoute`).
+      responses:
+        '200':
+          description: Metrics in Prometheus text format.
+          content:
+            text/plain:
+              schema:
+                type: string

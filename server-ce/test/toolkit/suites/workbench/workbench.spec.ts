@@ -102,6 +102,29 @@ function toolResults(request: ChatRequest) {
     .join('\n')
 }
 
+// For the long chat: a failed `contain` on its text makes Cypress compare the
+// whole text, which takes minutes up to over half an hour, so these compare
+// booleans
+function panelHasText(text: string) {
+  panel().should($panel => {
+    expect($panel.text().includes(text), `the panel has "${text}"`).to.equal(
+      true
+    )
+  })
+}
+
+function composerIsEmpty() {
+  panel()
+    .findByPlaceholderText('What would you like to do?')
+    .should($composer => {
+      expect($composer.val() === '', 'the composer is empty').to.equal(true)
+    })
+}
+
+function hasText(text: string, part: string, has = true) {
+  expect(text.includes(part), `"${part}" in the text`).to.equal(has)
+}
+
 before(function () {
   ensureAdminExists()
   ensureUserExists(user)
@@ -620,39 +643,36 @@ describe('the AI assistant', function () {
         textarea.dispatchEvent(new Event('input', { bubbles: true }))
       })
     panel().findByPlaceholderText('What would you like to do?').type('{enter}')
-    panel().should('contain.text', 'Noted.')
+    panelHasText('Noted.')
 
+    composerIsEmpty()
     ask('Second question')
-    panel().should('contain.text', 'Second answer.')
-    panel().should(
-      'contain.text',
-      'The assistant now sees the messages above as a summary.'
-    )
+    panelHasText('Second answer.')
+    panelHasText('The assistant now sees the messages above as a summary.')
+    composerIsEmpty()
     ask('Third question')
-    panel().should('contain.text', 'Third answer.')
+    panelHasText('Third answer.')
 
     chatRequests().then(requests => {
-      expect(requests).to.have.length(4)
+      expect(requests.length, 'chat requests').to.equal(4)
       const [first, summarize, second, third] = requests
-      expect(lastUserText(first)).to.contain('Remember this')
+      hasText(lastUserText(first), 'Remember this')
       // The first turn is summarized, without tools
       expect(summarize.tools).to.be.empty
-      expect(messageText(summarize.messages[0])).to.contain(
+      hasText(
+        messageText(summarize.messages[0]),
         'You summarize the earlier part'
       )
-      expect(messageText(summarize.messages[1]))
-        .to.contain('Remember this')
-        .and.contain('Noted.')
+      hasText(messageText(summarize.messages[1]), 'Remember this')
+      hasText(messageText(summarize.messages[1]), 'Noted.')
       // From then on the summary replaces the first turn
       for (const request of [second, third]) {
-        expect(messageText(request.messages[0])).to.contain(
-          'SUMMARY-OF-EARLIER-TURNS'
-        )
+        hasText(messageText(request.messages[0]), 'SUMMARY-OF-EARLIER-TURNS')
         const sent = request.messages.map(messageText).join('\n')
-        expect(sent).not.to.contain('Remember this')
-        expect(sent).to.contain('Second question')
+        hasText(sent, 'Remember this', false)
+        hasText(sent, 'Second question')
       }
-      expect(lastUserText(third)).to.contain('Third question')
+      hasText(lastUserText(third), 'Third question')
     })
   })
 
@@ -930,7 +950,7 @@ describe('AI turned off for a user', function () {
     })
   })
 
-  it('refuses the chat and disables the prompt', function () {
+  it('refuses the chat and hides the assistant', function () {
     login(offUser)
     cy.request('/workbench/access')
       .its('body')
@@ -942,9 +962,9 @@ describe('AI turned off for a user', function () {
     })
 
     openNewProject()
-    openAssistant()
-    panel().findByRole('region', { name: 'Give AI consent' }).should('not.exist')
-    panel().find('[data-chat-input]').should('have.attr', 'inert')
+    cy.findByRole('tab', { name: 'File tree' }).should('exist')
+    cy.findByRole('tab', { name: 'AI assistant' }).should('not.exist')
+    panel().should('not.exist')
     chatRequests().should('have.length', 0)
   })
 

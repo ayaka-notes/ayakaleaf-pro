@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <a href="https://ayakaleaf-pro.ayaka.space"><img src="logo.png" alt="Ayakaleaf Pro" width="300"></a>
+  <a href="https://ayakaleaf-pro.ayaka.space"><picture><source media="(prefers-color-scheme: dark)" srcset="logo-dark.png"><img src="logo.png" alt="Ayakaleaf Pro" width="300"></picture></a>
 </h1>
 
 <h4 align="center">Overleaf Community Edition utökad med alla Pro-funktioner <br/>(öppen källkod, gratis att använda, kan driftas själv).</h4>
@@ -58,10 +58,11 @@ Ayakaleaf Pro är en utökad version av Overleaf med nästan alla funktioner och
 - Mendeley-integration (med stöd för Mendeley OAuth)
 - Avancerad referenssökning (sök i alla dina Bib-poster)
 - Stöd för Git-Bridge (clone, pull och push med Git)
-- Administratörspanel (global hantering av användare och projekt)
+- Komplett administratörspanel (användare, projekt och mallar, med sökning, massåtgärder, sessioner och granskningsloggar)
 - SSO med LDAP och SAML eller OAuth 2.0
 - Obegränsad kompileringstid (justerbar i administratörspanelen)
 - Självregistrering (valfri, kan begränsas efter e-postdomän)
+- reCAPTCHA (valfri, vid inloggning, registrering och återställning av lösenord)
 - Kompilering i sandlåda (med stöd för avbilden [texlive-full](https://github.com/ayaka-notes/texlive-full))
 - Mallsystem (med mallgalleri)
 - Spåra ändringar (med panel för granskning och kommentarer)
@@ -101,6 +102,7 @@ Se filen [CONTRIBUTING](../CONTRIBUTING.md) för information om hur du bidrar ti
 
 ## Blogg
 Vi skriver om hur Overleaf fungerar internt, kompileringsprestanda och egendriftad LaTeX-infrastruktur. Läs mer på vår blogg:
+- [2026.11 Meet the New Admin Panel in Ayakaleaf Pro](https://ayakaleaf-pro.ayaka.space/blog/2026/new-admin-panel)
 - [2026.08 Overleaf Server Pro Price and Open-Source Alternative](https://ayakaleaf-pro.ayaka.space/blog/2026/overleaf-server-pro-price-and-open-source-alternative)
 - [2026.08 Overleaf Benchmark: A Deep Research of Concurrent LaTeX Compilation in Overleaf](https://ayakaleaf-pro.ayaka.space/blog/2026/overleaf-benchmark)
 
@@ -117,9 +119,14 @@ Koden i detta repository släpps under GNU AFFERO GENERAL PUBLIC LICENSE, versio
 - Copyright (c) [Pro Authors](https://ayakaleaf-pro.ayaka.space/on-premises/readme/features-and-copyright), 2026-now.
 
 ## Sponsor
-- [Linux Do Community](https://linux.do)
-- [OpenAI Codex OSS](https://openai.com/en/form/codex-for-oss/)
-- [GitBook](https://www.gitbook.com/)
+
+<p align="center">
+  <a href="https://www.vultr.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/vultr-dark.svg"><img src="sponsors/vultr.svg" alt="Vultr" width="160"></picture></a>
+  <a href="https://linux.do"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/linux-do-dark.svg"><img src="sponsors/linux-do.svg" alt="Linux Do Community" width="160"></picture></a>
+  <a href="https://openai.com/en/form/codex-for-oss/"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/openai-codex-oss-dark.svg"><img src="sponsors/openai-codex-oss.svg" alt="OpenAI Codex OSS" width="160"></picture></a>
+  <a href="https://www.gitbook.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/gitbook-dark.svg"><img src="sponsors/gitbook.svg" alt="GitBook" width="160"></picture></a>
+  <a href="https://www.mintlify.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/mintlify-dark.svg"><img src="sponsors/mintlify.svg" alt="Mintlify" width="160"></picture></a>
+</p>
 
 ## Star History
 

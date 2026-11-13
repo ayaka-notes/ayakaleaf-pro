@@ -5,7 +5,7 @@ import { Button } from 'react-bootstrap'
 import { CopyToClipboard } from '@/shared/components/copy-to-clipboard'
 import OLButton from '@/shared/components/ol/ol-button'
 import { useProjectContext } from '@/shared/context/project-context'
-import getMeta from '@/utils/meta'
+import useInstanceFeatures from '@modules/instance-features/frontend/js/use-instance-features'
 
 import {
   OLModalBody,
@@ -44,8 +44,8 @@ function ModalGitBridgeSync({ handleHide, projectId }: Props) {
                     <p>
                         {t('git_bridge_modal_git_clone_your_project')}
                     </p>
-                    <div className="git-bridge-copy">
-                        <code>{gitCloneMethodOption}</code>
+                    <div className="git-bridge-copy justify-content-between align-items-start">
+                        <code style={{ flex: 1, minWidth: 0, wordBreak: 'break-all' }}>{gitCloneMethodOption}</code>
                         <span>
                             <CopyToClipboard content={gitCloneMethodOption}
                                 kind="text" />
@@ -116,9 +116,9 @@ function GitBridgeSyncButton() {
     // 对话框
     const [showGitBridgeSyncModal, setShowGitBridgeSyncModal] = useState(false)
     const { project, tags: projectTags } = useProjectContext()
-    const gitBridgeEnabled = getMeta('ol-gitBridgeEnabled') || false
+    const { gitBridge } = useInstanceFeatures()
 
-    if (!gitBridgeEnabled) {
+    if (!gitBridge) {
         return null
     }
 

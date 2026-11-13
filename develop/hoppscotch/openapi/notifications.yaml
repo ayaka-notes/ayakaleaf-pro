@@ -1,0 +1,325 @@
+openapi: 3.0.3
+info:
+  title: notifications
+  version: '6.3'
+  description: >-
+    Stores the notifications shown to users on the project list (for example
+    project invites) in Mongo's `notifications` collection. Web and
+    third-party-datastore call it; it has no auth and is reachable only inside
+    the Docker network.
+security: []
+servers:
+  - url: http://notifications:3042
+    description: Inside the Docker network, through the Hoppscotch proxy
+# The servers are Docker addresses that a docs reader cannot reach
+x-hideTryItPanel: true
+tags:
+  - name: Notifications
+    x-page-icon: bell
+    description: Notifications of a user, or all notifications with a key.
+  - name: Health
+    x-page-icon: heart-pulse
+    description: Status, health check and metrics.
+paths:
+  /user/{user_id}:
+    get:
+      operationId: getUserNotifications
+      summary: List a user's unread notifications
+      description: >-
+        Returns the user's notifications that still have a `templateKey`
+        (unread). Called by web
+        (`services/web/app/src/Features/Notifications/NotificationsHandler.mjs`
+        `getUserNotifications`).
+      tags: [Notifications]
+      parameters:
+        - $ref: '#/components/parameters/user_id'
+      responses:
+        '200':
+          description: The unread notifications.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+        '404':
+          $ref: '#/components/responses/InvalidParams'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      operationId: addNotification
+      summary: Add a notification for a user
+      description: >-
+        Upserts the user's notification with this `key`. If one already exists
+        and `forceCreate` is not true, nothing changes. A notification with
+        `expires` is removed by Mongo's TTL index at that time. Called by web
+        (`services/web/app/src/Features/Notifications/NotificationsHandler.mjs`
+        `createNotification`) and third-party-datastore
+        (`services/third-party-datastore/app/js/QueueWorker.mjs`, when it
+        unlinks a Dropbox account).
+      tags: [Notifications]
+      parameters:
+        - $ref: '#/components/parameters/user_id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [key, templateKey]
+              properties:
+                key:
+                  type: string
+                  example: project-invite-6aef42f54bc773598eaf32f6
+                templateKey:
+                  type: string
+                  example: notification_project_invite
+                messageOpts:
+                  type: object
+                  description: Values for the template; the keys depend on the template.
+                  additionalProperties: true
+                forceCreate:
+                  type: boolean
+                expires:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          $ref: '#/components/responses/InvalidParams'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      operationId: removeNotificationKey
+      summary: Mark a user's notification as read by key
+      description: >-
+        Removes `templateKey` from the user's notification with this key, so
+        it is no longer listed. Called by web
+        (`services/web/app/src/Features/Notifications/NotificationsHandler.mjs`
+        `markAsReadWithKey`).
+      tags: [Notifications]
+      parameters:
+        - $ref: '#/components/parameters/user_id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [key]
+              properties:
+                key:
+                  type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          $ref: '#/components/responses/InvalidParams'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /user/{user_id}/notification/{notification_id}:
+    delete:
+      operationId: removeNotificationId
+      summary: Mark a user's notification as read by id
+      description: >-
+        Removes `templateKey` and `messageOpts` from the notification. Called
+        by web
+        (`services/web/app/src/Features/Notifications/NotificationsHandler.mjs`
+        `markAsRead`).
+      tags: [Notifications]
+      parameters:
+        - $ref: '#/components/parameters/user_id'
+        - name: notification_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-f]{24}$'
+          example: 6aef42f5f6e7e79451a0d03b
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        '404':
+          $ref: '#/components/responses/InvalidParams'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /key/{key}:
+    delete:
+      operationId: removeNotificationByKeyOnly
+      summary: Mark a notification as read by key, for any user
+      description: >-
+        Removes `templateKey` from one notification with this key (Mongo
+        `updateOne`). Called by web
+        (`services/web/app/src/Features/Notifications/NotificationsHandler.mjs`
+        `markAsReadByKeyOnly`).
+      tags: [Notifications]
+      parameters:
+        - $ref: '#/components/parameters/key'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /key/{key}/count:
+    get:
+      operationId: countNotificationsByKeyOnly
+      summary: Count unread notifications with a key
+      description: >-
+        Counts the notifications with this key that still have a
+        `templateKey`, across users. Called by web
+        (`services/web/app/src/Features/Notifications/NotificationsHandler.mjs`
+        `previewMarkAsReadByKeyOnlyBulk`).
+      tags: [Notifications]
+      parameters:
+        - $ref: '#/components/parameters/key'
+      responses:
+        '200':
+          $ref: '#/components/responses/Count'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /key/{key}/bulk:
+    delete:
+      operationId: deleteUnreadNotificationsByKeyOnlyBulk
+      summary: Delete unread notifications with a key
+      description: >-
+        Deletes every notification with this key that still has a
+        `templateKey`, across users, and returns how many. Called by web
+        (`services/web/app/src/Features/Notifications/NotificationsHandler.mjs`
+        `markAsReadByKeyOnlyBulk`).
+      tags: [Notifications]
+      parameters:
+        - $ref: '#/components/parameters/key'
+      responses:
+        '200':
+          $ref: '#/components/responses/Count'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /status:
+    get:
+      operationId: getStatus
+      summary: Get the status of notifications
+      description: Returns a fixed text when the process is up.
+      tags: [Health]
+      responses:
+        '200':
+          description: The service is up.
+          content:
+            text/html:
+              schema:
+                type: string
+                example: notifications is up
+  /health_check:
+    get:
+      operationId: check
+      summary: Check the service end to end
+      description: >-
+        Through its own HTTP API, adds a notification for a new random user
+        id, reads it back and marks it read by id and by key, then deletes it
+        from Mongo.
+      tags: [Health]
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /metrics:
+    get:
+      operationId: getMetrics
+      summary: Get Prometheus metrics
+      description: Prometheus metrics, added by `@overleaf/metrics` `injectMetricsRoute`.
+      tags: [Health]
+      responses:
+        '200':
+          description: Metrics in the Prometheus text format.
+          content:
+            text/plain:
+              schema:
+                type: string
+components:
+  parameters:
+    user_id:
+      name: user_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[0-9a-f]{24}$'
+      example: 6aef42f24bc773598eaf326e
+    key:
+      name: key
+      in: path
+      required: true
+      schema:
+        type: string
+      example: project-invite-6aef42f54bc773598eaf32f6
+  responses:
+    OK:
+      description: Done.
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: OK
+    Count:
+      description: The number of notifications.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              count:
+                type: integer
+    InvalidParams:
+      description: A path parameter is not a valid ObjectId.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+    InvalidRequest:
+      description: >-
+        The body fails the zod schema. In the default `REQ_VALIDATION_MODE=log`
+        a body that passes the looser fallback schema is let through; the
+        Server CE image sets `REQ_VALIDATION_MODE=enforce-log`.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+    ServerError:
+      description: Internal error.
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: Internal Server Error
+  schemas:
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+        statusCode:
+          type: integer
+    Notification:
+      type: object
+      properties:
+        _id:
+          type: string
+        user_id:
+          type: string
+        key:
+          type: string
+        templateKey:
+          type: string
+        messageOpts:
+          type: object
+          additionalProperties: true
+        expires:
+          type: string
+          format: date-time

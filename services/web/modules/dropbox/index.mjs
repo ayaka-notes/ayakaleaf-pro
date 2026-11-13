@@ -2,6 +2,7 @@ import Settings from '@overleaf/settings'
 import logger from '@overleaf/logger'
 import express from 'express'
 import Modules from '../../app/src/infrastructure/Modules.mjs'
+import UserAuditLogHandler from '../../app/src/Features/User/UserAuditLogHandler.mjs'
 
 let DropboxModule = {}
 if (process.env.DROPBOX_ENABLED?.toLowerCase() === 'true') {
@@ -31,7 +32,17 @@ if (process.env.DROPBOX_ENABLED?.toLowerCase() === 'true') {
   // (features lost, account suspended, duplicate project names)
   Modules.hooks.attach('removeDropbox', async (userId, reason) => {
     try {
-      await DropboxHandler.unlinkUser(userId)
+      const wasLinked = await DropboxHandler.unlinkUser(userId)
+      if (wasLinked) {
+        // no request behind it: core lets a batch unlink go without an address
+        await UserAuditLogHandler.promises.addEntry(
+          userId,
+          'unlink-dropbox',
+          userId,
+          undefined,
+          { batch: true, reason }
+        )
+      }
       logger.debug({ userId, reason }, 'unlinked Dropbox account')
     } catch (err) {
       logger.warn({ userId, reason, err }, 'failed to unlink Dropbox account')

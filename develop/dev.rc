@@ -1,0 +1,25 @@
+#### Development environment RC ####
+# Change a value here, then run bin/dev again to apply it.
+
+# Host port of the site
+OVERLEAF_PORT=80
+
+# LDAP and SAML login with test users, see authentication/README.md
+LDAP_ENABLED=true
+SAML_ENABLED=true
+
+# Catches every email from web, inbox on /mailpit of the site
+MAILPIT_ENABLED=true
+
+# Keeps history and template files in RustFS instead of local volumes,
+# console on http://localhost:9001/rustfs/console/
+S3_ENABLED=true
+
+# Hoppscotch API client, with a proxy into the Docker network on /proxy,
+# see README.md
+HOPPSCOTCH_ENABLED=true
+HOPPSCOTCH_PORT=9170
+
+# Grafana on /grafana of the site, with the state, metrics and logs of every
+# service, see README.md
+GRAFANA_ENABLED=true

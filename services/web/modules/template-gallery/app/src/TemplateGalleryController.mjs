@@ -3,6 +3,8 @@ import Path from 'path'
 import ErrorController from '../../../../app/src/Features/Errors/ErrorController.mjs'
 import Errors from '../../../../app/src/Features/Errors/Errors.js'
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
+import ProjectAuditLogHandler from '../../../../app/src/Features/Project/ProjectAuditLogHandler.mjs'
+import UserAuditLogHandler from '../../../../app/src/Features/User/UserAuditLogHandler.mjs'
 import TemplateGalleryManager from'./TemplateGalleryManager.mjs'
 import { getUserName } from './TemplateGalleryHelper.mjs'
 import { TemplateNameConflictError, RecompileRequiredError, MainFileRequiredError } from './TemplateErrors.mjs'
@@ -14,6 +16,17 @@ const templateFileSchema = z.object({
   params: z.object({ template_id: zz.objectId() }),
   query: z.object({ version: z.string().regex(/^[0-9]+$/) }),
 })
+
+// A template has no audit log of its own: what happens to it goes on the log
+// of whoever did it. The action is done by now, a failed entry must not undo it.
+function logTemplateAction(req, operation, info) {
+  const userId = SessionManager.getLoggedInUserId(req.session)
+  return UserAuditLogHandler.promises
+    .addEntry(userId, operation, userId, req.ip, info)
+    .catch(err => {
+      logger.error({ err, operation, userId }, 'failed to log a template action')
+    })
+}
 
 async function createTemplateFromProject(req, res, next) {
   const t = req.i18n.translate
@@ -30,6 +43,20 @@ async function createTemplateFromProject(req, res, next) {
                     + (result.canOverride ? "Do you want to overwrite it?" : "You can't overwrite it.")
       return res.status(409).json({ canOverride: result.canOverride, message })
     }
+
+    const logged = {
+      templateId: result.templateId,
+      name: req.body.name,
+      version: result.version,
+    }
+    await logTemplateAction(req, 'publish-template', logged)
+    ProjectAuditLogHandler.addEntryInBackground(
+      req.params.Project_id,
+      'publish-template',
+      userId,
+      req.ip,
+      logged
+    )
 
     // pull thumbnail and preview in the background, so that when user 
     // goes to template details page, those images are likely ready
@@ -77,6 +104,10 @@ async function editTemplate(req, res, next) {
       templateId: req.params.template_id,
       updates: req.body
     })
+    await logTemplateAction(req, 'edit-template', {
+      templateId: req.params.template_id,
+      fields: Object.keys(req.body),
+    })
     res.status(200).json(result)
   } catch (error) {
     if (error instanceof TemplateNameConflictError) {
@@ -102,6 +133,9 @@ async function deleteTemplate(req, res, next) {
     await TemplateGalleryManager.deleteTemplate({
       templateId: req.params.template_id,
       version: req.body.version
+    })
+    await logTemplateAction(req, 'delete-template', {
+      templateId: req.params.template_id,
     })
     res.sendStatus(200)
   } catch (error) {
