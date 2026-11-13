@@ -53,6 +53,33 @@ export default function useProjectWideSettingsSocketListener() {
     [project, updateProject]
   )
 
+  const setLanguageToolEnabled = useCallback(
+    (languageToolEnabled: ProjectSettings['languageToolEnabled']) => {
+      if (project) {
+        updateProject({ languageToolEnabled })
+      }
+    },
+    [project, updateProject]
+  )
+
+  const setLanguageToolPicky = useCallback(
+    (languageToolPicky: ProjectSettings['languageToolPicky']) => {
+      if (project) {
+        updateProject({ languageToolPicky })
+      }
+    },
+    [project, updateProject]
+  )
+
+  const setLanguageToolLanguage = useCallback(
+    (languageToolLanguage: ProjectSettings['languageToolLanguage']) => {
+      if (project) {
+        updateProject({ languageToolLanguage })
+      }
+    },
+    [project, updateProject]
+  )
+
   useEffect(() => {
     // data is not available on initial mounting
     const dataAvailable = !!project
@@ -63,6 +90,9 @@ export default function useProjectWideSettingsSocketListener() {
       socket.on('png2pdfUpdated', setPng2pdf)
       socket.on('spellCheckLanguageUpdated', setSpellCheckLanguage)
       socket.on('referenceFormatUpdated', setReferenceFormat)
+      socket.on('languageToolEnabledUpdated', setLanguageToolEnabled)
+      socket.on('languageToolPickyUpdated', setLanguageToolPicky)
+      socket.on('languageToolLanguageUpdated', setLanguageToolLanguage)
       return () => {
         socket.removeListener('compilerUpdated', setCompiler)
         socket.removeListener('imageNameUpdated', setImageName)
@@ -72,6 +102,15 @@ export default function useProjectWideSettingsSocketListener() {
           setSpellCheckLanguage
         )
         socket.removeListener('referenceFormatUpdated', setReferenceFormat)
+        socket.removeListener(
+          'languageToolEnabledUpdated',
+          setLanguageToolEnabled
+        )
+        socket.removeListener('languageToolPickyUpdated', setLanguageToolPicky)
+        socket.removeListener(
+          'languageToolLanguageUpdated',
+          setLanguageToolLanguage
+        )
       }
     }
   }, [
@@ -82,5 +121,8 @@ export default function useProjectWideSettingsSocketListener() {
     setReferenceFormat,
     setPng2pdf,
     setSpellCheckLanguage,
+    setLanguageToolEnabled,
+    setLanguageToolPicky,
+    setLanguageToolLanguage,
   ])
 }

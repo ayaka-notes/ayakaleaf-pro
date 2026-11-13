@@ -1,0 +1,53 @@
+# languagetool container — docker-compose (modeled on the grammar-llm
+# container's compose so admins can swap backends with a one-line service
+# change).
+#
+# Real LanguageTool server (erikvl87/languagetool), v2 API on port 8010.
+# This file is kept GENERAL: deployment-specific choices (host port binding,
+# Java memory, n-gram data location, joining an existing Overleaf network)
+# are overridable via environment variables or the commented blocks below —
+# nothing project-specific is hardcoded.
+
+services:
+  languagetool:
+    image: ${LTOOL_IMAGE:-erikvl87/languagetool:latest}
+    container_name: languagetool
+    hostname: languagetool
+    restart: unless-stopped
+
+    # Host-side port binding. Default binds locally on 8010; deployments
+    # that pin a specific host port can override, e.g.
+    #   LTOOL_PORT=127.0.0.1:32768:8010
+    ports:
+      - ${LTOOL_PORT:-127.0.0.1:8010:8010}
+
+    environment:
+      # Java heap for the LanguageTool server (tune to host RAM / workload)
+      Java_Xms: ${LTOOL_JAVA_XMS:-512m}
+      Java_Xmx: ${LTOOL_JAVA_XMX:-2g}
+      # N-gram language models directory (mounted read-only below).
+      # Leave empty to run without n-gram models.
+      langtool_languageModel: ${LTOOL_NGRAMS_PATH:-/ngrams}
+
+    volumes:
+      # N-gram language models (run ./download_ngrams.sh here to populate;
+      # see the script's header for sizes: ~15 GB for the main set).
+      # Point LTOOL_NGRAMS_DIR at an existing data dir to reuse it, e.g.
+      #   LTOOL_NGRAMS_DIR=/data_1/docker/compose/languagetool/ngrams
+      - ${LTOOL_NGRAMS_DIR:-./ngrams}:/ngrams:ro
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --spider --timeout=5 http://localhost:8010/v2/languages 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+    # To join the Overleaf deployment's existing network instead of
+    # exposing a host port, use compose-stack/compose.yaml (or uncomment):
+    # networks:
+    #   - overleaf-network
+    #
+    # networks:
+    #   overleaf-network:
+    #     external: true

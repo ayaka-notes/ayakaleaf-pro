@@ -46,6 +46,14 @@ export const ProjectSchema = new Schema(
     publicAccesLevel: { type: String, default: 'private' },
     compiler: { type: String, default: settings.defaultLatexCompiler },
     spellCheckLanguage: { type: String, default: 'en' },
+    // LanguageTool project settings (see modules/languagetool).
+    // Must be declared here: with Mongoose strict mode (default), updateOne
+    // silently drops paths that are not part of the schema — undeclared
+    // settings would return 200 and emit socket events but never persist.
+    // Unset = client defaults: enabled=true, picky=true, language='auto'.
+    languageToolEnabled: { type: Boolean },
+    languageToolPicky: { type: Boolean },
+    languageToolLanguage: { type: String },
     deletedByExternalDataSource: { type: Boolean, default: false },
     description: { type: String, default: '' },
     archived: { type: Schema.Types.Mixed },
