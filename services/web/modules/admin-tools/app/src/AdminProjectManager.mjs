@@ -222,7 +222,10 @@ async function listDeletedProjects(scope, query) {
   )
   const owner = scope.ownerId
     ? null
-    : await AdminUserListManager.ownersOf(rows.map(row => row.ownerId))
+    : await AdminUserListManager.ownersOf(
+        rows.map(row => row.ownerId),
+        query.search
+      )
   return {
     ...list,
     projects: rows.map(row => ({
@@ -248,7 +251,10 @@ async function listProjects(scope, query) {
   )
   const owner = scope.ownerId
     ? null
-    : await AdminUserListManager.ownersOf(rows.map(row => row.owner_ref))
+    : await AdminUserListManager.ownersOf(
+        rows.map(row => row.owner_ref),
+        query.search
+      )
   return {
     ...list,
     projects: rows.map(project => ({

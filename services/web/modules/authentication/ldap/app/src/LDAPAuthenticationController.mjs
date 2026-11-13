@@ -2,8 +2,10 @@ import logger from '@overleaf/logger'
 import passport from 'passport'
 import { handleAuthenticateErrors } from '../../../../../app/src/Features/Authentication/AuthenticationErrors.mjs'
 import AuthenticationController from '../../../../../app/src/Features/Authentication/AuthenticationController.mjs'
+import Errors from '../../../../../app/src/Features/Errors/Errors.js'
 import LDAPAuthenticationManager from './LDAPAuthenticationManager.mjs'
 import { logFailedLdapLogin } from '../../../auditLog.mjs'
+import { emailOnAnotherAccountInfo } from '../../../utils.mjs'
 
 
 const LDAPAuthenticationController = {
@@ -45,7 +47,7 @@ const LDAPAuthenticationController = {
             res.status(status || info.status || 401)
             delete info.status
             info.type = 'error'
-            info.key = 'invalid-password-retry-or-reset'
+            info.key ??= 'invalid-password-retry-or-reset'
             const body = { message: info }
             const { errorReason } = info
             if (errorReason) {
@@ -81,6 +83,9 @@ const LDAPAuthenticationController = {
     try {
       user = await LDAPAuthenticationManager.promises.findOrCreateUser(profile, auditLog)
     } catch (error) {
+      if (error instanceof Errors.EmailExistsError) {
+        return { user: false, info: emailOnAnotherAccountInfo(req) }
+      }
       return {
         user: false,
         info: handleAuthenticateErrors(error, req),

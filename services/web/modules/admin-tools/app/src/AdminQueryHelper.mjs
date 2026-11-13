@@ -46,8 +46,8 @@ export function idMatches(path, term) {
   return computedValueContains({ $toString: `$${path}` }, term)
 }
 
-// A user by email, by either name, or by the "First Last" the lists show. For
-// the documents of deleted users, prefix is 'user.'
+// A user by any of its emails, by either name, or by the "First Last" the lists
+// show. For the documents of deleted users, prefix is 'user.'
 export function nameOrEmailMatches(term, prefix = '') {
   const regex = containing(term)
   const fullName = {
@@ -59,10 +59,24 @@ export function nameOrEmailMatches(term, prefix = '') {
   }
   return [
     { [`${prefix}email`]: regex },
+    { [`${prefix}emails.email`]: regex },
     { [`${prefix}first_name`]: regex },
     { [`${prefix}last_name`]: regex },
     computedValueContains(fullName, term),
   ]
+}
+
+// The emails besides the primary one that a search matches, as containing()
+// does, so a row found by one of them can show it
+export function matchedSecondaryEmails(user, term) {
+  if (!term) return []
+  const regex = new RegExp(_.escapeRegExp(term), 'i')
+  return (user.emails ?? [])
+    .filter(({ email }) => email !== user.email && regex.test(email))
+    .map(({ email, confirmedAt }) => ({
+      email,
+      confirmed: Boolean(confirmedAt),
+    }))
 }
 
 // ---- paging ----
