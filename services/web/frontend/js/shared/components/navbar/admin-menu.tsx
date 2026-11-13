@@ -46,7 +46,7 @@ export default function AdminMenu({
         </>
       ) : null}
       {canDisplayStatusMenu ? (
-        <NavDropdownLinkItem href="/admin/status">
+        <NavDropdownLinkItem href="/admin/status" openInNewWindow>
           Instance Status
         </NavDropdownLinkItem>
       ) : null}
