@@ -1249,6 +1249,34 @@ describe('AuthenticationController', function () {
         expect(ctx.req.session.postLoginRedirect).to.equal(undefined)
       })
     })
+
+    describe('with a service worker path (/sw.js)', function () {
+      beforeEach(function (ctx) {
+        ctx.req = { session: {} }
+      })
+
+      it('should not set the redirect (background SW fetch must not become the post-login target)', function (ctx) {
+        ctx.AuthenticationController.setRedirectInSession(
+          ctx.req,
+          '/sw.js'
+        )
+        expect(ctx.req.session.postLoginRedirect).to.equal(undefined)
+      })
+    })
+
+    describe('with a real page path', function () {
+      beforeEach(function (ctx) {
+        ctx.req = { session: {} }
+      })
+
+      it('should set the redirect', function (ctx) {
+        ctx.AuthenticationController.setRedirectInSession(
+          ctx.req,
+          '/project'
+        )
+        expect(ctx.req.session.postLoginRedirect).to.equal('/project')
+      })
+    })
   })
 
   describe('getRedirectFromSession', function () {
