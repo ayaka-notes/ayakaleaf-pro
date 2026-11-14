@@ -252,7 +252,12 @@ function AccountTab({
       [t('deleted_at'), <FullDate key="deleted" date={user.deletedAt} />],
       [
         t('deleted_by_email'),
-        deleter?.id ? <a href={`/admin/user/${deleter.id}`}>{deleter.email ?? deleter.id}</a> : null,
+        deleter?.email ? (
+          <a href={`/admin/user/${deleter.id}`}>{deleter.email}</a>
+        ) : deleter?.id ? (
+          // expired or purged, as the review panel names it
+          <span className="admin-panel-muted">{t('deleted_user')}</span>
+        ) : null,
       ],
       [t('deleted_by_ip'), deleter?.ipAddress]
     )

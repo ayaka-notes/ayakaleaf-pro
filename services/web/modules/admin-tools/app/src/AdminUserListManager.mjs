@@ -440,9 +440,10 @@ async function getUserPage(userId) {
     .exec()
   if (!deletedUser) throw new Errors.NotFoundError('user not found')
   const { deleterData } = deletedUser
-  const deleter =
-    deleterData.deleterId &&
-    (await User.findById(deleterData.deleterId, 'email').lean().exec())
+  // the deleter can be a deleted user too, as in the lists
+  const deleter = (await ownersOf([deleterData.deleterId]))(
+    deleterData.deleterId
+  )
   return {
     user: {
       ...formatDetails(deletedUser.user, providerNames),
@@ -451,7 +452,7 @@ async function getUserPage(userId) {
     },
     deleter: {
       id: deleterData.deleterId?.toString(),
-      email: deleter?.email,
+      email: deleter.email,
       ipAddress: deleterData.deleterIpAddress,
     },
   }
