@@ -124,3 +124,26 @@ encrypted assertions, SLO `logoutUrl`. Assertions must be signed —
       logs in, linking from Settings works
 - [ ] Disable provider → button gone, callback refused
 - [ ] `/admin/auths` JSON matches intent (source of truth)
+
+## Filter engine — verified E2E (2026-11-14, live server)
+
+Tested against the `oidc-mock` provider (soluto IdP, users `ssoe2e` and
+`ssoadm`, both `@example.com`):
+
+| # | Scenario | Filter | Result |
+|---|----------|--------|--------|
+| A | deny + no exceptions | `deny: email == ssoe2e@example.com`, `allowExistingUsers: false`, `allowInvited: false` | **denied** (HTTP 401 "not allowed to log in") |
+| C | deny + existing-user exception | `deny: email == ssoe2e@example.com`, `allowExistingUsers: true` (account already linked) | **allowed** — existing linked account logs in |
+| D | deny + invited exception | `deny: email == ssoadm@example.com`, `allowInvited: true` + a **pending project invite** for `ssoadm@example.com` | **allowed** — JIT account created (invited-user acceptance) |
+| — | baseline (whitelist) | `allow: email iEndsWith @example.com` + `deny: ssoadm@example.com` | the standing demo filter |
+
+Notes:
+- The invited exception is checked against *pending* project/team invites
+  (`hasPendingInvite`), so a collaborator invited by email can sign in via
+  SSO even when the institution filter would otherwise refuse their
+  profile; without the invite the same profile is denied (scenario A/D
+  pair).
+- An SSO profile must still carry a usable identity (email for
+  `attrs.userId: "email"`); the IdP must actually release it (E2E
+  initially failed for `ssoadm` because the mock did not issue the
+  `email` claim — the SP correctly answered `no-identity`).
