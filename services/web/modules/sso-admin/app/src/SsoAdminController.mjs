@@ -1,6 +1,6 @@
 import logger from '@overleaf/logger'
 import Settings from '@overleaf/settings'
-import { User } from '../../../app/src/models/User.mjs'
+import { User } from '../../../../app/src/models/User.mjs'
 import {
   store,
   providersFile,
