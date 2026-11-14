@@ -68,6 +68,7 @@ const DEFAULT_TEXT_EXTENSIONS = Object.freeze([
   'rnw',
   'ltx',
   'inc',
+  'typ',
 ])
 
 /**
@@ -80,7 +81,13 @@ const DEFAULT_TEXT_EXTENSIONS = Object.freeze([
  *
  * @type {ReadonlyArray<string>}
  */
-const DEFAULT_ROOT_DOC_EXTENSIONS = Object.freeze(['tex', 'Rtex', 'ltx', 'Rnw'])
+const DEFAULT_ROOT_DOC_EXTENSIONS = Object.freeze([
+  'tex',
+  'Rtex',
+  'ltx',
+  'Rnw',
+  'typ',
+])
 
 /**
  * Whole file names, lower case, editable whatever their extension says.

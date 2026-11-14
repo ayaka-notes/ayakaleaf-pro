@@ -169,7 +169,18 @@ module.exports = {
         type: 'javascript/auto',
       },
       {
+        // The typst lezer grammar (codemirror-lang-typst) and the typstyle
+        // formatter ship wasm-pack `bundler`-target glue that needs webpack's
+        // native async-WebAssembly interop (a plain asset/resource wasm
+        // exposes only a default export, which the glue's named
+        // `__wbindgen_start` import rejects). Mirrors the OlliTeX fork's
+        // webpack rules.
+        test: /typst_syntax_bg\.wasm$|typstyle_wasm_bg\.wasm$/,
+        type: 'webassembly/async',
+      },
+      {
         test: /\.wasm$/,
+        exclude: /typst_syntax_bg\.wasm$|typstyle_wasm_bg\.wasm$/,
         type: 'asset/resource',
         generator: {
           filename: 'js/[name]-[contenthash][ext]',

@@ -7,6 +7,7 @@ import {
 import { languages } from '../languages'
 import { ViewPlugin } from '@codemirror/view'
 import { indentUnit, LanguageDescription } from '@codemirror/language'
+
 import { updateHasEffect } from '../utils/effects'
 import { Folder } from '../../../../../types/folder'
 import { Command } from '@/features/ide-react/context/metadata-context'
@@ -86,21 +87,31 @@ const buildExtension = (
      */
     ViewPlugin.define(view => {
       // load the language asynchronously
-      languageDescription.load().then(support => {
-        view.dispatch({
-          effects: [
-            languageConf.reconfigure(support),
-            languageLoadedEffect.of(null),
-          ],
+      languageDescription
+        .load()
+        .then(support => {
+          view.dispatch({
+            effects: [
+              languageConf.reconfigure([
+                support.language.extension,
+                ...support.support,
+              ]),
+              languageLoadedEffect.of(null),
+            ],
+          })
+          // Wait until the previous effects have been processed
+          view.dispatch({
+            effects: [
+              setMetadataEffect.of(metadata),
+              setSyntaxValidationEffect.of(syntaxValidation),
+            ],
+          })
+
         })
-        // Wait until the previous effects have been processed
-        view.dispatch({
-          effects: [
-            setMetadataEffect.of(metadata),
-            setSyntaxValidationEffect.of(syntaxValidation),
-          ],
+        .catch(err => {
+          // eslint-disable-next-line no-console
+          console.error('[language.ts] Failed to load language:', err)
         })
-      })
 
       return {}
     }),

@@ -67,4 +67,15 @@ export const languages = [
       return import('@codemirror/lang-python').then(m => m.python())
     },
   }),
+  // Typst (services/web/modules/typst). The lezer wasm grammar (typstSyntax)
+  // is lazy-loaded inside typst() (module index.ts), so importing this module
+  // in a Node-only context does not eagerly touch the wasm.
+  LanguageDescription.of({
+    name: 'typst',
+    extensions: ['typ'],
+    load: () =>
+      import('../../../../../modules/typst/frontend/js/languages/typst').then(
+        m => m.typst()
+      ),
+  }),
 ]

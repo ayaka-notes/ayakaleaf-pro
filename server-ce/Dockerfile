@@ -3,10 +3,65 @@
 # Overleaf Community Edition (overleaf/overleaf)
 # ---------------------------------------------
 
+# Global build args (must be declared before any FROM to be usable in FROM).
+ARG TYPST_REF=d101c2f507acd2e680a187735c5c201094e00077
 ARG OVERLEAF_BASE_TAG=sharelatex/sharelatex-base:latest
+
+# Typst compiler (forked, sourcemap sidecar) — shared by the main image and
+# the clsi-typst service. Mirrors services/clsi-typst/Dockerfile.
+FROM rust:alpine3.24 AS typst-build
+
+ARG TYPST_REF
+
+# build-base = gcc, make, musl-dev; static linking -> no runtime shared deps.
+RUN apk add --no-cache \
+        build-base \
+        pkgconf \
+        cmake \
+        git \
+        ca-certificates \
+        musl-dev \
+        openssl-dev \
+        openssl-libs-static \
+        clang \
+        lld
+
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+
+RUN git clone --single-branch --branch 0.15.1-with-extras \
+        https://github.com/typst/typst.git /app \
+    && git -C /app rev-parse HEAD | grep -q "^${TYPST_REF}\$" \
+    && git -C /app checkout -q "$TYPST_REF"
+WORKDIR /app
+
+COPY services/clsi-typst/patches/0001-clsi-sourcemap.patch /tmp/sourcemap.patch
+RUN git -C /app apply /tmp/sourcemap.patch \
+    && rm /tmp/sourcemap.patch
+
+RUN --mount=type=cache,target=/root/.cargo/git/db \
+    --mount=type=cache,target=/root/.cargo/registry/cache \
+    --mount=type=cache,target=/root/.cargo/registry/index \
+    CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse \
+    cargo fetch
+
+RUN --mount=type=cache,target=/root/.cargo/git/db \
+    --mount=type=cache,target=/root/.cargo/registry/cache \
+    --mount=type=cache,target=/root/.cargo/registry/index \
+    OPENSSL_NO_PKG_CONFIG=1 OPENSSL_STATIC=1 \
+    OPENSSL_DIR="/usr" \
+    cargo build -p typst-cli --release
+
 FROM $OVERLEAF_BASE_TAG
 
 WORKDIR /overleaf
+
+# Typst compiler binary for the clsi-typst service (static musl binary; the
+# typst-build stage above is independent of the app layers so it can build in
+# parallel). Kept before the app COPYs so a source change doesn't rebuild it.
+COPY --from=typst-build /app/target/release/typst /usr/local/bin/typst
+RUN chmod 0555 /usr/local/bin/typst
+
+LABEL org.opencontainers.image.description="Overleaf Community Edition (with Typst support: typst fork 0.15.1 + CLSI sourcemap sidecar)"
 
 # Add required source files for yarn install
 # -------------------------------------------

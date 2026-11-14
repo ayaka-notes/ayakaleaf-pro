@@ -85,7 +85,12 @@ const buildViewPolicy = (
   viewDirectives
 ) => {
   const directives = [
-    `script-src 'nonce-${scriptNonce}' 'unsafe-inline' 'strict-dynamic' https: 'report-sample'`, // only allow scripts from certain sources
+    // 'wasm-unsafe-eval': streaming WebAssembly in the editor (the Typst
+    // lezer grammar from codemirror-lang-typst and the typstyle formatter
+    // are wasm modules; without this token WebAssembly.instantiateStreaming
+    // is blocked and Typst syntax highlighting/outline never load). Mirrors
+    // the OlliTeX core.CSPViewPolicy deviation note (2026-10-08).
+    `script-src 'nonce-${scriptNonce}' 'unsafe-inline' 'strict-dynamic' 'wasm-unsafe-eval' https: 'report-sample'`, // only allow scripts from certain sources
     `object-src 'none'`, // forbid loading an "object" element
     `base-uri 'none'`, // forbid setting a "base" element
     ...(viewDirectives ?? []),

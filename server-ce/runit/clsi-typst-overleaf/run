@@ -1,0 +1,19 @@
+#!/bin/bash
+
+NODE_PARAMS=""
+if [ "$DEBUG_NODE" == "true" ]; then
+    echo "running debug - clsi-typst"
+    NODE_PARAMS="--inspect=0.0.0.0:30131"
+fi
+
+source /etc/overleaf/env.sh
+export LISTEN_ADDRESS=127.0.0.1
+
+# clsi owns port 3013 (and load-agent 3048/3049) in the single-container
+# server-ce deployment; give clsi-typst its own ports. Web reaches it via
+# CLSI_TYPST_HOST/CLSI_TYPST_PORT (set in env.sh).
+export CLSI_PORT=3014
+export CLSI_LOAD_PORT=3058
+export CLSI_LOCAL_PORT=3059
+
+exec /sbin/setuser www-data /usr/bin/node $NODE_PARAMS /overleaf/services/clsi-typst/app.js >> /var/log/overleaf/clsi-typst.log 2>&1

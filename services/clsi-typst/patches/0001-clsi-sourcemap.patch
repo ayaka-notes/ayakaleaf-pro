@@ -1,0 +1,371 @@
+diff --git a/crates/typst-cli/src/compile.rs b/crates/typst-cli/src/compile.rs
+index 8fed79c80..77f3f6908 100644
+--- a/crates/typst-cli/src/compile.rs
++++ b/crates/typst-cli/src/compile.rs
+@@ -12,6 +12,7 @@ use typst::diag::{
+ use typst::foundations::{Datetime, Smart};
+ use typst::layout::PageRanges;
+ use typst::syntax::Span;
++use typst::WorldExt;
+ use typst_bundle::{Bundle, BundleOptions, VirtualFs};
+ use typst_html::{HtmlDocument, HtmlOptions};
+ use typst_kit::diagnostics::DiagnosticWorld;
+@@ -321,7 +322,7 @@ fn compile_and_export(
+     match config.output_format {
+         OutputFormat::Pdf | OutputFormat::Png | OutputFormat::Svg => {
+             let Warned { output, warnings } = typst::compile::<PagedDocument>(world);
+-            let result = output.and_then(|document| export_paged(&document, config));
++            let result = output.and_then(|document| export_paged(&document, config, world));
+             Warned { output: result, warnings }
+         }
+         OutputFormat::Html => {
+@@ -360,10 +361,11 @@ fn export_html(document: &HtmlDocument, config: &CompileConfig) -> SourceResult<
+ fn export_paged(
+     document: &PagedDocument,
+     config: &CompileConfig,
++    world: &SystemWorld,
+ ) -> SourceResult<Vec<Output>> {
+     match config.output_format {
+         OutputFormat::Pdf => {
+-            export_pdf(document, config).map(|()| vec![config.output.clone()])
++            export_pdf(document, config, world).map(|()| vec![config.output.clone()])
+         }
+         OutputFormat::Png => {
+             export_image(document, config, ImageExportFormat::Png).at(Span::detached())
+@@ -376,17 +378,74 @@ fn export_paged(
+ }
+ 
+ /// Export to a PDF.
+-fn export_pdf(document: &PagedDocument, config: &CompileConfig) -> SourceResult<()> {
++fn export_pdf(document: &PagedDocument, config: &CompileConfig, world: &SystemWorld) -> SourceResult<()> {
+     let options = pdf_options(config);
+-    let buffer = typst_pdf::pdf(document, &options)?;
++    // CLSI fork (D21): also collect source locations for the sidecar;
++    // writing it is best-effort (a sourcemap failure must not fail compiles).
++    let sourcemap = typst_pdf::SourceMap::default();
++    let buffer = typst_pdf::pdf(document, &options, Some(&sourcemap))?;
+     config
+         .output
+         .write(&buffer)
+         .map_err(|err| eco_format!("failed to write PDF file ({err})"))
+         .at(Span::detached())?;
++    if let Err(err) = write_clsi_sourcemap(world, &sourcemap, &config.output) {
++        eprintln!("typst: warning: failed to write sourcemap sidecar: {err}");
++    }
+     Ok(())
+ }
+ 
++/// CLSI fork (D21): write the `output.sourcemap.json` sidecar next to the
++/// compiled PDF (`output: -` and non-PDF outputs are skipped).
++fn write_clsi_sourcemap(
++    world: &SystemWorld,
++    sourcemap: &typst_pdf::SourceMap,
++    output: &Output,
++) -> std::io::Result<()> {
++    let pdf_path = match output {
++        Output::Path(p) => p.clone(),
++        Output::Stdout => return Ok(()),
++    };
++    if !pdf_path
++        .extension()
++        .and_then(|e| e.to_str())
++        .is_some_and(|e| e.eq_ignore_ascii_case("pdf"))
++    {
++        return Ok(());
++    }
++    let locations = sourcemap_locations(world, sourcemap);
++    let body = serde_json::json!({
++        "typst": "0.15.1+clsi",
++        "pages": sourcemap.page_sizes().len(),
++        // Per-page size in PDF user space (bottom-left origin, y-up) —
++        // the reader uses `[w, h]` per page to flip v to user space.
++        "pageSizes": sourcemap.page_sizes(),
++        "locations": locations,
++    });
++    std::fs::write(pdf_path.with_extension("sourcemap.json"), serde_json::to_string(&body)?)
++}
++
++/// Resolves the raw spans captured during export into (file, byte offset)
++/// pairs via the world and renders the JSON `locations` array.
++fn sourcemap_locations(world: &SystemWorld, sourcemap: &typst_pdf::SourceMap) -> Vec<serde_json::Value> {
++    let mut locations = Vec::new();
++    for loc in sourcemap.locations() {
++        let Some(raw) = std::num::NonZeroU64::new(loc.span_raw) else { continue };
++        let span = Span::from_raw(raw);
++        let file = span.id().map(|id| world.name(id)).unwrap_or_default();
++        let byte_offset = world.range(span).map(|r| r.start as i64).unwrap_or(-1);
++        locations.push(serde_json::json!({
++            "span": { "file": file, "byteOffset": byte_offset },
++            "page": loc.page,
++            "x": loc.x,
++            "y": loc.y,
++            "w": loc.w,
++            "h": loc.h,
++        }));
++    }
++    locations
++}
++
+ /// Export to a bundle, a collection of files in a directory.
+ fn export_bundle(bundle: Bundle, config: &CompileConfig) -> SourceResult<Vec<Output>> {
+     let options = BundleOptions {
+diff --git a/crates/typst-pdf/src/convert.rs b/crates/typst-pdf/src/convert.rs
+index 2b6eb0123..567ae1fa7 100644
+--- a/crates/typst-pdf/src/convert.rs
++++ b/crates/typst-pdf/src/convert.rs
+@@ -23,7 +23,7 @@ use typst_library::diag::{
+ };
+ use typst_library::foundations::{NativeElement, Repr};
+ use typst_library::introspection::{Introspector, Location, PagedPosition, Tag};
+-use typst_library::layout::{Abs, Frame, FrameItem, GroupItem, Sides, Size, Transform};
++use typst_library::layout::{Abs, Frame, FrameItem, GroupItem, Point, Sides, Size, Transform};
+ use typst_library::model::{HeadingElem, LateLinkResolver};
+ use typst_library::text::FontInstance;
+ use typst_library::visualize::{Geometry, Paint, SpotColorantName};
+@@ -37,10 +37,11 @@ use crate::metadata::build_metadata;
+ use crate::outline::build_outline;
+ use crate::page::PageLabelExt;
+ use crate::shape::handle_shape;
++use crate::sourcemap::{SourceLocation, SourceMap};
+ use crate::tags::{self, GroupId, Tags};
+ use crate::text::handle_text;
+ use crate::util::{
+-    AbsExt, SpotColorantFromNameExt, TransformExt, ValidatorsExt, convert_path,
++    AbsExt, PointExt, SpotColorantFromNameExt, TransformExt, ValidatorsExt, convert_path,
+     display_font,
+ };
+ 
+@@ -50,6 +51,7 @@ pub fn convert(
+     options: &PdfOptions,
+     anchors: &[(Location, EcoString)],
+     link_resolver: Option<Tracked<LateLinkResolver>>,
++    sourcemap: Option<&SourceMap>,
+ ) -> SourceResult<Vec<u8>> {
+     let settings = SerializeSettings {
+         compress_content_streams: !options.pretty,
+@@ -81,6 +83,7 @@ pub fn convert(
+         named_destinations,
+         page_index_converter,
+         tags,
++        sourcemap,
+     );
+ 
+     convert_pages(&mut gc, &mut document)?;
+@@ -147,6 +150,13 @@ fn convert_pages(gc: &mut GlobalContext, document: &mut Document) -> SourceResul
+         let mut page = document.start_page_with(settings);
+         let mut surface = page.surface();
+         let page_idx = gc.page_index_converter.pdf_page_index(i);
++        // CLSI fork (D21): record this exported page's size (points, user
++        // space); the CLI uses it to anchor `y` coordinates in the sidecar.
++        if let Some(sm) = gc.sourcemap {
++            let w = typst_page.frame.width() + typst_page.bleed.left + typst_page.bleed.right;
++            let h = typst_page.frame.height() + typst_page.bleed.top + typst_page.bleed.bottom;
++            sm.record_page(w.to_f32(), h.to_f32());
++        }
+         let mut fc = FrameContext::new(
+             page_idx,
+             typst_page.frame.size() + typst_page.bleed.sum_by_axis(),
+@@ -289,6 +299,8 @@ pub(crate) struct GlobalContext<'a> {
+     pub(crate) image_spans: FxHashSet<Span>,
+     /// The document to convert.
+     pub(crate) document: &'a PagedDocument,
++    /// CLSI fork (D21): optional sourcemap collector (see `sourcemap.rs`).
++    pub(crate) sourcemap: Option<&'a SourceMap>,
+     /// Options for PDF export.
+     pub(crate) options: &'a PdfOptions,
+     /// Used to resolve cross-document links in bundle export.
+@@ -308,6 +320,7 @@ impl<'a> GlobalContext<'a> {
+         loc_to_names: FxHashMap<Location, NamedDestination>,
+         page_index_converter: PageIndexConverter,
+         tags: Tags,
++        sourcemap: Option<&'a SourceMap>,
+     ) -> GlobalContext<'a> {
+         Self {
+             fonts_forward: FxHashMap::default(),
+@@ -320,6 +333,7 @@ impl<'a> GlobalContext<'a> {
+             image_spans: FxHashSet::default(),
+             page_index_converter,
+             tags,
++            sourcemap,
+         }
+     }
+ }
+@@ -361,7 +375,45 @@ pub(crate) fn handle_frame(
+ 
+         match item {
+             FrameItem::Group(g) => handle_group(fc, g, surface, gc)?,
+-            FrameItem::Text(t) => handle_text(fc, t, surface, gc)?,
++            FrameItem::Text(t) => {
++                handle_text(fc, t, surface, gc)?;
++                // CLSI fork (D21): capture the text run's source location for
++                // the sourcemap sidecar. The frame context's current transform
++                // (which already includes this run's translate) maps the run's
++                // local (0,0) — the PDF text baseline-left — into the PDF
++                // surface (top-left, y-down). Flip into the D21 "bottom-left,
++                // y-up, points" user space: `y = page_height - surface_y`.
++                // Pattern frames (`page_idx == None`) are skipped.
++                if let Some(sm) = gc.sourcemap
++                    && let Some(page) = fc.page_idx
++                    && let Some(glyph) = t.glyphs.first()
++                {
++                    let span = glyph.span.0;
++                    if !span.is_detached() {
++                        let tf = fc.state().transform();
++                        let asc = t.font.metrics().ascender.at(t.size).to_f32();
++                        let desc = t.font.metrics().descender.at(t.size).to_f32();
++                        let runw = t.width().to_f32();
++                        let page_h = fc
++                            .page_size()
++                            .map(|sz| sz.y.to_f32())
++                            .unwrap_or(-1.0);
++                        // PDF surface (top-left, y-down) of baseline-left.
++                        let origin = Point::zero().transform(tf).to_krilla();
++                        // Vertical extent about the baseline (ascent above,
++                        // descent below); surface y is measured y-down.
++                        let surf_bot = origin.y + (-desc);
++                        sm.record(SourceLocation {
++                            span_raw: span.into_raw().get(),
++                            page,
++                            x: origin.x,
++                            y: (page_h - surf_bot).max(0.0),
++                            w: runw.max(0.0),
++                            h: (asc + (-desc)).max(0.0),
++                        });
++                    }
++                }
++            }
+             FrameItem::Shape(s, span) => {
+                 handle_shape(fc, s, surface, gc, *span, ArtifactType::Layout)?
+             }
+diff --git a/crates/typst-pdf/src/lib.rs b/crates/typst-pdf/src/lib.rs
+index b027d12a6..55034717c 100644
+--- a/crates/typst-pdf/src/lib.rs
++++ b/crates/typst-pdf/src/lib.rs
+@@ -9,11 +9,13 @@ mod outline;
+ mod page;
+ mod paint;
+ mod shape;
++mod sourcemap;
+ mod tags;
+ mod text;
+ mod util;
+ 
+ pub use self::metadata::{Timestamp, Timezone};
++pub use sourcemap::{SourceLocation, SourceMap};
+ 
+ use std::fmt::{self, Debug, Formatter};
+ use std::hash::{Hash, Hasher};
+@@ -33,8 +35,12 @@ use typst_library::model::LateLinkResolver;
+ ///
+ /// Returns the raw bytes making up the PDF file.
+ #[typst_macros::time(name = "pdf")]
+-pub fn pdf(document: &PagedDocument, options: &PdfOptions) -> SourceResult<Vec<u8>> {
+-    convert::convert(document, options, &[], None)
++pub fn pdf(
++    document: &PagedDocument,
++    options: &PdfOptions,
++    sourcemap: Option<&SourceMap>,
++) -> SourceResult<Vec<u8>> {
++    convert::convert(document, options, &[], None, sourcemap)
+ }
+ 
+ /// Export a document into a PDF file as part of a bundle.
+@@ -50,7 +56,7 @@ pub fn pdf_in_bundle(
+     anchors: &[(Location, EcoString)],
+     link_resolver: Tracked<LateLinkResolver>,
+ ) -> SourceResult<Vec<u8>> {
+-    convert::convert(document, options, anchors, Some(link_resolver))
++    convert::convert(document, options, anchors, Some(link_resolver), None)
+ }
+ 
+ /// Settings for PDF export.
+diff --git a/crates/typst-pdf/src/sourcemap.rs b/crates/typst-pdf/src/sourcemap.rs
+new file mode 100644
+index 000000000..701619fd6
+--- /dev/null
++++ b/crates/typst-pdf/src/sourcemap.rs
+@@ -0,0 +1,84 @@
++//! CLSI fork addition (D21): capture source locations during PDF export so
++//! that the CLI can emit an `output.sourcemap.json` sidecar (see
++//! `write_clsi_sourcemap` in `typst-cli/src/compile.rs`).
++
++use std::sync::Mutex;
++
++/// A captured source location: a text run placed on a page.
++#[derive(Clone, Copy)]
++pub struct SourceLocation {
++    /// The raw span value; resolved to (file, byte range) in the CLI where
++    /// the world is available.
++    pub span_raw: u64,
++    /// Zero-based index of the exported PDF page.
++    pub page: usize,
++    /// Bounding box in PDF user space (points, origin at the page's
++    /// bottom-left) — matches the coordinates synctex h/v values use.
++    pub x: f32,
++    pub y: f32,
++    pub w: f32,
++    pub h: f32,
++}
++
++/// Collects locations captured during one PDF export.
++///
++/// Interior-mutable, so a plain `&SourceMap` (inside an `Option`, which is
++/// `Copy`) can be threaded through `GlobalContext` without fighting the
++/// borrow checker. PDF export runs on a single thread; the mutex exists for
++/// ergonomics only.
++pub struct SourceMap {
++    pub locations: Mutex<Vec<SourceLocation>>,
++    /// Size of each exported page, in PDF user space units, in page order.
++    pub page_sizes: Mutex<Vec<(f32, f32)>>,
++}
++
++impl Default for SourceMap {
++    fn default() -> Self {
++        Self::new()
++    }
++}
++
++impl SourceMap {
++    pub fn new() -> Self {
++        Self {
++            locations: Mutex::new(Vec::new()),
++            page_sizes: Mutex::new(Vec::new()),
++        }
++    }
++
++    /// Records `loc`, saturating at `MAX_LOCATIONS`.
++    pub fn record(&self, loc: SourceLocation) {
++        let Ok(mut guard) = self.locations.lock() else { return };
++        if guard.len() < MAX_LOCATIONS {
++            guard.push(loc);
++        }
++    }
++
++    /// Records the size of one exported page.
++    pub fn record_page(&self, w: f32, h: f32) {
++        let Ok(mut guard) = self.page_sizes.lock() else { return };
++        guard.push((w, h));
++    }
++
++    /// Snapshot of the captured locations (lock is held only briefly).
++    pub fn locations(&self) -> Vec<SourceLocation> {
++        if let Ok(guard) = self.locations.lock() {
++            guard.clone()
++        } else {
++            Vec::new()
++        }
++    }
++
++    /// Snapshot of the per-page sizes, in page order.
++    pub fn page_sizes(&self) -> Vec<(f32, f32)> {
++        if let Ok(guard) = self.page_sizes.lock() {
++            guard.clone()
++        } else {
++            Vec::new()
++        }
++    }
++}
++
++/// Upper bound on the number of recorded locations. Prevents unbounded
++/// growth on very large documents.
++pub const MAX_LOCATIONS: usize = 512_000;
