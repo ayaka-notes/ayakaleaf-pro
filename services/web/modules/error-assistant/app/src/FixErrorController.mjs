@@ -14,6 +14,7 @@ import {
   getRemainingTokens,
   secondsUntilReset,
   recordTokenUsage,
+  logQuotaBreach,
 } from '../../../workbench/app/src/TokenQuota.mjs'
 
 /**
@@ -119,6 +120,7 @@ async function fixError(req, res) {
         'Token-RateLimit-Remaining': '0',
         'Token-RateLimit-Reset': reset,
       })
+      logQuotaBreach(userId, req, 'error-assistant')
       return res.status(429).json({ error: 'ai_token_quota_exceeded' })
     }
   }

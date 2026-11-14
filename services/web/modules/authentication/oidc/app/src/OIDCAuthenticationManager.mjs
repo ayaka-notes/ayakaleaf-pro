@@ -74,7 +74,9 @@ const OIDCAuthenticationManager = {
             analyticsId: crypto.randomUUID(),
           }
         )
-        await logLoginEntry(user, 'create-account', auditLog)
+        await logLoginEntry(user, 'create-account', auditLog, {
+          isAdmin: Boolean(user.isAdmin),
+        })
       }
 //    const alreadyLinked = user.thirdPartyIdentifiers.some(item => item.providerId === providerId)
 //    if (!alreadyLinked) {

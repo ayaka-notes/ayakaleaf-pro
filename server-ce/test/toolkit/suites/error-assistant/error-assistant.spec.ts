@@ -8,6 +8,7 @@ import {
   setAiFeatures,
   type Reply,
 } from '../../../helpers/ai'
+import { expectOwnAuditEntry } from '../../../helpers/auditLog'
 import { prepareWaitForNextCompileSlot } from '../../../helpers/compile'
 import { login } from '../../../helpers/login'
 import { dataUrl, openInOverleaf } from '../../../helpers/openInOverleaf'
@@ -331,6 +332,12 @@ describe('the token quota', function () {
     assistant().findByRole('button', { name: 'Suggest a different fix' }).click()
     assistant().findByText('Usage limit reached').should('exist')
     chatRequests().should('have.length', 1)
+
+    // the blocked request is on the user's audit log, as core's quota writes it
+    login(ADMIN_EMAIL)
+    expectOwnAuditEntry(quotaUser, 'ai-quota-breach')
+      .its('info')
+      .should('deep.equal', { tool: 'error-assistant' })
   })
 })
 

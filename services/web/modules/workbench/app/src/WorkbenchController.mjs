@@ -29,6 +29,7 @@ import {
   getRemainingTokens,
   secondsUntilReset,
   recordTokenUsage,
+  logQuotaBreach,
 } from './TokenQuota.mjs'
 
 function hasValidAttachments(messages) {
@@ -108,6 +109,7 @@ async function chat(req, res) {
         'Token-RateLimit-Remaining': '0',
         'Token-RateLimit-Reset': reset,
       })
+      logQuotaBreach(userId, req, 'workbench')
       return res.status(429).json({ error: 'ai_token_quota_exceeded' })
     }
   }

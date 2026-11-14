@@ -673,6 +673,8 @@ describe('managing templates', function () {
   })
 
   it('deletes the template, its page and its files', function () {
+    // an earlier case renames it
+    getTemplate(templateId).its('name').as('templateName')
     visitTemplate(templateId)
     cy.findByRole('button', { name: 'Delete' }).click()
     cy.findByRole('dialog').within(() => {
@@ -688,7 +690,12 @@ describe('managing templates', function () {
       expect(template).to.equal(null)
     })
     waitUntilGone(`/template/${templateId}/zip?version=2`)
-    expectOwnAuditEntry(ADMIN_EMAIL, 'delete-template')
+    // the name too, as the admin panel's delete
+    cy.get<string>('@templateName').then(templateName => {
+      expectOwnAuditEntry(ADMIN_EMAIL, 'delete-template')
+        .its('info')
+        .should('deep.equal', { templateId, name: templateName })
+    })
   })
 })
 

@@ -1,15 +1,22 @@
 import { adminUserInfo } from './adminTools'
 
-// The newest entry of this operation on the user's audit log, as the admin
-// panel lists it, after checking that the user is the initiator: what the
-// account did itself, or what its SSO login did to it. Expects to be logged in
-// as admin.
-export function expectOwnAuditEntry(email: string, operation: string) {
+// The entries of this operation on the user's audit log, newest first, as the
+// admin panel lists them. Expects to be logged in as admin.
+export function auditEntries(
+  email: string,
+  operation: string
+): Cypress.Chainable<{ initiatorEmail?: string; info?: object }[]> {
   const query = new URLSearchParams({ operation, pageSize: '200' })
-  return adminUserInfo(email)
-    .then(user =>
-      cy.request(`/admin/user/${user.id}/audit-log/list?${query}`).its('body.entries')
-    )
+  return adminUserInfo(email).then(user =>
+    cy.request(`/admin/user/${user.id}/audit-log/list?${query}`).its('body.entries')
+  )
+}
+
+// The newest entry of this operation on the user's audit log, after checking
+// that the user is the initiator: what the account did itself, or what its SSO
+// login did to it. Expects to be logged in as admin.
+export function expectOwnAuditEntry(email: string, operation: string) {
+  return auditEntries(email, operation)
     .then((entries: { initiatorEmail?: string }[]) => {
       expect(entries, operation).to.have.length.at.least(1)
       expect(entries[0].initiatorEmail, operation).to.equal(email)
