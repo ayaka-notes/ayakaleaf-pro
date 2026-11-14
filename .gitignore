@@ -7,3 +7,12 @@ docker-compose.override.yml
 
 # vitest cache
 node_modules/.vite/
+
+# local tooling artifacts (never commit)
+node_modules/
+.yarn/cache/
+.yarn/install-state.gz
+.yarn/unplugged/
+.pnp.cjs
+.pnp.loader.mjs
+.pi/
