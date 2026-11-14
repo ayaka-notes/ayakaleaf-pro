@@ -279,10 +279,13 @@ function OverviewTab({
       [t('deleted_at'), <FullDate key="deleted" date={project.deletedAt} />],
       [
         t('deleted_by_email'),
-        deleter?.id ? (
+        deleter?.email ? (
           <a key="deleter" className="admin-panel-plain-link" href={`/admin/user/${deleter.id}`}>
-            {deleter.email ?? deleter.id}
+            {deleter.email}
           </a>
+        ) : deleter?.id ? (
+          // expired or purged, as the review panel names it
+          <span key="deleter" className="admin-panel-muted">{t('deleted_user')}</span>
         ) : null,
       ],
       [t('deleted_by_ip'), deleter?.ipAddress]

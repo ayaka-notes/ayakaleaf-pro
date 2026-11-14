@@ -135,16 +135,17 @@ function TemplatesList({ active }: { active: boolean }) {
                   </td>
                   <td className="d-none d-md-table-cell">{template.author}</td>
                   <td className="d-none d-md-table-cell">
-                    {template.owner.id && (
+                    {template.owner.email ? (
                       <a
                         className="admin-panel-plain-link"
                         href={`/admin/user/${template.owner.id}`}
                       >
-                        {template.owner.name ||
-                          template.owner.email ||
-                          template.owner.id}
+                        {template.owner.name || template.owner.email}
                       </a>
-                    )}
+                    ) : template.owner.id ? (
+                      // expired or purged, as the review panel names it
+                      <span className="admin-panel-muted">{t('deleted_user')}</span>
+                    ) : null}
                     {template.owner.name && (
                       <div className="admin-panel-muted">
                         {template.owner.email}

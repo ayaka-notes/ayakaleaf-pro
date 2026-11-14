@@ -131,10 +131,13 @@ function AuditLogTab({
                   <td className="d-none d-md-table-cell">
                     {self && entry.initiatorId === self.id ? (
                       self.email
-                    ) : entry.initiatorId ? (
+                    ) : entry.initiatorEmail ? (
                       <a className="admin-panel-plain-link" href={`/admin/user/${entry.initiatorId}`}>
-                        {entry.initiatorEmail ?? entry.initiatorId}
+                        {entry.initiatorEmail}
                       </a>
+                    ) : entry.initiatorId ? (
+                      // expired or purged, as the review panel names it
+                      <span className="admin-panel-muted">{t('deleted_user')}</span>
                     ) : (
                       <span className="admin-panel-muted">—</span>
                     )}
