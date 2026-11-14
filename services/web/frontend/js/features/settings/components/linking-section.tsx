@@ -17,6 +17,8 @@ const availableLangFeedbackLinkingWidgets = importOverleafModules(
   'langFeedbackLinkingWidgets'
 ) as any[]
 
+const wakaTimeEnabled = getMeta('ol-ExposedSettings').wakaTimeEnabled
+
 function LinkingSection() {
   useBroadcastUser()
   const { t } = useTranslation()
@@ -32,7 +34,9 @@ function LinkingSection() {
   // hide linking widgets in CI
   const integrationLinkingWidgets = getMeta('ol-hideLinkingWidgets')
     ? []
-    : availableIntegrationLinkingWidgets
+    : availableIntegrationLinkingWidgets.filter(
+        ({ path }) => wakaTimeEnabled || !path.includes('wakatime')
+      )
   const referenceLinkingWidgets = getMeta('ol-hideLinkingWidgets')
     ? []
     : availableReferenceLinkingWidgets
@@ -46,7 +50,7 @@ function LinkingSection() {
   }[]
 
   const renderSyncSection =
-    getMeta('ol-isSaas') || getMeta('ol-gitBridgeEnabled')
+    getMeta('ol-isSaas') || getMeta('ol-gitBridgeEnabled') || wakaTimeEnabled
 
   const allIntegrationLinkingWidgets = integrationLinkingWidgets.concat(
     oauth2ServerComponents

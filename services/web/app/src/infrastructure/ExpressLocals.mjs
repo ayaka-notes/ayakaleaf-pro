@@ -426,6 +426,9 @@ export default async function (webRouter, privateApiRouter, publicApiRouter) {
       enablePandocConversions: Settings.enablePandocConversions,
       mixpanelLabsToken:
         Settings.labs?.enable && Settings.analytics?.mixpanel?.labsToken,
+      // WakaTime activity tracking (module: services/web/modules/wakatime)
+      wakaTimeEnabled: Settings.wakatime?.enabled !== false,
+      wakaTimeDebugLogging: !!Settings.wakatime?.debugLogging,
     }
     next()
   })

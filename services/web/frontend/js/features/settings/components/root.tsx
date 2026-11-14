@@ -1,6 +1,7 @@
 import SecuritySection from '@/features/settings/components/security-section'
-import { useEffect } from 'react'
+import { useEffect, ElementType } from 'react'
 import { useTranslation } from 'react-i18next'
+import importOverleafModules from '../../../../macros/import-overleaf-module.macro'
 import getMeta from '../../../utils/meta'
 import EmailsSection from './emails-section'
 import AccountInfoSection from './account-info-section'
@@ -23,6 +24,14 @@ import OLCol from '@/shared/components/ol/ol-col'
 import OLPageContentCard from '@/shared/components/ol/ol-page-content-card'
 import { isSplitTestEnabled } from '@/utils/splitTestUtils'
 import NotificationsSection from './notifications-section'
+
+// Module-provided settings sections (e.g. the WakaTime coding-statistics
+// panel). Each entry is a default-exported component; sections gate
+// themselves on their own feature flags.
+const settingsEntries = importOverleafModules('settingsEntries') as {
+  import: { default: ElementType }
+  path: string
+}[]
 
 function SettingsPageRoot() {
   const { isReady } = useWaitForI18n()
@@ -70,6 +79,9 @@ function SettingsPageContent() {
           <SSOProvider>
             <LinkingSection />
           </SSOProvider>
+          {settingsEntries.map(({ import: { default: Component }, path }) => (
+            <Component key={path} />
+          ))}
           {isOverleaf ? (
             <>
               <BetaProgramSection />
