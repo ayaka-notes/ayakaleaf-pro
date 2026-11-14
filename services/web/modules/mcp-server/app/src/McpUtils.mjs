@@ -1,6 +1,9 @@
+import { setTimeout } from 'timers/promises'
 import { z, zz } from '../../../../app/src/infrastructure/Validation.mjs'
 import { RateLimiter } from '../../../../app/src/infrastructure/RateLimiter.mjs'
+import RedisWrapper from '../../../../app/src/infrastructure/RedisWrapper.mjs'
 import AuthorizationManager from '../../../../app/src/Features/Authorization/AuthorizationManager.mjs'
+import DocumentUpdaterHandler from '../../../../app/src/Features/DocumentUpdater/DocumentUpdaterHandler.mjs'
 
 export const filePath = zz
   .filepath()
@@ -53,6 +56,32 @@ export async function checkNotRestricted(userId, projectId, message) {
   ) {
     throw new Error(message)
   }
+}
+
+// The queues of the document updater, as real-time's DocumentUpdaterManager
+// fills them with the edits of the editor
+const rclient = RedisWrapper.client('documentupdater')
+
+// An op the editor sends through real-time: queue it for the document
+// updater the way real-time does (DocumentUpdaterManager.queueChange), at the
+// version it is from, so it moves with the edits made since. Done once
+// done(ranges) holds for the doc.
+export async function queueDocUpdate(projectId, update, done, failure) {
+  await rclient.rpush(
+    `PendingProjectUpdates:{${projectId}}`,
+    JSON.stringify(update)
+  )
+  await rclient.rpush('pending-updates-list', projectId)
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const { ranges } = await DocumentUpdaterHandler.promises.getDocument(
+      projectId,
+      update.doc,
+      -1
+    )
+    if (done(ranges)) return
+    await setTimeout(100)
+  }
+  throw new Error(failure)
 }
 
 // One per tool, as the editor routes have one per operation, by project and
@@ -145,6 +174,10 @@ export const rateLimiters = {
     duration: 60,
   }),
   acceptTrackedChanges: new RateLimiter('mcp-accept-tracked-changes', {
+    points: 30,
+    duration: 60,
+  }),
+  rejectTrackedChanges: new RateLimiter('mcp-reject-tracked-changes', {
     points: 30,
     duration: 60,
   }),

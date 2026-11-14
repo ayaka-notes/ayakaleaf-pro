@@ -1,6 +1,4 @@
-import { setTimeout } from 'timers/promises'
 import { z, zz } from '../../../../app/src/infrastructure/Validation.mjs'
-import RedisWrapper from '../../../../app/src/infrastructure/RedisWrapper.mjs'
 import { ObjectId } from '../../../../app/src/infrastructure/mongodb.mjs'
 import AuthorizationManager from '../../../../app/src/Features/Authorization/AuthorizationManager.mjs'
 import ChatApiHandler from '../../../../app/src/Features/Chat/ChatApiHandler.mjs'
@@ -15,6 +13,7 @@ import {
   checkAccess,
   filePath,
   person,
+  queueDocUpdate,
   rateLimiters,
   text,
 } from './McpUtils.mjs'
@@ -30,10 +29,6 @@ const threadId = zz
 const messageId = zz
   .objectId()
   .describe('id of the message, returned by list_comments.')
-
-// The queues of the document updater, as real-time's DocumentUpdaterManager
-// fills them with the edits of the editor
-const rclient = RedisWrapper.client('documentupdater')
 
 // The comments of every doc, with the edits not saved yet: the document
 // updater only knows the docs open lately
@@ -84,31 +79,20 @@ function findCommented(content, path, commented, context) {
 }
 
 // A comment range is an op of the doc, which the editor sends through
-// real-time: queue it for the document updater the way real-time does
-// (DocumentUpdaterManager.queueChange), at the version the position is from,
-// so it moves with the edits made since. Done once the doc has the range.
+// real-time, at the version the position is from. Done once the doc has the
+// range.
 async function addCommentRange(projectId, docId, userId, op, v) {
-  const update = {
-    doc: docId,
-    op: [op],
-    v,
-    meta: { source: `mcp-${op.t}`, user_id: userId },
-  }
-  await rclient.rpush(
-    `PendingProjectUpdates:{${projectId}}`,
-    JSON.stringify(update)
+  await queueDocUpdate(
+    projectId,
+    {
+      doc: docId,
+      op: [op],
+      v,
+      meta: { source: `mcp-${op.t}`, user_id: userId },
+    },
+    ranges => ranges?.comments?.some(comment => comment.op.t === op.t),
+    'The comment could not be added, read_file and try again'
   )
-  await rclient.rpush('pending-updates-list', projectId)
-  for (let attempt = 0; attempt < 50; attempt++) {
-    const { ranges } = await DocumentUpdaterHandler.promises.getDocument(
-      projectId,
-      docId,
-      -1
-    )
-    if (ranges?.comments?.some(comment => comment.op.t === op.t)) return
-    await setTimeout(100)
-  }
-  throw new Error('The comment could not be added, read_file and try again')
 }
 
 export function buildCommentTools({ userId, projectId }) {

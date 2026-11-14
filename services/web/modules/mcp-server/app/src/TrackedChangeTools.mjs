@@ -1,3 +1,4 @@
+import RangesTracker from '@overleaf/ranges-tracker'
 import { z, zz } from '../../../../app/src/infrastructure/Validation.mjs'
 import AuthorizationManager from '../../../../app/src/Features/Authorization/AuthorizationManager.mjs'
 import DocstoreManager from '../../../../app/src/Features/Docstore/DocstoreManager.mjs'
@@ -9,6 +10,7 @@ import {
   checkAccess,
   checkNotRestricted,
   person,
+  queueDocUpdate,
   rateLimiters,
   text,
 } from './McpUtils.mjs'
@@ -23,6 +25,56 @@ async function getChanges(projectId) {
   const docs = await DocstoreManager.promises.getAllRanges(projectId)
   return docs.flatMap(({ _id: docId, ranges }) =>
     (ranges?.changes ?? []).map(change => ({ docId: docId.toString(), change }))
+  )
+}
+
+// The changes of the ids, by doc
+async function findChanges(projectId, ids) {
+  const changes = await getChanges(projectId)
+  const byDoc = new Map()
+  for (const id of new Set(ids)) {
+    const found = changes.find(({ change }) => change.id === id)
+    if (!found) {
+      throw new Error(
+        `Tracked change ${id} not found, list_tracked_changes again`
+      )
+    }
+    byDoc.set(found.docId, [...(byDoc.get(found.docId) ?? []), id])
+  }
+  return byDoc
+}
+
+// The editor rejects changes with one edit that undoes them, from the last
+// one in the doc: an inserted text is deleted and a deleted text inserted
+// again (source-editor/extensions/changes/reject-changes.ts). Its ops are
+// undos, so they are not tracked and a text inserted again takes the place
+// of its tracked delete (RangesTracker.applyInsertToChanges). Done once the
+// doc has none of the changes.
+async function rejectChanges(projectId, docId, userId, changeIds) {
+  const { version, ranges } = await DocumentUpdaterHandler.promises.getDocument(
+    projectId,
+    docId,
+    -1
+  )
+  // each undo where the ones before it moved the change, as the document
+  // updater applies them in turn
+  const tracker = new RangesTracker(ranges.changes, ranges.comments)
+  const op = tracker
+    .getChanges(changeIds)
+    .sort((a, b) => b.op.p - a.op.p)
+    .map(({ op }) => {
+      const undo =
+        op.i != null
+          ? { p: op.p, d: op.i, u: true }
+          : { p: op.p, i: op.d, u: true }
+      tracker.applyOp(undo, { user_id: userId })
+      return undo
+    })
+  await queueDocUpdate(
+    projectId,
+    { doc: docId, op, v: version, meta: { source: 'mcp', user_id: userId } },
+    ranges => !ranges?.changes?.some(change => changeIds.includes(change.id)),
+    'The changes could not be rejected, list_tracked_changes and try again'
   )
 }
 
@@ -87,17 +139,7 @@ export function buildTrackedChangeTools({ userId, projectId }) {
           projectId,
           'You cannot accept tracked changes in this project'
         )
-        const changes = await getChanges(projectId)
-        const byDoc = new Map()
-        for (const id of new Set(ids)) {
-          const found = changes.find(({ change }) => change.id === id)
-          if (!found) {
-            throw new Error(
-              `Tracked change ${id} not found, list_tracked_changes again`
-            )
-          }
-          byDoc.set(found.docId, [...(byDoc.get(found.docId) ?? []), id])
-        }
+        const byDoc = await findChanges(projectId, ids)
         // as the track-changes module accepts them
         for (const [docId, changeIds] of byDoc) {
           EditorRealTimeController.emitToRoom(
@@ -113,6 +155,33 @@ export function buildTrackedChangeTools({ userId, projectId }) {
           )
         }
         return text('Accepted.')
+      },
+    },
+
+    reject_tracked_changes: {
+      rateLimiter: rateLimiters.rejectTrackedChanges,
+      description:
+        'Reject tracked changes (id of list_tracked_changes), as the review ' +
+        'panel: an inserted text is removed and a deleted text comes back. ' +
+        'Reject only the changes the user asks for.',
+      inputSchema: {
+        ids: z
+          .array(zz.objectId())
+          .min(1)
+          .describe('ids of the changes, returned by list_tracked_changes.'),
+      },
+      handler: async ({ ids }) => {
+        await checkAccess(
+          AuthorizationManager.promises.canUserWriteProjectContent,
+          userId,
+          projectId,
+          'You cannot reject tracked changes in this project'
+        )
+        const byDoc = await findChanges(projectId, ids)
+        for (const [docId, changeIds] of byDoc) {
+          await rejectChanges(projectId, docId, userId, changeIds)
+        }
+        return text('Rejected.')
       },
     },
   }

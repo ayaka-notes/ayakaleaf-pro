@@ -208,6 +208,7 @@ describe('MCP server of a project', function () {
         'list_versions',
         'move_file',
         'read_file',
+        'reject_tracked_changes',
         'reopen_comment',
         'reply_to_comment',
         'resolve_comment',
@@ -964,21 +965,8 @@ describe('Comments through MCP', function () {
     // the comment is an op of the doc: the editor applied it and its own
     // edits still reach the server, which it sends a moment after typing
     cy.get('.cm-content').type('{ctrl+end}\nTyped after the comment')
-    waitForMainTex(ownerToken, 'Typed after the comment')
+    waitForMainTex(projectId, ownerToken, 'Typed after the comment')
   })
-
-  function waitForMainTex(token: string, text: string, attempt = 1) {
-    callTool(projectId, token, 'read_file', { path: 'main.tex' }).then(
-      result => {
-        if (!result.content[0].text.includes(text) && attempt < 20) {
-          cy.wait(500)
-          waitForMainTex(token, text, attempt + 1)
-        } else {
-          expect(result.content[0].text).to.contain(text)
-        }
-      }
-    )
-  }
 
   it('comments the occurrence that context points at', function () {
     login(owner)
@@ -1118,6 +1106,25 @@ describe('Comments through MCP', function () {
   })
 })
 
+// The editor sends what is typed a moment later
+function waitForMainTex(
+  projectId: string,
+  token: string,
+  text: string,
+  attempt = 1
+) {
+  callTool(projectId, token, 'read_file', { path: 'main.tex' }).then(
+    result => {
+      if (!result.content[0].text.includes(text) && attempt < 20) {
+        cy.wait(500)
+        waitForMainTex(projectId, token, text, attempt + 1)
+      } else {
+        expect(result.content[0].text).to.contain(text)
+      }
+    }
+  )
+}
+
 type TrackedChange = {
   id: string
   file: string | null
@@ -1217,6 +1224,74 @@ describe('Tracked changes through MCP', function () {
         .its('content.0.text')
         .should('contain', 'Tracked insert')
     })
+  })
+
+  it('rejects the ones asked for live in the open editor, which stays connected', function () {
+    const lines = 'First: Deleted then back.\nSecond: Replace old word.\nThird:'
+    login(owner)
+    openProject(projectId)
+    openReviewPanel()
+    callTool(projectId, tokens.owner, 'edit_file', {
+      path: 'main.tex',
+      oldString: '\\section{Introduction}',
+      newString: `\\section{Introduction}\n${lines}`,
+    })
+    // a delete, a replaced word (a delete next to an insert) and inserts
+    for (const [oldString, newString] of [
+      ['Deleted then back.', ''],
+      ['old word', 'new word'],
+      ['Third:', 'Third: Rejected insert'],
+      ['\\end{document}', 'Kept insert\n\\end{document}'],
+    ]) {
+      callTool(projectId, tokens.owner, 'edit_file', {
+        path: 'main.tex',
+        oldString,
+        newString,
+        trackChanges: true,
+      })
+    }
+    changeEntry('Rejected insert').should('be.visible')
+    // further down, out of view
+    changeEntry('Kept insert').should('exist')
+
+    listTrackedChanges(tokens.owner).then(changes => {
+      const kept = changes.find(c => c.text.includes('Kept insert'))!
+      const ids = changes.filter(c => c !== kept).map(c => c.id)
+      // the delete, the replaced word and the insert
+      expect(ids).to.have.length.of.at.least(4)
+
+      // reviewers do not reject the changes of others, as in the review panel
+      callTool(projectId, tokens.reviewer, 'reject_tracked_changes', {
+        ids,
+      }).then(result => {
+        expect(result.isError).to.equal(true)
+        expect(result.content[0].text).to.contain('cannot reject')
+      })
+      callTool(projectId, tokens.owner, 'reject_tracked_changes', {
+        ids: ['0'.repeat(24)],
+      }).then(result => {
+        expect(result.isError).to.equal(true)
+        expect(result.content[0].text).to.contain('list_tracked_changes again')
+      })
+      callTool(projectId, tokens.owner, 'reject_tracked_changes', {
+        ids,
+      }).then(result => expect(result.isError).not.to.equal(true))
+
+      // the inserts are gone and the deleted text is back
+      callTool(projectId, tokens.owner, 'read_file', { path: 'main.tex' })
+        .its('content.0.text')
+        .should('contain', `\\section{Introduction}\n${lines}\n`)
+        .and('contain', 'Kept insert')
+      listTrackedChanges(tokens.owner)
+        .then(left => left.map(c => c.id))
+        .should('deep.equal', [kept.id])
+      changeEntry('Rejected insert').should('not.exist')
+      changeEntry('Kept insert').should('exist')
+      cy.get('.cm-content').should('not.contain.text', 'Rejected insert')
+    })
+    // the editor applied the undo and its own edits still reach the server
+    cy.get('.cm-content').type('{ctrl+end}\nTyped after the rejection')
+    waitForMainTex(projectId, tokens.owner, 'Typed after the rejection')
   })
 
   it('keeps the tracked changes from viewers who joined by link', function () {
