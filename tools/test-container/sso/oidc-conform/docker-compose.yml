@@ -1,0 +1,57 @@
+# Official OIDF OIDC conformance suite — the canonical self-serve stack:
+#   server (authelia/openid-connect-conformance-suite = the Java suite.jar) +
+#   nginx (self-signed TLS on :8443, so the suite's required-https is satisfied) +
+#   mongo (suite state) + oidc-idp (the IdP under test, our standard soluto IdP).
+# Reach the suite at https://localhost:8443 (self-signed CN=localhost → accept the cert).
+# HTMLUnit is built-in, so core OIDC front-channel conformance runs without an external Chrome.
+name: oidc-conform
+services:
+  server:
+    image: authelia/openid-connect-conformance-suite:latest
+    environment:
+      - BASE_URL=https://localhost:8443
+      - BASE_MTLS_URL=https://localhost:8444
+      - MONGODB_HOST=suite-mongo
+      - ENABLE_DEBUG=true
+      - ENABLE_START_REDIR=true
+      # cmd.sh requires the gitlab client registration non-empty; local dummies (we don't log in via it).
+      - OIDC_GITLAB_CLIENTID=ollitex-local-suite
+      - OIDC_GITLAB_SECRET=ollitex-local-suite-secret
+      - OIDC_ADMIN_GROUP=ollitex-admin
+    depends_on: [suite-mongo]
+    networks: [oidc-conform]
+
+  nginx:
+    build: ./nginx
+    ports:
+      - "8443:8443"
+      - "8444:8444"
+    depends_on: [server]
+    networks: [oidc-conform]
+
+  suite-mongo:
+    image: mongo:6
+    volumes: [conform-mongo:/data/db]
+    networks: [oidc-conform]
+
+  # IdP under test — our standard OIDC IdP (soluto). Serves REAL TLS on :443
+  # (self-signed SAN cert, idp-cert/) so its issuer is a plain https URL the
+  # OIDF suite accepts; the suite reaches it as https://oidc-idp-tls:443.
+  oidc-idp:
+    image: sso-oidc:latest
+    environment:
+      - ASPNETCORE_URLS=https://+:443
+      - ASPNETCORE_Kestrel__Certificates__Default__Path=/certs/idp.pfx
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=idp-test
+    volumes:
+      - ./idp-config:/config:ro
+      - ./idp-cert:/certs:ro
+    networks:
+      oidc-conform:
+        aliases: [oidc-idp-tls]
+
+networks:
+  oidc-conform:
+    driver: bridge
+volumes:
+  conform-mongo:
