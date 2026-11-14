@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import UserCreator from '../../../../../app/src/Features/User/UserCreator.mjs'
+import UserGetter from '../../../../../app/src/Features/User/UserGetter.mjs'
 import ThirdPartyIdentityManager from '../../../../../app/src/Features/User/ThirdPartyIdentityManager.mjs'
 import { ParallelLoginError } from '../../../../../app/src/Features/Authentication/AuthenticationErrors.mjs'
 import { User } from '../../../../../app/src/models/User.mjs'
@@ -112,6 +113,7 @@ const OIDCAuthenticationManager = {
       ) {
         return { user: null, accessDenied: { reason: 'email-domain' } }
       }
+      await UserGetter.promises.ensureUniqueEmailAddress(email)
       user = await UserCreator.promises.createNewUser({
         email: email,
         first_name: firstName,

@@ -15,13 +15,16 @@ import {
   buildCompileTools,
   compileUserId,
 } from './CompileTools.mjs'
+import { buildChatTools } from './ChatTools.mjs'
 import { buildCommentTools } from './CommentTools.mjs'
 import { buildFileTools } from './FileTools.mjs'
+import { buildHistoryTools } from './HistoryTools.mjs'
 import { buildProjectTools } from './ProjectTools.mjs'
+import { buildTrackedChangeTools } from './TrackedChangeTools.mjs'
 import { rateLimit } from './McpUtils.mjs'
 
 // The router checked that the user can read the project
-function createServer(userId, projectId) {
+function createServer(userId, projectId, ip) {
   const server = new McpServer(
     { name: 'overleaf', version: '1.0.0' },
     {
@@ -29,12 +32,13 @@ function createServer(userId, projectId) {
         'This server works on one Overleaf project. Change it the way the ' +
         'user asks; otherwise prefer:\n' +
         '- edit_file and write_file for text edits, e.g. paragraphs, typos ' +
-        'or answers to comments, above all while collaborators are online: ' +
-        'the edits show live and merge with theirs. Then git pull the clone ' +
-        'once the series of edits is done.\n' +
+        'or answers to comments, and move_file for a file or folder, above ' +
+        'all while collaborators are online: the changes show live and ' +
+        'merge with theirs. Then git pull the clone once the series of ' +
+        'edits is done.\n' +
         '- git in the clone to compile or run scripts locally, add figures ' +
-        'or other binary files, change many files at once, move or rename ' +
-        'files: commit the batch and push once.\n' +
+        'or other binary files, change or move many files at once: commit ' +
+        'the batch and push once.\n' +
         'Push before switching from git to edit_file, and pull before ' +
         'switching back. Compile on Overleaf, then download the PDF. Keep ' +
         `the working directory organized as:\n` +
@@ -44,12 +48,15 @@ function createServer(userId, projectId) {
     }
   )
 
-  const context = { userId, projectId }
+  const context = { userId, projectId, ip }
   const tools = {
     ...buildProjectTools(context),
     ...buildCompileTools(context),
     ...buildFileTools(context),
     ...buildCommentTools(context),
+    ...buildTrackedChangeTools(context),
+    ...buildHistoryTools(context),
+    ...buildChatTools(context),
   }
   const key = `${projectId}:${userId}`
   for (const [name, { rateLimiter, handler, ...config }] of Object.entries(tools)) {
@@ -62,7 +69,8 @@ function createServer(userId, projectId) {
 async function handleRequest(req, res) {
   const server = createServer(
     req.oauth_user._id.toString(),
-    req.params.project_id
+    req.params.project_id,
+    req.ip
   )
   // Stateless: a new server and transport for every request
   const transport = new StreamableHTTPServerTransport({

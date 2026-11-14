@@ -3,8 +3,11 @@ import passport from 'passport'
 import Settings from '@overleaf/settings'
 import AuthenticationController from '../../../../../app/src/Features/Authentication/AuthenticationController.mjs'
 import AsyncFormHelper from '../../../../../app/src/Features/Helpers/AsyncFormHelper.mjs'
+import Errors from '../../../../../app/src/Features/Errors/Errors.js'
+import HttpErrorHandler from '../../../../../app/src/Features/Errors/HttpErrorHandler.mjs'
 import { endSession } from '../../../logout.mjs'
 import { logLogout } from '../../../auditLog.mjs'
+import { emailOnAnotherAccountInfo } from '../../../utils.mjs'
 import ThirdPartyIdentityManager from '../../../../../app/src/Features/User/ThirdPartyIdentityManager.mjs'
 import OIDCAuthenticationManager from './OIDCAuthenticationManager.mjs'
 
@@ -69,6 +72,8 @@ const OIDCAuthenticationController = {
             if (info.redir != null) {
               await endSession(req)
               return res.redirect(info.redir)
+            } else if (info.status === 409) {
+              return HttpErrorHandler.conflict(req, res, info.text)
             } else {
               res.status(info.status || 401)
               delete info.status
@@ -142,6 +147,9 @@ const OIDCAuthenticationController = {
         auditLog
       )
     } catch (error) {
+      if (error instanceof Errors.EmailExistsError) {
+        return { user: false, info: emailOnAnotherAccountInfo(req) }
+      }
       logger.debug({ providerId: provider.id, err: error }, 'OIDC login failed')
       return {
         user: false,

@@ -21,6 +21,7 @@ import {
 import { expectOwnAuditEntry } from '../../../../helpers/auditLog'
 import { login, randomPassword } from '../../../../helpers/login'
 import { postWithCsrf } from '../../../../helpers/request'
+import { addConfirmedEmail, makePrimary } from '../../../../helpers/userEmails'
 
 // SAML login against authentik (services/authentik). Admins are mapped from
 // the multi-valued Group attribute containing "Admins". The first admin is
@@ -258,5 +259,37 @@ describe('SAML audit log', function () {
     expectOwnAuditEntry(idpEmail('alice'), 'change-name')
       .its('info.method')
       .should('equal', 'SAML login')
+  })
+})
+
+describe('emails of a SAML account', function () {
+  it('adds an email but refuses to make it primary', function () {
+    const personal = `bob-${Cypress._.random(1e9)}@example.com`
+    samlLogin('bob')
+    addConfirmedEmail(personal)
+    makePrimary(personal)
+    cy.contains('Sorry, something went wrong')
+    postWithCsrf('/user/emails/default', { email: personal })
+      .its('status')
+      .should('equal', 403)
+    currentUser().its('email').should('equal', idpEmail('bob'))
+  })
+
+  it('refuses a first login with the secondary email of another account', function () {
+    // at the IdP with this email and logs in nowhere else in this spec
+    const email = 'eve@other.test'
+    samlLogin('bob')
+    addConfirmedEmail(email)
+    ssoLogin('/saml/login', 'eve', '/saml/login/callback')
+    cy.contains('This email is already registered as a secondary email')
+    cy.get('a[href^="mailto:"]').should('not.have.attr', 'href', 'mailto:undefined')
+
+    samlLogin('bob')
+    cy.visit('/user/settings')
+    postWithCsrf('/user/emails/delete', { email })
+      .its('status')
+      .should('equal', 200)
+    samlLogin('eve')
+    currentUser().its('email').should('equal', email)
   })
 })

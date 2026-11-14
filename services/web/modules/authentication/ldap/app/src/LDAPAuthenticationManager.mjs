@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import Settings from '@overleaf/settings'
 import UserCreator from '../../../../../app/src/Features/User/UserCreator.mjs'
+import UserGetter from '../../../../../app/src/Features/User/UserGetter.mjs'
 import { ParallelLoginError } from '../../../../../app/src/Features/Authentication/AuthenticationErrors.mjs'
 import { User } from '../../../../../app/src/models/User.mjs'
 import { splitFullName, firstValue } from '../../../utils.mjs'
@@ -41,6 +42,7 @@ const LDAPAuthenticationManager = {
     let user = await User.findOne({ 'email': email }).exec()
 
     if( !user ) {
+      await UserGetter.promises.ensureUniqueEmailAddress(email)
       user = await UserCreator.promises.createNewUser(
         {
           email: email,

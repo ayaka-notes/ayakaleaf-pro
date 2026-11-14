@@ -13,6 +13,7 @@ import {
   countOptions,
   findPage,
   idMatches,
+  matchedSecondaryEmails,
   nameOrEmailMatches,
   PAGE_SIZES,
   parseOrder,
@@ -44,6 +45,9 @@ const LIST_FIELDS = [
   'email',
   'first_name',
   'last_name',
+  // a row found by a secondary email shows it
+  'emails.email',
+  'emails.confirmedAt',
   'isAdmin',
   'suspended',
   'signUpDate',
@@ -56,8 +60,6 @@ const LIST_FIELDS = [
 ]
 const PAGE_FIELDS = [
   ...LIST_FIELDS,
-  'emails.email',
-  'emails.confirmedAt',
   'emails.reconfirmedAt',
   'lastLoginIp',
   'samlIdentifiers.externalUserId',
@@ -278,9 +280,10 @@ async function listUsers(query, providerNames) {
     )
     return {
       ...list,
-      users: rows.map(row =>
-        formatUser(row.user, providerNames, row.deletedAt)
-      ),
+      users: rows.map(row => ({
+        ...formatUser(row.user, providerNames, row.deletedAt),
+        matchedEmails: matchedSecondaryEmails(row.user, query.search),
+      })),
     }
   }
 
@@ -293,7 +296,10 @@ async function listUsers(query, providerNames) {
   )
   return {
     ...list,
-    users: rows.map(user => formatUser(user, providerNames)),
+    users: rows.map(user => ({
+      ...formatUser(user, providerNames),
+      matchedEmails: matchedSecondaryEmails(user, query.search),
+    })),
   }
 }
 
@@ -454,11 +460,15 @@ async function getUserPage(userId) {
 // ---- for the other lists ----
 
 // The owners of a list's rows, by id: name and email, also of a deleted owner
-// (deletedUsers keeps it until it expires)
-async function ownersOf(ids) {
+// (deletedUsers keeps it until it expires), and the secondary emails of a
+// list's search that found an owner (getUserIdsMatching reads only users)
+async function ownersOf(ids, search) {
   const unique = _.uniqBy(ids.filter(Boolean), id => id.toString())
   const [users, deletedUsers] = await Promise.all([
-    User.find({ _id: { $in: unique } }, 'email first_name last_name')
+    User.find(
+      { _id: { $in: unique } },
+      'email first_name last_name emails.email emails.confirmedAt'
+    )
       .lean()
       .exec(),
     DeletedUser.find(
@@ -483,6 +493,7 @@ async function ownersOf(ids) {
       email: owner?.email,
       name: [owner?.first_name, owner?.last_name].filter(Boolean).join(' '),
       deleted: Boolean(owner?.deleted),
+      matchedEmails: owner ? matchedSecondaryEmails(owner, search) : [],
     }
   }
 }

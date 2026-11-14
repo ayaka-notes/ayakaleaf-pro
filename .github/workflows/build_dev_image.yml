@@ -162,12 +162,16 @@ jobs:
           - platform: linux/arm64
             runner: ubuntu-24.04-arm
     env:
-      COMPOSE: docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.image.yml
-      # git-bridge and the debug tools are left out: git-bridge has no arm64 image
+      COMPOSE: >-
+        docker compose -f docker-compose.yml -f mail/docker-compose.yml -f grafana/docker-compose.yml
+        -f docker-compose.dev.yml -f docker-compose.image.yml
+      # git-bridge is left out: it has no arm64 image
       SERVICES: >-
         mongo redis chat clsi clsi-nginx docstore document-updater filestore
         history-v1 linked-url-proxy notifications project-history real-time
         third-party-datastore web webpack ldap saml
+        mailpit mongo-express redis-insight
+        grafana prometheus loki alloy mongodb-exporter redis-exporter cadvisor node-exporter
     steps:
       - name: "Checkout Current Repository"
         uses: actions/checkout@v7
@@ -177,17 +181,42 @@ jobs:
         working-directory: develop
         run: |
           $COMPOSE pull $SERVICES
+          sudo mkdir -p data/redis-insight
+          sudo chown 1000:1000 data/redis-insight
           $COMPOSE up --no-deps --detach $SERVICES
       # A fresh dev env has no admin, so the launchpad page renders without login
       - name: "Wait for the launchpad"
         run: |
           timeout 900 bash -c 'until curl -sf http://127.0.0.1/launchpad | grep -q "name=\"ol-adminUserExists\""; do sleep 5; done'
+      # What the State panels of Grafana show: every target that Prometheus
+      # scrapes is up (git-bridge is not started), mongo and redis answer their
+      # exporters, and Loki has the logs; then the pages of the Dev tools menu
+      - name: "Check the state in Grafana and the Dev tools"
+        run: |
+          prom=http://127.0.0.1/grafana/api/datasources/proxy/uid/prometheus/api/v1
+          loki=http://127.0.0.1/grafana/api/datasources/proxy/uid/loki/loki/api/v1
+          # Loki takes writes only some seconds after it starts, so wait for each result
+          query() {
+            for _ in $(seq 60); do
+              curl -sfG "$1/query" --data-urlencode "query=$2" | jq -e '.data.result | length > 0' >/dev/null && return
+              sleep 5
+            done
+            echo "No result for $2"; exit 1
+          }
+          timeout 300 bash -c "until curl -sf $prom/targets | jq -e '[.data.activeTargets[] | select(.labels.service != \"git-bridge\") | .health] | length > 0 and all(. == \"up\")' >/dev/null; do sleep 5; done" \
+            || { curl -s $prom/targets | jq -r '.data.activeTargets[] | "\(.labels.job) \(.scrapeUrl) \(.health) \(.lastError)"'; exit 1; }
+          query $prom 'max without (cluster_role) (mongodb_up) == 1'
+          query $prom 'redis_up == 1'
+          query $loki 'sum(count_over_time({service="web"}[10m])) > 0'
+          for path in mailpit/ mongo-express/ redis-insight/; do
+            curl -sf -o /dev/null "http://127.0.0.1/$path" || { echo "$path does not answer"; exit 1; }
+          done
       - name: "Show the service logs"
         if: failure()
         working-directory: develop
         run: |
           $COMPOSE ps -a
-          $COMPOSE logs --tail 200 web webpack ldap saml
+          $COMPOSE logs --tail 200 web webpack ldap saml alloy loki
 
   clean-image:
     if: github.repository_owner == 'ayaka-notes'

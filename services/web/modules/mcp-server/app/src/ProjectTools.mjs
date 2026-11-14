@@ -5,7 +5,8 @@ import AuthorizationManager from '../../../../app/src/Features/Authorization/Aut
 import EditorController from '../../../../app/src/Features/Editor/EditorController.mjs'
 import ProjectGetter from '../../../../app/src/Features/Project/ProjectGetter.mjs'
 import ProjectEntityHandler from '../../../../app/src/Features/Project/ProjectEntityHandler.mjs'
-import { checkAccess, filePath, rateLimiters, text } from './McpUtils.mjs'
+import UserGetter from '../../../../app/src/Features/User/UserGetter.mjs'
+import { checkAccess, filePath, person, rateLimiters, text } from './McpUtils.mjs'
 import { readDoc } from './FileTools.mjs'
 
 export function buildProjectTools({ userId, projectId }) {
@@ -63,7 +64,8 @@ export function buildProjectTools({ userId, projectId }) {
     list_versions: {
       rateLimiter: rateLimiters.listVersions,
       description:
-        'List the versions saved in the project history, with their comment.',
+        'List the versions saved in the project history, with their ' +
+        'comment and who saved them.',
       handler: async () => {
         // as the history panel, closed to the viewers who joined by link
         if (
@@ -77,12 +79,22 @@ export function buildProjectTools({ userId, projectId }) {
         const labels = await fetchJson(
           `${Settings.apis.project_history.url}/project/${projectId}/labels`
         )
+        const users = await UserGetter.promises.getUsers(
+          labels.map(label => label.user_id).filter(Boolean),
+          { email: 1, first_name: 1, last_name: 1 }
+        )
+        const savedBy = id =>
+          person(users.find(user => user._id.toString() === id))
         return text(
-          labels.map(({ version, comment, created_at: createdAt }) => ({
-            version,
-            comment,
-            createdAt,
-          }))
+          labels.map(
+            ({ id, version, comment, user_id: userId, created_at: createdAt }) => ({
+              id,
+              version,
+              comment,
+              savedBy: savedBy(userId),
+              createdAt,
+            })
+          )
         )
       },
     },
@@ -91,13 +103,26 @@ export function buildProjectTools({ userId, projectId }) {
       rateLimiter: rateLimiters.updateSettings,
       description:
         'Change the compiler, the TeX Live image (one of ' +
-        'availableTexLiveImages of get_settings) or the main document.',
+        'availableTexLiveImages of get_settings), the main document or the ' +
+        'spell check language.',
       inputSchema: {
         compiler: z.enum(['pdflatex', 'xelatex', 'lualatex', 'latex']).optional(),
         texLiveImage: z.string().optional(),
         mainDocument: filePath.optional(),
+        spellCheckLanguage: z
+          .string()
+          .optional()
+          .describe(
+            'A language code, e.g. "en_GB" or "de", or "" to turn spell ' +
+              'check off.'
+          ),
       },
-      handler: async ({ compiler, texLiveImage, mainDocument }) => {
+      handler: async ({
+        compiler,
+        texLiveImage,
+        mainDocument,
+        spellCheckLanguage,
+      }) => {
         await checkAccess(
           AuthorizationManager.promises.canUserWriteProjectSettings,
           userId,
@@ -112,6 +137,14 @@ export function buildProjectTools({ userId, projectId }) {
         ) {
           throw new Error(`${texLiveImage} is not an available TeX Live image`)
         }
+        // the languages of the editor's spell check menu, as core checks them
+        const languages = (Settings.languages || []).map(({ code }) => code)
+        if (spellCheckLanguage && !languages.includes(spellCheckLanguage)) {
+          throw new Error(
+            `${spellCheckLanguage} is not a spell check language, use one of: ` +
+              languages.join(', ')
+          )
+        }
         const rootDoc =
           mainDocument && (await readDoc(projectId, mainDocument)).doc
         if (compiler) {
@@ -122,6 +155,12 @@ export function buildProjectTools({ userId, projectId }) {
         }
         if (rootDoc) {
           await EditorController.promises.setRootDoc(projectId, rootDoc._id)
+        }
+        if (spellCheckLanguage != null) {
+          await EditorController.promises.setSpellCheckLanguage(
+            projectId,
+            spellCheckLanguage
+          )
         }
         return text('Settings updated.')
       },

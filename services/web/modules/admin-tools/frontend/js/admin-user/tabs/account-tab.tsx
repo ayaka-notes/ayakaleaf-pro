@@ -101,6 +101,17 @@ function AccountTab({
     onEditingChange(false)
   }
 
+  const removeEmail = (email: string) => {
+    runAsync(postJSON(`/admin/user/${user.id}/remove-email`, { body: { email } }))
+      .then(() =>
+        onSaved({
+          ...user,
+          emails: user.emails.filter(item => item.email !== email),
+        })
+      )
+      .catch(() => {})
+  }
+
   const input = (
     key: 'firstName' | 'lastName',
     canEdit: boolean,
@@ -132,7 +143,7 @@ function AccountTab({
     ],
     [
       t('emails'),
-      <ul key="emails" className="list-unstyled mb-0">
+      <ul key="emails" className="admin-panel-email-list list-unstyled mb-0">
         {user.emails.map(email => (
           <li key={email.email} className="admin-panel-inline-field">
             {email.primary && editing ? (
@@ -155,6 +166,18 @@ function AccountTab({
               <span className="admin-panel-badge">
                 {t('unconfirmed')}
               </span>
+            )}
+            {/* a deleted user has no editing, and needs this to come back
+                without an email another account uses now */}
+            {(editing || user.deleted) && !email.primary && (
+              <OLButton
+                variant="secondary"
+                size="sm"
+                disabled={isLoading}
+                onClick={() => removeEmail(email.email)}
+              >
+                {t('remove')}
+              </OLButton>
             )}
           </li>
         ))}

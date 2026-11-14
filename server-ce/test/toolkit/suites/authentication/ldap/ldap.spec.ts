@@ -19,6 +19,7 @@ import {
 import { expectOwnAuditEntry } from '../../../../helpers/auditLog'
 import { login, randomPassword } from '../../../../helpers/login'
 import { postWithCsrf } from '../../../../helpers/request'
+import { addConfirmedEmail, makePrimary } from '../../../../helpers/userEmails'
 
 // LDAP login through authentik's LDAP outpost (services/authentik). Admins
 // are mapped from memberOf containing the Admins group. The first admin is
@@ -271,5 +272,37 @@ describe('LDAP audit log', function () {
     expectOwnAuditEntry(idpEmail('bob'), 'failed-password-match')
       .its('info.method')
       .should('equal', 'LDAP password login')
+  })
+})
+
+describe('emails of an LDAP account', function () {
+  it('adds an email but refuses to make it primary', function () {
+    const personal = `bob-${Cypress._.random(1e9)}@example.com`
+    loginAs('bob')
+    addConfirmedEmail(personal)
+    makePrimary(personal)
+    cy.contains('Sorry, something went wrong')
+    postWithCsrf('/user/emails/default', { email: personal })
+      .its('status')
+      .should('equal', 403)
+    currentUser().its('email').should('equal', idpEmail('bob'))
+  })
+
+  it('refuses a first login with the secondary email of another account', function () {
+    // in the directory with this email and logs in nowhere else in this spec
+    const email = 'eve@other.test'
+    loginAs('bob')
+    addConfirmedEmail(email)
+    ldapLogin('eve')
+    cy.contains('This email is already registered as a secondary email')
+    cy.url().should('contain', '/ldap/login')
+
+    loginAs('bob')
+    cy.visit('/user/settings')
+    postWithCsrf('/user/emails/delete', { email })
+      .its('status')
+      .should('equal', 200)
+    loginAs('eve')
+    currentUser().its('email').should('equal', email)
   })
 })
