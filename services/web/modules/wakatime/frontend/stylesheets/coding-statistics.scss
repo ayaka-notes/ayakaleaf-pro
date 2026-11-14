@@ -1,0 +1,240 @@
+// Coding statistics dashboard — Overleaf visual language (flat, calm palette)
+.coding-statistics-section {
+  margin-top: var(--spacing-06);
+
+  h3 {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-02);
+    font-weight: 600;
+  }
+
+  .coding-statistics-title-logo {
+    display: inline-flex;
+    align-items: center;
+    line-height: 0;
+  }
+
+  // Header row: title + range select
+  .cs-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-03);
+    flex-wrap: wrap;
+    margin-bottom: var(--spacing-02);
+
+    .cs-range-select {
+      width: auto;
+      min-width: 150px;
+    }
+  }
+
+  // Overview tiles
+  .cs-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--spacing-03);
+    margin: var(--spacing-04) 0;
+  }
+
+  .cs-tile {
+    border: 1px solid var(--border-light-secondary, #e9ecef);
+    border-radius: var(--border-radius-base, 4px);
+    padding: var(--spacing-03) var(--spacing-04);
+    background: var(--bg-light, #ffffff);
+    min-height: 84px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+
+    .cs-tile-value {
+      font-size: 1.35rem;
+      font-weight: 600;
+      line-height: 1.2;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .cs-tile-label {
+      font-size: 0.85rem;
+      color: var(--content-secondary, #6c757d);
+      margin-top: 0.15rem;
+    }
+
+    .cs-tile-hint {
+      font-size: 0.75rem;
+      color: var(--content-tertiary, #adb5bd);
+      margin-top: 0.1rem;
+    }
+  }
+
+  .cs-block {
+    margin-top: var(--spacing-05);
+
+    .cs-block-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: var(--spacing-03);
+      color: var(--content-primary, #212529);
+    }
+  }
+
+  // Daily activity chart
+  .cs-chart {
+    .cs-chart-cols {
+      display: flex;
+      align-items: stretch;
+      gap: 2px;
+      height: 210px;
+      border-bottom: 1px solid var(--border-light-secondary, #e9ecef);
+    }
+
+    .cs-chart-col {
+      flex: 1 1 0;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      cursor: default;
+    }
+
+    .cs-chart-bar-area {
+      flex: 1;
+      display: flex;
+      align-items: flex-end;
+    }
+
+    .cs-chart-stack {
+      width: 100%;
+      max-width: 26px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      border-radius: 2px 2px 0 0;
+      overflow: hidden;
+    }
+
+    .cs-chart-seg {
+      width: 100%;
+    }
+
+    .cs-chart-label {
+      height: 18px;
+      font-size: 0.7rem;
+      color: var(--content-tertiary, #adb5bd);
+      text-align: center;
+      overflow: hidden;
+      white-space: nowrap;
+      margin-top: 2px;
+    }
+
+    .cs-chart-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--spacing-02) var(--spacing-04);
+      margin-top: var(--spacing-02);
+    }
+
+    .cs-chart-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.8rem;
+      color: var(--content-secondary, #6c757d);
+      max-width: 220px;
+
+      .cs-chart-legend-swatch {
+        width: 10px;
+        height: 10px;
+        border-radius: 2px;
+        flex: none;
+      }
+    }
+  }
+
+  // Two-column languages/projects
+  .cs-two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-05) var(--spacing-06);
+
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .cs-share-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-03);
+  }
+
+  .cs-share-row {
+    .cs-share-head {
+      display: flex;
+      justify-content: space-between;
+      gap: var(--spacing-03);
+      margin-bottom: 0.25rem;
+
+      .cs-share-name {
+        font-size: 0.88rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .cs-share-value {
+        font-size: 0.88rem;
+        white-space: nowrap;
+        color: var(--content-secondary, #6c757d);
+
+        .cs-share-pct {
+          color: var(--content-tertiary, #adb5bd);
+        }
+      }
+    }
+
+    .cs-share-track {
+      height: 8px;
+      border-radius: 4px;
+      background: var(--bg-light-secondary, #f1f3f5);
+      overflow: hidden;
+
+      .cs-share-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.3s ease;
+      }
+    }
+  }
+
+  .cs-tools-line {
+    margin-top: var(--spacing-04);
+  }
+}
+
+// Dedicated page (navbar + card wrapper)
+.coding-statistics-page {
+  .coding-statistics-notice {
+    margin: var(--spacing-03) 0;
+    padding: var(--spacing-03) var(--spacing-04);
+    border-radius: var(--border-radius-base, 4px);
+    background: var(--bg-light-secondary, #f1f3f5);
+
+    &.notice-success {
+      border-left: 4px solid var(--bg-success-01, #2e8356);
+    }
+
+    &.notice-error {
+      border-left: 4px solid var(--bg-danger-01, #c9302c);
+    }
+  }
+
+  .coding-statistics-actions {
+    display: flex;
+    gap: var(--spacing-03);
+    flex-wrap: wrap;
+    margin: var(--spacing-03) 0;
+  }
+}

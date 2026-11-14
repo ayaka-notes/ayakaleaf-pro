@@ -1,0 +1,11 @@
+extends ../../../../app/views/layout-react
+
+block entrypointVar
+	- entrypoint = 'modules/wakatime/pages/coding-statistics'
+
+block vars
+	- isWebsiteRedesign = true
+
+block content
+	main.content.content-alt#main-content
+		#coding-statistics-root
