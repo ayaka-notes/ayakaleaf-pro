@@ -1,5 +1,6 @@
 import logger from '@overleaf/logger'
 import Settings from '@overleaf/settings'
+import { User } from '../../../app/src/models/User.mjs'
 import {
   store,
   providersFile,
@@ -234,9 +235,6 @@ const SsoAdminController = {
    * new projects. Body: { userId } (or { email }).
    */
   async establishUser(req, res) {
-    const { default: User } = await import(
-      '../../../app/src/models/User.mjs'
-    )
     const body = req.body || {}
     const userId = body.userId
     const email = typeof body.email === 'string' ? body.email.toLowerCase() : null
