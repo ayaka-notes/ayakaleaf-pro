@@ -90,6 +90,14 @@ const OIDCAuthenticationManager = {
       isExisting = Boolean(user)
     }
 
+    // --- link-only sources (e.g. ORCID): never auto-create; unlinked
+    // identities must log in another way first and link the account from
+    // the settings page (the controller answers with the
+    // `register_intercept_sso` message).
+    if (!user && provider.behavior.linkOnly) {
+      return { user: null, linkOnlyRefused: true }
+    }
+
     // --- profile filter (deny list / allow list + exceptions)
     const access = await checkSsoAccess(provider, profile, email, isExisting)
     if (!access.allowed) {
@@ -97,7 +105,11 @@ const OIDCAuthenticationManager = {
     }
 
     if (!user) {
-      // --- new account (JIT): additionally gated by allowedEmailDomains
+      // --- new account (JIT): needs an email identity
+      if (!email) {
+        return { user: null, error: 'no-identity' }
+      }
+      // additionally gated by allowedEmailDomains
       const allowedDomains = provider.behavior.allowedEmailDomains
       if (
         allowedDomains &&

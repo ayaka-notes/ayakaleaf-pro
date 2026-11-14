@@ -5,6 +5,7 @@
  * `edugain` template follows the eduGAIN attribute profile (GN3-11-012).
  * Admins are expected to fill in the connection settings and the filter.
  */
+import { KNOWN_PROVIDERS } from './presets.mjs'
 
 function baseTemplate(type, id, name) {
   const provider = {
@@ -13,6 +14,7 @@ function baseTemplate(type, id, name) {
     name,
     enabled: true,
     attrs: {},
+    behavior: {},
     filter: {
       // deny:  [{ field: 'eduPersonAffiliation', op: 'iOneOf', values: ['member'] }],
       // allow: [{ field: 'eduPersonScopedAffiliation', op: 'iEndsWith', value: '@your-institution.de' }],
@@ -38,6 +40,23 @@ function baseTemplate(type, id, name) {
       lastName: 'sn',
       // admin: { field: 'eduPersonAffiliation', values: ['faculty', 'staff'] },
     }
+  } else if (type === 'oauth2') {
+    provider.oauth2 = {
+      authorizeUrl: 'https://idp.example.org/oauth/authorize',
+      tokenUrl: 'https://idp.example.org/oauth/token',
+      userUrl: 'https://idp.example.org/api/v1/user',
+      // emailUrl: 'https://idp.example.org/api/v1/user/emails',
+      clientId: 'overleaf',
+      clientSecret: 'change-me',
+      scope: '',
+    }
+    provider.attrs = {
+      userId: 'login', // field of the user API holding the unique user id
+      email: 'email',
+      firstName: 'name',
+      lastName: '',
+    }
+    provider.behavior = { verifiedEmailRequired: true } // set false if the source sends verified emails only
   } else {
     provider.oidc = {
       issuer: 'https://oidc.example.org/realms/uni',
@@ -61,13 +80,39 @@ function baseTemplate(type, id, name) {
 }
 
 /**
- * @param {'saml'|'oidc'} type
+ * Build a provider template. `preset` may name an attribute preset
+ * (`edugain`) or a known provider (`github`, `google`, `orcid`, …);
+ * known providers come with pre-filled connection settings and admin tips.
+ * @param {'oidc'|'oauth2'|'saml'} type
  * @param {string} [id]
  * @param {string} [name]
  * @param {string} [preset]
+ * @returns {{provider: object, hints: string[]}}
  */
 export function providerTemplate(type, id, name, preset) {
-  const provider = baseTemplate(type, id || (type === 'saml' ? 'idp1' : 'provider1'), name)
+  const known = preset ? KNOWN_PROVIDERS[preset] : undefined
+  if (known) {
+    const providerId = id || preset
+    const provider = {
+      id: providerId,
+      type: known.type,
+      name: name || known.label,
+      enabled: true,
+      preset: preset,
+      behavior: { ...(known.defaults.behavior || {}) },
+      attrs: { ...(known.defaults.attrs || {}) },
+      filter: {
+        allow: [],
+        deny: [],
+        allowExistingUsers: true,
+        allowInvited: true,
+      },
+    }
+    if (known.type === 'oidc') provider.oidc = { ...(known.defaults.oidc || {}) }
+    if (known.type === 'oauth2') provider.oauth2 = { ...(known.defaults.oauth2 || {}) }
+    return { provider, hints: known.hints }
+  }
+  const provider = baseTemplate(type, id || (type === 'saml' ? 'idp1' : type === 'oauth2' ? 'oauth1' : 'provider1'), name)
   if (preset === 'edugain') {
     provider.preset = 'edugain'
     provider.name = provider.name || (type === 'saml' ? 'EduGAIN (SAML)' : 'EduGAIN (OIDC)')
@@ -95,9 +140,9 @@ export function providerTemplate(type, id, name, preset) {
         : { field: 'eduPersonScopedAffiliation', op: 'iEndsWith', value: '@your-institution.de' },
     ]
   }
-  return provider
+  return { provider, hints: [] }
 }
 
 export function prettyTemplate(type, id, name, preset) {
-  return JSON.stringify(providerTemplate(type, id, name, preset), null, 2)
+  return JSON.stringify(providerTemplate(type, id, name, preset).provider, null, 2)
 }

@@ -160,9 +160,28 @@ const OIDCAuthenticationController = {
         },
       }
     }
-    const { user, accessDenied } = result
+    const { user, accessDenied, linkOnlyRefused } = result
     if (user) {
       return { user, info: undefined }
+    }
+    if (linkOnlyRefused) {
+      const text = req.i18n
+        ? req.i18n.translate('register_intercept_sso', {
+            authProviderName: provider.name,
+          })
+        : `You can link your ${provider.name} account from the Account settings page after logging in.`
+      return {
+        user: false,
+        info: {
+          type: 'error',
+          key: 'register_intercept_sso',
+          text,
+          status: 403,
+          redir: `/login?sso_error=not_linked&provider=${encodeURIComponent(
+            provider.name
+          )}`,
+        },
+      }
     }
     if (accessDenied) {
       const email = profile?.emails?.[0]?.value

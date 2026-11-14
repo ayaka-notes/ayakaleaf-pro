@@ -70,6 +70,57 @@ describe('provider schema', () => {
       expect(provider.oidc.userInfoUrl).toBe('https://kc/userinfo')
     })
 
+    it('normalizes a generic OAuth2 provider (GitHub-style)', () => {
+      const provider = normalizeProvider({
+        id: 'github',
+        type: 'oauth2',
+        oauth2: {
+          authorizeUrl: 'https://github.com/login/oauth/authorize',
+          tokenUrl: 'https://github.com/login/oauth/access_token',
+          userUrl: 'https://api.github.com/user',
+          emailUrl: 'https://api.github.com/user/emails',
+          clientId: 'Iv1',
+          clientSecret: 's',
+          scope: 'user:email',
+        },
+      })
+      expect(provider.type).toBe('oauth2')
+      expect(provider.oauth2.authorizeUrl).toBe('https://github.com/login/oauth/authorize')
+      expect(provider.oauth2.userUrl).toBe('https://api.github.com/user')
+      expect(provider.oauth2.emailUrl).toBe('https://api.github.com/user/emails')
+      // verified-email default for OAuth2 sources
+      expect(provider.behavior.verifiedEmailRequired).toBe(true)
+      expect(provider.behavior.linkOnly).toBe(false)
+    })
+
+    it('supports link-only providers (ORCID-style, no auto-create)', () => {
+      const provider = normalizeProvider({
+        id: 'orcid',
+        type: 'oidc',
+        behavior: { linkOnly: true },
+        oidc: {
+          issuer: 'https://orcid.org',
+          authorizationUrl: 'https://orcid.org/oauth/authorize',
+          tokenUrl: 'https://orcid.org/oauth/token',
+          userInfoUrl: 'https://api.orcid.org/v3.0/APP/record',
+          clientId: 'APP',
+        },
+      })
+      expect(provider.behavior.linkOnly).toBe(true)
+      // OIDC keeps the legacy verified-email behaviour unless opted in
+      expect(provider.behavior.verifiedEmailRequired).toBe(false)
+    })
+
+    it('rejects an OAuth2 provider without endpoints', () => {
+      expect(() =>
+        normalizeProvider({
+          id: 'gh',
+          type: 'oauth2',
+          oauth2: { clientId: 'Iv1' },
+        })
+      ).toThrow('oauth2.authorizeUrl')
+    })
+
     it('reads cert material from file path or inline PEM', () => {
       // inline PEM
       const inline = normalizeProvider({
@@ -93,7 +144,7 @@ describe('provider schema', () => {
     it('rejects unknown type', () => {
       expect(() =>
         normalizeProvider({ id: 'x', type: 'ftp' })
-      ).toThrow('must be "oidc" or "saml"')
+      ).toThrow('must be "oidc", "oauth2" or "saml"')
     })
 
     it('rejects SAML without entryPoint', () => {

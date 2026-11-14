@@ -16,80 +16,102 @@ block content
 								.alert.alert-danger #{error}
 
 							if !form
-								// ---------------- provider list ----------------
-								p
-									| SSO sources (OIDC providers and SAML IdPs) and their profile
-									| filters. Each source gets its own button on the login page.
-									| Profiles are checked against the filter on every login:
-									| deny rules block, allow rules (when set) require a match.
-									| Existing accounts
-									strong (allowExistingUsers)
-									| and invited collaborators
-									strong (allowInvited)
-									| can be exempted per source.
-								if file
-									p.text-muted
-										| The file-based providers are stored in
-										code #{file}
-										| — you can edit that file directly and save it here (or restart the server).
-								else
-									p.text-muted
-										| No provider file is configured yet. Create a provider below; it will
-										| be written to
-										code config/ssos.providers.json
-										| (override with
-										code OVERLEAF_SSO_PROVIDERS_FILE
-										| ).
-								.row-spaced
-									ul.list-inline
-										li.list-inline-item
-											a.btn.btn-secondary(href='/admin/auths/new?type=saml') New SAML IdP
-										li.list-inline-item
-											a.btn.btn-secondary(href='/admin/auths/new?type=saml&preset=edugain') New SAML IdP (EduGAIN preset)
-										li.list-inline-item
-											a.btn.btn-secondary(href='/admin/auths/new?type=oidc') New OIDC provider
-										li.list-inline-item
-											a.btn.btn-secondary(href='/admin/auths/new?type=oidc&preset=edugain') New OIDC provider (EduGAIN preset)
-								if !providers.length
-									p No SSO sources configured yet.
-								.table
-									thead
-										tr
-											th Name
-											th Type
-											th ID
-											th Filter
-											th Enabled
-											th Source
-											th Actions
-									tbody
-										each provider in providers
-											tr
-												td #{provider.name}
-												td #{provider.type.toUpperCase()}
-												td code #{provider.id}
-												td
-													if provider.filter.deny.length || provider.filter.allow.length
-														| #{provider.filter.deny.length} deny / #{provider.filter.allow.length} allow
-													else
-														| none
-												td
-													if provider.source !== 'env'
-														form(method='post' action=`/admin/auths/${provider.id}/toggle`)
-															input(name='_csrf' type='hidden' value=csrfToken)
-															input(type='checkbox' checked=provider.enabled)
-													else
-														| —
-												td #{provider.source}
-												td
-													if provider.source !== 'env'
-														a(href=`/admin/auths/${provider.id}/edit`) Edit
-														form(method='post' action=`/admin/auths/${provider.id}/delete` onsubmit="return confirm('Delete this SSO source? Users linked to it keep their accounts, but this source is no longer offered on the login page.')")
-															input(name='_csrf' type='hidden' value=csrfToken)
-															button.btn.btn-sm.btn-danger(type='submit') Delete
-													else
-														| env
-
+															// ---------------- provider list ----------------
+															p
+																| SSO sources — OIDC providers, OAuth2 apps and SAML IdPs — and
+																| their profile filters. Each source gets its own button on the
+																| login page. Profiles are checked against the filter on every
+																| login: 
+																code deny
+																|  rules block; 
+																code allow
+																|  rules (when set) require a match.
+															p
+																| Existing accounts 
+																code (allowExistingUsers)
+																|  and invited collaborators
+																code (allowInvited)
+																|  can be exempted per source.
+															if file
+																p.text-muted
+																	| The file-based providers are stored in 
+																	code #{file}
+																	|  — you can edit that file directly and save it here (or restart 
+																	| the server).
+															else
+																p.text-muted
+																	| No provider file is configured yet. Create a provider below;
+																	| it will be written to 
+																	code config/ssos.providers.json
+																	|  (override with 
+																	code OVERLEAF_SSO_PROVIDERS_FILE
+																	| ).
+															.d-flex.flex-wrap.align-items-center.gap-2.mb-3
+																a.btn.btn-primary(href='/admin/auths/new?type=oidc')
+																	| New SSO source
+																span.text-muted.ms-1 Quick start:
+																a.btn.btn-secondary(href='/admin/auths/new?type=oidc&preset=google') Google (OIDC)
+																a.btn.btn-secondary(href='/admin/auths/new?type=oidc&preset=orcid') ORCID (link-only)
+																a.btn.btn-secondary(href='/admin/auths/new?type=oauth2&preset=github') GitHub (OAuth2)
+																a.btn.btn-secondary(href='/admin/auths/new?type=oauth2&preset=gitlab') GitLab (OAuth2)
+																a.btn.btn-secondary(href='/admin/auths/new?type=oauth2&preset=gitea') Gitea / Forgejo (OAuth2)
+																a.btn.btn-secondary(href='/admin/auths/new?type=saml&preset=edugain') SAML IdP (EduGAIN)
+															.d-flex.flex-wrap.gap-2.mb-3
+																a.btn.btn-sm.btn-outline-secondary(href='/admin/auths/new?type=oidc') Blank OIDC
+																a.btn.btn-sm.btn-outline-secondary(href='/admin/auths/new?type=oauth2') Blank OAuth2
+																a.btn.btn-sm.btn-outline-secondary(href='/admin/auths/new?type=saml') Blank SAML
+																a.btn.btn-sm.btn-outline-secondary(href='/admin/auths/new?type=saml&preset=edugain') Blank SAML + EduGAIN attributes
+															if !providers.length
+																.alert.alert-info No SSO sources configured yet.
+															else
+																table.table.table-hover.align-middle
+																	thead
+																		tr
+																			th Name
+																			th Type
+																			th ID
+																			th Filter
+																			th Enabled
+																			th Source
+																			th.text-end Actions
+																	tbody
+																		each provider in providers
+																			tr
+																				td.fw-semibold #{provider.name}
+																				td
+																					if provider.type === 'oidc'
+																						span.badge.text-bg-primary OIDC
+																					else if provider.type === 'oauth2'
+																						span.badge.text-bg-info OAuth2
+																					else
+																						span.badge.text-bg-secondary SAML
+																				td
+																					code #{provider.id}
+																				td
+																					if provider.filter.deny.length || provider.filter.allow.length
+																						span #{provider.filter.deny.length} deny / #{provider.filter.allow.length} allow
+																					else
+																						span.text-muted none
+																				td
+																					if provider.source !== 'env'
+																						form(method='post' action=`/admin/auths/${provider.id}/toggle`)
+																							input(name='_csrf' type='hidden' value=csrfToken)
+																							input(type='checkbox' checked=provider.enabled)
+																					else
+																						span.text-muted env
+																				td
+																					if provider.source === 'env'
+																						span.badge.text-bg-light.border env
+																					else
+																						| file
+																				td.text-end
+																					if provider.source !== 'env'
+																						a.me-2(href=`/admin/auths/${provider.id}/edit`) Edit
+																						form.d-inline(method='post' action=`/admin/auths/${provider.id}/delete` onsubmit="return confirm('Delete this SSO source? Users linked to it keep their accounts, but this source is no longer offered on the login page.')")
+																							input(name='_csrf' type='hidden' value=csrfToken)
+																							button.btn.btn-sm.btn-outline-danger(type='submit') Delete
+																					else
+																						span.text-muted read-only
 							if form
 								// ---------------- new / edit form ----------------
 								if form.readOnly
@@ -97,9 +119,9 @@ block content
 										| This provider comes from legacy environment variables
 										| (
 										code EXTERNAL_AUTH
-										| +
+										|  +
 										code OVERLEAF_OIDC_*
-										| /
+										|  /
 										code OVERLEAF_SAML_*
 										| ). Change the environment to modify it, or create a file-based
 										| provider with a different id (the file version then wins).
@@ -107,28 +129,33 @@ block content
 									form(method='post' action=(form.mode === 'new' ? '/admin/auths' : `/admin/auths/${form.id}`))
 										input(name='_csrf' type='hidden' value=csrfToken)
 										input(type='hidden' name='mode' value=form.mode)
-										if form.mode === 'new'
+										if form.hints && form.hints.length
+											.alert.alert-info
+												strong Setup tips
+												ul.mb-0
+													each hint in form.hints
+														li #{hint}
+										if form.callbackPath
 											p.form-text
-												Preset templates:
-												ul
-													li SAML — <a href='/admin/auths/new?type=saml'>blank</a> / <a href='/admin/auths/new?type=saml&preset=edugain'>EduGAIN</a>
-													li OIDC — <a href='/admin/auths/new?type=oidc'>blank</a> / <a href='/admin/auths/new?type=oidc&preset=edugain'>EduGAIN</a>
+												| Callback (redirect) URI to register with the identity provider:
+												code #{form.callbackPath}
 										.form-group
 											label.form-label(for='config') Provider configuration (JSON)
 											p.form-text
-												|
 												| The provider is validated server-side before it is saved.
 												| The
 												code attrs
-												| section maps profile fields to user fields;
+												|  section maps profile fields to user fields.
+												|
 												code filter.allow
-												| /
+												|  /
 												code filter.deny
-												| hold the profile filter rules;
+												|  hold the profile filter rules.
+												|
 												code filter.allowExistingUsers
-												| and
+												|  and
 												code filter.allowInvited
-												| are the exceptions for existing accounts and invited collaborators.
+												|  exempt existing accounts and invited collaborators.
 											textarea#config.form-control.config-editor(
 												name='config'
 												rows='24'

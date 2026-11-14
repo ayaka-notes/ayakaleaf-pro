@@ -18,6 +18,13 @@ export default {
     ) {
       AuthenticationController.setRedirectInSession(req, req.query.redir)
     }
+    // A link-only SSO source (e.g. ORCID) refused an unlinked identity and
+    // bounced back to /login with the provider name: tell the user they can
+    // log in another way first and link the account from the settings page.
+    let ssoIntercept
+    if (req.query.sso_error === 'not_linked' && typeof req.query.provider === 'string') {
+      ssoIntercept = { key: 'register_intercept_sso', providerName: req.query.provider }
+    }
     const metadata = { robotsNoindexNofollow: false }
     if (Object.keys(req.query).length !== 0) {
       metadata.robotsNoindexNofollow = true
@@ -28,6 +35,7 @@ export default {
       login_support_title: Settings.nav?.login_support_title,
       login_support_text: Settings.nav?.login_support_text,
       localLoginDisabled: localLoginDisabled(),
+      ssoIntercept,
       metadata,
     })
   },

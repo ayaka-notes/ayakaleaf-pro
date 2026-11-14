@@ -17,8 +17,13 @@ async function refreshStrategies() {
     const { default: SAMLModuleManager } = await import(
       '../authentication/saml/app/src/SAMLModuleManager.mjs'
     )
+    const { default: OAuth2ModuleManager } = await import(
+      '../authentication/oauth2/app/src/OAuth2ModuleManager.mjs'
+    )
     OIDCModuleManager.refreshStrategies(passport)
     SAMLModuleManager.refreshStrategies(passport)
+    OAuth2ModuleManager.refreshStrategies(passport)
+    OAuth2ModuleManager.initSettings()
   } catch (error) {
     logger.error({ err: error }, 'failed to refresh SSO passport strategies')
   }

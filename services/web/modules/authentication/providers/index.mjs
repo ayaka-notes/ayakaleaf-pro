@@ -41,8 +41,12 @@ export {
   ATTRIBUTE_CATALOG,
   listPresets,
   applyPreset,
+  listKnownProviders,
+  knownProvider,
+  KNOWN_PROVIDERS,
 } from './presets.mjs'
 export { checkSsoAccess, SSOAccessDeniedError } from './access.mjs'
 export { hasPendingInvite } from './invites.mjs'
+export { resolveSsoEmail } from './email.mjs'
 export { providerTemplate, prettyTemplate } from './templates.mjs'
 export { setPassport, getPassport } from './passport.mjs'

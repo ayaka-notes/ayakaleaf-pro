@@ -4,10 +4,12 @@ import {
   store,
   providersFile,
   listPresets,
+  listKnownProviders,
+  knownProvider,
   ATTRIBUTE_CATALOG,
   FILTER_OPS,
 } from '../../../authentication/providers/index.mjs'
-import { prettyTemplate } from '../../../authentication/providers/templates.mjs'
+import { providerTemplate } from '../../../authentication/providers/templates.mjs'
 
 function fail(res, status, message) {
   return res.status(status).json({ message: { type: 'error', text: message } })
@@ -39,12 +41,23 @@ const SsoAdminController = {
   },
 
   newPage(req, res) {
-    const type = req.query.type === 'oidc' ? 'oidc' : 'saml'
+    const type = ['oidc', 'oauth2', 'saml'].includes(req.query.type)
+      ? req.query.type
+      : 'saml'
     const preset = req.query.preset || ''
-    const known = listPresets().map(p => p.id)
+    const known = [
+      ...listPresets().map(p => p.id),
+      ...listKnownProviders().map(p => p.id),
+    ]
     if (preset && !known.includes(preset)) {
       return fail(res, 400, `unknown preset "${preset}"`)
     }
+    const template = providerTemplate(
+      type,
+      req.query.id,
+      req.query.name,
+      preset || null
+    )
     res.render('admin/auths', {
       title: 'New SSO provider',
       providers: store.all(),
@@ -52,9 +65,13 @@ const SsoAdminController = {
       file: store.file,
       form: {
         mode: 'new',
-        type,
+        type: template.provider.type,
         preset,
-        json: prettyTemplate(type, req.query.id, req.query.name, preset || null),
+        json: JSON.stringify(template.provider, null, 2),
+        hints: template.hints,
+        // the redirect URI the IdP/app must be registered with
+        callbackPath:
+          `/${template.provider.type}/${template.provider.id}/login/callback`,
       },
       catalog: ATTRIBUTE_CATALOG,
       ops: FILTER_OPS,
@@ -80,6 +97,8 @@ const SsoAdminController = {
         preset: provider.preset || '',
         json: JSON.stringify(provider, null, 2),
         readOnly: provider.source === 'env',
+        hints: (provider.preset && knownProvider(provider.preset)?.hints) || [],
+        callbackPath: `/${provider.type}/${provider.id}/login/callback`,
       },
       catalog: ATTRIBUTE_CATALOG,
       ops: FILTER_OPS,

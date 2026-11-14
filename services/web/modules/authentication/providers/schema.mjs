@@ -22,8 +22,13 @@
  *
  *   behavior: {
  *     updateUserDetailsOnLogin: false,
- *     allowedEmailDomains: null   // JIT-creation gate (legacy OIDC semantics);
- *   },                            // null = allow all domains
+ *     allowedEmailDomains: null,   // JIT-creation gate (legacy OIDC semantics);
+ *     linkOnly: false,             // null = allow all domains. true: never
+ *     verifiedEmailRequired: false// auto-create; linked accounts may log in,
+ *   },                            // unlinked get a "link from settings" note
+ *                                 // (e.g. ORCID, which sends no email).
+ *                                 // true: JIT-creation needs a verified email
+ *                                 // (default true for type "oauth2")
  *
  *   filter: {                     // login-time profile filter (see filter.mjs)
  *     allow: [ { field, op, value?, values? } ],
@@ -33,8 +38,9 @@
  *   },
  *
  *   // protocol-specific connection settings (only one present per type)
- *   oidc: { issuer|urls..., clientId, clientSecret, scope, logoutUrl, hideWhenNotLinked },
- *   saml: { entryPoint, spIssuer, audience, idpCert(s), privateKey, ... }
+ *   oidc:   { issuer|urls..., clientId, clientSecret, scope, logoutUrl, hideWhenNotLinked },
+ *   oauth2: { authorizeUrl, tokenUrl, userUrl, emailUrl?, clientId, clientSecret, scope },
+ *   saml:   { entryPoint, spIssuer, audience, idpCert(s), privateKey, ... }
  * }
  *
  * Admin input may use kebab- or snake_case and flat keys; `normalizeProvider`
@@ -174,6 +180,47 @@ function normalizeOidc(raw, providerPath) {
   }
 }
 
+/**
+ * Generic OAuth2 authorization-code source (GitHub, GitLab, Gitea, …).
+ * Unlike OIDC there is no standard userinfo endpoint: the profile is read
+ * from `userUrl` (and optionally `emailUrl`) with the access token, which is
+ * what Forgejo's OAuth2 sources do as well.
+ */
+function normalizeOauth2(raw, providerPath) {
+  const oauth2 = raw && typeof raw === 'object' ? raw : {}
+  const authorizeUrl = str(
+    oauth2.authorizeUrl ?? oauth2.authorizationUrl ?? oauth2.authUrl,
+    `${providerPath}.oauth2.authorizeUrl`,
+    { required: true }
+  )
+  const tokenUrl = str(
+    oauth2.tokenUrl ?? oauth2.tokenURL,
+    `${providerPath}.oauth2.tokenUrl`,
+    { required: true }
+  )
+  const userUrl = str(
+    oauth2.userUrl ?? oauth2.profileUrl ?? oauth2.profileURL,
+    `${providerPath}.oauth2.userUrl`,
+    { required: true }
+  )
+  const clientId = str(
+    oauth2.clientId ?? oauth2.clientID ?? oauth2.key,
+    `${providerPath}.oauth2.clientId`,
+    { required: true }
+  )
+  return {
+    authorizeUrl,
+    tokenUrl,
+    userUrl,
+    emailUrl: oauth2.emailUrl ?? oauth2.emailURL,
+    clientId,
+    clientSecret: oauth2.clientSecret ?? oauth2.secret,
+    scope: str(oauth2.scope, `${providerPath}.oauth2.scope`, { fallback: '' }),
+    // extra Accept header for the profile calls, e.g. GitHub's
+    // "application/vnd.github+json"; undefined = none
+    apiAcceptHeader: oauth2.apiAcceptHeader,
+  }
+}
 function normalizeSaml(raw, providerPath) {
   const saml = raw && typeof raw === 'object' ? raw : {}
   return {
@@ -217,8 +264,8 @@ export function normalizeProvider(raw) {
     fail(`${path}.id`, `"${id}" must match ${ID_RE} (lowercase letters, digits, . _ -)`)
   }
   const type = str(raw.type ?? raw.protocol, `${path}.type`, { required: true }).toLowerCase()
-  if (!['oidc', 'saml'].includes(type)) {
-    fail(`${path}.type`, `"${type}" must be "oidc" or "saml"`)
+  if (!['oidc', 'oauth2', 'saml'].includes(type)) {
+    fail(`${path}.type`, `"${type}" must be "oidc", "oauth2" or "saml"`)
   }
   const name = str(raw.name ?? raw.identityServiceName, `${path}.name`, {
     fallback: raw.identityServiceName || type.toUpperCase() + ' ' + id,
@@ -241,6 +288,18 @@ export function normalizeProvider(raw) {
       `${path}.behavior.allowedEmailDomains`,
       null
     ),
+    linkOnly: bool(
+      behavior.linkOnly ?? raw.linkOnly,
+      `${path}.behavior.linkOnly`,
+      false
+    ),
+    // OAuth2 sources (GitHub & friends) must not create accounts from an
+    // unverified email; OIDC/SAML keep the legacy behaviour unless opted in.
+    verifiedEmailRequired: bool(
+      behavior.verifiedEmailRequired ?? raw.verifiedEmailRequired,
+      `${path}.behavior.verifiedEmailRequired`,
+      type === 'oauth2'
+    ),
   }
 
   // filter (defaults: no rules, exceptions on)
@@ -251,6 +310,8 @@ export function normalizeProvider(raw) {
 
   if (type === 'oidc') {
     p.oidc = normalizeOidc(raw.oidc ?? raw.connection, path)
+  } else if (type === 'oauth2') {
+    p.oauth2 = normalizeOauth2(raw.oauth2 ?? raw.connection, path)
   } else {
     p.saml = normalizeSaml(raw.saml ?? raw.connection, path)
     if (!p.saml.idpCert) {
