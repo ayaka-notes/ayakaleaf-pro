@@ -4,3 +4,6 @@
 # user defined files
 .env
 docker-compose.override.yml
+
+# vitest cache
+node_modules/.vite/
