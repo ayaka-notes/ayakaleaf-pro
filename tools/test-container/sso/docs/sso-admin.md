@@ -147,3 +147,22 @@ Notes:
   `attrs.userId: "email"`); the IdP must actually release it (E2E
   initially failed for `ssoadm` because the mock did not issue the
   `email` claim — the SP correctly answered `no-identity`).
+
+## Invited users and holding accounts (Goal F)
+
+- **Acceptance** is per provider: `filter.allowInvited` (default `true`).
+  Set it to `false` to refuse SSO profiles whose only claim to the system
+  is a pending invite.
+- Accounts auto-created through that exception are **holding accounts**
+  (`holdingAccount: true`): they can sign in and use the projects they
+  were invited to, but — while the setting
+  `sso.invitedUsersCanCreateProjects` is `false` (the default) — they
+  cannot create new projects (clear 403 message). Established users are
+  unaffected.
+- An administrator establishes an account (clears the flag) with:
+  `POST /admin/auths/users/<any>/establish` body `{"email": "a@b.c"}` or
+  `{"userId": "..."}` — after which the user can create projects.
+
+Verified E2E (2026-11-14, live): invited JIT login → project creation
+**403** → establish → project creation **200**; established user
+unaffected (200).
