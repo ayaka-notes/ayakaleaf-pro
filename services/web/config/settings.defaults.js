@@ -1313,6 +1313,7 @@ module.exports = {
     'authentication/ldap',
     'authentication/saml',
     'authentication/oidc',
+    'authentication/oauth2',
     'sso-admin',
     'admin-tools',
     'user-activate',

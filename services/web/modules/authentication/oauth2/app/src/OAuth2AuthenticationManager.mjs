@@ -30,7 +30,8 @@ const OAuth2AuthenticationManager = {
     const lastName =
       profile._json?.last_name || profile._json?.lastName || ''
 
-    // --- existing account? (identity link, or an account with this email)
+    // --- existing account? (identity link only — see the OIDC manager for
+    // why a link-only source must not match by email)
     let user = null
     let isExisting = false
     try {
@@ -39,7 +40,7 @@ const OAuth2AuthenticationManager = {
     } catch {
       // not linked yet; keep looking
     }
-    if (!user && email) {
+    if (!user && email && !provider.behavior.linkOnly) {
       user = await User.findOne({ email: email }).exec()
       isExisting = Boolean(user)
     }

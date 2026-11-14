@@ -3,6 +3,7 @@ import passport from 'passport'
 import AuthenticationController from '../../../../../app/src/Features/Authentication/AuthenticationController.mjs'
 import Errors from '../../../../../app/src/Features/Errors/Errors.js'
 import HttpErrorHandler from '../../../../../app/src/Features/Errors/HttpErrorHandler.mjs'
+import AsyncFormHelper from '../../../../../app/src/Features/Helpers/AsyncFormHelper.mjs'
 import { endSession } from '../../../logout.mjs'
 import { emailOnAnotherAccountInfo } from '../../../utils.mjs'
 import OAuth2AuthenticationManager from './OAuth2AuthenticationManager.mjs'
@@ -17,6 +18,7 @@ function strategyName(provider) {
 const OAuth2AuthenticationController = {
   passportLogin(provider) {
     return (req, res, next) => {
+      req.session.intent = req.query.intent
       passport.authenticate(strategyName(provider))(req, res, next)
     }
   },
@@ -28,6 +30,13 @@ const OAuth2AuthenticationController = {
         async function (err, user, info) {
           if (err) {
             return next(err)
+          }
+          if (req.session.intent === 'link') {
+            delete req.session.intent
+            // Linking flow: the user is already signed in; go back to
+            // the settings page (the provider had no IdP logout to dispatch
+            // to, unlike the OIDC flow).
+            return AsyncFormHelper.redirect(req, res, '/user/settings')
           }
           if (user) {
             user.externalAuth = 'oauth2'
@@ -67,13 +76,51 @@ const OAuth2AuthenticationController = {
     return async (req, accessToken, refreshToken, profile, done) => {
       let user, info
       try {
-        ;({ user, info } =
-          await OAuth2AuthenticationController._doLogin(req, profile, provider))
+        if (req.session.intent === 'link' && req.user) {
+          // linking flow: attach the identity to the signed-in account
+          ;({ user, info } = await OAuth2AuthenticationController._doLink(
+            req,
+            profile,
+            provider
+          ))
+        } else {
+          ;({ user, info } =
+            await OAuth2AuthenticationController._doLogin(req, profile, provider))
+        }
       } catch (error) {
         return done(error)
       }
       return done(null, user, info)
     }
+  },
+  async _doLink(req, profile, provider) {
+    const { user, ip } = req
+    const auditLog = {
+      ipAddress: ip,
+      initiatorId: user._id,
+    }
+    try {
+      await OAuth2AuthenticationManager.promises.linkAccount(
+        user._id,
+        profile,
+        provider,
+        auditLog
+      )
+    } catch (error) {
+      logger.error(
+        { providerId: provider.id, err: error },
+        'OAuth2 identity link failed'
+      )
+      return {
+        user: false,
+        info: {
+          type: 'error',
+          text: 'Could not link the account',
+          status: 500,
+        },
+      }
+    }
+    return { user }
   },
   async _doLogin(req, profile, provider) {
     const { fromKnownDevice } = AuthenticationController.getAuditInfo(req)

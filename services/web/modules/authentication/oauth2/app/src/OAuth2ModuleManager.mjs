@@ -12,8 +12,15 @@ const siteUrl = () => Settings.siteUrl.replace(/\/+$/, '')
  * sources: `userUrl` gives the identity, `emailUrl` (when configured)
  * gives the email list with primary/verified flags.
  */
-function profileUrlHandler(provider) {
-  return (accessToken, refreshToken, params, profile, done) => {
+/**
+ * Build the passport `userProfile` override for one provider: fetch the user
+ * API (and optional email API) and map it to the passport profile shape.
+ * passport-oauth2's default `userProfile` returns an empty object, so this
+ * override is the extension point (subclasses like passport-github do the
+ * same).
+ */
+function userProfileFn(provider) {
+  return (accessToken, done) => {
     const { userUrl, emailUrl, apiAcceptHeader } = provider.oauth2
     const headers = {
       Accept: apiAcceptHeader || 'application/json',
@@ -81,8 +88,16 @@ function oauth2StrategyOptions(provider) {
     callbackURL: `${siteUrl()}/oauth2/${encodeURIComponent(provider.id)}/login/callback`,
     // keep per-provider session/state keys separate (same-hostname case)
     sessionKey: `overleaf-oauth2:${provider.id}`,
-    profileURL: profileUrlHandler(provider),
   }
+}
+function createStrategy(provider) {
+  const strategy = new OAuth2Strategy(
+    oauth2StrategyOptions(provider),
+    OAuth2AuthenticationController.doPassportLogin(provider)
+  )
+  strategy.name = `oauth2:${provider.id}`
+  strategy.userProfile = userProfileFn(provider)
+  return strategy
 }
 const OAuth2ModuleManager = {
   /**
@@ -139,11 +154,7 @@ const OAuth2ModuleManager = {
     for (const provider of providers) {
       let strategy
       try {
-        strategy = new OAuth2Strategy(
-          oauth2StrategyOptions(provider),
-          OAuth2AuthenticationController.doPassportLogin(provider)
-        )
-        strategy.name = `oauth2:${provider.id}`
+        strategy = createStrategy(provider)
         passport.use(strategy)
       } catch (error) {
         return callback(error)
@@ -156,16 +167,9 @@ const OAuth2ModuleManager = {
    */
   refreshStrategies(passport) {
     for (const provider of store.ofType('oauth2')) {
-      const strategy = new OAuth2Strategy(
-        oauth2StrategyOptions(provider),
-        OAuth2AuthenticationController.doPassportLogin(provider)
-      )
-      strategy.name = `oauth2:${provider.id}`
-      passport.use(strategy)
+      passport.use(createStrategy(provider))
     }
     logger.info({}, 'oauth2: passport strategies (re)registered')
   },
 }
-export default {
-  promises: OAuth2ModuleManager,
-}
+export default OAuth2ModuleManager

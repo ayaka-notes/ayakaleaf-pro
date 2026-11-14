@@ -72,7 +72,9 @@ const OIDCAuthenticationManager = {
       profile.name?.familyName || profileString(provider, profile, provider.attrs.lastName)
     const isAdmin = profileIsAdmin(provider, profile)
 
-    // --- existing account? (identity link, or an account with this email)
+    // --- existing account? (identity link only — a link-only source must
+    // not match accounts by email: the iD owner and the email owner need
+    // not be the same person, so only an explicit link may grant access)
     let user = null
     let isExisting = false
     try {
@@ -85,7 +87,7 @@ const OIDCAuthenticationManager = {
     } catch {
       // not linked yet; keep looking
     }
-    if (!user && email) {
+    if (!user && email && !provider.behavior.linkOnly) {
       user = await User.findOne({ 'email': email }).exec()
       isExisting = Boolean(user)
     }
