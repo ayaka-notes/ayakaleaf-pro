@@ -1,0 +1,25 @@
+extends ../../../../app/views/layout/layout-no-js
+
+block vars
+	- metadata = {title: 'Instance status', viewport: true}
+
+block body
+	if grafanaPath
+		style.
+			html, body {
+				height: 100%;
+				margin: 0;
+			}
+
+			#status-frame {
+				display: block;
+				width: 100%;
+				height: 100vh;
+				border: 0;
+			}
+		iframe#status-frame(src=grafanaPath)
+	else
+		body.full-height
+			main#main-content.content.content-alt
+				.container
+					p Instance status is not configured (settings.grafana.internal_url is empty).

@@ -1,0 +1,12 @@
+# D22-style shared datasource provisioning (reference: build-images/grafana):
+# pinned uid so every dashboard JSON can hard-reference it; url points at
+# this stack's prometheus container name.
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

@@ -1,0 +1,3 @@
+.env
+test/baseline-*.json
+test/baseline-*.txt
