@@ -228,13 +228,18 @@ describe('SAML login of a disabled account', function () {
 })
 
 describe('SAML audit log', function () {
-  it('tells about the account a first login creates and links', function () {
+  it('tells about the account a first login creates and links, and whether it is an admin', function () {
     samlLogin('dave')
+    samlLogin('alice')
     samlLogin('carol')
     expectOwnAuditEntry(idpEmail('dave'), 'create-account')
-      .its('info.method')
-      .should('equal', 'SAML login')
+      .its('info')
+      .should('include', { method: 'SAML login', isAdmin: false })
     expectOwnAuditEntry(idpEmail('dave'), 'link-institution-sso')
+    // Group containing Admins makes an admin from the first login on
+    expectOwnAuditEntry(idpEmail('alice'), 'create-account')
+      .its('info.isAdmin')
+      .should('equal', true)
   })
 
   it('tells when a login takes over a local account and removes its password', function () {

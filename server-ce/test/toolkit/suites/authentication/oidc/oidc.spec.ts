@@ -330,13 +330,17 @@ describe('OIDC login of a disabled account', function () {
 })
 
 describe('OIDC audit log', function () {
-  it('tells about the account a first login creates and links', function () {
+  it('tells about the account a first login creates and links, and whether it is an admin', function () {
     oidcLogin('dave')
     oidcLogin('alice')
     expectOwnAuditEntry(idpEmail('dave'), 'create-account')
-      .its('info.method')
-      .should('equal', 'OIDC login')
+      .its('info')
+      .should('include', { method: 'OIDC login', isAdmin: false })
     expectOwnAuditEntry(idpEmail('dave'), 'link-sso')
+    // groups containing Admins make an admin from the first login on
+    expectOwnAuditEntry(idpEmail('alice'), 'create-account')
+      .its('info.isAdmin')
+      .should('equal', true)
   })
 
   it('tells when a login changes the admin flag and the name', function () {

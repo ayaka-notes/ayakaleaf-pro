@@ -1,5 +1,6 @@
 import { v4 as uuid } from 'uuid'
-import { DEFAULT_PASSWORD } from '../../../../helpers/login'
+import { auditEntries } from '../../../../helpers/auditLog'
+import { DEFAULT_PASSWORD, login } from '../../../../helpers/login'
 import {
   activationLink,
   emailsTo,
@@ -7,6 +8,7 @@ import {
   waitForEmail,
 } from '../../../../helpers/mailpit'
 import { postRegister } from '../../../../helpers/register'
+import { ADMIN_EMAIL, ensureAdminExists } from '../../../../helpers/users'
 
 // login-register module with OVERLEAF_ALLOW_PUBLIC_REGISTRATION=@example.com:
 // only that domain can sign up, with the email alone. A successful sign up
@@ -92,5 +94,14 @@ describe('activation email of a sign up', function () {
     refuseEmails(false)
     postRegister({ email }).its('status').should('equal', 200)
     waitForEmail(email).should('contain', '/user/activate?token=')
+
+    // the account is on its own audit log once: the second sign up only sent
+    // the email again
+    ensureAdminExists()
+    login(ADMIN_EMAIL)
+    auditEntries(email, 'create-account').then(entries => {
+      expect(entries).to.have.length(1)
+      expect(entries[0].initiatorEmail).to.equal(email)
+    })
   })
 })

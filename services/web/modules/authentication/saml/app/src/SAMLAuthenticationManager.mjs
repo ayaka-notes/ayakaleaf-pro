@@ -55,7 +55,9 @@ const SAMLAuthenticationManager = {
             analyticsId: crypto.randomUUID(),
           }
         )
-        await logLoginEntry(user, 'create-account', auditLog)
+        await logLoginEntry(user, 'create-account', auditLog, {
+          isAdmin: Boolean(user.isAdmin),
+        })
       }
       // cannot use SAMLIdentityManager.linkAccounts because affilations service is not there
       await User.updateOne(

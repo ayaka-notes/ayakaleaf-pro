@@ -1,5 +1,6 @@
 import { v4 as uuid } from 'uuid'
 import { setSuspended } from '../../../helpers/adminTools'
+import { expectOwnAuditEntry } from '../../../helpers/auditLog'
 import { DEFAULT_PASSWORD, login } from '../../../helpers/login'
 import { resetRecaptchaMock, verifiedTokens } from '../../../helpers/recaptcha'
 import { postRegister, waitForRegisterSlot } from '../../../helpers/register'
@@ -161,6 +162,10 @@ describe('register', function () {
     cy.findByLabelText('Password').type(DEFAULT_PASSWORD)
     cy.findByRole('button', { name: 'Login' }).click()
     cy.url().should('contain', '/project')
+
+    // the account is on its own audit log
+    login(ADMIN_EMAIL)
+    expectOwnAuditEntry(email, 'create-account')
   })
 
   it('rejects 123456 as too short', function () {
