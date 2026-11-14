@@ -1,6 +1,27 @@
 const Path = require('node:path')
 const os = require('node:os')
 const fs = require('node:fs')
+const { mirrorIntoEnv } = require('@overleaf/settings/admin-settings')
+
+// Admin-managed settings (the Site Settings admin page, /admin/site-settings):
+// the stored values hydrate the env vars this service reads. External docker
+// env (compose) always wins — a non-empty env var is never touched here.
+mirrorIntoEnv([
+  ['SANDBOXED_COMPILES', 'sandboxed-compiles', 'enabled'],
+  ['SANDBOXED_COMPILES_HOST_DIR', 'sandboxed-compiles', 'hostDir'],
+  ['COMPILES_HOST_DIR', 'sandboxed-compiles', 'hostDir'],
+  ['DOCKER_RUNNER', 'sandboxed-compiles', 'dockerRunner'],
+  ['TEXLIVE_IMAGE_USER', 'sandboxed-compiles', 'imageUser'],
+  ['TEX_LIVE_DOCKER_IMAGE', 'sandboxed-compiles', 'defaultImage'],
+  ['COMPILE_SIZE_LIMIT', 'sandboxed-compiles', 'compileSizeLimit'],
+  ['TEXLIVE_OPENOUT_ANY', 'sandboxed-compiles', 'texliveOpenoutAny'],
+  ['TEXLIVE_MAX_PRINT_LINE', 'sandboxed-compiles', 'texliveMaxPrintLine'],
+  ['ENABLE_PANDOC_CONVERSIONS', 'conversions', 'pandocEnabled'],
+  ['ENABLE_PDF_CONVERSIONS', 'conversions', 'pdfConversions'],
+  ['ENABLE_PNG2PDF_CONVERSIONS', 'conversions', 'png2pdfConversions'],
+  ['CLSI_CONVERSION_TIMEOUT_SECONDS', 'conversions', 'conversionTimeoutSeconds'],
+  ['PRECIOUS_FILE_PATTERN', 'editor', 'preciousFilePattern'],
+])
 
 const isSpotInstance = process.env.PREEMPTIBLE === 'TRUE'
 const CLSI_SERVER_ID = os.hostname().replace('-ctr', '')

@@ -1,6 +1,15 @@
 /* eslint-disable camelcase */
 const http = require('node:http')
 const https = require('node:https')
+const { mirrorIntoEnv } = require('@overleaf/settings/admin-settings')
+
+// Admin-managed settings (Site Settings admin page): the stored values
+// hydrate the env vars this service reads. External docker env (compose)
+// always wins — a non-empty env var is never touched here.
+mirrorIntoEnv([
+  ['MAX_UPDATE_SIZE', 'editor', 'maxUpdateSize'],
+  ['REAL_TIME_ALLOWED_CORS_ORIGINS', 'security', 'realTimeAllowedCorsOrigins'],
+])
 
 http.globalAgent.keepAlive = false
 https.globalAgent.keepAlive = false

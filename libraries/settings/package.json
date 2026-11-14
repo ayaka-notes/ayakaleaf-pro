@@ -4,6 +4,9 @@
   "version": "3.0.0",
   "repository": "overleaf/settings-module",
   "main": "index.js",
+  "dependencies": {
+    "mongodb": "6.12.0"
+  },
   "scripts": {
     "lint": "eslint --cache --cache-location ../../.cache/eslint/ --ext .cjs,.js,.jsx,.mjs,.ts --max-warnings 0 .",
     "lint:fix": "eslint --cache --cache-location ../../.cache/eslint/ --fix --ext .cjs,.js,.jsx,.mjs,.ts .",

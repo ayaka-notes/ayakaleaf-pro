@@ -4,6 +4,109 @@ const {
   DEFAULT_TEXT_EXTENSIONS,
   DEFAULT_EDITABLE_FILENAMES,
 } = require('overleaf-editor-core/lib/text_file_defaults')
+const { mirrorIntoEnv } = require('@overleaf/settings/admin-settings')
+
+// Admin-managed settings (the Site Settings admin page, /admin/site-settings,
+// stored in the site_settings collection): the stored values hydrate the
+// env vars this service reads. EXTERNAL DOCKER ENV (compose) ALWAYS WINS —
+// a non-empty env var is never touched here; the stored value applies where
+// the var is unset or empty (see libraries/settings/admin-settings.js).
+mirrorIntoEnv([
+  // sandboxed compiles (the web flags)
+  ['SANDBOXED_COMPILES', 'sandboxed-compiles', 'enabled'],
+  ['DOCKER_RUNNER', 'sandboxed-compiles', 'dockerRunner'],
+  // conversions
+  ['ENABLE_PANDOC_CONVERSIONS', 'conversions', 'pandocEnabled'],
+  // git integration
+  ['GIT_BRIDGE_ENABLED', 'git-integration', 'enabled'],
+  ['GIT_BRIDGE_HOST', 'git-integration', 'host'],
+  ['GIT_BRIDGE_PORT', 'git-integration', 'port'],
+  // github sync (module reads its env at load)
+  ['GITHUB_SYNC_ENABLED', 'github-sync', 'enabled'],
+  ['GITHUB_SYNC_CLIENT_ID', 'github-sync', 'clientId'],
+  ['GITHUB_SYNC_CLIENT_SECRET', 'github-sync', 'clientSecret'],
+  ['GITHUB_TOKEN_CIPHER_FILE', 'github-sync', 'cipherFile'],
+  ['GITHUB_TOKEN_CIPHER_LABEL', 'github-sync', 'cipherLabel'],
+  // dropbox (module reads its env at load)
+  ['DROPBOX_ENABLED', 'dropbox', 'enabled'],
+  ['DROPBOX_APP_KEY', 'dropbox', 'appKey'],
+  ['DROPBOX_APP_SECRET', 'dropbox', 'appSecret'],
+  ['DROPBOX_API_DOMAIN', 'dropbox', 'apiDomain'],
+  // email
+  ['EMAIL_CONFIRMATION_DISABLED', 'email', 'skipConfirmation'],
+  ['OVERLEAF_EMAIL_FROM_ADDRESS', 'email', 'fromAddress'],
+  ['OVERLEAF_EMAIL_REPLY_TO', 'email', 'replyTo'],
+  ['OVERLEAF_EMAIL_DRIVER', 'email', 'driver'],
+  ['OVERLEAF_EMAIL_SMTP_HOST', 'email', 'host'],
+  ['OVERLEAF_EMAIL_SMTP_PORT', 'email', 'port'],
+  ['OVERLEAF_EMAIL_SMTP_SECURE', 'email', 'secure'],
+  ['OVERLEAF_EMAIL_SMTP_IGNORE_TLS', 'email', 'ignoreTLS'],
+  ['OVERLEAF_EMAIL_SMTP_NAME', 'email', 'name'],
+  ['OVERLEAF_EMAIL_SMTP_USER', 'email', 'user'],
+  ['OVERLEAF_EMAIL_SMTP_PASS', 'email', 'pass'],
+  ['OVERLEAF_EMAIL_AWS_SES_ACCESS_KEY_ID', 'email', 'accessKeyId'],
+  ['OVERLEAF_EMAIL_AWS_SES_SECRET_KEY', 'email', 'sesSecret'],
+  ['OVERLEAF_EMAIL_AWS_SES_REGION', 'email', 'sesRegion'],
+  ['OVERLEAF_ADMIN_EMAIL', 'email', 'adminEmail'],
+  ['OVERLEAF_CUSTOM_EMAIL_FOOTER', 'email', 'customFooter'],
+  ['ENABLE_ONBOARDING_EMAILS', 'email', 'enableOnboardingEmails'],
+  // linked files / external URLs
+  ['ENABLED_LINKED_FILE_TYPES', 'linked-file-types', 'enabledTypes'],
+  ['OVERLEAF_LINKED_URL_BLOCKED_NETWORKS', 'externalUrl', 'blockedNetworks'],
+  ['OVERLEAF_LINKED_URL_ALLOWED_RESOURCES', 'externalUrl', 'allowedResourcesRegex'],
+  // templates
+  ['OVERLEAF_TEMPLATE_GALLERY', 'templates', 'enabled'],
+  ['OVERLEAF_NON_ADMIN_CAN_PUBLISH_TEMPLATES', 'templates', 'nonAdminCanPublishTemplates'],
+  // SSO (the authentication modules read their env at load)
+  ['OVERLEAF_SAML_ISSUER', 'sso-saml', 'issuer'],
+  ['OVERLEAF_SAML_ENTRYPOINT', 'sso-saml', 'entryPoint'],
+  ['OVERLEAF_SAML_IDP_CERT', 'sso-saml', 'idpCert'],
+  ['OVERLEAF_SAML_PRIVATE_KEY', 'sso-saml', 'privateKey'],
+  ['OVERLEAF_SAML_DECRYPTION_PVK', 'sso-saml', 'decryptionPvk'],
+  ['OVERLEAF_OIDC_ISSUER', 'sso-oidc', 'issuer'],
+  ['OVERLEAF_OIDC_CLIENT_ID', 'sso-oidc', 'clientID'],
+  ['OVERLEAF_OIDC_CLIENT_SECRET', 'sso-oidc', 'clientSecret'],
+  ['OVERLEAF_OIDC_AUTHORIZATION_URL', 'sso-oidc', 'authorizationURL'],
+  ['OVERLEAF_OIDC_TOKEN_URL', 'sso-oidc', 'tokenURL'],
+  ['OVERLEAF_LDAP_URL', 'sso-ldap', 'url'],
+  ['OVERLEAF_LDAP_SEARCH_BASE', 'sso-ldap', 'searchBase'],
+  ['OVERLEAF_LDAP_BIND_DN', 'sso-ldap', 'bindDN'],
+  ['OVERLEAF_LDAP_BIND_CREDENTIALS', 'sso-ldap', 'bindCredentials'],
+  ['OVERLEAF_LDAP_SEARCH_FILTER', 'sso-ldap', 'searchFilter'],
+  // editor
+  ['ADDITIONAL_TEXT_EXTENSIONS', 'editor', 'additionalTextExtensions'],
+  ['FILE_IGNORE_PATTERN', 'editor', 'fileIgnorePattern'],
+  ['MAX_JSON_REQUEST_SIZE', 'editor', 'maxJsonRequestSize'],
+  ['COMMENT_MENTION_DELAY_MS', 'editor', 'commentMentionDelayMs'],
+  // security
+  ['ADMIN_ONLY_LOGIN', 'security', 'adminOnlyLogin'],
+  ['BLOCK_CROSS_ORIGIN_REQUESTS', 'security', 'blockCrossOriginRequests'],
+  ['ALLOWED_ORIGINS', 'security', 'allowedOrigins'],
+  ['CSP_ENABLED', 'security', 'cspEnabled'],
+  ['CSP_REPORT_ONLY', 'security', 'cspReportOnly'],
+  ['CSP_REPORT_URI', 'security', 'cspReportUri'],
+  ['ELEVATED_ACCOUNT_SECURITY_AFTER_FAILED_LOGIN_MS', 'security', 'elevatedAccountSecurityAfterFailedLoginMs'],
+  // sharing & access
+  ['OVERLEAF_ALLOW_PUBLIC_ACCESS', 'sharing', 'allowPublicAccess'],
+  ['OVERLEAF_ALLOW_ANONYMOUS_READ_AND_WRITE_SHARING', 'sharing', 'allowAnonymousReadWriteSharing'],
+  ['OVERLEAF_DISABLE_LINK_SHARING', 'sharing', 'disableLinkSharing'],
+  ['OVERLEAF_DISABLE_CHAT', 'sharing', 'disableChat'],
+  // misc
+  ['APP_NAME', 'misc', 'appName'],
+  ['NAV_HIDE_POWERED_BY', 'misc', 'navHidePoweredBy'],
+  ['ROBOTS_NOINDEX', 'misc', 'robotsNoindex'],
+  ['OVERLEAF_PROJECT_HARD_DELETION_DELAY', 'misc', 'projectHardDeletionDelayMs'],
+  ['OVERLEAF_USER_HARD_DELETION_DELAY', 'misc', 'userHardDeletionDelayMs'],
+  ['OVERLEAF_HISTORY_RESTORE', 'misc', 'historyRestore'],
+  ['ENABLE_PDF_CACHING', 'misc', 'enablePdfCaching'],
+  ['MAX_UPLOAD_SIZE', 'misc', 'maxUploadSizeMb'],
+  ['MAX_ENTITIES_PER_PROJECT', 'misc', 'maxEntitiesPerProject'],
+  ['DEFAULT_LATEX_COMPILER', 'misc', 'defaultLatexCompiler'],
+  ['PROJECT_CHANGE_NOTIFICATION_MIN_DELAY_MS', 'misc', 'projectChangeNotificationDelayMs'],
+  // service URLs
+  ['V1_HISTORY_URL', 'services', 'v1HistoryUrl'],
+  ['WIKI_URL', 'services', 'wikiUrl'],
+])
 
 let defaultFeatures, siteUrl
 

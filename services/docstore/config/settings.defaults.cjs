@@ -1,5 +1,15 @@
 const http = require('node:http')
 const https = require('node:https')
+const { mirrorIntoEnv } = require('@overleaf/settings/admin-settings')
+
+// Admin-managed settings (Site Settings admin page): the stored values
+// hydrate the env vars this service reads. External docker env (compose)
+// always wins — a non-empty env var is never touched here.
+mirrorIntoEnv([
+  ['MAX_DOC_LENGTH', 'editor', 'maxDocLength'],
+  ['ARCHIVE_ON_SOFT_DELETE', 'misc', 'archiveOnSoftDelete'],
+  ['KEEP_SOFT_DELETED_DOCS_ARCHIVED', 'misc', 'keepSoftDeletedDocsArchived'],
+])
 
 http.globalAgent.maxSockets = 300
 http.globalAgent.keepAlive = false
