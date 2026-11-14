@@ -458,6 +458,24 @@ const _ProjectController = {
 
   async newProject(req, res) {
     const currentUser = SessionManager.getSessionUser(req.session)
+    // SSO invited users: accounts auto-created through the SSO
+    // invited-user exception are holding accounts. They may use the
+    // projects they were invited to, but may not create new projects
+    // until an administrator establishes them (unless the
+    // `sso.invitedUsersCanCreateProjects` setting is true).
+    if (
+      currentUser?.holdingAccount === true &&
+      Settings.sso?.invitedUsersCanCreateProjects === false
+    ) {
+      return res.status(403).json({
+        message: {
+          type: 'error',
+          text: req.i18n
+            ? req.i18n.translate('sso_invited_user_cannot_create_project')
+            : 'Invited accounts cannot create new projects yet. An administrator must establish your account first.',
+        },
+      })
+    }
     const {
       first_name: firstName,
       last_name: lastName,

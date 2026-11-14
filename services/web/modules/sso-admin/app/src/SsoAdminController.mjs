@@ -227,6 +227,38 @@ const SsoAdminController = {
       ops: FILTER_OPS,
     })
   },
+
+  /**
+   * Establish a holding account (an SSO account auto-created through the
+   * invited-user exception): clears `holdingAccount` so the user may create
+   * new projects. Body: { userId } (or { email }).
+   */
+  async establishUser(req, res) {
+    const { default: User } = await import(
+      '../../../app/src/models/User.mjs'
+    )
+    const body = req.body || {}
+    const userId = body.userId
+    const email = typeof body.email === 'string' ? body.email.toLowerCase() : null
+    let user = null
+    if (userId) {
+      user = await User.findOne({ _id: userId }).exec().catch(() => null)
+    }
+    if (!user && email) {
+      user = await User.findOne({ $or: [{ email }, { 'secondaryEmails.email': email }] })
+        .exec()
+        .catch(() => null)
+    }
+    if (!user) {
+      return fail(res, 404, 'User not found')
+    }
+    user.holdingAccount = false
+    await user.save()
+    res.json({
+      ok: true,
+      user: { _id: String(user._id), email: user.email, holdingAccount: false },
+    })
+  },
 }
 
 export default SsoAdminController

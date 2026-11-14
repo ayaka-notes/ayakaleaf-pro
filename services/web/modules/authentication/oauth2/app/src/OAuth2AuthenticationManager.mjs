@@ -81,11 +81,13 @@ const OAuth2AuthenticationManager = {
         return { user: null, accessDenied: { reason: 'email-domain' } }
       }
       await UserGetter.promises.ensureUniqueEmailAddress(email)
+      // Invited-user exception: created as a holding account (see OIDC
+      // manager) — no new projects until established.
       user = await UserCreator.promises.createNewUser({
         email: email,
         first_name: firstName,
         last_name: lastName,
-        holdingAccount: false,
+        holdingAccount: String(access?.reason || '').startsWith('invited-'),
         analyticsId: crypto.randomUUID(),
       })
       await logLoginEntry(user, 'create-account', auditLog)

@@ -128,12 +128,16 @@ const OIDCAuthenticationManager = {
         return { user: null, accessDenied: { reason: 'email-domain' } }
       }
       await UserGetter.promises.ensureUniqueEmailAddress(email)
+      // Invited-user exception: the account is auto-created but marked as a
+      // holding account — it may use the invited projects, but (per the
+      // `sso.invitedUsersCanCreateProjects` setting) may not create new
+      // ones until an administrator establishes it.
       user = await UserCreator.promises.createNewUser({
         email: email,
         first_name: firstName,
         last_name: lastName,
         isAdmin: isAdmin,
-        holdingAccount: false,
+        holdingAccount: String(access?.reason || '').startsWith('invited-'),
         analyticsId: crypto.randomUUID(),
       })
       await logLoginEntry(user, 'create-account', auditLog)

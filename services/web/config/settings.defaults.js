@@ -425,6 +425,15 @@ module.exports = {
     personal: defaultFeatures,
   },
 
+  sso: {
+    // Accounts auto-created through the SSO invited-user exception are
+    // created as *holding accounts*: they can use the projects they were
+    // invited to, but may not create new projects until an administrator
+    // establishes the account. Set to true to let invited SSO users create
+    // new projects immediately.
+    invitedUsersCanCreateProjects: false,
+  },
+
   aiFeatures: {
     freeQuota: 'free',
     standardQuota: 'standard',

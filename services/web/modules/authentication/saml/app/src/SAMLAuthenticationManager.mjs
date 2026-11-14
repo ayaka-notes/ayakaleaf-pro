@@ -78,12 +78,14 @@ const SAMLAuthenticationManager = {
 
     if (!user) {
       await UserGetter.promises.ensureUniqueEmailAddress(email)
+      // Invited-user exception: created as a holding account (see OIDC
+      // manager) — no new projects until established.
       user = await UserCreator.promises.createNewUser({
         email: email,
         first_name: firstName,
         last_name: lastName,
         isAdmin: isAdmin,
-        holdingAccount: false,
+        holdingAccount: String(access?.reason || '').startsWith('invited-'),
         samlIdentifiers: [{ providerId: provider.id }],
         analyticsId: crypto.randomUUID(),
       })

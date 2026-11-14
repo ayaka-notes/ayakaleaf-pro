@@ -63,6 +63,12 @@ const router = {
       SsoAdminController.remove
     )
     webRouter.get('/admin/auths/catalog', ensureAdmin, SsoAdminController.catalog)
+    // establish a holding account (SSO invited-user JIT account)
+    webRouter.post(
+      '/admin/auths/users/:userId/establish',
+      ensureAdmin,
+      SsoAdminController.establishUser
+    )
   },
 }
 
