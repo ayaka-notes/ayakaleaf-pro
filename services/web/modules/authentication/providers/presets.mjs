@@ -147,13 +147,27 @@ export function listPresets() {
  */
 export function applyPreset(presetName, type, provider) {
   if (!presetName) return provider
-  const preset = PRESETS[presetName]
+  let preset = PRESETS[presetName]
+  let presetType = type
+  // Known-provider templates (github, google, orcid, …) double as presets:
+  // their `defaults.attrs` are the only preset-side defaults that matter
+  // here — endpoints/behavior are already part of the provider object.
+  if (!preset && KNOWN_PROVIDERS[presetName]) {
+    const known = KNOWN_PROVIDERS[presetName]
+    preset = {
+      name: known.label,
+      description: 'Known provider template',
+      [known.type]: { attrs: known.defaults.attrs || {} },
+      filter: { allow: [], deny: [] },
+    }
+    presetType = known.type
+  }
   if (!preset) {
     throw new Error(
-      `unknown preset "${presetName}" (available: ${Object.keys(PRESETS).join(', ')})`
+      `unknown preset "${presetName}" (available: ${[...Object.keys(PRESETS), ...Object.keys(KNOWN_PROVIDERS)].join(', ')})`
     )
   }
-  const defaults = preset[type] || {}
+  const defaults = preset[presetType] || {}
   const out = { ...provider }
   // attrs: preset first, provider overrides key-by-key
   const presetAttrs = { ...(defaults.attrs || {}) }

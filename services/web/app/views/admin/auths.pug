@@ -9,109 +9,107 @@ block content
 						.card-body
 							.page-header
 								h1 #{title}
-
 							if message
 								.alert.alert-success #{message}
 							if error
 								.alert.alert-danger #{error}
-
 							if !form
-															// ---------------- provider list ----------------
-															p
-																| SSO sources — OIDC providers, OAuth2 apps and SAML IdPs — and
-																| their profile filters. Each source gets its own button on the
-																| login page. Profiles are checked against the filter on every
-																| login: 
-																code deny
-																|  rules block; 
-																code allow
-																|  rules (when set) require a match.
-															p
-																| Existing accounts 
-																code (allowExistingUsers)
-																|  and invited collaborators
-																code (allowInvited)
-																|  can be exempted per source.
-															if file
-																p.text-muted
-																	| The file-based providers are stored in 
-																	code #{file}
-																	|  — you can edit that file directly and save it here (or restart 
-																	| the server).
-															else
-																p.text-muted
-																	| No provider file is configured yet. Create a provider below;
-																	| it will be written to 
-																	code config/ssos.providers.json
-																	|  (override with 
-																	code OVERLEAF_SSO_PROVIDERS_FILE
-																	| ).
-															.d-flex.flex-wrap.align-items-center.gap-2.mb-3
-																a.btn.btn-primary(href='/admin/auths/new?type=oidc')
-																	| New SSO source
-																span.text-muted.ms-1 Quick start:
-																a.btn.btn-secondary(href='/admin/auths/new?type=oidc&preset=google') Google (OIDC)
-																a.btn.btn-secondary(href='/admin/auths/new?type=oidc&preset=orcid') ORCID (link-only)
-																a.btn.btn-secondary(href='/admin/auths/new?type=oauth2&preset=github') GitHub (OAuth2)
-																a.btn.btn-secondary(href='/admin/auths/new?type=oauth2&preset=gitlab') GitLab (OAuth2)
-																a.btn.btn-secondary(href='/admin/auths/new?type=oauth2&preset=gitea') Gitea / Forgejo (OAuth2)
-																a.btn.btn-secondary(href='/admin/auths/new?type=saml&preset=edugain') SAML IdP (EduGAIN)
-															.d-flex.flex-wrap.gap-2.mb-3
-																a.btn.btn-sm.btn-outline-secondary(href='/admin/auths/new?type=oidc') Blank OIDC
-																a.btn.btn-sm.btn-outline-secondary(href='/admin/auths/new?type=oauth2') Blank OAuth2
-																a.btn.btn-sm.btn-outline-secondary(href='/admin/auths/new?type=saml') Blank SAML
-																a.btn.btn-sm.btn-outline-secondary(href='/admin/auths/new?type=saml&preset=edugain') Blank SAML + EduGAIN attributes
-															if !providers.length
-																.alert.alert-info No SSO sources configured yet.
-															else
-																table.table.table-hover.align-middle
-																	thead
-																		tr
-																			th Name
-																			th Type
-																			th ID
-																			th Filter
-																			th Enabled
-																			th Source
-																			th.text-end Actions
-																	tbody
-																		each provider in providers
-																			tr
-																				td.fw-semibold #{provider.name}
-																				td
-																					if provider.type === 'oidc'
-																						span.badge.text-bg-primary OIDC
-																					else if provider.type === 'oauth2'
-																						span.badge.text-bg-info OAuth2
-																					else
-																						span.badge.text-bg-secondary SAML
-																				td
-																					code #{provider.id}
-																				td
-																					if provider.filter.deny.length || provider.filter.allow.length
-																						span #{provider.filter.deny.length} deny / #{provider.filter.allow.length} allow
-																					else
-																						span.text-muted none
-																				td
-																					if provider.source !== 'env'
-																						form(method='post' action=`/admin/auths/${provider.id}/toggle`)
-																							input(name='_csrf' type='hidden' value=csrfToken)
-																							input(type='checkbox' checked=provider.enabled)
-																					else
-																						span.text-muted env
-																				td
-																					if provider.source === 'env'
-																						span.badge.text-bg-light.border env
-																					else
-																						| file
-																				td.text-end
-																					if provider.source !== 'env'
-																						a.me-2(href=`/admin/auths/${provider.id}/edit`) Edit
-																						form.d-inline(method='post' action=`/admin/auths/${provider.id}/delete` onsubmit="return confirm('Delete this SSO source? Users linked to it keep their accounts, but this source is no longer offered on the login page.')")
-																							input(name='_csrf' type='hidden' value=csrfToken)
-																							button.btn.btn-sm.btn-outline-danger(type='submit') Delete
-																					else
-																						span.text-muted read-only
+								// ---------------- provider list ----------------
+								p
+									| One card per SSO source (OIDC / OAuth2 / SAML). Each source gets its own login button
+									| and its own attribute mapping, behavior flags and profile filter. Profiles are checked
+									| against the filter on every login and link:
+									code deny
+									|  rules block;
+									code allow
+									|  rules (when set) require a match.
+									| Two exceptions are exempt: existing accounts
+									code (allowExistingUsers)
+									|  and collaborators with a pending invite
+									code (allowInvited)
+									| .
+								if file
+									p.text-muted
+										| The file-based providers are stored in
+										code #{file}
+										|  — you can edit that file directly and save it here (or restart
+										| the server).
+								else
+									p.text-muted
+										| No provider file is configured yet. Create a provider below;
+										| it will be written to
+										code config/ssos.providers.json
+										|  (override with
+										code OVERLEAF_SSO_PROVIDERS_FILE
+										| ).
+								.d-flex.flex-wrap.align-items-center.gap-2.mb-2
+									a.btn.btn-primary(href='/admin/auths/new?type=oidc')
+										| New SSO source
+								.d-flex.flex-wrap.align-items-center.gap-2.mb-3
+									span.text-muted.me-2
+										strong Quick start:
+									a.btn.btn-secondary(href='/admin/auths/new?type=oidc&preset=google') Google (OIDC)
+									a.btn.btn-secondary(href='/admin/auths/new?type=oidc&preset=orcid') ORCID (link-only)
+									a.btn.btn-secondary(href='/admin/auths/new?type=oauth2&preset=github') GitHub (OAuth2)
+									a.btn.btn-secondary(href='/admin/auths/new?type=oauth2&preset=gitlab') GitLab (OAuth2)
+									a.btn.btn-secondary(href='/admin/auths/new?type=oauth2&preset=gitea') Gitea / Forgejo (OAuth2)
+									a.btn.btn-secondary(href='/admin/auths/new?type=saml&preset=edugain') SAML IdP (EduGAIN)
+								.d-flex.flex-wrap.gap-2.mb-3
+									a.btn.btn-sm.btn-outline-secondary(href='/admin/auths/new?type=oidc') Blank OIDC
+									a.btn.btn-sm.btn-outline-secondary(href='/admin/auths/new?type=oauth2') Blank OAuth2
+									a.btn.btn-sm.btn-outline-secondary(href='/admin/auths/new?type=saml') Blank SAML
+									a.btn.btn-sm.btn-outline-secondary(href='/admin/auths/new?type=saml&preset=edugain') Blank SAML + EduGAIN attributes
+								if !providers.length
+									.alert.alert-info No SSO sources configured yet.
+								else
+									table.table.table-hover.align-middle
+										thead
+											tr
+												th Name
+												th Type
+												th ID
+												th Filter
+												th Enabled
+												th Source
+												th.text-end Actions
+										tbody
+											each provider in providers
+												tr
+													td.fw-semibold #{provider.name}
+													td
+														if provider.type === 'oidc'
+															span.badge.text-bg-primary OIDC
+														else if provider.type === 'oauth2'
+															span.badge.text-bg-info OAuth2
+														else
+															span.badge.text-bg-secondary SAML
+													td
+														code #{provider.id}
+													td
+														if provider.filter.deny.length || provider.filter.allow.length
+															span #{provider.filter.deny.length} deny / #{provider.filter.allow.length} allow
+														else
+															span.text-muted none
+													td
+														if provider.source !== 'env'
+															form(method='post' action=`/admin/auths/${provider.id}/toggle`)
+																input(name='_csrf' type='hidden' value=csrfToken)
+																input(type='checkbox' checked=provider.enabled)
+														else
+															span.text-muted env
+													td
+														if provider.source === 'env'
+															span.badge.text-bg-light.border env
+														else
+															| file
+													td.text-end
+														if provider.source !== 'env'
+															a.me-2(href=`/admin/auths/${provider.id}/edit`) Edit
+															form.d-inline(method='post' action=`/admin/auths/${provider.id}/delete` onsubmit="return confirm('Delete this SSO source? Users linked to it keep their accounts, but this source is no longer offered on the login page.')")
+																input(name='_csrf' type='hidden' value=csrfToken)
+																button.btn.btn-sm.btn-outline-danger(type='submit') Delete
+														else
+															span.text-muted read-only
 							if form
 								// ---------------- new / edit form ----------------
 								if form.readOnly
@@ -126,7 +124,7 @@ block content
 										| ). Change the environment to modify it, or create a file-based
 										| provider with a different id (the file version then wins).
 								if !form.readOnly
-									form(method='post' action=(form.mode === 'new' ? '/admin/auths' : `/admin/auths/${form.id}`))
+									form#sso-form(method='post' action=(form.mode === 'new' ? '/admin/auths' : `/admin/auths/${form.id}`))
 										input(name='_csrf' type='hidden' value=csrfToken)
 										input(type='hidden' name='mode' value=form.mode)
 										if form.hints && form.hints.length
@@ -139,33 +137,492 @@ block content
 											p.form-text
 												| Callback (redirect) URI to register with the identity provider:
 												code #{form.callbackPath}
-										.form-group
-											label.form-label(for='config') Provider configuration (JSON)
-											p.form-text
-												| The provider is validated server-side before it is saved.
-												| The
-												code attrs
-												|  section maps profile fields to user fields.
-												|
-												code filter.allow
-												|  /
-												code filter.deny
-												|  hold the profile filter rules.
-												|
-												code filter.allowExistingUsers
-												|  and
-												code filter.allowInvited
-												|  exempt existing accounts and invited collaborators.
-											textarea#config.form-control.config-editor(
-												name='config'
-												rows='24'
-												spellcheck='false'
-											) #{form.json}
-										.d-flex
+										.nav.nav-underline.mb-3
+											button#tab-form.nav-link.active(type='button') Form
+											button#tab-json.nav-link(type='button') JSON
+										input#sso-ops-hidden(type='hidden' value=JSON.stringify(ops))
+										// ================= FORM MODE =================
+										#pane-form
+											.card.border-0.mb-3
+												.card-body
+													h6.text-uppercase.text-secondary.mb-3 Identity
+													.row
+														.col-md-4
+															label.form-label(for='f-id') ID
+															input#f-id.form-control(placeholder='github')
+															small.form-text.text-muted
+																| URL-safe id (a-z 0-9 . _ -). Used in the login URLs —
+																| changing it later changes the link target.
+														.col-md-8
+															label.form-label(for='f-name') Display name
+															input#f-name.form-control(placeholder='University login (EduGAIN)')
+															small.form-text.text-muted Shown on the login button and in messages.
+													.row
+														.col-md-4
+															.form-check.form-switch.mb-2
+																input#f-enabled.form-check-input(type='checkbox' checked)
+																label.form-check-label(for='f-enabled') Enabled
+															small.form-text.text-muted
+																| Disabled sources are hidden from the login page and
+																| their callback is refused.
+											.card.border-0.mb-3
+												.card-body
+													h6.text-uppercase.text-secondary.mb-3 Provider endpoints
+													#type-oidc
+														.row
+															.col-md-6
+																label.form-label(for='oidc-issuer') Issuer / discovery
+																input#oidc-issuer.form-control(data-path='oidc.issuer' placeholder='https://idp.example.org')
+																small.form-text.text-muted
+																	| e.g.
+																	code https://accounts.google.com
+																	|  or your federation gateway
+															.col-md-6
+																label.form-label(for='oidc-clientId') Client ID
+																input#oidc-clientId.form-control(data-path='oidc.clientId')
+														.row
+															.col-md-6
+																label.form-label(for='oidc-clientSecret') Client secret
+																input#oidc-clientSecret.form-control(type='password' data-path='oidc.clientSecret' autocomplete='off')
+															.col-md-6
+																label.form-label(for='oidc-scope') Scope
+																input#oidc-scope.form-control(data-path='oidc.scope' placeholder='openid email profile')
+																small.form-text.text-muted
+																	| space-separated, e.g.
+																	code openid email profile
+														.row
+															.col-md-4
+																label.form-label(for='oidc-authorizationUrl') Authorization URL
+																input#oidc-authorizationUrl.form-control(data-path='oidc.authorizationUrl')
+																small.form-text.text-muted optional — discovered from the issuer
+															.col-md-4
+																label.form-label(for='oidc-tokenUrl') Token URL
+																input#oidc-tokenUrl.form-control(data-path='oidc.tokenUrl')
+																small.form-text.text-muted optional — discovered from the issuer
+															.col-md-4
+																label.form-label(for='oidc-userInfoUrl') Userinfo URL
+																input#oidc-userInfoUrl.form-control(data-path='oidc.userInfoUrl')
+																small.form-text.text-muted optional — discovered from the issuer
+														.form-check.form-switch.mb-0
+															input#oidc-hideWhenNotLinked.form-check-input(type='checkbox' data-path='oidc.hideWhenNotLinked')
+															label.form-check-label(for='oidc-hideWhenNotLinked')
+																| Only show the button for users who already linked this source
+													#type-oauth2.d-none
+														.row
+															.col-md-6
+																label.form-label(for='oauth2-authorizeUrl') Authorize URL
+																input#oauth2-authorizeUrl.form-control(data-path='oauth2.authorizeUrl' placeholder='https://github.com/login/oauth/authorize')
+															.col-md-6
+																label.form-label(for='oauth2-tokenUrl') Token URL
+																input#oauth2-tokenUrl.form-control(data-path='oauth2.tokenUrl' placeholder='https://github.com/login/oauth/access_token')
+														.row
+															.col-md-6
+																label.form-label(for='oauth2-userUrl') User API URL
+																input#oauth2-userUrl.form-control(data-path='oauth2.userUrl' placeholder='https://api.github.com/user')
+															.col-md-6
+																label.form-label(for='oauth2-emailUrl') Email API URL
+																input#oauth2-emailUrl.form-control(data-path='oauth2.emailUrl' placeholder='https://api.github.com/user/emails')
+																small.form-text.text-muted
+																	| optional — for providers that send the email on a separate endpoint
+														.row
+															.col-md-4
+																label.form-label(for='oauth2-clientId') Client ID
+																input#oauth2-clientId.form-control(data-path='oauth2.clientId')
+															.col-md-4
+																label.form-label(for='oauth2-clientSecret') Client secret
+																input#oauth2-clientSecret.form-control(type='password' data-path='oauth2.clientSecret' autocomplete='off')
+															.col-md-4
+																label.form-label(for='oauth2-scope') Scope
+																input#oauth2-scope.form-control(data-path='oauth2.scope' placeholder='user:email')
+														.row
+															.col-md-6
+																label.form-label(for='oauth2-apiAcceptHeader') Accept header
+																input#oauth2-apiAcceptHeader.form-control(data-path='oauth2.apiAcceptHeader' placeholder='application/vnd.github+json')
+																small.form-text.text-muted
+																	| optional; needed by some APIs (GitHub) to return the full email list
+													#type-saml.d-none
+														.row
+															.col-md-6
+																label.form-label(for='saml-entryPoint') IdP entry point (SSO URL)
+																input#saml-entryPoint.form-control(data-path='saml.entryPoint' placeholder='https://idp.example.org/saml2')
+															.col-md-6
+																label.form-label(for='saml-spIssuer') SP issuer (entityID)
+																input#saml-spIssuer.form-control(data-path='saml.spIssuer')
+																small.form-text.text-muted
+																	| defaults to
+																	code overleaf-saml-<id>
+														.row
+															.col-md-6
+																label.form-label(for='saml-audience') Audience
+																input#saml-audience.form-control(data-path='saml.audience')
+																small.form-text.text-muted your callback URL, if the IdP checks it
+															.col-md-6
+																label.form-label(for='saml-identifierFormat') NameID format
+																select#saml-identifierFormat.form-select(data-path='saml.identifierFormat')
+																	option(value='') (IdP default)
+																	option(value='urn:oasis:names:tc:SAML:2.0:nameid-format:persistent') persistent
+																	option(value='urn:oasis:names:tc:SAML:2.0:nameid-format:transient') transient
+																	option(value='urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress') emailAddress
+														.row
+															.col-md-6
+																label.form-label(for='saml-idpCert') IdP certificate (PEM)
+																textarea#saml-idpCert.form-control(rows='4' data-path='saml.idpCert' spellcheck='false' placeholder='-----BEGIN CERTIFICATE-----')
+																small.form-text.text-muted required — assertions are signature-checked against it
+															.col-md-6
+																label.form-label(for='saml-decryptionPvk') Decryption key (PEM)
+																textarea#saml-decryptionPvk.form-control(rows='4' data-path='saml.decryptionPvk' spellcheck='false')
+																small.form-text.text-muted only for encrypted assertions
+														.row
+															.col-md-4
+																label.form-label(for='saml-signatureAlgorithm') Signature algorithm
+																select#saml-signatureAlgorithm.form-select(data-path='saml.signatureAlgorithm')
+																	option(value='') (default)
+																	option(value='sha256') sha256
+																	option(value='sha1') sha1
+															.col-md-4
+																label.form-label(for='saml-acceptedClockSkewMs') Clock skew (ms)
+																input#saml-acceptedClockSkewMs.form-control(type='number' data-path='saml.acceptedClockSkewMs' placeholder='default')
+															.col-md-4
+																label.form-label(for='saml-authnRequestBinding') AuthnRequest binding
+																select#saml-authnRequestBinding.form-select(data-path='saml.authnRequestBinding')
+																	option(value='') HTTP-Redirect (default)
+																	option(value='HTTP-POST') HTTP-POST
+														.row
+															.col-md-6
+																label.form-label(for='saml-logoutUrl') IdP SLO URL
+																input#saml-logoutUrl.form-control(data-path='saml.logoutUrl')
+																small.form-text.text-muted optional — for SP-initiated single logout
+															.col-md-6
+																.form-check.form-switch.mb-2
+																	input#saml-wantAssertionsSigned.form-check-input(type='checkbox' checked data-path='saml.wantAssertionsSigned')
+																	label.form-check-label(for='saml-wantAssertionsSigned') Require signed assertions (recommended)
+																.form-check.form-switch.mb-2
+																	input#saml-wantAuthnResponseSigned.form-check-input(type='checkbox' data-path='saml.wantAuthnResponseSigned')
+																	label.form-check-label(for='saml-wantAuthnResponseSigned') Require signed Response
+																.form-check.form-switch.mb-0
+																	input#saml-forceAuthn.form-check-input(type='checkbox' data-path='saml.forceAuthn')
+																	label.form-check-label(for='saml-forceAuthn') Force re-authentication at the IdP
+											.card.border-0.mb-3
+												.card-body
+													h6.text-uppercase.text-secondary.mb-3 Attribute mapping
+													p.form-text
+														| Maps SSO profile attributes onto the account. Any claim/attribute name works
+														| (see the reference below).
+													.row
+														.col-md-3
+															label.form-label(for='f-attrs-userId') Identity
+															input#f-attrs-userId.form-control(placeholder='sub')
+															small.form-text.text-muted stable external user id
+														.col-md-3
+															label.form-label(for='f-attrs-email') Email
+															input#f-attrs-email.form-control(placeholder='email')
+															small.form-text.text-muted needed for accounts + filters
+														.col-md-3
+															label.form-label(for='f-attrs-firstName') First name
+															input#f-attrs-firstName.form-control(placeholder='given_name')
+															small.form-text.text-muted optional
+														.col-md-3
+															label.form-label(for='f-attrs-lastName') Last name
+															input#f-attrs-lastName.form-control(placeholder='family_name')
+															small.form-text.text-muted optional
+													.row
+														.col-md-6
+															label.form-label(for='f-attrs-admin-field') Admin attribute
+															input#f-attrs-admin-field.form-control(placeholder='eduPersonAffiliation')
+															small.form-text.text-muted optional
+														.col-md-6
+															label.form-label(for='f-attrs-admin-values') Admin values
+															input#f-attrs-admin-values.form-control(placeholder='faculty, staff')
+															small.form-text.text-muted
+																| comma-separated; matching profiles become site admins
+											.card.border-0.mb-3
+												.card-body
+													h6.text-uppercase.text-secondary.mb-3 Behavior
+													.form-check.form-switch.mb-2
+														input#f-beh-linkOnly.form-check-input(type='checkbox')
+														label.form-check-label(for='f-beh-linkOnly')
+															| Link-only (never auto-create accounts)
+														small.form-text.text-muted
+															| For sources like ORCID: only linked identities may log in;
+															| everyone else is told to link from the account settings.
+													.form-check.form-switch.mb-2
+														input#f-beh-verifiedEmailRequired.form-check-input(type='checkbox' checked)
+														label.form-check-label(for='f-beh-verifiedEmailRequired')
+															| Require a verified email from the provider
+														small.form-text.text-muted
+															| Unverified emails are refused (recommended for plain OAuth2 sources).
+													.form-check.form-switch.mb-2
+														input#f-beh-updateUserDetailsOnLogin.form-check-input(type='checkbox')
+														label.form-check-label(for='f-beh-updateUserDetailsOnLogin')
+															| Update display name from the profile on every login
+													.row
+														.col-md-8
+															label.form-label(for='f-beh-allowedEmailDomains') Allowed email domains
+															input#f-beh-allowedEmailDomains.form-control(placeholder='uni-bremen.de, *.uni-bremen.de')
+															small.form-text.text-muted comma-separated; empty = all domains allowed
+											.card.border-0.mb-3
+												.card-body
+													h6.text-uppercase.text-secondary.mb-2 Profile filter
+													p.form-text
+														|
+														code deny
+														|  rules block login; if
+														code allow
+														|  is non-empty, at least one allow rule must match.
+														| Exceptions:
+													.form-check.form-switch.d-inline-block.me-3
+														input#f-flt-allowExistingUsers.form-check-input(type='checkbox' checked)
+														label.form-check-label(for='f-flt-allowExistingUsers') existing accounts
+													.form-check.form-switch.d-inline-block.mb-3
+														input#f-flt-allowInvited.form-check-input(type='checkbox' checked)
+														label.form-check-label(for='f-flt-allowInvited') invited collaborators
+													h6.text-secondary Allow rules
+													table.table.table-sm
+														thead
+															tr
+																th Attribute
+																th Operator
+																th Value
+																th Values (for oneOf)
+																th(style='width:1rem')
+														tbody#rules-allow
+													button#add-allow.btn.btn-sm.btn-outline-secondary(type='button') + Add allow rule
+													h6.text-secondary.mt-3 Deny rules
+													table.table.table-sm
+														thead
+															tr
+																th Attribute
+																th Operator
+																th Value
+																th Values (for oneOf)
+																th(style='width:1rem')
+														tbody#rules-deny
+													button#add-deny.btn.btn-sm.btn-outline-secondary(type='button') + Add deny rule
+										// ================= JSON MODE =================
+										#pane-json.d-none
+											.form-group
+												label.form-label(for='config') Provider configuration (JSON)
+												p.form-text
+													| The provider is validated server-side before it is saved.
+													| The
+													code attrs
+													|  section maps profile fields to user fields.
+													code filter.allow
+													|  /
+													code filter.deny
+													|  hold the profile filter rules.
+													code filter.allowExistingUsers
+													|  and
+													code filter.allowInvited
+													|  exempt existing accounts and invited collaborators.
+												textarea#config.form-control.config-editor(
+													name='config'
+													rows='24'
+													spellcheck='false'
+												) #{form.json}
+										.d-flex.mt-3
 											button.btn.btn-primary.ms-2(type='submit') Save provider
 											a.btn.ms-2(href='/admin/auths') Cancel
+										script#sso-admin-script(type='text/javascript').
+											(function () {
+												var $ = function (s) { return document.querySelector(s); };
+												var OPS = JSON.parse($('#sso-ops-hidden').value);
+												var textarea = $('#config');
+												var paneForm = $('#pane-form');
+												var paneJson = $('#pane-json');
+												var tabForm = $('#tab-form');
+												var tabJson = $('#tab-json');
+												var TYPE = null;
 
-								// ---------------- reference ----------------
+												function currentJson() {
+													var obj;
+													try { obj = JSON.parse(textarea.value); }
+													catch (e) { throw new Error('the JSON is not valid: ' + e.message); }
+													if (!obj || typeof obj !== 'object') throw new Error('the JSON must be an object');
+													return obj;
+												}
+
+												function ruleRow(r) {
+													r = r || {};
+													var tr = document.createElement('tr');
+													tr.innerHTML =
+														'<td style="min-width:10rem"><input type="text" class="form-control form-control-sm rr-field" placeholder="eduPersonScopedAffiliation"></td>' +
+														'<td style="width:7.5rem"><select class="form-select form-select-sm rr-op"></select></td>' +
+														'<td style="min-width:8rem"><input type="text" class="form-control form-control-sm rr-value" placeholder="@uni-bremen.de"></td>' +
+														'<td style="min-width:8rem"><input type="text" class="form-control form-control-sm rr-values" placeholder="a, b (for oneOf)"></td>' +
+														'<td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger rr-del" title="Remove rule">&times;</button></td>';
+													var op = tr.querySelector('.rr-op');
+													OPS.forEach(function (o) {
+														var o1 = document.createElement('option');
+														o1.value = o;
+														o1.textContent = o;
+														op.appendChild(o1);
+													});
+													op.value = OPS.indexOf(r.op) !== -1 ? r.op : 'equals';
+													tr.querySelector('.rr-field').value = r.field || '';
+													tr.querySelector('.rr-value').value = r.value || '';
+													tr.querySelector('.rr-values').value = Array.isArray(r.values)
+														? r.values.join(', ')
+														: (typeof r.values === 'string' ? r.values : '');
+													op.addEventListener('change', function () {
+														var needsValues = op.value === 'oneOf' || op.value === 'iOneOf';
+														tr.querySelector('.rr-values').style.display = needsValues ? '' : 'none';
+														tr.querySelector('.rr-value').style.display = needsValues ? 'none' : '';
+													});
+													op.dispatchEvent(new Event('change'));
+													tr.querySelector('.rr-del').addEventListener('click', function () { tr.remove(); });
+													return tr;
+												}
+
+												function renderRules(sel, rules) {
+													var tbody = $(sel);
+													tbody.innerHTML = '';
+													(rules || []).forEach(function (r) { tbody.appendChild(ruleRow(r)); });
+												}
+
+												function readRules(sel) {
+													var out = [];
+													$(sel).querySelectorAll('tr').forEach(function (tr) {
+														var field = tr.querySelector('.rr-field').value.trim();
+														if (!field) return;
+														var op = tr.querySelector('.rr-op').value;
+														var value = tr.querySelector('.rr-value').value.trim();
+														var values = tr.querySelector('.rr-values').value
+															.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+														var rule = { field: field, op: op };
+														if (op === 'oneOf' || op === 'iOneOf') {
+															if (values.length) rule.values = values;
+															else if (value) rule.values = [value];
+														} else {
+															if (value) rule.value = value;
+															if (values.length) rule.values = values;
+														}
+														out.push(rule);
+													});
+													return out;
+												}
+
+												function setPath(obj, path, value) {
+													var keys = path.split('.');
+													var cur = obj;
+													for (var i = 0; i < keys.length - 1; i++) {
+														if (typeof cur[keys[i]] !== 'object' || cur[keys[i]] === null) cur[keys[i]] = {};
+														cur = cur[keys[i]];
+													}
+													cur[keys[keys.length - 1]] = value;
+												}
+
+												function csv(el) {
+													return el.value ? el.value.split(',').map(function (s) { return s.trim(); }).filter(Boolean) : [];
+												}
+
+												function jsonToForm() {
+													var obj = currentJson();
+													TYPE = obj.type || TYPE;
+													$('#f-id').value = obj.id || '';
+													$('#f-name').value = obj.name || '';
+													$('#f-enabled').checked = obj.enabled !== false;
+													var attrs = obj.attrs || {};
+													$('#f-attrs-userId').value = attrs.userId || '';
+													$('#f-attrs-email').value = attrs.email || '';
+													$('#f-attrs-firstName').value = attrs.firstName || '';
+													$('#f-attrs-lastName').value = attrs.lastName || '';
+													$('#f-attrs-admin-field').value = (attrs.admin && attrs.admin.field) || '';
+													$('#f-attrs-admin-values').value = (attrs.admin && attrs.admin.values) ? attrs.admin.values.join(', ') : '';
+													var beh = obj.behavior || {};
+													$('#f-beh-linkOnly').checked = !!beh.linkOnly;
+													$('#f-beh-verifiedEmailRequired').checked = beh.verifiedEmailRequired === true;
+													$('#f-beh-updateUserDetailsOnLogin').checked = !!beh.updateUserDetailsOnLogin;
+													$('#f-beh-allowedEmailDomains').value = beh.allowedEmailDomains ? beh.allowedEmailDomains.join(', ') : '';
+													var flt = obj.filter || {};
+													$('#f-flt-allowExistingUsers').checked = flt.allowExistingUsers !== false;
+													$('#f-flt-allowInvited').checked = flt.allowInvited !== false;
+													renderRules('#rules-allow', flt.allow);
+													renderRules('#rules-deny', flt.deny);
+													['oidc', 'oauth2', 'saml'].forEach(function (t) {
+														var el = document.getElementById('type-' + t);
+														if (el) el.classList.toggle('d-none', t !== TYPE);
+													});
+													document.querySelectorAll('[data-path]').forEach(function (el) {
+														var section = el.closest('#type-oidc, #type-oauth2, #type-saml');
+														if (section && TYPE && section.id !== 'type-' + TYPE) return;
+														var parts = el.getAttribute('data-path').split('.');
+														var cur = obj;
+														for (var i = 0; i < parts.length && cur != null; i++) cur = cur[parts[i]];
+														if (el.type === 'checkbox') el.checked = !!cur;
+														else el.value = (cur == null ? '' : String(cur));
+													});
+												}
+
+												function formToJson() {
+													var obj = currentJson();
+													obj.id = $('#f-id').value.trim() || obj.id;
+													obj.name = $('#f-name').value.trim();
+													obj.enabled = $('#f-enabled').checked;
+													var attrs = {};
+													attrs.userId = $('#f-attrs-userId').value.trim();
+													attrs.email = $('#f-attrs-email').value.trim();
+													attrs.firstName = $('#f-attrs-firstName').value.trim();
+													attrs.lastName = $('#f-attrs-lastName').value.trim();
+													var adminField = $('#f-attrs-admin-field').value.trim();
+													if (adminField) {
+														var vals = csv($('#f-attrs-admin-values'));
+														attrs.admin = vals.length ? { field: adminField, values: vals } : { field: adminField };
+													} else {
+														attrs.admin = null;
+													}
+													obj.attrs = attrs;
+													var domains = csv($('#f-beh-allowedEmailDomains'));
+													obj.behavior = {
+														updateUserDetailsOnLogin: $('#f-beh-updateUserDetailsOnLogin').checked,
+														allowedEmailDomains: domains.length ? domains : null,
+														linkOnly: $('#f-beh-linkOnly').checked,
+														verifiedEmailRequired: $('#f-beh-verifiedEmailRequired').checked,
+													};
+													obj.filter = {
+														allow: readRules('#rules-allow'),
+														deny: readRules('#rules-deny'),
+														allowExistingUsers: $('#f-flt-allowExistingUsers').checked,
+														allowInvited: $('#f-flt-allowInvited').checked,
+													};
+													document.querySelectorAll('[data-path]').forEach(function (el) {
+														var section = el.closest('#type-oidc, #type-oauth2, #type-saml');
+														if (section && TYPE && section.id !== 'type-' + TYPE) return;
+														var path = el.getAttribute('data-path');
+														if (el.type === 'checkbox') setPath(obj, path, el.checked);
+														else if (el.type === 'number') setPath(obj, path, el.value.trim() === '' ? null : parseInt(el.value, 10));
+														else setPath(obj, path, el.value.trim() === '' ? null : el.value.trim());
+													});
+													textarea.value = JSON.stringify(obj, null, 2);
+												}
+
+												function show(which) {
+													if (which === 'json') {
+														try { formToJson(); }
+														catch (e) { alert('Cannot switch to JSON: ' + e.message); which = 'form'; }
+													} else {
+														try { jsonToForm(); }
+														catch (e) { alert('Cannot switch to Form: ' + e.message); which = 'json'; }
+													}
+													paneForm.classList.toggle('d-none', which !== 'form');
+													paneJson.classList.toggle('d-none', which !== 'json');
+													tabForm.classList.toggle('active', which === 'form');
+													tabJson.classList.toggle('active', which === 'json');
+												}
+												tabForm.addEventListener('click', function () { show('form'); });
+												tabJson.addEventListener('click', function () { show('json'); });
+
+												$('#add-allow').addEventListener('click', function () { $('#rules-allow').appendChild(ruleRow()); });
+												$('#add-deny').addEventListener('click', function () { $('#rules-deny').appendChild(ruleRow()); });
+
+												$('#sso-form').addEventListener('submit', function () {
+													try { formToJson(); }
+													catch (e) { alert('Cannot save: ' + e.message); }
+												});
+
+												try { jsonToForm(); } catch (e) { /* keep defaults */ }
+												show('form');
+											})();
 								hr
 								h5 Reference
 								h6 Attribute names (filter fields)
@@ -181,7 +638,8 @@ block content
 										each attribute in catalog
 											tr
 												td code #{attribute.name}
-												td #{attribute.description}
+												td
+													| #{attribute.description}
 													if attribute.values
 														br
 														| Allowed values:
@@ -198,10 +656,10 @@ block content
 									code oneOf
 									| /
 									code iOneOf
-									| the matched entries are given in
+									|  the matched entries are given in
 									code values
 									| . A
 									code deny
-									| rule matching blocks login; if
+									|  rule matching blocks login; if
 									code allow
-									| is non-empty, at least one allow rule must match.
+									|  is non-empty, at least one allow rule must match.

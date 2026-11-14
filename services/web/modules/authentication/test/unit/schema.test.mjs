@@ -206,6 +206,14 @@ describe('provider schema', () => {
         attrs: { admin: 'eduPersonAffiliation' },
       })
       expect(str.attrs.admin.field).toBe('eduPersonAffiliation')
+      // null admin ("no admin rule") is accepted
+      const none = normalizeProvider({
+        id: 'x',
+        type: 'saml',
+        saml: { entryPoint: 'e', idpCert: PEM },
+        attrs: { admin: null },
+      })
+      expect(none.attrs.admin).toBeUndefined()
     })
   })
 
@@ -258,6 +266,21 @@ describe('provider schema', () => {
 
     it('rejects an unknown preset', () => {
       expect(() => applyPreset('nope', 'saml', {})).toThrow('unknown preset')
+    })
+
+    it('accepts known-provider templates as presets (github)', () => {
+      const raw = {
+        id: 'test-form',
+        type: 'oauth2',
+        oauth2: { authorizeUrl: 'https://x', tokenUrl: 'https://x', userUrl: 'https://x' },
+        attrs: { userId: 'login', email: 'email' },
+        filter: { allow: [{ field: 'login', op: 'equals', value: 'alice' }], deny: [] },
+      }
+      const merged = applyPreset('github', 'oauth2', raw)
+      // provider attrs win over preset attrs
+      expect(merged.attrs.userId).toBe('login')
+      // provider filter rules are kept
+      expect(merged.filter.allow[0].value).toBe('alice')
     })
 
     it('exposes the attribute catalog', () => {

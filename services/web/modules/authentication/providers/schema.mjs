@@ -133,7 +133,7 @@ function normalizeAttrs(attrs, providerPath, type) {
     firstName: str(get('firstName', 'givenName'), `${providerPath}.attrs.firstName`, { fallback: '' }),
     lastName: str(get('lastName', 'sn'), `${providerPath}.attrs.lastName`, { fallback: '' }),
   }
-  if (attrs.admin !== undefined) {
+  if (attrs.admin != null) {
     const admin = attrs.admin
     if (typeof admin === 'string') {
       out.admin = { field: admin, values: [] }
