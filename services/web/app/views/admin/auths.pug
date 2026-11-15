@@ -18,28 +18,28 @@ block content
 								p
 									| One card per SSO source (OIDC / OAuth2 / SAML). Each source gets its own login button
 									| and its own attribute mapping, behavior flags and profile filter. Profiles are checked
-									| against the filter on every login and link:
+									| against the filter on every login and link:&nbsp;
 									code deny
-									|  rules block;
+									|  rules block;&nbsp;
 									code allow
 									|  rules (when set) require a match.
-									| Two exceptions are exempt: existing accounts
+									| Two exceptions are exempt: existing accounts&nbsp;
 									code (allowExistingUsers)
-									|  and collaborators with a pending invite
+									|  and collaborators with a pending invite&nbsp;
 									code (allowInvited)
 									| .
 								if file
 									p.text-muted
-										| The file-based providers are stored in
+										| The file-based providers are stored in&nbsp;
 										code #{file}
 										|  — you can edit that file directly and save it here (or restart
 										| the server).
 								else
 									p.text-muted
 										| No provider file is configured yet. Create a provider below;
-										| it will be written to
+										| it will be written to&nbsp;
 										code config/ssos.providers.json
-										|  (override with
+										|  (override with&nbsp;
 										code OVERLEAF_SSO_PROVIDERS_FILE
 										| ).
 								.d-flex.flex-wrap.align-items-center.gap-2.mb-2
@@ -121,11 +121,11 @@ block content
 								if form.readOnly
 									.alert.alert-info
 										| This provider comes from legacy environment variables
-										| (
+										| (&nbsp;
 										code EXTERNAL_AUTH
-										|  +
+										|  +&nbsp;
 										code OVERLEAF_OIDC_*
-										|  /
+										|  /&nbsp;
 										code OVERLEAF_SAML_*
 										| ). Change the environment to modify it, or create a file-based
 										| provider with a different id (the file version then wins).
@@ -141,7 +141,7 @@ block content
 														li #{hint}
 										if form.callbackPath
 											p.form-text
-												| Callback (redirect) URI to register with the identity provider:
+												| Callback (redirect) URI to register with the identity provider:&nbsp;
 												code #{form.callbackPath}
 										.nav.nav-underline.mb-3
 											button#tab-form.nav-link.active(type='button') Form
@@ -178,9 +178,18 @@ block content
 														.row
 															.col-md-6
 																label.form-label(for='oidc-issuer') Issuer / discovery
-																input#oidc-issuer.form-control(data-path='oidc.issuer' placeholder='https://idp.example.org')
+																.d-flex.gap-2
+																	input#oidc-issuer.form-control(data-path='oidc.issuer' placeholder='https://idp.example.org' style='flex-grow:1')
+																	button#oidc-discover.btn.btn-sm.btn-outline-primary(type='button') Discover
+																small#oidc-discover-status.form-text
 																small.form-text.text-muted
-																	| e.g.
+																	| Paste the issuer, then press
+																	strong Discover
+																	|  to auto-fill the endpoint URLs below.&nbsp;
+																	| If the IdP blocks browser requests (CORS), open
+																	code <issuer>/.well-known/openid-configuration
+																	|  yourself and copy the endpoints.&nbsp;
+																	| e.g.&nbsp;
 																	code https://accounts.google.com
 																	|  or your federation gateway
 															.col-md-6
@@ -194,21 +203,21 @@ block content
 																label.form-label(for='oidc-scope') Scope
 																input#oidc-scope.form-control(data-path='oidc.scope' placeholder='openid email profile')
 																small.form-text.text-muted
-																	| space-separated, e.g.
+																	| space-separated, e.g.&nbsp;
 																	code openid email profile
 														.row
 															.col-md-4
 																label.form-label(for='oidc-authorizationUrl') Authorization URL
 																input#oidc-authorizationUrl.form-control(data-path='oidc.authorizationUrl')
-																small.form-text.text-muted required (this build does not perform discovery from the issuer)
+																small.form-text.text-muted required — or filled in by Discover above
 															.col-md-4
 																label.form-label(for='oidc-tokenUrl') Token URL
 																input#oidc-tokenUrl.form-control(data-path='oidc.tokenUrl')
-																small.form-text.text-muted required (this build does not perform discovery from the issuer)
+																small.form-text.text-muted required — or filled in by Discover above
 															.col-md-4
 																label.form-label(for='oidc-userInfoUrl') Userinfo URL
 																input#oidc-userInfoUrl.form-control(data-path='oidc.userInfoUrl')
-																small.form-text.text-muted required (this build does not perform discovery from the issuer)
+																small.form-text.text-muted required — or filled in by Discover above
 														.form-check.form-switch.mb-0
 															input#oidc-hideWhenNotLinked.form-check-input(type='checkbox' data-path='oidc.hideWhenNotLinked')
 															label.form-check-label(for='oidc-hideWhenNotLinked')
@@ -255,7 +264,7 @@ block content
 																label.form-label(for='saml-spIssuer') SP issuer (entityID)
 																input#saml-spIssuer.form-control(data-path='saml.spIssuer')
 																small.form-text.text-muted
-																	| defaults to
+																	| defaults to&nbsp;
 																	code overleaf-saml-<id>
 														.row
 															.col-md-6
@@ -370,9 +379,9 @@ block content
 												.card-body
 													h6.text-uppercase.text-body.fw-semibold.mb-2 Profile filter
 													p.form-text
-														|
+														|&nbsp;
 														code deny
-														|  rules block login; if
+														|  rules block login; if&nbsp;
 														code allow
 														|  is non-empty, at least one allow rule must match.
 														| Exceptions:
@@ -410,15 +419,15 @@ block content
 												label.form-label(for='config') Provider configuration (JSON)
 												p.form-text
 													| The provider is validated server-side before it is saved.
-													| The
+													| The&nbsp;
 													code attrs
-													|  section maps profile fields to user fields.
+													|  section maps profile fields to user fields.&nbsp;
 													code filter.allow
-													|  /
+													|  /&nbsp;
 													code filter.deny
-													|  hold the profile filter rules.
+													|  hold the profile filter rules.&nbsp;
 													code filter.allowExistingUsers
-													|  and
+													|  and&nbsp;
 													code filter.allowInvited
 													|  exempt existing accounts and invited collaborators.
 												textarea#config.form-control.config-editor(
@@ -621,6 +630,46 @@ block content
 												$('#add-allow').addEventListener('click', function () { $('#rules-allow').appendChild(ruleRow()); });
 												$('#add-deny').addEventListener('click', function () { $('#rules-deny').appendChild(ruleRow()); });
 
+												// OIDC issuer discovery
+												var discoverBtn = document.getElementById('oidc-discover');
+												if (discoverBtn) {
+													discoverBtn.addEventListener('click', function () {
+														var status = document.getElementById('oidc-discover-status');
+														function say(msg, bad) {
+															if (!status) return;
+															status.textContent = msg;
+															status.style.color = bad ? '#b02a37' : '#1a7f37';
+														}
+														var issuer = (document.getElementById('oidc-issuer').value || '').trim().replace(/\/+$/, '');
+														if (!/^https?:\/\//.test(issuer)) { say('Enter a valid http(s) issuer URL first.', true); return; }
+														var url = issuer + '/.well-known/openid-configuration';
+														say('Fetching ' + url + ' \u2026', false);
+														discoverBtn.disabled = true;
+														var ctl = new AbortController();
+														var timer = setTimeout(function () { ctl.abort(); }, 8000);
+														fetch(url, { signal: ctl.signal, headers: { Accept: 'application/json' } })
+															.then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+															.then(function (doc) {
+																var n = 0;
+																function fill(id, v) {
+																	if (typeof v === 'string' && v) {
+																		var el = document.getElementById(id);
+																		if (el) { el.value = v; n++; }
+																	}
+																}
+																fill('oidc-authorizationUrl', doc.authorization_endpoint);
+																fill('oidc-tokenUrl', doc.token_endpoint);
+																fill('oidc-userInfoUrl', doc.userinfo_endpoint);
+																if (n) say('Filled ' + n + ' endpoint URL(s) from the discovery document.');
+																else say('Discovered, but the document has no authorization/token/userinfo endpoints.', true);
+															})
+															.catch(function (err) {
+																say('Could not fetch the discovery document from the browser (network, CORS or ' + ((err && err.message) || 'HTTP error') + '). Open ' + url + ' yourself and copy the endpoints.', true);
+															})
+															['finally'](function () { clearTimeout(timer); discoverBtn.disabled = false; });
+													});
+												}
+
 												$('#sso-form').addEventListener('submit', function () {
 													try { formToJson(); }
 													catch (e) { alert('Cannot save: ' + e.message); }
@@ -648,24 +697,24 @@ block content
 													| #{attribute.description}
 													if attribute.values
 														br
-														| Allowed values:
+														| Allowed values:&nbsp;
 														code #{attribute.values.join(', ')}
 								h6 Filter operators
 								p
 									code #{ops.join('  ')}
 								p.text-muted
-									| Rule:
+									| Rule:&nbsp;
 									code { "field": "eduPersonScopedAffiliation", "op": "iEndsWith", "value": "@uni-bremen.de" }
-									| — with
+									| — with&nbsp;
 									code op
-									| =
+									| =&nbsp;
 									code oneOf
-									| /
+									| /&nbsp;
 									code iOneOf
-									|  the matched entries are given in
+									|  the matched entries are given in&nbsp;
 									code values
-									| . A
+									| . A&nbsp;
 									code deny
-									|  rule matching blocks login; if
+									|  rule matching blocks login; if&nbsp;
 									code allow
 									|  is non-empty, at least one allow rule must match.
