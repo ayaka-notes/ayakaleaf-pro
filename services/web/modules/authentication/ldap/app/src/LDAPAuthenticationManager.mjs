@@ -57,7 +57,9 @@ const LDAPAuthenticationManager = {
         { _id: user._id },
         { $set : { 'emails.0.confirmedAt' : Date.now() } }
       ).exec() //email of ldap user is confirmed
-      await logLoginEntry(user, 'create-account', auditLog)
+      await logLoginEntry(user, 'create-account', auditLog, {
+        isAdmin: Boolean(user.isAdmin),
+      })
     }
     const before = accountBeforeLogin(user)
     let userDetails = updateUserDetailsOnLogin ? { first_name : firstName, last_name: lastName } : {}

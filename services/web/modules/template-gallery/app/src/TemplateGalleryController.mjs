@@ -130,12 +130,18 @@ async function editTemplate(req, res, next) {
 async function deleteTemplate(req, res, next) {
   const t = req.i18n.translate
   try {
+    // the name, as the admin panel's delete logs it: the template is gone after
+    const template = await TemplateGalleryManager.getTemplate(
+      '_id',
+      req.params.template_id
+    )
     await TemplateGalleryManager.deleteTemplate({
       templateId: req.params.template_id,
       version: req.body.version
     })
     await logTemplateAction(req, 'delete-template', {
       templateId: req.params.template_id,
+      name: template?.name,
     })
     res.sendStatus(200)
   } catch (error) {
