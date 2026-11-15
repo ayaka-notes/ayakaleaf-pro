@@ -55,10 +55,10 @@ block content
 									a.btn.btn-secondary(href='/admin/auths/new?type=oauth2&preset=gitea') Gitea / Forgejo (OAuth2)
 									a.btn.btn-secondary(href='/admin/auths/new?type=saml&preset=edugain') SAML IdP (EduGAIN)
 								.d-flex.flex-wrap.gap-2.mb-3
-									a.btn.btn-sm.btn-outline-secondary(href='/admin/auths/new?type=oidc') Blank OIDC
-									a.btn.btn-sm.btn-outline-secondary(href='/admin/auths/new?type=oauth2') Blank OAuth2
-									a.btn.btn-sm.btn-outline-secondary(href='/admin/auths/new?type=saml') Blank SAML
-									a.btn.btn-sm.btn-outline-secondary(href='/admin/auths/new?type=saml&preset=edugain') Blank SAML + EduGAIN attributes
+									a.btn.btn-sm.btn-outline-primary(href='/admin/auths/new?type=oidc') Blank OIDC
+									a.btn.btn-sm.btn-outline-primary(href='/admin/auths/new?type=oauth2') Blank OAuth2
+									a.btn.btn-sm.btn-outline-primary(href='/admin/auths/new?type=saml') Blank SAML
+									a.btn.btn-sm.btn-outline-primary(href='/admin/auths/new?type=saml&preset=edugain') Blank SAML + EduGAIN attributes
 								if !providers.length
 									.alert.alert-info No SSO sources configured yet.
 								else
@@ -151,7 +151,7 @@ block content
 										#pane-form
 											.card.border-0.mb-3
 												.card-body
-													h6.text-uppercase.text-secondary.mb-3 Identity
+													h6.text-uppercase.text-body.fw-semibold.mb-3 Identity
 													.row
 														.col-md-4
 															label.form-label(for='f-id') ID
@@ -173,7 +173,7 @@ block content
 																| their callback is refused.
 											.card.border-0.mb-3
 												.card-body
-													h6.text-uppercase.text-secondary.mb-3 Provider endpoints
+													h6.text-uppercase.text-body.fw-semibold.mb-3 Provider endpoints
 													#type-oidc
 														.row
 															.col-md-6
@@ -310,7 +310,7 @@ block content
 																	label.form-check-label(for='saml-forceAuthn') Force re-authentication at the IdP
 											.card.border-0.mb-3
 												.card-body
-													h6.text-uppercase.text-secondary.mb-3 Attribute mapping
+													h6.text-uppercase.text-body.fw-semibold.mb-3 Attribute mapping
 													p.form-text
 														| Maps SSO profile attributes onto the account. Any claim/attribute name works
 														| (see the reference below).
@@ -343,7 +343,7 @@ block content
 																| comma-separated; matching profiles become site admins
 											.card.border-0.mb-3
 												.card-body
-													h6.text-uppercase.text-secondary.mb-3 Behavior
+													h6.text-uppercase.text-body.fw-semibold.mb-3 Behavior
 													.form-check.form-switch.mb-2
 														input#f-beh-linkOnly.form-check-input(type='checkbox')
 														label.form-check-label(for='f-beh-linkOnly')
@@ -368,7 +368,7 @@ block content
 															small.form-text.text-muted comma-separated; empty = all domains allowed
 											.card.border-0.mb-3
 												.card-body
-													h6.text-uppercase.text-secondary.mb-2 Profile filter
+													h6.text-uppercase.text-body.fw-semibold.mb-2 Profile filter
 													p.form-text
 														|
 														code deny
@@ -382,7 +382,7 @@ block content
 													.form-check.form-switch.d-inline-block.mb-3
 														input#f-flt-allowInvited.form-check-input(type='checkbox' checked)
 														label.form-check-label(for='f-flt-allowInvited') invited collaborators
-													h6.text-secondary Allow rules
+													h6.text-body.fw-semibold Allow rules
 													table.table.table-sm
 														thead
 															tr
@@ -392,8 +392,8 @@ block content
 																th Values (for oneOf)
 																th(style='width:1rem')
 														tbody#rules-allow
-													button#add-allow.btn.btn-sm.btn-outline-secondary(type='button') + Add allow rule
-													h6.text-secondary.mt-3 Deny rules
+													button#add-allow.btn.btn-sm.btn-outline-primary(type='button') + Add allow rule
+													h6.text-body.fw-semibold.mt-3 Deny rules
 													table.table.table-sm
 														thead
 															tr
@@ -403,7 +403,7 @@ block content
 																th Values (for oneOf)
 																th(style='width:1rem')
 														tbody#rules-deny
-													button#add-deny.btn.btn-sm.btn-outline-secondary(type='button') + Add deny rule
+													button#add-deny.btn.btn-sm.btn-outline-primary(type='button') + Add deny rule
 										// ================= JSON MODE =================
 										#pane-json.d-none
 											.form-group
