@@ -107,13 +107,16 @@ const OIDCAuthenticationController = {
       const profile = { ...idProfile, ...uiProfile }
       let user, info
       try {
-        if (req.session.intent === 'link') {
+        if (req.session.intent === 'link' && req.user) {
           ;({ user, info } = await OIDCAuthenticationController._doLink(
             req,
             profile,
             provider
           ))
         } else {
+          // `intent=link` without a signed-in account (or any other intent)
+          // falls through to a regular login — the OIDC manager's linkOnly
+          // rules still apply, so no unlinked identity can get in.
           ;({ user, info } = await OIDCAuthenticationController._doLogin(
             req,
             profile,

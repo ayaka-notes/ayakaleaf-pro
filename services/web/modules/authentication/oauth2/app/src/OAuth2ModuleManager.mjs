@@ -169,6 +169,13 @@ const OAuth2ModuleManager = {
     for (const provider of store.ofType('oauth2')) {
       passport.use(createStrategy(provider))
     }
+    // unuse removed providers
+    const active = new Set(store.ofType('oauth2').map(p => `oauth2:${p.id}`))
+    for (const name of Object.keys(passport._strategies)) {
+      if (name.startsWith('oauth2:') && !active.has(name)) {
+        passport.unuse(name)
+      }
+    }
     logger.info({}, 'oauth2: passport strategies (re)registered')
   },
 }

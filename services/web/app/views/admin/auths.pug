@@ -200,15 +200,15 @@ block content
 															.col-md-4
 																label.form-label(for='oidc-authorizationUrl') Authorization URL
 																input#oidc-authorizationUrl.form-control(data-path='oidc.authorizationUrl')
-																small.form-text.text-muted optional — discovered from the issuer
+																small.form-text.text-muted required (this build does not perform discovery from the issuer)
 															.col-md-4
 																label.form-label(for='oidc-tokenUrl') Token URL
 																input#oidc-tokenUrl.form-control(data-path='oidc.tokenUrl')
-																small.form-text.text-muted optional — discovered from the issuer
+																small.form-text.text-muted required (this build does not perform discovery from the issuer)
 															.col-md-4
 																label.form-label(for='oidc-userInfoUrl') Userinfo URL
 																input#oidc-userInfoUrl.form-control(data-path='oidc.userInfoUrl')
-																small.form-text.text-muted optional — discovered from the issuer
+																small.form-text.text-muted required (this build does not perform discovery from the issuer)
 														.form-check.form-switch.mb-0
 															input#oidc-hideWhenNotLinked.form-check-input(type='checkbox' data-path='oidc.hideWhenNotLinked')
 															label.form-check-label(for='oidc-hideWhenNotLinked')

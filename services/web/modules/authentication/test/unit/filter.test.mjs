@@ -57,6 +57,32 @@ describe('filter engine', () => {
   })
 
   describe('ruleMatches', () => {
+    it('normalizes unicode confusables on both sides (deny-rule hardening)', () => {
+      // rule written in ASCII; profile carries FULLWIDTH homoglyphs
+      // (U+FF45 'e', U+FF4D 'm', U+FF50 'p', U+FF52 'r'...) that look
+      // identical in most fonts — NFKC folds them back to ASCII
+      const rule = normalizeRule(
+        { field: 'email', op: 'iEndsWith', value: '@bad.example' },
+        'f'
+      )
+      expect(ruleMatches(rule, { email: 'user@bad.ex\uFF41mple' })).toBe(true)
+      expect(ruleMatches(rule, { email: 'user@\uFF42ad.example' })).toBe(true)
+      // a genuinely different (Cyrillic) domain must NOT match
+      expect(ruleMatches(rule, { email: 'user@bad.ex\u0435mple' })).toBe(false)
+      // and the reverse direction: ligatures in the rule value
+      const lig = normalizeRule(
+        { field: 'x', op: 'equals', value: 'ﬁle' },
+        'f'
+      )
+      expect(ruleMatches(lig, { x: 'file' })).toBe(true)
+      // legit matches are unaffected
+      const ok = normalizeRule(
+        { field: 'x', op: 'equals', value: 'zfn.uni-bremen.de' },
+        'f'
+      )
+      expect(ruleMatches(ok, { x: 'zfn.uni-bremen.de' })).toBe(true)
+    })
+
     it('matches single-value attributes', () => {
       const rule = normalizeRule(
         { field: 'zfnScopedAffiliation', op: 'equals', value: 'zfn.uni-bremen.de' },

@@ -120,7 +120,9 @@ export function normalizeRule(raw, path) {
   } else if (value === undefined) {
     fail(path, `op "${op}" needs a "value" (or "values") string`)
   }
-  // pre-compile regex
+  // pre-compile regex (NFKC-normalized so confusable homoglyphs cannot
+  // slip past deny/allow comparisons, e.g. Cyrillic "а" for Latin "a")
+  if (typeof value === 'string') value = value.normalize('NFKC')
   let pattern = null
   if (op === 'regex') {
     try {
@@ -130,7 +132,7 @@ export function normalizeRule(raw, path) {
     }
   }
   const rule = { field: field.trim(), op, value, pattern }
-  if (values) rule.values = values.map(v => v.trim())
+  if (values) rule.values = values.map(v => v.trim().normalize('NFKC'))
   return rule
 }
 
@@ -157,8 +159,8 @@ export function ruleMatches(rule, profile) {
 
   const matchOne = candidate => {
     if (typeof candidate !== 'string') return false
-    const c = candidate
-    const ci = candidate.toLowerCase()
+    const c = candidate.normalize('NFKC')
+    const ci = c.toLowerCase()
     switch (rule.op) {
       case 'equals':
         return c === rule.value

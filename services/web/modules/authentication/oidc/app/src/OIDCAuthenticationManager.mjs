@@ -12,16 +12,26 @@ import {
 } from '../../../auditLog.mjs'
 
 /** Email from the profile: passport-standard `emails` array first, then the
- *  provider-configured claim (e.g. `email`, `mail`, `eduPersonPrincipalName`). */
+ *  provider-configured claim (e.g. `email`, `mail`, `eduPersonPrincipalName`).
+ *  With `behavior.verifiedEmailRequired` only verified addresses count —
+ *  an unverified email may not take over an account or open a new one. */
 export function profileEmail(provider, profile) {
-  const fromEmails = profile?.emails?.[0]?.value
-  if (typeof fromEmails === 'string' && fromEmails) {
-    return fromEmails.toLowerCase()
+  const requireVerified = Boolean(provider?.behavior?.verifiedEmailRequired)
+  const emails = Array.isArray(profile?.emails)
+    ? profile.emails.filter(e => e && typeof e.value === 'string' && e.value)
+    : []
+  if (emails.length) {
+    const pool = requireVerified ? emails.filter(e => e.verified !== false) : emails
+    const chosen = pool.find(e => e.primary) || pool[0]
+    return chosen ? chosen.value.toLowerCase() : null
   }
   const claim =
     profile?.[provider.attrs.email] ?? profile?._json?.[provider.attrs.email]
   const value = Array.isArray(claim) ? claim[0] : claim
-  return typeof value === 'string' ? value.toLowerCase() : null
+  if (typeof value !== 'string' || !value) return null
+  // the IdP explicitly marked the email as unverified (e.g. `email_verified: false`)
+  if (requireVerified && profile?.email_verified === false) return null
+  return value.toLowerCase()
 }
 
 /** The provider-specific external user id from the profile. */
@@ -113,17 +123,17 @@ const OIDCAuthenticationManager = {
       }
       // additionally gated by allowedEmailDomains
       const allowedDomains = provider.behavior.allowedEmailDomains
+      const domain = email.split('@')[1]
       if (
         allowedDomains &&
-        email &&
-        !allowedDomains.some(pattern => {
-          const domain = email.split('@')[1]
-          if (pattern.startsWith('*.')) {
-            const base = pattern.slice(2)
-            return domain.endsWith(`.${base}`)
-          }
-          return domain === pattern
-        })
+        (!domain ||
+          !allowedDomains.some(pattern => {
+            if (pattern.startsWith('*.')) {
+              const base = pattern.slice(2)
+              return domain.endsWith(`.${base}`)
+            }
+            return domain === pattern
+          }))
       ) {
         return { user: null, accessDenied: { reason: 'email-domain' } }
       }

@@ -70,6 +70,12 @@ const SAMLAuthenticationManager = {
       isExisting = Boolean(user)
     }
 
+    // --- link-only sources: never auto-create; unlinked identities must
+    // log in another way first and link from the account settings.
+    if (!user && provider.behavior.linkOnly) {
+      return { user: null, linkOnlyRefused: true }
+    }
+
     // --- profile filter (deny list / allow list + exceptions)
     const access = await checkSsoAccess(provider, profile, email, isExisting)
     if (!access.allowed) {
@@ -92,19 +98,42 @@ const SAMLAuthenticationManager = {
       await logLoginEntry(user, 'create-account', auditLog)
     }
     if (!identityLinked) {
-      // cannot use SAMLIdentityManager.linkAccounts because affiliations service is not there
-      await User.updateOne(
-        { _id: user._id },
-        {
-          $set: {
-            'emails.0.confirmedAt': Date.now(), // email of saml user is confirmed
-            'emails.0.samlProviderId': provider.id,
-            'samlIdentifiers.0.providerId': provider.id,
-            'samlIdentifiers.0.externalUserId': externalUserId,
-            'samlIdentifiers.0.userIdAttribute': attrs.userId,
-          },
-        }
-      ).exec()
+      // cannot use SAMLIdentityManager.linkAccounts because affiliations service is not there.
+      // Upsert THIS provider's identifier: an account found by email may already
+      // hold identifiers for other IdPs, and `$set samlIdentifiers.0.*` would
+      // corrupt them (multi-IdP deployments).
+      const samlIds = Array.isArray(user.samlIdentifiers) ? user.samlIdentifiers : []
+      const idx = samlIds.findIndex(s => s && s.providerId === provider.id)
+      if (idx >= 0) {
+        await User.updateOne(
+          { _id: user._id },
+          {
+            $set: {
+              'emails.0.confirmedAt': Date.now(),
+              'emails.0.samlProviderId': provider.id,
+              samlIdentifiers: samlIds.map((s, i) =>
+                i === idx
+                  ? { ...s, externalUserId, userIdAttribute: attrs.userId }
+                  : s
+              ),
+            },
+          }
+        ).exec()
+      } else {
+        await User.updateOne(
+          { _id: user._id },
+          {
+            $set: { 'emails.0.confirmedAt': Date.now(), 'emails.0.samlProviderId': provider.id },
+            $push: {
+              samlIdentifiers: {
+                providerId: provider.id,
+                externalUserId,
+                userIdAttribute: attrs.userId,
+              },
+            },
+          }
+        ).exec()
+      }
       await logLoginEntry(user, 'link-institution-sso', auditLog, {
         providerId: provider.id,
         externalUserId,

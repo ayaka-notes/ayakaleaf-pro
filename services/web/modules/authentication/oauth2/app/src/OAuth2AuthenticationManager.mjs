@@ -67,16 +67,17 @@ const OAuth2AuthenticationManager = {
         }
       }
       const allowedDomains = provider.behavior.allowedEmailDomains
+      const domain = email.split('@')[1]
       if (
         allowedDomains &&
-        !allowedDomains.some(pattern => {
-          const domain = email.split('@')[1]
-          if (pattern.startsWith('*.')) {
-            const base = pattern.slice(2)
-            return domain.endsWith(`.${base}`)
-          }
-          return domain === pattern
-        })
+        (!domain ||
+          !allowedDomains.some(pattern => {
+            if (pattern.startsWith('*.')) {
+              const base = pattern.slice(2)
+              return domain.endsWith(`.${base}`)
+            }
+            return domain === pattern
+          }))
       ) {
         return { user: null, accessDenied: { reason: 'email-domain' } }
       }

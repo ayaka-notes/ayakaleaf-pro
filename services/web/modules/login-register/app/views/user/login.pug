@@ -30,7 +30,7 @@ block content
 						.card-body.ciam-enabled.p-4.p-sm-5
 							if ssoIntercept
 								.form-message.danger
-									| !{translate('register_intercept_sso', { authProviderName: ssoIntercept.providerName })}
+									| #{translate('register_intercept_sso', { authProviderName: ssoIntercept.providerName })}
 							if login_support_title
 								h1.pb-3 !{login_support_title}
 							else
