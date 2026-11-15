@@ -262,11 +262,12 @@ services:
       - ./webpack.config.dev-env.js:/overleaf/services/web/webpack.config.dev-env.js
 
   git-bridge:
-    image: quay.io/sharelatex/git-bridge:latest
+    build:
+      context: ../services/git-bridge
     expose:
       - "8000"
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       GIT_BRIDGE_API_BASE_URL: "http://web:3000/api/v0"
       GIT_BRIDGE_OAUTH2_SERVER: "http://web:3000"
@@ -288,7 +289,7 @@ services:
       # Served on /redis-insight of the site, through webpack-dev-server
       RI_PROXY_PATH: /redis-insight
     ports:
-      - "5540:5540"
+      - "127.0.0.1:5540:5540"
     depends_on:
       - redis
     volumes:
@@ -298,7 +299,7 @@ services:
   mongo-express:
     image: mongo-express
     ports:
-      - "8081:8081"
+      - "127.0.0.1:8081:8081"
     environment:
       ME_CONFIG_MONGODB_SERVER: mongo
       # Served on /mongo-express of the site, through webpack-dev-server
