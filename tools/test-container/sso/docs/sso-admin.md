@@ -24,9 +24,15 @@ instances of each, configured per provider, no rebuild).
 
 ## Managing providers
 
-1. **Add** — `Add provider` → choose a known provider (or a blank template).
-   Fill client id/secret (OAuth2/OIDC) or IdP entry point + cert (SAML),
-   set the attribute mapping, toggles, filters.
+1. **Add** — `New SSO source`, then pick a known provider (Google, ORCID,
+   GitHub, …) from the Quick-start row or a blank per-type template. The form
+   opens in **Form mode**: sections for identity, provider endpoints (OIDC /
+   OAuth2 / SAML fields appear per type), attribute mapping, behavior and the
+   profile filter (allow/deny rule tables with add/remove rows). Hover any
+   field for its explanation. The **JSON** tab gives the same state as raw
+   JSON at any time — both stay in sync, and unknown JSON keys survive a
+   round-trip. Fill client id/secret (OAuth2/OIDC) or IdP entry point + cert
+   (SAML), set the attribute mapping, toggles and filters.
 2. **Edit / enable / disable / delete** — actions column on the list page.
    Disabling a provider hides its login button and refuses its callback.
 3. **Source of truth** — the admin UI edits the same canonical provider JSON
@@ -123,7 +129,8 @@ encrypted assertions, SLO `logoutUrl`. Assertions must be signed —
 - [ ] `linkOnly` provider: unlinked identity refused, linked identity
       logs in, linking from Settings works
 - [ ] Disable provider → button gone, callback refused
-- [ ] `/admin/auths` JSON matches intent (source of truth)
+- [ ] `/admin/auths` JSON matches intent (source of truth; visible in the
+      JSON tab of the edit form)
 
 ## Filter engine — verified E2E (2026-11-14, live server)
 
