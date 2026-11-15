@@ -1,4 +1,5 @@
 import logger from '@overleaf/logger'
+import _ from 'lodash'
 import Path from 'path'
 import ErrorController from '../../../../app/src/Features/Errors/ErrorController.mjs'
 import Errors from '../../../../app/src/Features/Errors/Errors.js'
@@ -6,7 +7,7 @@ import SessionManager from '../../../../app/src/Features/Authentication/SessionM
 import ProjectAuditLogHandler from '../../../../app/src/Features/Project/ProjectAuditLogHandler.mjs'
 import UserAuditLogHandler from '../../../../app/src/Features/User/UserAuditLogHandler.mjs'
 import TemplateGalleryManager from'./TemplateGalleryManager.mjs'
-import { getUserName } from './TemplateGalleryHelper.mjs'
+import { getUserName, TEMPLATE_FORM_FIELDS } from './TemplateGalleryHelper.mjs'
 import { TemplateNameConflictError, RecompileRequiredError, MainFileRequiredError } from './TemplateErrors.mjs'
 import Settings from '@overleaf/settings'
 import { InvalidParamsError, InvalidRequestError, parseReq, z, zz } from '../../../../app/src/infrastructure/Validation.mjs'
@@ -99,14 +100,16 @@ async function createTemplateFromProject(req, res, next) {
 
 async function editTemplate(req, res, next) {
   const t = req.i18n.translate
+  // only what the edit form changes
+  const updates = _.pick(req.body, TEMPLATE_FORM_FIELDS)
   try {
     const result = await TemplateGalleryManager.editTemplate({
       templateId: req.params.template_id,
-      updates: req.body
+      updates,
     })
     await logTemplateAction(req, 'edit-template', {
       templateId: req.params.template_id,
-      fields: Object.keys(req.body),
+      fields: Object.keys(updates),
     })
     res.status(200).json(result)
   } catch (error) {

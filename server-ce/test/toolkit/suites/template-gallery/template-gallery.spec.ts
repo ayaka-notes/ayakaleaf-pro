@@ -628,6 +628,32 @@ describe('managing templates', function () {
       .should('equal', 409)
   })
 
+  it('edits only the fields of the form, and refuses one that is not text', function () {
+    cy.visit('/project')
+    getTemplate(templateId).then(before => {
+      postWithCsrf(`/template/${templateId}/edit`, {
+        authorMD: 'Only this changes',
+        owner: '0123456789abcdef01234567',
+        version: 99,
+        project_id: '0123456789abcdef01234567',
+        mainFile: 'other.tex',
+      })
+        .its('status')
+        .should('equal', 200)
+      getTemplate(templateId).then(after => {
+        expect(after.authorMD).to.equal('Only this changes')
+        for (const key of ['owner', 'version', 'project_id', 'mainFile']) {
+          expect(after[key], key).to.deep.equal(before[key])
+        }
+      })
+    })
+    for (const body of [{ name: { $ne: '' } }, { descriptionMD: ['a', 'b'] }]) {
+      postWithCsrf(`/template/${templateId}/edit`, body)
+        .its('status')
+        .should('equal', 400)
+    }
+  })
+
   it('sanitises the markdown fields', function () {
     cy.visit('/project')
     postWithCsrf(`/template/${templateId}/edit`, {
