@@ -377,6 +377,17 @@ block content
 															small.form-text.text-muted comma-separated; empty = all domains allowed
 											.card.border-0.mb-3
 												.card-body
+													h6.text-uppercase.text-body.fw-semibold.mb-2 Appearance
+													.form-check.form-switch.d-inline-block.me-3.mb-2
+														input#f-ico-show.form-check-input(type='checkbox')
+														label.form-check-label(for='f-ico-show') Show icon on the login button
+													.d-flex.gap-2
+														input#f-ico-url.form-control(placeholder='https://example.org/icons/orcid.svg or /img/icons/orcid.png' style='flex-grow:1')
+													small.form-text.text-muted
+														| Image URL (http(s) or an absolute path). Switch off or leave empty to
+														| show the button without an icon. The image is loaded in the user's browser at login time.
+											.card.border-0.mb-3
+												.card-body
 													h6.text-uppercase.text-body.fw-semibold.mb-2 Profile filter
 													p.form-text
 														|&nbsp;
