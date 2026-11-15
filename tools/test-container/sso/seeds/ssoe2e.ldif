@@ -1,0 +1,24 @@
+# Dedicated LDAP test fixtures for the SSO E2E (additive, non-destructive).
+# Added under ou=people,dc=example,dc=com by the osixia admin bind
+# (cn=admin,dc=example,dc=com / admin_password).
+#
+#   ssoe2e : regular user  -> ldapMapProfile => admin=false
+#   ssoadm : admin user    -> employeeType=admin => admin=true
+dn: uid=ssoe2e,ou=people,dc=example,dc=com
+objectClass: inetOrgPerson
+uid: ssoe2e
+cn: Carol SSO
+sn: SSO
+givenName: Carol
+mail: ssoe2e@example.com
+userPassword: SsoE2ePass123
+
+dn: uid=ssoadm,ou=people,dc=example,dc=com
+objectClass: inetOrgPerson
+uid: ssoadm
+cn: Admin SSO
+sn: SSO
+givenName: Admin
+mail: ssoadm@example.com
+employeeType: admin
+userPassword: SsoAdmPass123

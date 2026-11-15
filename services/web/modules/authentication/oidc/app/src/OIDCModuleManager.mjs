@@ -1,51 +1,138 @@
 import logger from '@overleaf/logger'
 import Settings from '@overleaf/settings'
-import { boolFromEnv, hasPassword } from '../../../utils.mjs'
+import { hasPassword } from '../../../utils.mjs'
 import PermissionsManager from '../../../../../app/src/Features/Authorization/PermissionsManager.mjs'
+import { store, registerSsoProviders } from '../../../providers/index.mjs'
+import { setPassport } from '../../../providers/passport.mjs'
 import OIDCAuthenticationController from './OIDCAuthenticationController.mjs'
 import { localLoginDisabled } from '../../../../login-register/app/src/LoginController.mjs'
 import { Strategy as OIDCStrategy } from 'passport-openidconnect'
 
+const siteUrl = () => Settings.siteUrl.replace(/\/+$/, '')
+
+/**
+ * Build the passport-openidconnect options object for one provider.
+ */
+function oidcStrategyOptions(provider) {
+  const { oidc } = provider
+  const options = {
+    authorizationURL: oidc.authorizationUrl,
+    tokenURL: oidc.tokenUrl,
+    userInfoURL: oidc.userInfoUrl,
+    clientID: oidc.clientId,
+    clientSecret: oidc.clientSecret,
+    scope: oidc.scope,
+    passReqToCallback: true,
+  }
+  if (oidc.issuer) options.issuer = oidc.issuer
+  options.callbackURL = `${siteUrl()}/oidc/${encodeURIComponent(provider.id)}/login/callback`
+  // keep per-provider session/state keys separate (same IdP hostname case)
+  options.sessionKey = `overleaf-oidc:${provider.id}`
+  return options
+}
+
 const OIDCModuleManager = {
+  /**
+   * Expose the OIDC providers on Settings (legacy single-provider shape for
+   * old consumers + the full `providers` list) and register the
+   * oauthProviders used by the login and settings pages.
+   */
   initSettings() {
-    let providerId = process.env.OVERLEAF_OIDC_PROVIDER_ID || 'oidc'
+    const providers = store.ofType('oidc')
+    const legacy = store.get('oidc')
+    const first = legacy ?? providers[0]
+    if (!first) {
+      // keep the flag shape so `Settings.oidc.enable` checks keep working
+      Settings.oidc = { enable: false, providers: [] }
+      return
+    }
     Settings.oidc = {
       enable: true,
-      providerId: providerId,
-      identityServiceName: process.env.OVERLEAF_OIDC_IDENTITY_SERVICE_NAME || `Log in with ${Settings.oauthProviders[providerId].name}`,
-      attUserId: process.env.OVERLEAF_OIDC_USER_ID_FIELD || 'id',
-      attAdmin: process.env.OVERLEAF_OIDC_IS_ADMIN_FIELD,
-      valAdmin: process.env.OVERLEAF_OIDC_IS_ADMIN_FIELD_VALUE,
-      updateUserDetailsOnLogin: boolFromEnv(process.env.OVERLEAF_OIDC_UPDATE_USER_DETAILS_ON_LOGIN),
-      allowedOIDCEmailDomains: process.env.OVERLEAF_OIDC_ALLOWED_EMAIL_DOMAINS === undefined
-        ? null
-        : process.env.OVERLEAF_OIDC_ALLOWED_EMAIL_DOMAINS.split(',').map(s => s.trim()).filter(Boolean),
+      providerId: first.id,
+      identityServiceName: first.name,
+      // legacy flat fields (first provider) for old code paths
+      attUserId: first.attrs.userId,
+      attAdmin: first.attrs.admin?.field,
+      valAdmin: first.attrs.admin?.values?.[0],
+      updateUserDetailsOnLogin: first.behavior.updateUserDetailsOnLogin,
+      allowedOIDCEmailDomains: first.behavior.allowedEmailDomains,
+      providers,
     }
+    Settings.oauthProviders = Settings.oauthProviders || {}
+    // Drop stale OIDC entries (identified by their /oidc/ link path) so that
+    // providers removed via the admin UI disappear from the linked-accounts UI.
+    const activeOidc = new Set(providers.map(provider => provider.id))
+    for (const key of Object.keys(Settings.oauthProviders)) {
+      const linkPath = String(Settings.oauthProviders[key]?.linkPath ?? '')
+      if (linkPath.startsWith('/oidc/') && !activeOidc.has(key)) {
+        delete Settings.oauthProviders[key]
+      }
+    }
+    for (const provider of providers) {
+      Settings.oauthProviders[provider.id] = {
+        name: provider.name,
+        linkPath: `/oidc/${encodeURIComponent(provider.id)}/login`,
+        hideWhenNotLinked: provider.oidc.hideWhenNotLinked,
+        ...(provider.descriptionKey
+          ? { descriptionKey: provider.descriptionKey }
+          : {}),
+        ...(provider.descriptionOptions
+          ? { descriptionOptions: provider.descriptionOptions }
+          : {}),
+      }
+    }
+    registerSsoProviders(Settings, 'oidc', providers)
   },
+
+  /**
+   * Register one passport strategy per enabled provider.
+   * Strategy names: `oidc:<id>`.
+   */
   passportSetup(passport, callback) {
-    const oidcOptions = {
-      issuer: process.env.OVERLEAF_OIDC_ISSUER,
-      authorizationURL: process.env.OVERLEAF_OIDC_AUTHORIZATION_URL,
-      tokenURL: process.env.OVERLEAF_OIDC_TOKEN_URL,
-      userInfoURL: process.env.OVERLEAF_OIDC_USER_INFO_URL,
-      clientID: process.env.OVERLEAF_OIDC_CLIENT_ID,
-      clientSecret: process.env.OVERLEAF_OIDC_CLIENT_SECRET,
-      callbackURL: `${Settings.siteUrl.replace(/\/+$/, '')}/oidc/login/callback`,
-      scope: process.env.OVERLEAF_OIDC_SCOPE || 'openid profile email',
-      passReqToCallback: true,
+    setPassport(passport)
+    const providers = store.ofType('oidc')
+    if (!providers.length) {
+      // no providers yet: the admin UI can add them live
+      return callback(null)
     }
-    try {
-      passport.use(
-        new OIDCStrategy(
-          oidcOptions,
-          OIDCAuthenticationController.doPassportLogin
+    for (const provider of providers) {
+      let strategy
+      try {
+        strategy = new OIDCStrategy(
+          oidcStrategyOptions(provider),
+          OIDCAuthenticationController.doPassportLogin(provider)
         )
-      )
-      callback(null)
-    } catch (error) {
-      callback(error)
+        strategy.name = `oidc:${provider.id}`
+        passport.use(strategy)
+      } catch (error) {
+        return callback(error)
+      }
     }
+    callback(null)
   },
+
+  /**
+   * (Re)register strategies after a store change from the admin UI.
+   */
+  refreshStrategies(passport) {
+    for (const provider of store.ofType('oidc')) {
+      const strategy = new OIDCStrategy(
+        oidcStrategyOptions(provider),
+        OIDCAuthenticationController.doPassportLogin(provider)
+      )
+      strategy.name = `oidc:${provider.id}`
+      passport.use(strategy)
+    }
+    // unuse removed providers
+    const active = new Set(store.ofType('oidc').map(p => `oidc:${p.id}`))
+    for (const name of Object.keys(passport._strategies)) {
+      if (name.startsWith('oidc:') && !active.has(name)) {
+        passport.unuse(name)
+      }
+    }
+    this.initSettings()
+  },
+
   initPolicy() {
     try {
       PermissionsManager.registerCapability('change-password', { default: true })

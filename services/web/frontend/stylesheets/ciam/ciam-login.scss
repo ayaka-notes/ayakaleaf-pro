@@ -11,3 +11,12 @@
 .ciam-login-sso-form-controls {
   @include ciam-vertically-spaced;
 }
+
+// SSO login-button icons (admin-configured per provider)
+.sso-btn-icon {
+  width: 20px;
+  height: 20px;
+  margin-right: 10px;
+  vertical-align: -5px;
+  border-radius: 4px;
+}

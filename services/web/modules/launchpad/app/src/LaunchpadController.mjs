@@ -36,9 +36,12 @@ async function _atLeastOneAdminExists() {
 }
 
 function getAuthMethod() {
+  // The LDAP module is env-gated: Settings.ldap exists only when LDAP is enabled.
   if (Settings.ldap) {
     return 'ldap'
-  } else if (Settings.saml) {
+  } else if (Settings.saml && Settings.saml.enable) {
+    // The SAML module is now always loaded; it only counts when at least one
+    // IdP provider is actually configured.
     return 'saml'
   } else {
     return 'local'

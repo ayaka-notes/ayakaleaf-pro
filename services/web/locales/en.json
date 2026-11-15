@@ -3463,5 +3463,6 @@
   "zotero_sync_success_plural": "Synced __count__ references from Zotero.",
   "zotero_sync_up_to_date": "Your Zotero references are already up to date.",
   "zotero_upgrade_prompt_content": "Link your Zotero account to search and add your references from Zotero directly in your project—they’ll automatically be added to your .bib file. Or import them as a file into your __appName__ projects.",
-  "zotero_upgrade_prompt_title": "Cite from Zotero"
+  "zotero_upgrade_prompt_title": "Cite from Zotero",
+  "sso_invited_user_cannot_create_project": "Invited accounts cannot create new projects yet. An administrator must establish your account first."
 }

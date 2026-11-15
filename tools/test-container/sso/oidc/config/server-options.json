@@ -1,0 +1,5 @@
+{
+  "Discovery": { "ShowKeySet": true },
+  "AccessTokenJwtType": "JWT",
+  "ForwardedHeadersOptions": { "ForwardedHeaders": "All" }
+}

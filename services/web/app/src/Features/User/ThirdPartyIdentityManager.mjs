@@ -12,7 +12,17 @@ import OError from '@overleaf/o-error'
 // Map, not a plain object: providerId is externally supplied, and a plain
 // object lookup is vulnerable to prototype-pollution keys such as
 // '__proto__' or 'constructor' resolving to a truthy inherited value.
-const oauthProviders = new Map(Object.entries(settings.oauthProviders || {}))
+// Read live at call time: the authentication modules register their
+// providers (file or env) on Settings.oauthProviders during module load,
+// which can happen after this module was imported.
+function getOauthProvider(providerId) {
+  if (providerId === null || providerId === undefined) return undefined
+  const providers = settings.oauthProviders || {}
+  if (!Object.prototype.hasOwnProperty.call(providers, providerId)) {
+    return undefined
+  }
+  return providers[providerId]
+}
 
 async function getUser(providerId, externalUserId) {
   if (providerId == null || externalUserId == null) {
@@ -57,7 +67,7 @@ async function link(
   retry
 ) {
   const accountLinked = true
-  if (!oauthProviders.get(providerId)) {
+  if (!getOauthProvider(providerId)) {
     throw new Error('Not a valid provider')
   }
 
@@ -124,7 +134,7 @@ async function link(
 
 async function unlink(userId, providerId, auditLog) {
   const accountLinked = false
-  if (!oauthProviders.get(providerId)) {
+  if (!getOauthProvider(providerId)) {
     throw new Error('Not a valid provider')
   }
 
@@ -169,7 +179,7 @@ function _getUserQuery(providerId, externalUserId) {
 }
 
 function _sendSecurityAlert(accountLinked, providerId, user, userId) {
-  const providerName = oauthProviders.get(providerId).name
+  const providerName = (getOauthProvider(providerId) || {}).name || providerId
   const emailOptions = EmailOptionsHelper.linkOrUnlink(
     accountLinked,
     providerName,

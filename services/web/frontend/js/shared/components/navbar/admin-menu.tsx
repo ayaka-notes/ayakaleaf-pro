@@ -41,6 +41,9 @@ export default function AdminMenu({
           <NavDropdownLinkItem href="/admin/user">
             Manage Users
           </NavDropdownLinkItem>
+          <NavDropdownLinkItem href="/admin/auths">
+            SSO providers (OIDC / SAML sources & filters)
+          </NavDropdownLinkItem>
         </>
       ) : null}
       {canDisplayProjectUrlLookup ? (

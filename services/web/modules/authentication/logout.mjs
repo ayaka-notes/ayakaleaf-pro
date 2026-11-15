@@ -1,12 +1,17 @@
 import { promisify } from 'node:util'
+import { store } from './providers/index.mjs'
 
 // Passport keeps session fields across login, but core serialization filters
 // externalAuth out of the user. Clear the marker on local login as well.
 export function rememberExternalAuth(req, res, user, callback) {
   if (user.externalAuth) {
     req.session.externalAuth = user.externalAuth
+    if (req.session.externalAuthProvider) {
+      user.externalAuthProvider = req.session.externalAuthProvider
+    }
   } else {
     delete req.session.externalAuth
+    delete req.session.externalAuthProvider
   }
   callback()
 }
@@ -25,24 +30,26 @@ export async function endSession(req) {
 // otherwise it calls next() to continue local logout flow.
 export default async function logout(req, res, next) {
   const externalAuth = req.session?.externalAuth || req.user?.externalAuth
-  if (req.user && externalAuth) {
-    switch (externalAuth) {
-      case 'saml': {
+  if (req.user && externalAuth && (externalAuth === 'saml' || externalAuth === 'oidc')) {
+    // the provider this session logged in with (set at login time)
+    const providerId = req.session?.externalAuthProvider || req.user?.externalAuthProvider
+    let provider = providerId ? store.get(providerId) : null
+    if (!provider || provider.type !== externalAuth) {
+      // fall back to the first enabled provider of that type
+      provider = store.firstOfType(externalAuth)
+    }
+    if (provider) {
+      if (externalAuth === 'saml') {
         const { default: SAMLAuthenticationController } = await import(
           './saml/app/src/SAMLAuthenticationController.mjs'
         )
-        return SAMLAuthenticationController.passportLogout(req, res, next)
+        return SAMLAuthenticationController.passportLogout(provider)(req, res, next)
       }
-      case 'oidc': {
-        const { default: OIDCAuthenticationController } = await import(
-          './oidc/app/src/OIDCAuthenticationController.mjs'
-        )
-        return OIDCAuthenticationController.passportLogout(req, res, next)
-      }
-      default:
-        next()
+      const { default: OIDCAuthenticationController } = await import(
+        './oidc/app/src/OIDCAuthenticationController.mjs'
+      )
+      return OIDCAuthenticationController.passportLogout(provider)(req, res, next)
     }
-  } else {
-    next()
   }
+  next()
 }

@@ -464,6 +464,29 @@ const _ProjectController = {
       email,
       _id: userId,
     } = currentUser
+    // SSO invited users: accounts auto-created through the SSO
+    // invited-user exception are *holding accounts*. They may use the
+    // projects they were invited to, but may not create new projects
+    // until an administrator establishes them — unless the
+    // `sso.invitedUsersCanCreateProjects` setting is true. The session
+    // user is a trimmed object, so the flag is read from the database.
+    if (Settings.sso?.invitedUsersCanCreateProjects === false) {
+      const fresh = await User.findOne({ _id: userId })
+        .select('holdingAccount')
+        .lean()
+        .exec()
+        .catch(() => null)
+      if (fresh?.holdingAccount === true) {
+        return res.status(403).json({
+          message: {
+            type: 'error',
+            text: req.i18n
+              ? req.i18n.translate('sso_invited_user_cannot_create_project')
+              : 'Invited accounts cannot create new projects yet. An administrator must establish your account first.',
+          },
+        })
+      }
+    }
     const { body } = parseReq(req, newProjectSchema, { logOnly: true })
     const projectName =
       body.projectName != null ? body.projectName.trim() : undefined

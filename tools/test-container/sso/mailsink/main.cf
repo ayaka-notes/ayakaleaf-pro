@@ -1,0 +1,11 @@
+# postfix capture sink for the TEST stack: everything addressed to the domain
+# is dumped to the local `dumpuser` Maildir (/var/mail/dumpuser/Maildir/),
+# which the container exposes on a bind mount. No TLS required for local
+# plaintext capture (Overleaf can send with SECURE=false / IGNORE_TLS=true).
+myhostname = overleaf.local
+myorigin = overleaf.local
+mydestination = overleaf.local, $myhostname, localhost.localdomain, localhost
+virtual_alias_maps = static:dumpuser
+home_mailbox = Maildir/
+maillog_file = /dev/stdout
+compatibility_level = 3.6

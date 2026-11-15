@@ -1,0 +1,38 @@
+[
+  {
+    "ClientId": "overleaf_test",
+    "Description": "Overleaf CE multi-SSO test SP",
+    "ClientSecrets": [
+      "SOMEPASSWORD"
+    ],
+    "AllowedGrantTypes": [
+      "authorization_code"
+    ],
+    "RequirePkce": false,
+    "AllowAccessTokensViaBrowser": true,
+    "RedirectUris": [
+      "http://localhost/oauth2/oauth2-mock/login/callback",
+      "http://localhost/oidc/oidc-mock/login/callback",
+      "http://localhost/oidc/orcid-mock/login/callback",
+      "http://localhost:8080/oauth2/oauth2-mock/login/callback",
+      "http://localhost:8080/oidc/oidc-mock/login/callback",
+      "http://localhost:8080/oidc/orcid-mock/login/callback",
+      "https://psintern.neuro.uni-bremen.de/oauth2/oauth2-mock/login/callback",
+      "https://psintern.neuro.uni-bremen.de/oidc/oidc-mock/login/callback",
+      "https://psintern.neuro.uni-bremen.de/oidc/orcid-mock/login/callback"
+    ],
+    "PostLogoutRedirectUris": [
+      "https://psintern.neuro.uni-bremen.de/",
+      "http://localhost/"
+    ],
+    "AllowedScopes": [
+      "openid",
+      "email",
+      "profile"
+    ],
+    "IdentityTokenLifetime": 3600,
+    "AccessTokenLifetime": 3600,
+    "RequireConsent": false,
+    "AllowInsecureHttp": true
+  }
+]

@@ -1,67 +1,126 @@
 import logger from '@overleaf/logger'
 import Settings from '@overleaf/settings'
-import { readFilesContentFromEnv, numFromEnv, boolFromEnv, hasPassword } from '../../../utils.mjs'
+import { hasPassword } from '../../../utils.mjs'
 import PermissionsManager from '../../../../../app/src/Features/Authorization/PermissionsManager.mjs'
+import { store, registerSsoProviders } from '../../../providers/index.mjs'
+import { setPassport } from '../../../providers/passport.mjs'
 import SAMLAuthenticationController from './SAMLAuthenticationController.mjs'
 import { Strategy as SAMLStrategy } from '@node-saml/passport-saml'
 
-const SAMLModuleManager = {
-  initSettings() {
-  Settings.saml = {
-    enable: true,
-    identityServiceName: process.env.OVERLEAF_SAML_IDENTITY_SERVICE_NAME || 'Log in with SAML IdP',
-    attUserId:    process.env.OVERLEAF_SAML_USER_ID_FIELD || 'nameID',
-    attEmail:     process.env.OVERLEAF_SAML_EMAIL_FIELD || 'nameID',
-    attFirstName: process.env.OVERLEAF_SAML_FIRST_NAME_FIELD || 'givenName',
-    attLastName:  process.env.OVERLEAF_SAML_LAST_NAME_FIELD || 'lastName',
-    attAdmin:     process.env.OVERLEAF_SAML_IS_ADMIN_FIELD,
-    valAdmin:     process.env.OVERLEAF_SAML_IS_ADMIN_FIELD_VALUE,
-    updateUserDetailsOnLogin: boolFromEnv(process.env.OVERLEAF_SAML_UPDATE_USER_DETAILS_ON_LOGIN),
+const siteUrl = () => Settings.siteUrl.replace(/\/+$/, '')
+
+/**
+ * Build the passport-saml options for one IdP provider.
+ */
+function samlStrategyOptions(provider) {
+  const s = provider.saml
+  const options = {
+    // distinct passport strategy name per IdP (supported by passport-saml)
+    name: `saml:${provider.id}`,
+    entryPoint: s.entryPoint,
+    callbackUrl: `${siteUrl()}/saml/${encodeURIComponent(provider.id)}/login/callback`,
+    audience: s.audience,
+    idpCert: s.idpCert,
+    privateKey: s.privateKey,
+    decryptionPvk: s.decryptionPvk,
+    signatureAlgorithm: s.signatureAlgorithm,
+    additionalParams: s.additionalParams || {},
+    additionalAuthorizeParams: s.additionalAuthorizeParams || {},
+    identifierFormat: s.identifierFormat,
+    acceptedClockSkewMs: s.acceptedClockSkewMs,
+    attributeConsumingServiceIndex: s.attributeConsumingServiceIndex,
+    authnContext: s.authnContext,
+    forceAuthn: Boolean(s.forceAuthn),
+    disableRequestedAuthnContext: Boolean(s.disableRequestedAuthnContext),
+    validateInResponseTo: s.validateInResponseTo,
+    requestIdExpirationPeriodMs: s.requestIdExpirationPeriodMs,
+    logoutUrl: s.logoutUrl,
+    logoutCallbackUrl: `${siteUrl()}/saml/${encodeURIComponent(provider.id)}/logout/callback`,
+    additionalLogoutParams: s.additionalLogoutParams || {},
+    wantAssertionsSigned: Boolean(s.wantAssertionsSigned),
+    wantAuthnResponseSigned: Boolean(s.wantAuthnResponseSigned),
+    passReqToCallback: true,
   }
-},
-  passportSetup(passport, callback) {
-    const samlOptions = {
-      entryPoint: process.env.OVERLEAF_SAML_ENTRYPOINT,
-      callbackUrl: `${Settings.siteUrl.replace(/\/+$/, '')}/saml/login/callback`,
-      issuer: process.env.OVERLEAF_SAML_ISSUER,
-      audience: process.env.OVERLEAF_SAML_AUDIENCE,
-      idpCert: readFilesContentFromEnv(process.env.OVERLEAF_SAML_IDP_CERT),
-      privateKey:  readFilesContentFromEnv(process.env.OVERLEAF_SAML_PRIVATE_KEY),
-      decryptionPvk:  readFilesContentFromEnv(process.env.OVERLEAF_SAML_DECRYPTION_PVK),
-      signatureAlgorithm: process.env.OVERLEAF_SAML_SIGNATURE_ALGORITHM,
-      additionalParams: JSON.parse(process.env.OVERLEAF_SAML_ADDITIONAL_PARAMS || '{}'),
-      additionalAuthorizeParams: JSON.parse(process.env.OVERLEAF_SAML_ADDITIONAL_AUTHORIZE_PARAMS || '{}'),
-      identifierFormat: process.env.OVERLEAF_SAML_IDENTIFIER_FORMAT,
-      acceptedClockSkewMs: numFromEnv(process.env.OVERLEAF_SAML_ACCEPTED_CLOCK_SKEW_MS),
-      attributeConsumingServiceIndex: process.env.OVERLEAF_SAML_ATTRIBUTE_CONSUMING_SERVICE_INDEX,
-      authnContext: process.env.OVERLEAF_SAML_AUTHN_CONTEXT ? JSON.parse(process.env.OVERLEAF_SAML_AUTHN_CONTEXT) : undefined,
-      forceAuthn: boolFromEnv(process.env.OVERLEAF_SAML_FORCE_AUTHN),
-      disableRequestedAuthnContext: boolFromEnv(process.env.OVERLEAF_SAML_DISABLE_REQUESTED_AUTHN_CONTEXT),
-      skipRequestCompression: process.env.OVERLEAF_SAML_AUTHN_REQUEST_BINDING === 'HTTP-POST',  // compression should be skipped iff authnRequestBinding is POST
-      authnRequestBinding: process.env.OVERLEAF_SAML_AUTHN_REQUEST_BINDING,
-      validateInResponseTo: process.env.OVERLEAF_SAML_VALIDATE_IN_RESPONSE_TO,
-      requestIdExpirationPeriodMs: numFromEnv(process.env.OVERLEAF_SAML_REQUEST_ID_EXPIRATION_PERIOD_MS),
-      // cacheProvider: process.env.OVERLEAF_SAML_CACHE_PROVIDER,
-      logoutUrl: process.env.OVERLEAF_SAML_LOGOUT_URL,
-      logoutCallbackUrl: `${Settings.siteUrl.replace(/\/+$/, '')}/saml/logout/callback`,
-      additionalLogoutParams: JSON.parse(process.env.OVERLEAF_SAML_ADDITIONAL_LOGOUT_PARAMS || '{}'),
-      wantAssertionsSigned: boolFromEnv(process.env.OVERLEAF_SAML_WANT_ASSERTIONS_SIGNED),
-      wantAuthnResponseSigned: boolFromEnv(process.env.OVERLEAF_SAML_WANT_AUTHN_RESPONSE_SIGNED),
-      passReqToCallback: true,
+  // node-saml requires an SP issuer (entityID); default to a stable value
+  options.issuer = s.spIssuer || `overleaf-saml-${provider.id}`
+  if (s.authnRequestBinding) {
+    options.authnRequestBinding = s.authnRequestBinding
+    // compression should be skipped iff authnRequestBinding is POST
+    options.skipRequestCompression = s.authnRequestBinding === 'HTTP-POST'
+  }
+  return options
+}
+
+function registerStrategy(passport, provider) {
+  const strategy = new SAMLStrategy(
+    samlStrategyOptions(provider),
+    SAMLAuthenticationController.doPassportLogin(provider),
+    SAMLAuthenticationController.doPassportLogout(provider)
+  )
+  passport.use(strategy)
+}
+
+const SAMLModuleManager = {
+  /**
+   * Expose the SAML IdPs on Settings (legacy single-IdP shape for old
+   * consumers + the full `providers` list) and the login-page buttons.
+   */
+  initSettings() {
+    const providers = store.ofType('saml')
+    const legacy = store.get('1')
+    const first = legacy ?? providers[0]
+    if (!first) {
+      Settings.saml = { enable: false, providers: [] }
+      return
     }
-    try {
-      passport.use(
-        new SAMLStrategy(
-          samlOptions,
-          SAMLAuthenticationController.doPassportLogin,
-          SAMLAuthenticationController.doPassportLogout
-        )
-      )
-      callback(null)
-    } catch (error) {
-      callback(error)
+    Settings.saml = {
+      enable: true,
+      identityServiceName: first.name,
+      attUserId: first.attrs.userId,
+      attEmail: first.attrs.email,
+      attFirstName: first.attrs.firstName,
+      attLastName: first.attrs.lastName,
+      attAdmin: first.attrs.admin?.field,
+      valAdmin: first.attrs.admin?.values?.[0],
+      updateUserDetailsOnLogin: first.behavior.updateUserDetailsOnLogin,
+      providers,
     }
+    registerSsoProviders(Settings, 'saml', providers)
   },
+
+  passportSetup(passport, callback) {
+    setPassport(passport)
+    const providers = store.ofType('saml')
+    if (!providers.length) {
+      // no IdPs yet: the admin UI can add them live
+      return callback(null)
+    }
+    for (const provider of providers) {
+      try {
+        registerStrategy(passport, provider)
+      } catch (error) {
+        return callback(error)
+      }
+    }
+    callback(null)
+  },
+
+  /**
+   * (Re)register strategies after a store change from the admin UI.
+   */
+  refreshStrategies(passport) {
+    for (const provider of store.ofType('saml')) {
+      registerStrategy(passport, provider)
+    }
+    const active = new Set(store.ofType('saml').map(p => `saml:${p.id}`))
+    for (const name of Object.keys(passport._strategies)) {
+      if (name.startsWith('saml:') && !active.has(name)) {
+        passport.unuse(name)
+      }
+    }
+    this.initSettings()
+  },
+
   initPolicy() {
     try {
       PermissionsManager.registerCapability('change-password', { default : true })
@@ -75,15 +134,16 @@ const SAMLModuleManager = {
       return !(await hasPassword(user._id))
     }
     try {
-    PermissionsManager.registerPolicy(
-      'samlPolicy',
-      { 'change-password' : false },
-      { validator: samlPolicyValidator }
-    )
+      PermissionsManager.registerPolicy(
+        'samlPolicy',
+        { 'change-password' : false },
+        { validator: samlPolicyValidator }
+      )
     } catch (error) {
       logger.info({}, error.message)
     }
   },
+
   getGroupPolicyForUser(user, callback) {
     PermissionsManager.promises.getUserValidationStatus({
       user,
