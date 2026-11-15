@@ -197,9 +197,14 @@ function OverviewTab({
       t('owner'),
       ownerKey ? (
         <div key="owner" className="admin-panel-inline-field">
-          <a className="admin-panel-plain-link" href={`/admin/user/${ownerKey}`}>
-            {owner?.email ?? ownerKey}
-          </a>
+          {owner?.email ? (
+            <a className="admin-panel-plain-link" href={`/admin/user/${ownerKey}`}>
+              {owner.email}
+            </a>
+          ) : (
+            // expired or purged, as the review panel names it
+            <span className="admin-panel-muted">{t('deleted_user')}</span>
+          )}
           {/* a transfer notifies both owners and cannot be undone, so it is
               confirmed on its own, not saved with the form */}
           {editing && (

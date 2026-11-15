@@ -786,7 +786,22 @@ describe('a deleted project', function () {
       })
       // the same address only changes the hash: load the page again
       cy.reload()
-      detail('Deleted By email').should('have.text', 'Deleted user')
+      detail('Deleted By email')
+        .should('have.text', 'Deleted user')
+        .find('a')
+        .should('not.exist')
+      detail('Owner')
+        .should('have.text', 'Deleted user')
+        .find('a')
+        .should('not.exist')
+      // the owner's page is gone too: back to the projects
+      cy.get('.previous-page-link')
+        .should('have.attr', 'href', '/admin/project')
+        .and('contain.text', 'Deleted user')
+      // and there a purge of the project goes as well
+      headerAction('Delete permanently').click()
+      confirmDialog('Delete permanently')
+      cy.location('pathname').should('equal', '/admin/project')
     })
   })
 
