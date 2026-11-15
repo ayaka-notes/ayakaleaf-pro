@@ -549,6 +549,9 @@ block content
 													$('#f-beh-verifiedEmailRequired').checked = beh.verifiedEmailRequired === true;
 													$('#f-beh-updateUserDetailsOnLogin').checked = !!beh.updateUserDetailsOnLogin;
 													$('#f-beh-allowedEmailDomains').value = beh.allowedEmailDomains ? beh.allowedEmailDomains.join(', ') : '';
+													$('#f-ico-show').checked = !!obj.iconUrl;
+													$('#f-ico-url').value = obj.iconUrl || '';
+													$('#f-ico-url').disabled = !$('#f-ico-show').checked;
 													var flt = obj.filter || {};
 													$('#f-flt-allowExistingUsers').checked = flt.allowExistingUsers !== false;
 													$('#f-flt-allowInvited').checked = flt.allowInvited !== false;
@@ -594,6 +597,7 @@ block content
 														linkOnly: $('#f-beh-linkOnly').checked,
 														verifiedEmailRequired: $('#f-beh-verifiedEmailRequired').checked,
 													};
+													obj.iconUrl = $('#f-ico-show').checked ? ($('#f-ico-url').value.trim() || null) : null;
 													obj.filter = {
 														allow: readRules('#rules-allow'),
 														deny: readRules('#rules-deny'),
@@ -627,6 +631,9 @@ block content
 												tabForm.addEventListener('click', function () { show('form'); });
 												tabJson.addEventListener('click', function () { show('json'); });
 
+												$('#f-ico-show').addEventListener('change', function () {
+													$('#f-ico-url').disabled = !this.checked;
+												});
 												$('#add-allow').addEventListener('click', function () { $('#rules-allow').appendChild(ruleRow()); });
 												$('#add-deny').addEventListener('click', function () { $('#rules-deny').appendChild(ruleRow()); });
 

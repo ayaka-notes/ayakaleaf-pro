@@ -302,6 +302,22 @@ export function normalizeProvider(raw) {
     ),
   }
 
+  // Optional login-button icon: http(s) URL or absolute path. null/'' = off.
+  const rawIcon = raw.iconUrl ?? raw.icon
+  if (rawIcon != null && rawIcon !== '') {
+    if (typeof rawIcon !== 'string') {
+      fail(`${path}.iconUrl`, 'must be a URL string (or null to disable)')
+    }
+    const iconUrl = rawIcon.trim()
+    if (iconUrl.length > 2048) {
+      fail(`${path}.iconUrl`, 'is too long (max 2048 chars)')
+    }
+    if (!/^(https?:\/\/|\/)[^\s"'<>]+$/.test(iconUrl)) {
+      fail(`${path}.iconUrl`, `"${iconUrl}" must be an http(s):// URL or an absolute path starting with "/" (no spaces, quotes, angle brackets or javascript:/data: schemes)`)
+    }
+    p.iconUrl = iconUrl
+  }
+
   // filter (defaults: no rules, exceptions on)
   p.filter = normalizeFilter(raw.filter)
 

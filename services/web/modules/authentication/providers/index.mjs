@@ -26,6 +26,7 @@ export function registerSsoProviders(settings, type, providers) {
       id: provider.id,
       name: provider.name,
       linkPath: `/${type}/${encodeURIComponent(provider.id)}/login`,
+      iconUrl: provider.iconUrl || undefined,
     })),
   ]
 }

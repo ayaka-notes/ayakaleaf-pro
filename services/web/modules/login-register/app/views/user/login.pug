@@ -87,7 +87,10 @@ block content
 									href=ssoProvider.linkPath,
 										data-ol-disabled-inflight
 									)
-										span(data-ol-inflight="idle") #{ssoProvider.name}
+										span(data-ol-inflight="idle")
+											if ssoProvider.iconUrl
+												img.sso-btn-icon(src=ssoProvider.iconUrl alt='')
+											| #{ssoProvider.name}
 										span(hidden data-ol-inflight="pending") #{translate("logging_in")}…
 							if hasFeature('registration-page')
 								.login-register-hr-text-container

@@ -16,6 +16,11 @@ instances of each, configured per provider, no rebuild).
     (or whose email matches, if not link-only). Use for ORCID.
   - `verifiedEmailRequired` — reject unverified emails (default `true` for
     `oauth2`, `false` for `oidc`/`saml` unless you opt in).
+- **Appearance** — optional login-button icon per provider: switch "Show icon
+  on the login button" + an image URL (`https://…` or an absolute `/…` path).
+  Leave it off/empty for a text-only button. Known-provider templates
+  (Google, GitHub, GitLab, Gitea, ORCID) pre-fill a sensible icon URL you
+  can keep or clear.
 - **Filters** — `allow` / `deny` rules over any SSO profile attribute, applied
   before login, linking, and JIT account creation (see *Filters* below).
 - **Known providers** — the "Add provider" form pre-fills standard

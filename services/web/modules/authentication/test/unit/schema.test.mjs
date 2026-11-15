@@ -32,6 +32,45 @@ describe('provider schema', () => {
       expect(provider.filter.allowExistingUsers).toBe(true)
     })
 
+    it('accepts and validates iconUrl (login button icon)', () => {
+      const withIcon = normalizeProvider({
+        id: 'uni',
+        type: 'saml',
+        saml: { entryPoint: 'https://idp/sso', idpCert: PEM },
+        iconUrl: 'https://example.org/icons/uni.png',
+      })
+      expect(withIcon.iconUrl).toBe('https://example.org/icons/uni.png')
+      const abs = normalizeProvider({
+        id: 'uni',
+        type: 'saml',
+        saml: { entryPoint: 'https://idp/sso', idpCert: PEM },
+        iconUrl: '/img/icons/uni.png',
+      })
+      expect(abs.iconUrl).toBe('/img/icons/uni.png')
+      const off = normalizeProvider({
+        id: 'uni',
+        type: 'saml',
+        saml: { entryPoint: 'https://idp/sso', idpCert: PEM },
+      })
+      expect(off.iconUrl).toBeUndefined()
+      expect(() =>
+        normalizeProvider({
+          id: 'uni',
+          type: 'saml',
+          saml: { entryPoint: 'https://idp/sso', idpCert: PEM },
+          iconUrl: 'javascript:alert(1)',
+        })
+      ).toThrow(/http\(s\)\/\/ URL or an absolute path/)
+      expect(() =>
+        normalizeProvider({
+          id: 'uni',
+          type: 'saml',
+          saml: { entryPoint: 'https://idp/sso', idpCert: PEM },
+          iconUrl: 'data:image/png;base64,AAAA',
+        })
+      ).toThrow(/http\(s\)\/\/ URL or an absolute path/)
+    })
+
     it('normalizes an OIDC provider (issuer + explicit urls)', () => {
       const provider = normalizeProvider({
         id: 'kc',

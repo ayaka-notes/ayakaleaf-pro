@@ -157,7 +157,7 @@ export function applyPreset(presetName, type, provider) {
     preset = {
       name: known.label,
       description: 'Known provider template',
-      [known.type]: { attrs: known.defaults.attrs || {} },
+      [known.type]: { attrs: known.defaults.attrs || {}, iconUrl: known.iconUrl },
       filter: { allow: [], deny: [] },
     }
     presetType = known.type
@@ -184,6 +184,10 @@ export function applyPreset(presetName, type, provider) {
     out.attrs = attrs
   } else {
     out.attrs = presetAttrs
+  }
+  // iconUrl: preset default unless the provider sets (or clears) it
+  if (defaults.iconUrl && provider.iconUrl === undefined) {
+    out.iconUrl = defaults.iconUrl
   }
   // filter: preset defaults first, provider rules appended/overridden
   if (preset.filter && (preset.filter.allow?.length || preset.filter.deny?.length)) {
@@ -214,6 +218,7 @@ export function applyPreset(presetName, type, provider) {
 export const KNOWN_PROVIDERS = {
   github: {
     label: 'GitHub',
+    iconUrl: 'https://raw.githubusercontent.com/simple-icons/simple-icons/develop/icons/github.svg',
     type: 'oauth2',
     defaults: {
       behavior: { verifiedEmailRequired: true },
@@ -243,6 +248,7 @@ export const KNOWN_PROVIDERS = {
   },
   gitlab: {
     label: 'GitLab',
+    iconUrl: 'https://raw.githubusercontent.com/simple-icons/simple-icons/develop/icons/gitlab.svg',
     type: 'oauth2',
     defaults: {
       behavior: { verifiedEmailRequired: false },
@@ -271,6 +277,7 @@ export const KNOWN_PROVIDERS = {
   },
   gitea: {
     label: 'Gitea / Forgejo',
+    iconUrl: 'https://raw.githubusercontent.com/simple-icons/simple-icons/develop/icons/gitea.svg',
     type: 'oauth2',
     defaults: {
       behavior: { verifiedEmailRequired: false },
@@ -298,6 +305,7 @@ export const KNOWN_PROVIDERS = {
   },
   google: {
     label: 'Google',
+    iconUrl: 'https://www.gstatic.com/images/branding/product/1x/googleg_48dp.png',
     type: 'oidc',
     defaults: {
       behavior: { verifiedEmailRequired: true },
@@ -326,6 +334,7 @@ export const KNOWN_PROVIDERS = {
   },
   orcid: {
     label: 'ORCID (link-only, no auto-create)',
+    iconUrl: 'https://orcid.org/sites/default/files/orcid_16x16.png',
     type: 'oidc',
     defaults: {
       behavior: { linkOnly: true, verifiedEmailRequired: false },
