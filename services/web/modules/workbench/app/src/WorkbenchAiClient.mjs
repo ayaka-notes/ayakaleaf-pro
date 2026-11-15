@@ -97,8 +97,10 @@ export function hasPdf(messages = []) {
  */
 export function resolveModel(messages = []) {
   // Follow-up requests retain earlier attachments, so route the entire conversation.
-  if (Settings.workbenchAi?.pdfModel && hasPdf(messages)) {
-    return Settings.workbenchAi.pdfModel
+  // A PDF goes to the PDF model, or to the chat model without one, even with
+  // images: the image model may not read PDF files
+  if (hasPdf(messages)) {
+    return Settings.workbenchAi?.pdfModel || Settings.workbenchAi?.model
   }
   if (
     Settings.workbenchAi?.imageModel &&
