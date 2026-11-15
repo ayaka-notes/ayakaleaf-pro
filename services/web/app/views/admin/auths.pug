@@ -82,7 +82,7 @@ block content
 														else if provider.type === 'oauth2'
 															span.badge.text-bg-info OAuth2
 														else
-															span.badge.text-bg-secondary SAML
+															span.badge(style='background-color:#ffc107;color:#212529') SAML
 													td
 														code #{provider.id}
 													td
@@ -105,11 +105,17 @@ block content
 													td.text-end
 														if provider.source !== 'env'
 															a.me-2(href=`/admin/auths/${provider.id}/edit`) Edit
-															form.d-inline(method='post' action=`/admin/auths/${provider.id}/delete` onsubmit="return confirm('Delete this SSO source? Users linked to it keep their accounts, but this source is no longer offered on the login page.')")
+															form.d-inline(method='post' action=`/admin/auths/${provider.id}/delete` data-sso-delete-confirm='Delete this SSO source? Users linked to it keep their accounts, but this source is no longer offered on the login page.')
 																input(name='_csrf' type='hidden' value=csrfToken)
 																button.btn.btn-sm.btn-outline-danger(type='submit') Delete
 														else
 															span.text-muted read-only
+							script(type='text/javascript' nonce=scriptNonce).
+								document.querySelectorAll('form[data-sso-delete-confirm]').forEach(function (f) {
+									f.addEventListener('submit', function (e) {
+										if (!window.confirm(f.getAttribute('data-sso-delete-confirm'))) e.preventDefault();
+									});
+								});
 							if form
 								// ---------------- new / edit form ----------------
 								if form.readOnly
@@ -423,7 +429,7 @@ block content
 										.d-flex.mt-3
 											button.btn.btn-primary.ms-2(type='submit') Save provider
 											a.btn.ms-2(href='/admin/auths') Cancel
-										script#sso-admin-script(type='text/javascript').
+										script#sso-admin-script(type='text/javascript' nonce=scriptNonce).
 											(function () {
 												var $ = function (s) { return document.querySelector(s); };
 												var OPS = JSON.parse($('#sso-ops-hidden').value);
