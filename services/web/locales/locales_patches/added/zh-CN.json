@@ -26,6 +26,8 @@
   "no_new_commits_in_x": "自上次合并后__provider__未收到新的提交",
   "notify_user_about_account_deletion": "发邮件通知用户账号已被删除",
   "only_project_owner_can_link_x": "只有项目所有者可以将此项目链接到 __provider__ 存储库。如果您想进行此设置，请联系项目所有者。",
+  "pdf_navigation_back": "上一阅读位置",
+  "pdf_navigation_forward": "下一阅读位置",
   "project_not_linked_to_x": "该项目未与__provider__任一存储库关联。您可以在__provider__中为该项目创建一个存储库：",
   "recent_commits_in_x": "__provider__中最近的提交",
   "reset": "重置",

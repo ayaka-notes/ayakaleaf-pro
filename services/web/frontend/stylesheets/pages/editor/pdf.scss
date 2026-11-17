@@ -441,6 +441,8 @@
 
   .popover-body {
     display: flex;
+    flex-wrap: wrap;
+    row-gap: var(--spacing-04);
     align-items: center;
     padding: var(--spacing-04) 0;
   }

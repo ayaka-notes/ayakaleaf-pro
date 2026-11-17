@@ -10,8 +10,12 @@ import { useCommandProvider } from '@/features/ide-react/hooks/use-command-provi
 import { useTranslation } from 'react-i18next'
 import { useLayoutContext } from '@/shared/context/layout-context'
 import { PdfHybridThemeButton } from './pdf-hybrid-theme-button'
+import PdfNavigationControls, {
+  PdfNavigationControlsProps,
+} from './pdf-navigation-controls'
 
 type PdfViewerControlsToolbarProps = {
+  navigation: PdfNavigationControlsProps
   requestPresentationMode: () => void
   setZoom: (zoom: string) => void
   rawScale: number
@@ -22,6 +26,7 @@ type PdfViewerControlsToolbarProps = {
 }
 
 function PdfViewerControlsToolbar({
+  navigation,
   requestPresentationMode,
   setZoom,
   rawScale,
@@ -92,13 +97,14 @@ function PdfViewerControlsToolbar({
   }
 
   const InnerControlsComponent =
-    availableWidth >= 320
+    availableWidth >= 400
       ? PdfViewerControlsToolbarFull
       : PdfViewerControlsToolbarSmall
 
   return createPortal(
     <div className="pdfjs-viewer-controls" ref={pdfControlsRef}>
       <InnerControlsComponent
+        navigation={navigation}
         requestPresentationMode={requestPresentationMode}
         setZoom={setZoom}
         rawScale={rawScale}
@@ -114,6 +120,7 @@ function PdfViewerControlsToolbar({
 }
 
 type InnerControlsProps = {
+  navigation: PdfNavigationControlsProps
   requestPresentationMode: () => void
   setZoom: (zoom: string) => void
   rawScale: number
@@ -125,6 +132,7 @@ type InnerControlsProps = {
 }
 
 function PdfViewerControlsToolbarFull({
+  navigation,
   requestPresentationMode,
   setZoom,
   rawScale,
@@ -135,6 +143,7 @@ function PdfViewerControlsToolbarFull({
   return (
     <>
       <PdfHybridThemeButton />
+      <PdfNavigationControls {...navigation} />
       <PdfPageNumberControl
         setPage={setPage}
         page={page}
@@ -153,6 +162,7 @@ function PdfViewerControlsToolbarFull({
 }
 
 function PdfViewerControlsToolbarSmall({
+  navigation,
   requestPresentationMode,
   setZoom,
   rawScale,
@@ -170,6 +180,7 @@ function PdfViewerControlsToolbarSmall({
         setZoom={setZoom}
       />
       <PdfViewerControlsMenuButton
+        navigation={navigation}
         setZoom={setZoom}
         setPage={setPage}
         page={page}

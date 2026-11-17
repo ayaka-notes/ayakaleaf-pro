@@ -26,6 +26,8 @@
   "no_new_commits_in_x": "",
   "notify_user_about_account_deletion": "",
   "only_project_owner_can_link_x": "",
+  "pdf_navigation_back": "",
+  "pdf_navigation_forward": "",
   "project_not_linked_to_x": "",
   "recent_commits_in_x": "",
   "reset": "",
