@@ -172,12 +172,8 @@ describe('PDF navigation in the rendered viewer', function () {
       }
       back().should('be.disabled')
       forward().should('be.disabled')
-      cy.findByRole('button', { name: 'Next page', exact: true }).should(
-        'be.enabled'
-      )
-      cy.findByRole('button', { name: 'Zoom in', exact: true }).should(
-        'be.enabled'
-      )
+      cy.findByRole('button', { name: /^Next page$/ }).should('be.enabled')
+      cy.findByRole('button', { name: /^Zoom in$/ }).should('be.enabled')
       if (width === 320) cy.get('.pdfjs-toolbar-popover-button').click()
       clickLink(0)
       if (width === 320) cy.get('.pdfjs-toolbar-popover-button').click()

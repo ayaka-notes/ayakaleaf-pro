@@ -45,6 +45,7 @@ describe('<PdfNavigationControls/>', function () {
 
   it('makes navigation available in the narrow toolbar menu', async function () {
     const goBack = sinon.spy()
+    const pdfContainer = document.createElement('div')
     render(
       <PdfViewerControlsMenuButton
         navigation={{
@@ -57,8 +58,9 @@ describe('<PdfNavigationControls/>', function () {
         setPage={() => {}}
         page={1}
         totalPages={3}
-        pdfContainer={document.body}
-      />
+        pdfContainer={pdfContainer}
+      />,
+      { container: document.body.appendChild(pdfContainer) }
     )
     fireEvent.click(screen.getByRole('button'))
     await waitFor(() => {
