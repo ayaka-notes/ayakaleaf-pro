@@ -6,15 +6,24 @@ WORKDIR /build
 
 RUN go install github.com/a8m/envsubst/cmd/envsubst@latest
 
-FROM maven:3-amazoncorretto-21-debian AS base
+FROM amazoncorretto@sha256:600e99e39da14b6a909027a924136c423e9334cb7347a8a77d5908bdaa3011b7 AS base
 
-RUN apt-get update && apt-get install -y make git sqlite3 curl \
- && rm -rf /var/lib/apt/lists
+# Java4Shell (CVE-2026-114938) hardening: build on the patched Corretto 21
+# build (21.0.13.1.2, 2026-11-17), pinned by digest so CI caches cannot fall
+# back to an older build. The previous maven:3-amazoncorretto-21-debian base
+# shipped the vulnerable 21.0.13.0.11. Maven is installed from the official
+# Apache tarball so the ONLY JDK in the image is the patched Corretto above
+# (no distro-JDK conflict on Alpine).
+RUN apk add --no-cache make git sqlite curl bash \
+ && curl -fsSL https://archive.apache.org/dist/maven/maven-3/3.9.11/binaries/apache-maven-3.9.11-bin.tar.gz -o /tmp/m.tgz \
+ && tar -xzf /tmp/m.tgz -C /opt \
+ && ln -s /opt/apache-maven-3.9.11/bin/mvn /usr/local/bin/mvn \
+ && rm /tmp/m.tgz
 
 COPY --from=envsubst_builder /go/bin/envsubst /opt/envsubst
 RUN chmod +x /opt/envsubst
 
-RUN useradd --create-home node
+RUN adduser -D node && mkdir -p /home/node && chown node:node /home/node
 
 ENV MAVEN_OPTS="-Dmaven.repo.local=/home/node/repository"
 
@@ -44,7 +53,9 @@ RUN make package \
       -name 'writelatex-git-bridge*jar-with-dependencies.jar' \
       -exec mv {} /git-bridge.jar \;
 
-FROM amazoncorretto:21-alpine
+# Java4Shell (CVE-2026-114938): pin the runtime JVM to the same patched
+# Corretto 21 build (21.0.13.1.2) rather than the floating :21-alpine tag.
+FROM amazoncorretto@sha256:600e99e39da14b6a909027a924136c423e9334cb7347a8a77d5908bdaa3011b7
 
 RUN apk add --update --no-cache bash git sqlite procps htop net-tools jemalloc util-linux
 
