@@ -19,6 +19,7 @@ import {
 import { expectOwnAuditEntry } from '../../../../helpers/auditLog'
 import { login, randomPassword } from '../../../../helpers/login'
 import { postWithCsrf } from '../../../../helpers/request'
+import { addConfirmedEmail, makePrimary } from '../../../../helpers/userEmails'
 
 // LDAP login through authentik's LDAP outpost (services/authentik). Admins
 // are mapped from memberOf containing the Admins group. The first admin is
@@ -232,12 +233,17 @@ describe('LDAP login of a disabled account', function () {
 })
 
 describe('LDAP audit log', function () {
-  it('tells about the account a first login creates', function () {
+  it('tells about the account a first login creates, and whether it is an admin', function () {
     loginAs('dave')
+    loginAs('alice')
     loginAs('carol')
     expectOwnAuditEntry(idpEmail('dave'), 'create-account')
-      .its('info.method')
-      .should('equal', 'LDAP password login')
+      .its('info')
+      .should('include', { method: 'LDAP password login', isAdmin: false })
+    // a member of Admins is an admin from the first login on
+    expectOwnAuditEntry(idpEmail('alice'), 'create-account')
+      .its('info.isAdmin')
+      .should('equal', true)
   })
 
   it('tells when a login removes the password of a local account', function () {
@@ -271,5 +277,37 @@ describe('LDAP audit log', function () {
     expectOwnAuditEntry(idpEmail('bob'), 'failed-password-match')
       .its('info.method')
       .should('equal', 'LDAP password login')
+  })
+})
+
+describe('emails of an LDAP account', function () {
+  it('adds an email but refuses to make it primary', function () {
+    const personal = `bob-${Cypress._.random(1e9)}@example.com`
+    loginAs('bob')
+    addConfirmedEmail(personal)
+    makePrimary(personal)
+    cy.contains('Sorry, something went wrong')
+    postWithCsrf('/user/emails/default', { email: personal })
+      .its('status')
+      .should('equal', 403)
+    currentUser().its('email').should('equal', idpEmail('bob'))
+  })
+
+  it('refuses a first login with the secondary email of another account', function () {
+    // in the directory with this email and logs in nowhere else in this spec
+    const email = 'eve@other.test'
+    loginAs('bob')
+    addConfirmedEmail(email)
+    ldapLogin('eve')
+    cy.contains('This email is already registered as a secondary email')
+    cy.url().should('contain', '/ldap/login')
+
+    loginAs('bob')
+    cy.visit('/user/settings')
+    postWithCsrf('/user/emails/delete', { email })
+      .its('status')
+      .should('equal', 200)
+    loginAs('eve')
+    currentUser().its('email').should('equal', email)
   })
 })

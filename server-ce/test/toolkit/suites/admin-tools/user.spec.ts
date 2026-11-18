@@ -11,8 +11,10 @@ import {
   dialog,
   everyRow,
   expectLogged,
+  findUser,
   headerAction,
   interceptSearch,
+  makeAdmin,
   openTab,
   pickOwner,
   row,
@@ -558,6 +560,50 @@ describe('audit log', function () {
       expectLogged(`/admin/user/${adminId}`, 'purge-deleted-user')
         .its('info.email')
         .should('equal', address)
+    })
+  })
+
+  it('names the admin who acted and who deleted the account once that admin is deleted too', function () {
+    const goneAdmin = email('gone-admin')
+    const address = email('deleted-by-gone')
+    createUser(goneAdmin)
+    createUser(address)
+    login(ADMIN_EMAIL)
+    makeAdmin(goneAdmin)
+    userId(address).then(id => {
+      const page = `/admin/user/${id}`
+      login(goneAdmin)
+      cy.visit('/admin/user')
+      postWithCsrf(`${page}/update`, { firstName: 'Changed' })
+        .its('status')
+        .should('equal', 200)
+      postWithCsrf(`${page}/delete`, { sendEmail: false })
+        .its('status')
+        .should('equal', 200)
+      login(ADMIN_EMAIL)
+      userId(goneAdmin).then(adminId => {
+        cy.visit('/admin/user')
+        postWithCsrf(`/admin/user/${adminId}/delete`, { sendEmail: false })
+          .its('status')
+          .should('equal', 200)
+      })
+      // deletedUsers keeps the admin's email, as the lists show it
+      expectLogged(page, 'change-name', goneAdmin)
+      expectLogged(page, 'delete-account', goneAdmin)
+      visitUser(id)
+      detail('Deleted By email').should('contain.text', goneAdmin)
+
+      // a purge leaves no email: "Deleted user", as the review panel says
+      findUser(goneAdmin, 'deleted').then(gone => {
+        requestWithCsrf('DELETE', `/admin/user/${gone!.id}`)
+          .its('status')
+          .should('equal', 200)
+      })
+      // the same address only changes the hash: load the page again
+      cy.reload()
+      detail('Deleted By email').should('have.text', 'Deleted user')
+      visitUser(id, 'audit-logs')
+      row('Change name').should('contain.text', 'Deleted user')
     })
   })
 

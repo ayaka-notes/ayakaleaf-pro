@@ -127,6 +127,15 @@ async function updateUser(req, res) {
   res.json(changed)
 }
 
+async function removeEmail(req, res) {
+  await AdminUserManager.removeEmail(
+    userIdOf(req),
+    req.body.email,
+    adminOf(req)
+  )
+  res.sendStatus(204)
+}
+
 async function transferProjects(req, res) {
   const projectCount = await AdminUserManager.transferProjects(
     userIdOf(req),
@@ -170,6 +179,7 @@ export default {
   sendActivationEmail: adminRoute(sendActivationEmail),
   sendPasswordReset: adminRoute(sendPasswordReset),
   updateUser: adminRoute(updateUser),
+  removeEmail: adminRoute(removeEmail),
   transferProjects: adminRoute(transferProjects),
   deleteUser: adminRoute(deleteUser),
   restoreDeletedUser: adminRoute(restoreDeletedUser),

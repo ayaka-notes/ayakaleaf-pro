@@ -43,6 +43,10 @@ One folder per module in `toolkit/suites/`, named and nested like
   password. The variants sign up with an activation email: `any-domain/`
   for any domain (`@*`), `domain/` for one domain, `domains/` for a list
   with a `*.` subdomain wildcard.
+- `user-emails/` – without a mail server the single email field stays. The
+  `smtp/` variant adds, confirms, removes and makes an email primary, then
+  logs in and resets the password with it; `with-captcha/` asks for a captcha
+  when adding one.
 - `sandboxed-compiles/` – compiling in sibling containers, switching between
   two TeX Live images, XeLaTeX, errors, stopping a compile, SyncTeX.
 - `symbol-palette/` – opening and closing the palette, switching categories

@@ -512,6 +512,13 @@
   margin-top: var(--spacing-06);
 }
 
+// the rows of a user's emails, which have a button each while editing
+.admin-panel-email-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-02);
+}
+
 // a field of the account form inside a details row
 .admin-panel-input {
   max-width: 360px;

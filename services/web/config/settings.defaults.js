@@ -1375,7 +1375,8 @@ module.exports = {
     'workbench',
     'error-assistant',
     'instance-features',
-    'open-in-overleaf'
+    'open-in-overleaf',
+    'user-emails'
   ],
   viewIncludes: {},
 

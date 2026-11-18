@@ -339,6 +339,27 @@ async function changeEmail(userId, newEmail, admin) {
   }
 }
 
+// Frees an address a user kept as a secondary email, e.g. one that stops
+// someone's first SSO login. Core logs it with the admin as the initiator.
+async function removeEmail(userId, email, admin) {
+  // a deleted user: from the copy that a restore brings back, so that it can
+  // come back without an email another account uses now
+  if (!(await User.exists({ _id: userId }))) {
+    const { modifiedCount } = await DeletedUser.updateOne(
+      { 'user._id': userId, 'user.email': { $ne: email } },
+      { $pull: { 'user.emails': { email } } }
+    )
+    if (modifiedCount === 0) throw new Errors.NotFoundError('email not found')
+    return await logOnUser(admin, userId, 'remove-email', {
+      removedEmail: email,
+    })
+  }
+  await UserUpdater.promises.removeEmailAddress(userId, email, {
+    initiatorId: admin.id,
+    ipAddress: admin.ip,
+  })
+}
+
 // The document changes of the plain fields
 function fieldChanges(user, fields) {
   const changes = {}
@@ -654,8 +675,17 @@ async function restoreDeletedUser(userId, admin) {
   if (!userData) {
     throw new RefusedError('Something went wrong. The user is purged?')
   }
-  if (await User.exists({ email: userData.email })) {
-    throw new Errors.EmailExistsError()
+  // every email comes back, and another account may use one by now, even as a
+  // secondary email
+  const emails = userData.emails.map(({ email }) => email)
+  const used = await User.distinct('emails.email', {
+    'emails.email': { $in: emails },
+  })
+  const taken = emails.filter(email => used.includes(email))
+  if (taken.length > 0) {
+    throw new RefusedError(
+      `Another account already uses ${taken.join(', ')}: remove it from one of the two accounts first`
+    )
   }
 
   try {
@@ -726,4 +756,5 @@ export default {
   restoreDeletedUser,
   getAiUsage,
   resetAiUsage,
+  removeEmail,
 }

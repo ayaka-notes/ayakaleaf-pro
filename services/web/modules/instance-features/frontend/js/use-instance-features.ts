@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { getJSON } from '@/infrastructure/fetch-json'
 import '../stylesheets/settings-linking.scss'
+// The settings page has no slot of its own for this module's styles
+import '../../../user-emails/frontend/stylesheets/add-email.scss'
 
 export type InstanceFeatures = {
   ai: boolean
