@@ -31,7 +31,6 @@ const TIMING_BUCKETS = [
   0, 10, 100, 1000, 2000, 5000, 10000, 15000, 20000, 30000,
 ]
 const MAX_ENTRIES_IN_OUTPUT_TAR = 100
-const MAX_BLG_FILES = 50
 const OBJECT_ID_REGEX = /^[0-9a-f]{24}$/
 
 const MIGRATE_FROM = Settings.apis.clsiCache.reshardFrom
@@ -203,12 +202,11 @@ function notifyCLSICacheAboutBuild({
           f =>
             f.path === 'output.pdf' ||
             f.path === 'output.log' ||
-            f.path === 'output.synctex.gz'
-        )
-        .concat(
-          outputFiles
-            .filter(f => f.path.endsWith('.blg'))
-            .slice(0, MAX_BLG_FILES)
+            f.path === 'output.synctex.gz' ||
+            // web only serves output.blg from the cache. Other names could
+            // also fail clsi-cache's validation, which rejects the whole
+            // request and trips the circuit breaker for the shard.
+            f.path === 'output.blg'
         )
         .map(f => {
           const lean = { path: f.path }
