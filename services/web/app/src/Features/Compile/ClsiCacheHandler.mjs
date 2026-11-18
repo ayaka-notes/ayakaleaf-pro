@@ -20,26 +20,26 @@ const TIMEOUT = 4_000
 const lastFailures = new Map()
 
 /**
- * Keep in sync with isAllowedFilename in services/clsi-cache/app/js/utils.js
+ * Keep in sync with isAllowedFilename in services/clsi-cache/app/js/utils.js,
+ * except for custom-named "*.blg" files: clsi-cache still stores them, but
+ * web does not serve them for now.
  *
  * @param {string} filename
  * @return {boolean}
  */
 function isAllowedFilename(filename) {
-  return (
-    [
-      'output.blg',
-      'output.log',
-      'output.pdf',
-      'output.synctex.gz',
-      'output.overleaf.json',
-      'output.tar.gz',
-      // Not in web: 'history-resync.json.gz' is only read/written by clsi.
-      // The user/frontend should not be able to download it directly.
-      // We need to block access to it on the web layer.
-      // If we ever remove blockRestrictedUserFromProject from the history endpoints, we can remove this restriction.
-    ].includes(filename) || filename.endsWith('.blg')
-  )
+  return [
+    'output.blg',
+    'output.log',
+    'output.pdf',
+    'output.synctex.gz',
+    'output.overleaf.json',
+    'output.tar.gz',
+    // Not in web: 'history-resync.json.gz' is only read/written by clsi.
+    // The user/frontend should not be able to download it directly.
+    // We need to block access to it on the web layer.
+    // If we ever remove blockRestrictedUserFromProject from the history endpoints, we can remove this restriction.
+  ].includes(filename)
 }
 
 /**
@@ -48,7 +48,7 @@ function isAllowedFilename(filename) {
  * @param {string} filename
  */
 function validateFilename(filename) {
-  if (filename.split('/').includes('..')) {
+  if (!zz.filepath().safeParse(filename).success) {
     throw new InvalidNameError('path traversal')
   }
   if (!isAllowedFilename(filename)) {

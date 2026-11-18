@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Uppy from '@uppy/core'
 import XHRUpload from '@uppy/xhr-upload'
 import { Dashboard } from '@uppy/react'
+import OLButton from '@/shared/components/ol/ol-button'
 import { useFileTreeActionable } from '../../../contexts/file-tree-actionable'
 import { useProjectContext } from '../../../../../shared/context/project-context'
 import * as eventTracking from '../../../../../infrastructure/event-tracking'
@@ -24,14 +25,23 @@ import {
 } from '@/features/file-tree/components/file-tree-create/file-tree-upload-conflicts'
 import getMeta from '@/utils/meta'
 import { useActiveOverallTheme } from '@/shared/hooks/use-active-overall-theme'
+import {
+  findDuplicateUploadDestinations,
+  sanitizeUploadMetadata,
+  sortUploadFilesByName,
+} from '@/features/file-tree/util/sanitize-upload-metadata'
 
 export default function FileTreeUploadDoc() {
+  const { t } = useTranslation()
   const { parentFolderId, cancel, droppedFiles, setDroppedFiles } =
     useFileTreeActionable()
   const { fileTreeData } = useFileTreeData()
   const { projectId } = useProjectContext()
 
   const [error, setError] = useState<string>()
+  const [duplicateUploadDestinations, setDuplicateUploadDestinations] =
+    useState<string[]>([])
+  const [isUploading, setIsUploading] = useState(false)
 
   const [conflicts, setConflicts] = useState<Conflict[]>([])
   const [folderConflicts, setFolderConflicts] = useState<Conflict[]>([])
@@ -128,6 +138,28 @@ export default function FileTreeUploadDoc() {
     return endpoint
   }
 
+  const rejectDuplicateUploadDestinations = useCallback(
+    (files: Record<string, any>) => {
+      const duplicates = findDuplicateUploadDestinations(files, parentFolderId)
+      setDuplicateUploadDestinations(duplicates)
+
+      if (duplicates.length === 0) {
+        setError(currentError =>
+          currentError === 'duplicate-upload-destinations'
+            ? undefined
+            : currentError
+        )
+        return false
+      }
+
+      setError('duplicate-upload-destinations')
+      setConflicts([])
+      setFolderConflicts([])
+      return true
+    },
+    [parentFolderId]
+  )
+
   // initialise the Uppy object
   const [uppy] = useState(() => {
     const endpoint = buildEndpoint(projectId, parentFolderId)
@@ -141,21 +173,34 @@ export default function FileTreeUploadDoc() {
           maxFileSize: maxFileSize || null,
         },
         onBeforeFileAdded(file) {
-          if (
-            !isAcceptableFile(
-              file.name,
-              file.meta.relativePath as string | undefined
-            )
-          ) {
+          const { name, relativePath } = sanitizeUploadMetadata(
+            file.name,
+            file.meta.relativePath
+          )
+          if (!isAcceptableFile(name, relativePath)) {
             return false
+          }
+          return {
+            ...file,
+            // Uppy lowercases names and paths in IDs, hiding case-only collisions.
+            id: JSON.stringify([file.id, file.name, file.meta.relativePath]),
+            name,
+            meta: { ...file.meta, name, relativePath },
           }
         },
         onBeforeUpload(files) {
+          if (rejectDuplicateUploadDestinations(files)) {
+            return false
+          }
+          setError(undefined)
           const conflicts = buildConflicts(files)
           const folderConflicts = buildFolderConflicts(files)
           setConflicts(conflicts)
           setFolderConflicts(folderConflicts)
-          return conflicts.length === 0 && folderConflicts.length === 0
+          const canUpload =
+            conflicts.length === 0 && folderConflicts.length === 0
+          setIsUploading(canUpload)
+          return canUpload
         },
         autoProceed: true,
         locale: {
@@ -177,6 +222,7 @@ export default function FileTreeUploadDoc() {
         })
         // close the modal when all the uploads completed successfully
         .on('complete', result => {
+          setIsUploading(false)
           if (!result.failed.length) {
             cancel()
           }
@@ -219,6 +265,34 @@ export default function FileTreeUploadDoc() {
   const uppyTheme = useActiveOverallTheme('themed-modals')
 
   useEffect(() => {
+    const updateDuplicates = () => {
+      const files = Object.fromEntries(
+        uppy.getFiles().map(file => [file.id, file])
+      )
+      const sortedFiles = sortUploadFilesByName(files, parentFolderId)
+      const currentFileIds = Object.keys(files)
+      const sortedFileIds = Object.keys(sortedFiles)
+
+      if (currentFileIds.some((id, index) => id !== sortedFileIds[index])) {
+        // Uppy renders its file list in object-key order.
+        uppy.setState({ files: sortedFiles })
+      }
+
+      setError(undefined)
+      rejectDuplicateUploadDestinations(sortedFiles)
+    }
+
+    updateDuplicates()
+    uppy.on('file-added', updateDuplicates)
+    uppy.on('file-removed', updateDuplicates)
+
+    return () => {
+      uppy.off('file-added', updateDuplicates)
+      uppy.off('file-removed', updateDuplicates)
+    }
+  }, [uppy, parentFolderId, rejectDuplicateUploadDestinations])
+
+  useEffect(() => {
     if (uppy && droppedFiles) {
       uppy.setOptions({
         autoProceed: false,
@@ -250,17 +324,27 @@ export default function FileTreeUploadDoc() {
     }
   }, [uppy, droppedFiles, setDroppedFiles, projectId])
 
+  const handleUpload = useCallback(() => {
+    uppy.upload().catch(() => {
+      // Errors are reported by Uppy Core and the upload-error handler.
+    })
+  }, [uppy])
+
   // handle forced overwriting of conflicting files
   const handleOverwrite = useCallback(() => {
     setOverwrite(true)
     uppy.setOptions({
-      onBeforeUpload() {
+      onBeforeUpload(files) {
+        if (rejectDuplicateUploadDestinations(files)) {
+          return false
+        }
         // don't check for file conflicts
+        setIsUploading(true)
         return true
       },
     })
-    uppy.upload()
-  }, [uppy])
+    handleUpload()
+  }, [uppy, rejectDuplicateUploadDestinations, handleUpload])
 
   const showFolderUploadConflicts = !overwrite && folderConflicts.length > 0
   const showFileUploadConfilcts =
@@ -286,7 +370,11 @@ export default function FileTreeUploadDoc() {
   return (
     <>
       {error && (
-        <UploadErrorMessage error={error} maxNumberOfFiles={maxNumberOfFiles} />
+        <UploadErrorMessage
+          error={error}
+          maxNumberOfFiles={maxNumberOfFiles}
+          duplicateDestinations={duplicateUploadDestinations}
+        />
       )}
       {showFolderUploadConflicts && (
         <FolderUploadConflicts
@@ -313,6 +401,7 @@ export default function FileTreeUploadDoc() {
             width="100%"
             showLinkToFileUploadResult={false}
             proudlyDisplayPoweredByUppy={false}
+            hideUploadButton
             // allow files or folders to be selected
             fileManagerSelectionType="both"
             theme={uppyTheme}
@@ -330,6 +419,19 @@ export default function FileTreeUploadDoc() {
               },
             }}
           />
+          <div className="d-flex justify-content-end mt-2">
+            <OLButton
+              disabled={
+                Boolean(error) ||
+                duplicateUploadDestinations.length > 0 ||
+                uppy.getFiles().length === 0 ||
+                isUploading
+              }
+              onClick={handleUpload}
+            >
+              {t('upload')}
+            </OLButton>
+          </div>
         </div>
       )}
     </>
@@ -339,9 +441,11 @@ export default function FileTreeUploadDoc() {
 function UploadErrorMessage({
   error,
   maxNumberOfFiles,
+  duplicateDestinations,
 }: {
   error: string
   maxNumberOfFiles: number
+  duplicateDestinations: string[]
 }) {
   const { t } = useTranslation()
 
@@ -356,6 +460,11 @@ function UploadErrorMessage({
       )
 
     default:
-      return <ErrorMessage error={error} />
+      return (
+        <ErrorMessage
+          error={error}
+          duplicateDestinations={duplicateDestinations}
+        />
+      )
   }
 }

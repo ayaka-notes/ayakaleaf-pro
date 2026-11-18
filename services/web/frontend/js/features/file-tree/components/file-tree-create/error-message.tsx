@@ -12,8 +12,10 @@ import getMeta from '@/utils/meta'
 // TODO: Update the error type when we properly type FileTreeActionableContext
 export default function ErrorMessage({
   error,
+  duplicateDestinations = [],
 }: {
   error: string | Record<string, any>
+  duplicateDestinations?: string[]
 }) {
   const { t } = useTranslation()
   const { isOverleaf, maxEntitiesPerProject } = getMeta('ol-ExposedSettings')
@@ -74,6 +76,22 @@ export default function ErrorMessage({
         return (
           <DangerMessage>
             {t('file_or_folder_name_already_exists')}
+          </DangerMessage>
+        )
+
+      case 'duplicate-upload-destinations':
+        return (
+          <DangerMessage>
+            <div>
+              <p className="mb-0">{t('duplicate_upload_destinations')}</p>
+              {duplicateDestinations.length > 0 && (
+                <ul className="mb-0 mt-2">
+                  {duplicateDestinations.map(destination => (
+                    <li key={destination}>{destination}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </DangerMessage>
         )
 
