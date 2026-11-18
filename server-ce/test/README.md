@@ -108,8 +108,8 @@ One folder per module in `toolkit/suites/`, named and nested like
   exporting a project into a new project, importing a repository, pulling,
   pushing, merging through a merge request (deleted when allowed), conflicts
   and merges held back by approval or pipeline rules, renames and deletes,
-  binary files, force pushes, lost push access, and what collaborators may
-  do. Git-bridge is on as the docs require.
+  binary files, force pushes, lost push access, what collaborators may do,
+  and GitLab turned off for a user. Git-bridge is on as the docs require.
 - `gitea-sync/` – Gitea Sync against `toolkit/services/gitea`, a real Gitea
   (the oldest supported version, `GITEA_IMAGE` picks another) at
   `http://gitea:3000`: linking through the OAuth application and Gitea's
@@ -119,8 +119,9 @@ One folder per module in `toolkit/suites/`, named and nested like
   merging through a pull request with the repository's merge style,
   conflicts, manual merges in a working copy and squash merges, merges held
   back by required approvals or status checks, a branch deleted unmerged,
-  renames and deletes, binary files, force pushes, lost push access, and
-  what collaborators may do. Git-bridge is on as the docs require.
+  renames and deletes, binary files, force pushes, lost push access, what
+  collaborators may do, and Gitea turned off for a user. Git-bridge is on as
+  the docs require.
 - `dropbox/` – Dropbox Sync against `toolkit/services/dropbox-mock`, which
   answers as the Dropbox API and sends signed webhooks: linking and unlinking
   through OAuth, the projects sent when linking (owned and shared), edits
@@ -151,7 +152,8 @@ One folder per module in `toolkit/suites/`, named and nested like
 - `instance-features/` – `/system/features` and the UI that hides itself
   with it: AI assistant, GitHub Sync, Zotero and Mendeley, all off on the
   default instance and all on in the `enabled/` variant, with git-bridge,
-  which GitHub Sync needs; there also what an admin turned off for one user.
+  which GitHub Sync needs; there also what an admin turned off for one user,
+  and every sync turned off for another.
 - `admin-tools/` – the admin panel, `/admin/user` and `/admin/project`:
   who may open it; the user list (search by name, email and id, every Status, Login and Role
   filter with its counts, sorting, pages and page sizes, the deleted-match

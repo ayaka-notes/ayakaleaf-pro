@@ -18,7 +18,7 @@ type AiUsage = { used: number; limit: number | null }
 const BOOL_FEATURES = {
   collaboration: ['trackChanges', 'versioning'],
   editor: ['symbolPalette'],
-  integrations: ['gitBridge', 'dropbox', 'github', 'zotero', 'mendeley'],
+  integrations: ['gitBridge', 'dropbox', 'github', 'gitlab', 'gitea', 'zotero', 'mendeley'],
 } as const
 type BoolFeature = (typeof BOOL_FEATURES)[keyof typeof BOOL_FEATURES][number]
 const ALL_BOOL_FEATURES = Object.values(BOOL_FEATURES).flat()
@@ -143,6 +143,9 @@ function FeaturesTab({
     gitBridge: t('git_integration'),
     dropbox: t('dropbox'),
     github: t('github'),
+    // names, as on the Integrations tab
+    gitlab: 'GitLab',
+    gitea: 'Gitea',
     zotero: t('zotero'),
     mendeley: t('mendeley'),
   }

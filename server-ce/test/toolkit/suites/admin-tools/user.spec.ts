@@ -299,6 +299,20 @@ describe('features', function () {
     detail('Full project history').find('.material-symbols').should('contain.text', 'check')
   })
 
+  it('turns GitLab and Gitea off, which stay after a reload', function () {
+    for (const label of ['GitHub', 'GitLab', 'Gitea']) {
+      detail(label).find('.material-symbols').should('contain.text', 'check')
+    }
+    edit()
+    cy.get('#admin-user-feature-gitlab').uncheck()
+    cy.get('#admin-user-feature-gitea').uncheck()
+    save()
+    cy.reload()
+    detail('GitLab').find('.material-symbols').should('contain.text', 'remove')
+    detail('Gitea').find('.material-symbols').should('contain.text', 'remove')
+    detail('GitHub').find('.material-symbols').should('contain.text', 'check')
+  })
+
   it('refuses limits out of range', function () {
     edit()
     cy.get('#admin-user-feature-compileTimeout').clear().type('601')
@@ -347,6 +361,8 @@ describe('features', function () {
           trackChanges: false,
           versioning: false,
           dropbox: false,
+          gitlab: false,
+          gitea: false,
           collaborators: 3,
           compileTimeout: 240,
         },
@@ -360,6 +376,8 @@ describe('features', function () {
       detail('Compile timeout').should('contain.text', '120s')
       detail('Track changes').find('.material-symbols').should('contain.text', 'remove')
       detail('Dropbox').find('.material-symbols').should('contain.text', 'remove')
+      detail('GitLab').find('.material-symbols').should('contain.text', 'remove')
+      detail('Gitea').find('.material-symbols').should('contain.text', 'remove')
       detail('Full project history').find('.material-symbols').should('contain.text', 'check')
     })
   })
