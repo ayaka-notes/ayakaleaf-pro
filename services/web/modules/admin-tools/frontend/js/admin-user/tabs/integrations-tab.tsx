@@ -60,9 +60,9 @@ function IntegrationsTab() {
       <h3 className="admin-panel-section-title">{t('linked_accounts')}</h3>
       <DetailsTable
         rows={[
-          ['GitHub', <BoolIcon key="github" value={linked.github} label="GitHub" />],
-          ['GitLab', <BoolIcon key="gitlab" value={linked.gitlab} label="GitLab" />],
-          ['Gitea', <BoolIcon key="gitea" value={linked.gitea} label="Gitea" />],
+          [t('github'), <BoolIcon key="github" value={linked.github} label={t('github')} />],
+          [t('gitlab'), <BoolIcon key="gitlab" value={linked.gitlab} label={t('gitlab')} />],
+          [t('gitea'), <BoolIcon key="gitea" value={linked.gitea} label={t('gitea')} />],
           [t('dropbox'), <BoolIcon key="dropbox" value={linked.dropbox} label={t('dropbox')} />],
           [t('zotero'), <BoolIcon key="zotero" value={linked.zotero} label={t('zotero')} />],
           [t('mendeley'), <BoolIcon key="mendeley" value={linked.mendeley} label={t('mendeley')} />],
