@@ -16,6 +16,12 @@ const { ObjectId } = mongodb
 
 const tpdsUrl = _.get(settings, ['apis', 'thirdPartyDataStore', 'url'])
 
+// Project names "." and ".." are valid, but the Dropbox paths built below
+// would collapse them onto the parent folder, so such projects are not synced.
+function isUnsyncableProjectName(projectName) {
+  return projectName === '.' || projectName === '..'
+}
+
 async function addDoc(params) {
   metrics.inc('tpds.add-doc')
   const { projectId, path, docId, projectName, rev, folderId } = params
@@ -48,6 +54,7 @@ async function addEntity(params) {
     entityId,
     entityType,
   } = params
+  if (isUnsyncableProjectName(projectName)) return
 
   const projectUserIds = await getProjectUsersIds(projectId)
 
@@ -126,6 +133,7 @@ async function deleteEntity(params) {
     entityType,
     subtreeEntityIds,
   } = params
+  if (isUnsyncableProjectName(projectName)) return
 
   const projectUserIds = await getProjectUsersIds(projectId)
 
@@ -153,6 +161,7 @@ async function createProject(params) {
   if (!tpdsUrl) return // Overleaf Community Edition/Server Pro
 
   const { projectId, projectName, userId } = params
+  if (isUnsyncableProjectName(projectName)) return
 
   const job = {
     method: 'post',
@@ -212,6 +221,12 @@ async function getProjectUsersIds(projectId) {
 async function moveEntity(params) {
   metrics.inc('tpds.move-entity')
   const { projectId, rev, entityId, entityType, folderId } = params
+  if (
+    isUnsyncableProjectName(params.projectName) ||
+    isUnsyncableProjectName(params.newProjectName)
+  ) {
+    return
+  }
 
   const projectUserIds = await getProjectUsersIds(projectId)
   const { endPath, startPath } = buildMovePaths(params)

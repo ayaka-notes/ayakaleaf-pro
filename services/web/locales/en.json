@@ -763,6 +763,7 @@
   "duplicate": "Duplicate",
   "duplicate_file": "Duplicate File",
   "duplicate_projects": "This user has projects with duplicate names",
+  "duplicate_upload_destinations": "After cleaning up file and folder names (e.g. trimming whitespace characters), these files would be saved to the same destination. Rename or move files to continue.",
   "e_g_example_com": "e.g. example.com",
   "each_user_will_have_access_to": "Each user will have access to",
   "easily_manage_your_project_files_everywhere": "Easily manage your project files, everywhere",
