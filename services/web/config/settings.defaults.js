@@ -1050,6 +1050,10 @@ module.exports = {
         __dirname,
         '../modules/error-assistant/frontend/js/last-fix-store'
       ),
+      Path.resolve(
+        __dirname,
+        '../modules/wakatime/frontend/js/editor/wakatime-source-editor-extension.ts'
+      ),
     ],
     sourceEditorVisualExtensions: [],
     sourceEditorComponents: [],
@@ -1126,6 +1130,10 @@ module.exports = {
       Path.resolve(
         __dirname,
         '../modules/dropbox/frontend/js/components/dropbox-sync-widget.tsx'
+      ),
+      Path.resolve(
+        __dirname,
+        '../modules/wakatime/frontend/js/components/wakatime-widget.tsx'
       ),
     ],
     referenceLinkingWidgets: [
@@ -1283,6 +1291,10 @@ module.exports = {
         __dirname,
         '../modules/tpr-webmodule/frontend/js/components/mendeley-integration-card.tsx'
       ),
+      Path.resolve(
+        __dirname,
+        '../modules/wakatime/frontend/js/components/wakatime-integration-card.tsx'
+      ),
     ],
     referenceSearchSetting: [],
     settingsModalEditorTabSections: [],
@@ -1333,8 +1345,35 @@ module.exports = {
     'error-assistant',
     'instance-features',
     'open-in-overleaf',
-    'user-emails'
+    'user-emails',
+    'wakatime',
   ],
+  wakatime: {
+    // global on/off (routes + account-settings widget + editor heartbeats)
+    enabled: process.env.WAKATIME_ENABLED !== 'false',
+    debugLogging: process.env.WAKATIME_DEBUG_LOGGING === 'true',
+    // WakaTime.com OAuth2 (optional; empty clientId disables the
+    // "Connect with WakaTime" button). Create an app on wakatime.com and
+    // register WAKATIME_OAUTH_REDIRECT_URI as an authorized redirect URI.
+    oauth: {
+      clientId: process.env.WAKATIME_OAUTH_CLIENT_ID || '',
+      clientSecret: process.env.WAKATIME_OAUTH_CLIENT_SECRET || '',
+      redirectUri:
+        process.env.WAKATIME_OAUTH_REDIRECT_URI ||
+        `${process.env.OVERLEAF_SITE_URL || ''}/user/wakatime/oauth/callback`.replace(
+          /\/$/,
+          ''
+        ),
+      authorizeUrl:
+        process.env.WAKATIME_OAUTH_AUTHORIZE_URL ||
+        'https://wakatime.com/oauth/authorize',
+      tokenUrl:
+        process.env.WAKATIME_OAUTH_TOKEN_URL || 'https://wakatime.com/oauth/token',
+      scope: process.env.WAKATIME_OAUTH_SCOPE || 'read_summaries,write_heartbeats',
+      // API base URL used for a wakatime.com-linked account
+      apiBaseUrl: process.env.WAKATIME_OAUTH_API_BASE_URL || 'https://wakatime.com/api/v1',
+    },
+  },
   viewIncludes: {},
 
   csp: {
