@@ -12,6 +12,7 @@ const ImportDocumentModal = lazy(() => import('./import-document-modal'))
 
 export type NewProjectButtonModalVariant =
   | 'blank_project'
+  | 'blank_typst_project'
   | 'example_project'
   | 'upload_project'
   | 'import_from_github'
@@ -49,6 +50,12 @@ function NewProjectButtonModal({
   const ImportProjectFromGiteaModalWrapper: JSXElementConstructor<{
     onHide: () => void
   }> = importProjectFromGiteaModalWrapper?.import.default
+  const [typstNewProjectModalWrapper] = importOverleafModules(
+    'typstNewProjectModalWrapper'
+  )
+  const TypstNewProjectModalWrapper: JSXElementConstructor<{
+    onHide: () => void
+  }> = typstNewProjectModalWrapper?.import.default
 
   const location = useLocation()
 
@@ -66,6 +73,10 @@ function NewProjectButtonModal({
   switch (modal) {
     case 'blank_project':
       return <BlankProjectModal onHide={onHide} initialTags={initialTags} />
+    case 'blank_typst_project':
+      return TypstNewProjectModalWrapper ? (
+        <TypstNewProjectModalWrapper onHide={onHide} />
+      ) : null
     case 'example_project':
       return <ExampleProjectModal onHide={onHide} initialTags={initialTags} />
     case 'upload_project':

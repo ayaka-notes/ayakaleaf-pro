@@ -928,7 +928,7 @@ async function _downloadFromClsi(
   req,
   res
 ) {
-  const { compileBackendClass } =
+  const { compileBackendClass, compiler } =
     await CompileManager.promises.getProjectCompileLimits(
       projectIdOrSubmissionId
     )
@@ -937,7 +937,8 @@ async function _downloadFromClsi(
     userId,
     buildId,
     compileBackendClass,
-    clsiServerId
+    clsiServerId,
+    compiler
   )
   return await _proxyToClsi(
     url,
@@ -963,12 +964,17 @@ async function _downloadFromClsiNginx(
   req,
   res
 ) {
+  const { compiler } =
+    await CompileManager.promises.getProjectCompileLimits(
+      projectIdOrSubmissionId
+    )
   const url = getOutputFileURL(
     projectIdOrSubmissionId,
     userId,
     buildId,
     file,
-    clsiServerId
+    clsiServerId,
+    compiler
   )
   return await _proxyToClsi(
     url,

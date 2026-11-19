@@ -201,6 +201,10 @@ async function doCompile(request, stats, timings) {
   request.imageName = imageVariantSettings.imageName
   env = { ...env, ...imageVariantSettings.env }
 
+  // Resolve bare image names (e.g. "texlive-full:2026.1") against the
+  // configured registry prefix so Docker can find the image.
+  request.imageName = _resolveImageName(request.imageName)
+
   const compileStart = Date.now()
 
   const compileName = getCompileName(request.project_id, request.user_id)
@@ -840,6 +844,25 @@ function _getAllowedImages() {
 function _isImageNameAllowed(imageName) {
   const allowedImages = _getAllowedImages()
   return !allowedImages || allowedImages.includes(imageName)
+}
+
+// Resolve a bare image name (e.g. "texlive-full:2026.1") against the
+// configured default image's registry prefix. If the name already contains
+// a registry (has a dot or colon before the first slash), return as-is.
+function _resolveImageName(imageName) {
+  if (!imageName) return imageName
+  const name = imageName.replace(/^\/+/, '') // strip leading slashes
+  // If it already has a registry prefix (contains a dot before the first
+  // slash, or no slash at all and the default image has one), resolve it.
+  const defaultImage =
+    (Settings.clsi && Settings.clsi.docker && Settings.clsi.docker.image) || ''
+  const registry = defaultImage.split('/').slice(0, -1).join('/')
+  // If the name has no slash (bare name like "texlive-full:2026.1") and
+  // the default image has a registry, prefix it.
+  if (!name.includes('/') && registry) {
+    return `${registry}/${name}`
+  }
+  return name
 }
 
 // Variants are images built on top of a base image, tagged with a suffix, eg

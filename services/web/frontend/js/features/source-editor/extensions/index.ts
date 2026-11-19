@@ -60,6 +60,7 @@ import { tooltipsReposition } from './tooltips-reposition'
 import { selectionListener } from '@/features/source-editor/extensions/selection-listener'
 import { contextMenu } from './context-menu'
 import { tabsListener } from './tabs-listener'
+import { docKindExtension } from './doc-kind'
 
 const moduleExtensions: Array<(options: Record<string, any>) => Extension> =
   importOverleafModules('sourceEditorExtensions').map(
@@ -72,6 +73,12 @@ export const createExtensions = (options: Record<string, any>): Extension[] => [
   // The built-in extension that manages the history stack,
   // configured to increase the maximum delay between adjacent grouped edits
   history({ newGroupDelay: 250 }),
+  // Document kind (typst/latex) for keybinding dispatch — see doc-kind.ts
+  docKindExtension(
+    options.docName && options.docName.toLowerCase().endsWith('.typ')
+      ? 'typst'
+      : 'latex'
+  ),
   // The built-in extension that displays buttons for folding code in a gutter element,
   // configured with custom openText and closeText symbols.
   foldGutter({

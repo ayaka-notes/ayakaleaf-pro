@@ -217,7 +217,8 @@ async function stopCompile(projectId, userId, options) {
     compileGroup,
     projectId,
     userId,
-    'compile/stop'
+    'compile/stop',
+    options.compiler
   )
   const opts = { method: 'POST' }
   await _makeRequest(
@@ -249,7 +250,9 @@ async function deleteAuxFiles(projectId, userId, options, clsiserverid) {
     compileBackendClass,
     compileGroup,
     projectId,
-    userId
+    userId,
+    undefined,
+    options.compiler
   )
   const [
     clsiResult,
@@ -622,14 +625,45 @@ async function _makeNewBackendRequest(
   }
 }
 
+// The Typst compile service (services/clsi-typst) is a separate backend from
+// the TeX clsi. A project's `compiler` field ("typst" vs a TeX engine)
+// selects which service handles it. Everything below falls back to the TeX
+// clsi when the compiler is not "typst" (or unknown), preserving existing
+// behaviour.
+function _isTypstCompiler(compiler) {
+  return compiler === 'typst'
+}
+
+// Strip a leading slash from an image name (Docker rejects "/name:tag" as
+// an invalid reference). Also resolves bare names against the configured
+// registry prefix when the CLSI needs a fully-qualified reference.
+function _normalizeImageName(name) {
+  if (!name) return name
+  let n = name.replace(/^\/+/, '') // strip leading slashes
+  return n
+}
+
+function _clsiBaseURL(compiler) {
+  return _isTypstCompiler(compiler) && Settings.apis.clsi_typst?.url
+    ? Settings.apis.clsi_typst.url
+    : Settings.apis.clsi.url
+}
+
+function _downloadBaseURL(compiler) {
+  return _isTypstCompiler(compiler) && Settings.apis.clsi_typst?.downloadHost
+    ? Settings.apis.clsi_typst.downloadHost
+    : Settings.apis.clsi.downloadHost
+}
+
 function _getCompilerUrl(
   compileBackendClass,
   compileGroup,
   projectId,
   userId,
-  action
+  action,
+  compiler
 ) {
-  const u = new URL(Settings.apis.clsi.url)
+  const u = new URL(_clsiBaseURL(compiler))
   u.pathname = `/project/${projectId}`
   if (userId != null) {
     u.pathname += `/user/${userId}`
@@ -654,7 +688,8 @@ async function _postToClsi(
     compileGroup,
     projectId,
     userId,
-    'compile'
+    'compile',
+    req?.compile?.options?.compiler
   )
   const opts = {
     json: req,
@@ -1193,7 +1228,7 @@ function _finaliseRequest(projectId, options, project, docs, files) {
         editorId: options.editorId,
         compiler: project.compiler,
         timeout: options.timeout,
-        imageName: project.imageName,
+        imageName: _normalizeImageName(project.imageName),
         draft: Boolean(options.draft),
         // enable for premium compiles only
         png2pdf: Boolean(options.png2pdf) && hasPremiumCompiles,
@@ -1201,7 +1236,7 @@ function _finaliseRequest(projectId, options, project, docs, files) {
         enableCheckpoint:
           Boolean(options.checkpointing) &&
           hasPremiumCompiles &&
-          _imageHasCheckpointing(project.imageName),
+          _imageHasCheckpointing(_normalizeImageName(project.imageName)),
         stopOnFirstError: Boolean(options.stopOnFirstError),
         check: options.check,
         syncType: options.syncType,
@@ -1286,10 +1321,11 @@ async function wordCount(
     compileGroup,
     projectId,
     userId,
-    'wordcount'
+    'wordcount',
+    req.compile.options.compiler
   )
   url.searchParams.set('file', filename)
-  url.searchParams.set('image', req.compile.options.imageName)
+  url.searchParams.set('image', _normalizeImageName(req.compile.options.imageName))
 
   const requestWordCount = async opts => {
     const { body } = await _makeRequestWithClsiServerId(
@@ -1343,6 +1379,7 @@ async function syncTeX(
     imageName,
     validatedOptions,
     clsiServerId,
+    compiler,
   }
 ) {
   const { compileBackendClass, compileGroup } = limits
@@ -1351,13 +1388,14 @@ async function syncTeX(
     compileGroup,
     projectId,
     userId,
-    `sync/${direction}`
+    `sync/${direction}`,
+    compiler
   )
   url.searchParams.set(
     'compileFromClsiCache',
     compileFromClsiCache && ['alpha', 'priority'].includes(compileGroup)
   )
-  url.searchParams.set('imageName', imageName)
+  url.searchParams.set('imageName', _normalizeImageName(imageName))
   for (const [key, value] of Object.entries(validatedOptions)) {
     url.searchParams.set(key, value)
   }
@@ -1397,6 +1435,9 @@ function getClsiServerIdFromResponse(response) {
 export default {
   collectGlobalBlobsFromRawSnapshot,
   _finaliseRequest,
+  clsiBaseURL: (compiler) => _clsiBaseURL(compiler),
+  downloadBaseURL: (compiler) => _downloadBaseURL(compiler),
+  isTypstCompiler: (compiler) => _isTypstCompiler(compiler),
   sendRequest: callbackifyMultiResult(sendRequest, [
     'status',
     'outputFiles',

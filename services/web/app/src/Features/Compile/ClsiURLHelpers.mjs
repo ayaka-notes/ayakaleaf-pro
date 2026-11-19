@@ -1,6 +1,21 @@
 import { zz } from '@overleaf/validation-tools'
 import Settings from '@overleaf/settings'
 
+// A project's compiler ("typst" vs a TeX engine) selects which compile
+// service serves the build outputs: Typst projects use clsi-typst, all
+// other projects use clsi (the TeX service).
+function clsiBaseURL(compiler) {
+  return compiler === 'typst' && Settings.apis.clsi_typst?.url
+    ? Settings.apis.clsi_typst.url
+    : Settings.apis.clsi.url
+}
+
+function downloadBaseURL(compiler) {
+  return compiler === 'typst' && Settings.apis.clsi_typst?.downloadHost
+    ? Settings.apis.clsi_typst.downloadHost
+    : Settings.apis.clsi.downloadHost
+}
+
 // Build zod schema once and use it below.
 const schema = {
   compileBackendClass: zz.compileBackendClass(),
@@ -17,6 +32,7 @@ const schema = {
  * @param {string} buildId
  * @param {string} compileBackendClass
  * @param {string} clsiServerId
+ * @param {string} [compiler] project compiler ("typst" selects clsi-typst)
  * @return {URL}
  */
 export function getOutputZipURL(
@@ -24,11 +40,12 @@ export function getOutputZipURL(
   userId,
   buildId,
   compileBackendClass,
-  clsiServerId
+  clsiServerId,
+  compiler
 ) {
   compileBackendClass = schema.compileBackendClass.parse(compileBackendClass)
   clsiServerId = schema.optionalClsiServerId.parse(clsiServerId)
-  const url = new URL(Settings.apis.clsi.url)
+  const url = new URL(clsiBaseURL(compiler))
   url.pathname = getFilePath(
     projectIdOrSubmissionId,
     userId,
@@ -46,6 +63,7 @@ export function getOutputZipURL(
  * @param {string} buildId
  * @param {string} file
  * @param {string} clsiServerId
+ * @param {string} [compiler] project compiler ("typst" selects clsi-typst)
  * @return {URL}
  */
 export function getOutputFileURL(
@@ -53,10 +71,11 @@ export function getOutputFileURL(
   userId,
   buildId,
   file,
-  clsiServerId
+  clsiServerId,
+  compiler
 ) {
   clsiServerId = schema.optionalClsiServerId.parse(clsiServerId)
-  const url = new URL(Settings.apis.clsi.downloadHost)
+  const url = new URL(downloadBaseURL(compiler))
   url.pathname = getFilePath(projectIdOrSubmissionId, userId, buildId, file)
   if (clsiServerId) url.searchParams.set('clsiserverid', clsiServerId)
   return url

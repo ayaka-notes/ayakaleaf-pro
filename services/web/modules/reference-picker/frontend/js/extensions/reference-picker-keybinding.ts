@@ -84,27 +84,19 @@ export function openPickerIfInCite(view: EditorView): boolean {
           })
         )
       } else {
-        let insertPos = pos
-        // If the insert position is inside a token, move it forward
-        const relPos = pos - braceFrom
-        if (relPos > 0 && !/[\s,%]/.test(fullContent[relPos - 1])) {
-          for (let j = relPos; j <= fullContent.length; j++) {
-            const ch = fullContent[j]
-            if (j === fullContent.length || /[\s,%]/.test(ch)) {
-              insertPos = braceFrom + j
-              break
-            }
-          }
-        }
+        // Preselect every key already inside the braces so it shows up in
+        // the selected-key-tag row; Insert then replaces the whole brace
+        // content with the (possibly edited) selection.
+        const allTokens = parseTokens(fullContent).map(token => token.value)
 
         window.dispatchEvent(
           new CustomEvent('reference:openPicker', {
             detail: {
               braceFrom,
               braceTo,
-              insertFrom: insertPos,
-              insertTo: insertPos,
-              selectedTokens: [],
+              insertFrom: braceFrom,
+              insertTo: braceTo,
+              selectedTokens: allTokens,
             },
           })
         )

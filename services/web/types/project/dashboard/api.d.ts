@@ -51,6 +51,7 @@ export type ProjectApi = {
   trashed: boolean
   accessLevel: ProjectAccessLevel
   source: Source
+  compiler?: 'typst' | 'latex'
 }
 
 export type Project = MergeAndOverride<

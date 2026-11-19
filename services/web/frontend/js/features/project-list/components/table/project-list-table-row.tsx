@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { useTranslation } from 'react-i18next'
 import InlineTags from './cells/inline-tags'
 import OwnerCell from './cells/owner-cell'
 import LastUpdatedCell from './cells/last-updated-cell'
@@ -14,7 +15,21 @@ type ProjectListTableRowProps = {
   selected: boolean
 }
 function ProjectListTableRow({ project, selected }: ProjectListTableRowProps) {
+  const { t } = useTranslation()
   const ownerName = getOwnerName(project)
+  const isTypst = project.compiler === 'typst'
+
+  const badgeStyle = {
+    display: 'inline-block' as const,
+    fontSize: '0.7rem',
+    fontWeight: 600,
+    lineHeight: '1.4rem',
+    padding: '0 0.5rem',
+    borderRadius: '0.75rem',
+    verticalAlign: 'middle' as const,
+    whiteSpace: 'nowrap' as const,
+    marginLeft: '0.25rem',
+  }
 
   return (
     <tr className={selected ? 'table-active' : undefined}>
@@ -22,9 +37,18 @@ function ProjectListTableRow({ project, selected }: ProjectListTableRowProps) {
         <ProjectCheckbox projectId={project.id} projectName={project.name} />
       </td>
       <td className="dash-cell-name">
+        {isTypst ? (
+          <span style={{...badgeStyle, backgroundColor: '#e8f0fe', color: '#1a56b0', marginLeft: 0, marginRight: '0.25rem'}}>
+            {t('typst')}
+          </span>
+        ) : (
+          <span style={{...badgeStyle, backgroundColor: '#eef5ee', color: '#3d6e3d', marginLeft: 0, marginRight: '0.25rem'}}>
+            {t('latex')}
+          </span>
+        )}
         <a href={`/project/${project.id}`} translate="no">
           {project.name}
-        </a>{' '}
+        </a>
         <InlineTags className="d-none d-md-inline" projectId={project.id} />
       </td>
       <td className="dash-cell-date-owner pb-0 d-md-none">

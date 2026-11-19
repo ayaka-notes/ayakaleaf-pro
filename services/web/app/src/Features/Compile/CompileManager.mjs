@@ -139,6 +139,7 @@ const instrumentedCompile = instrumentWithTimer(compile, 'editor.compile')
 async function getProjectCompileLimits(projectId) {
   const project = await ProjectGetter.promises.getProject(projectId, {
     owner_ref: 1,
+    compiler: 1,
     fromV1TemplateId: 1,
   })
   return _getProjectCompileLimits(project)
@@ -152,6 +153,10 @@ async function _getProjectCompileLimits(project) {
   if (project.fromV1TemplateId === Settings.overrideCompileTimeForTemplate) {
     limits.timeout = Math.max(limits.timeout, 20)
   }
+  // Carry the project's compiler through to callers so the TeX vs Typst
+  // compile backend can be selected. (Typst projects compile via
+  // services/clsi-typst; everything else via services/clsi.)
+  limits.compiler = project.compiler
   return limits
 }
 
@@ -212,11 +217,12 @@ async function syncTeX(
 ) {
   const project = await ProjectGetter.promises.getProject(projectId, {
     owner_ref: 1,
+    compiler: 1,
     imageName: 1,
     fromV1TemplateId: 1,
   })
   const limits = await _getProjectCompileLimits(project)
-  const { imageName } = project
+  const { imageName, compiler } = project
   return await ClsiManager.promises.syncTeX(projectId, userId, {
     direction,
     limits,
@@ -224,6 +230,7 @@ async function syncTeX(
     compileFromClsiCache,
     validatedOptions,
     clsiServerId,
+    compiler,
   })
 }
 

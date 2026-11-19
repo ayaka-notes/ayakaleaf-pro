@@ -3,10 +3,105 @@
 # Overleaf Community Edition (overleaf/overleaf)
 # ---------------------------------------------
 
+# Global build args (must be declared before any FROM to be usable in FROM).
+# Compiler: tinymist (canonical Myriad-Dreamin/tinymist) at a pinned base SHA,
+# with our VENDORed copy of the `--synctex` feature (patches/tinymist-synctex.patch,
+# Max Horn's unmerged PR #2766, commit TINYMIST_REF) applied on top. Building from
+# the canonical base + our own patch means we do NOT depend on the contributor's
+# PR branch surviving. tinymist computes the source mapping in-process and writes
+# it as a standard SyncTeX file (`output.synctex.gz`); clsi-typst adapts it to the
+# `output.sourcemap.json` sidecar (app/js/SynctexAdapter.js) — no typst fork.
+ARG TINYMIST_BASE_REF=73db58b8e2fd2cc6b85038594464b91684c79491
+ARG TINYMIST_REF=4eef4a4c3929d27ac6444af447a1f78a0868f17b
 ARG OVERLEAF_BASE_TAG=sharelatex/sharelatex-base:latest
+
+# Typst compiler (tinymist + vendored --synctex) — shared by the main image and
+# the clsi-typst service. Mirrors services/clsi-typst/Dockerfile.
+FROM rust:alpine3.24 AS typst-build
+
+ARG TINYMIST_BASE_REF
+ARG TINYMIST_REF
+
+# build-base = gcc, make, musl-dev; static linking -> no runtime shared deps.
+RUN apk add --no-cache \
+        build-base \
+        pkgconf \
+        cmake \
+        git \
+        ca-certificates \
+        musl-dev \
+        openssl-dev \
+        openssl-libs-static \
+        clang \
+        lld
+
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+
+# 1) Fetch the CANONICAL tinymist at the pinned base SHA. (GitHub allows
+#    fetching a reachable SHA; the base is on main, so this is stable and does
+#    not depend on any contributor branch.)
+RUN git init /app \
+    && git -C /app remote add origin https://github.com/Myriad-Dreamin/tinymist.git \
+    && git -C /app fetch --depth 1 origin "${TINYMIST_BASE_REF}" \
+    && git -C /app checkout -q FETCH_HEAD \
+    && git -C /app rev-parse HEAD | grep -q "^${TINYMIST_BASE_REF}$"
+WORKDIR /app
+
+# 2) Apply our vendored copy of the --synctex feature (PR #2766, commit
+#    ${TINYMIST_REF}), so the build is self-contained if that branch/PR vanishes.
+COPY services/clsi-typst/patches/tinymist-synctex.patch /tmp/synctex.patch
+RUN git -C /app apply --whitespace=nowarn /tmp/synctex.patch \
+    && test -f /app/crates/tinymist-task/src/compute/synctex.rs \
+    && rm /tmp/synctex.patch
+
+RUN --mount=type=cache,target=/root/.cargo/git/db \
+    --mount=type=cache,target=/root/.cargo/registry/cache \
+    --mount=type=cache,target=/root/.cargo/registry/index \
+    CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse \
+    cargo fetch
+
+RUN --mount=type=cache,target=/root/.cargo/git/db \
+    --mount=type=cache,target=/root/.cargo/registry/cache \
+    --mount=type=cache,target=/root/.cargo/registry/index \
+    OPENSSL_NO_PKG_CONFIG=1 OPENSSL_STATIC=1 \
+    OPENSSL_DIR="/usr" \
+    cargo build --release -p tinymist-cli
+
+# ---------------------------------------------------------------------------
+# Standalone Typst runtime image (typst-runtime stage) — the sibling-container
+# image for clsi-typst sandboxed compiles (`CLSI_TYPST_DOCKER_RUNNER=true`).
+# Static musl binary on minimal alpine: no shared-library dependencies.
+# `typst` user is uid/gid 33 to match www-data (33) in the Overleaf image so
+# it can read/write the bind-mounted /compile dir (owned by the host service
+# user). clsi-typst's DockerRunner drives it: Cmd = sh -c '... tinymist
+# compile --synctex ...', User = typst, network disabled, CapDrop ALL.
+FROM alpine:3.24 AS typst-runtime
+
+RUN addgroup -g 33 typst && adduser -D -u 33 -G typst typst
+
+COPY --from=typst-build /app/target/release/tinymist /usr/local/bin/tinymist
+RUN chmod 0555 /usr/local/bin/tinymist
+
+ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+LABEL org.opencontainers.image.source="https://github.com/Myriad-Dreamin/tinymist"
+LABEL org.opencontainers.image.description="Typst compiler: tinymist base ${TINYMIST_BASE_REF} + vendored --synctex ${TINYMIST_REF}"
+
+USER typst
+ENTRYPOINT [ "/usr/local/bin/tinymist" ]
+CMD [ "--version" ]
+
 FROM $OVERLEAF_BASE_TAG
 
 WORKDIR /overleaf
+
+# Typst compiler binary for the clsi-typst service (static musl binary; the
+# typst-build stage above is independent of the app layers so it can build in
+# parallel). Kept before the app COPYs so a source change doesn't rebuild it.
+COPY --from=typst-build /app/target/release/tinymist /usr/local/bin/tinymist
+RUN chmod 0555 /usr/local/bin/tinymist
+
+LABEL org.opencontainers.image.description="Overleaf Community Edition (with Typst support: tinymist synctex-branch compiler + CLSI sourcemap adapter)"
 
 # Add required source files for yarn install
 # -------------------------------------------
