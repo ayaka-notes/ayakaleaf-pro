@@ -1,0 +1,12 @@
+{
+  "name": "overleaf-instance-sensor",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Prometheus gauges for the overleaf-cep instance statistics (PR yu-i-i/overleaf-cep#178, live instead of hourly Mongo snapshots)",
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "ioredis": "^5.4.1",
+    "mongodb": "^6.10.0"
+  }
+}
