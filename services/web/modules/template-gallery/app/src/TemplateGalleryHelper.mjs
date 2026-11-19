@@ -36,13 +36,16 @@ marked.use({
 
 function _createZipStreamForProjectAsync(projectId) {
   return new Promise((resolve, reject) => {
+    // Templates must never carry the review state (comments + tracked
+    // changes) of the source project, so ask the zip manager not to bundle
+    // overleaf-comments-and-changes.json.
     ProjectZipStreamManager.createZipStreamForProject(projectId, false, null, (err, archive) => {
       if (err) {
         return reject(err)
       }
       archive.on('error', (err) => reject(err))
       resolve(archive)
-    })
+    }, { includeReviewState: false })
   })
 }
 

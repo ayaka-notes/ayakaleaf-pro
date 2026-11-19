@@ -7,6 +7,7 @@ import {
   renameSync,
 } from 'fs'
 import { pipeline } from 'stream/promises'
+import { pathToFileURL } from 'node:url'
 import DocumentUpdaterHandler from '../../../app/src/Features/DocumentUpdater/DocumentUpdaterHandler.mjs'
 import ProjectZipStreamManager from '../../../app/src/Features/Downloads/ProjectZipStreamManager.mjs'
 import logger from '@overleaf/logger'
@@ -15,6 +16,10 @@ import { gracefulShutdown } from '../../../app/src/infrastructure/GracefulShutdo
 import { Project } from '../../../app/src/models/Project.mjs'
 import { User } from '../../../app/src/models/User.mjs'
 import readline from 'readline'
+
+// Note: every project zip (including these exports and the UI download)
+// bundles overleaf-comments-and-changes.json — ProjectZipStreamManager adds
+// it. scripts/import-project-review.mjs reconstitutes that state on import.
 
 function parseArgs() {
   return minimist(process.argv.slice(2), {
@@ -97,10 +102,6 @@ async function exportUserProjectsToZip(userId, output) {
   )
 
   const zipStream = await createZipStreamForMultipleProjectsAsync(allIds)
-
-  zipStream.on('progress', progress => {
-    updateProgress(progress.entries.total, allIds.length)
-  })
 
   await writeStreamToFileAtomically(zipStream, output)
   readline.clearLine(process.stdout, 0)
@@ -222,11 +223,16 @@ async function main() {
   }
 }
 
-main()
-  .then(async () => {
-    console.log('Done.')
-  })
-  .catch(async err => {
-    logger.error({ err }, 'Error in export-user-projects script')
-    process.exitCode = 1
-  })
+// Running directly: yarn node scripts/export-user-projects.mjs
+// (imported as a module — e.g. by tests — main does not run)
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main()
+    .then(async () => {
+      console.log('Done.')
+    })
+    .catch(async err => {
+      logger.error({ err }, 'Error in export-user-projects script')
+      process.exitCode = 1
+    })
+}
+

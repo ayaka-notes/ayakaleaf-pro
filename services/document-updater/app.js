@@ -161,6 +161,7 @@ app.post(
   '/project/:project_id/doc/:doc_id/change/accept',
   HttpController.acceptChanges
 )
+app.post('/project/:project_id/doc/:doc_id/comment', HttpController.addComment)
 app.post(
   '/project/:project_id/doc/:doc_id/comment/:comment_id/resolve',
   HttpController.resolveComment

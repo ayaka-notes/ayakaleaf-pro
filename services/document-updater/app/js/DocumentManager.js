@@ -457,6 +457,62 @@ const DocumentManager = {
     }
   },
 
+  async addComment(
+    projectId,
+    docId,
+    threadId,
+    userId,
+    text,
+    offset,
+    expectedVersion
+  ) {
+    // Circular dependencies. Import at runtime.
+    const UpdateManager = require('./UpdateManager')
+
+    const { lines, version, ranges, type } = await DocumentManager.getDoc(
+      projectId,
+      docId
+    )
+    if (lines == null || version == null) {
+      throw new Errors.NotFoundError(`document not found: ${docId}`)
+    }
+    if (type !== 'sharejs-text-ot') {
+      throw new Errors.OTTypeMismatchError(type, 'sharejs-text-ot')
+    }
+    // Everything below is checked here, under the lock, because a rejection
+    // inside applyUpdate happens after ShareJS has broadcast the op and
+    // disconnects every editor on the doc.
+    if (expectedVersion != null && expectedVersion !== version) {
+      throw new Errors.DocumentValidationError('document changed', {
+        docId,
+        expectedVersion,
+        version,
+      })
+    }
+    if ((ranges?.comments?.length ?? 0) >= RangesManager.MAX_COMMENTS) {
+      throw new Errors.DocumentValidationError('too many comments', { docId })
+    }
+
+    const docText = lines.join('\n')
+    if (docText.slice(offset, offset + text.length) !== text) {
+      throw new Errors.DocumentValidationError(
+        'comment text does not match document at offset',
+        { docId, offset }
+      )
+    }
+
+    // No meta.type 'external': that would show every editor the "document
+    // updated externally" modal. The op is broadcast to all clients anyway.
+    const update = {
+      doc: docId,
+      op: [{ c: text, p: offset, t: threadId }],
+      v: version,
+      meta: { user_id: userId, source: 'add-comment' },
+    }
+    await UpdateManager.promises.applyUpdate(projectId, docId, update)
+    // Only ranges changed; the usual flushing persists them.
+  },
+
   async getComment(projectId, docId, commentId) {
     let { lines, ranges, type } = await DocumentManager.getDoc(projectId, docId)
 
@@ -746,6 +802,28 @@ const DocumentManager = {
       threadId,
       userId,
       resolved
+    )
+  },
+
+  async addCommentWithLock(
+    projectId,
+    docId,
+    threadId,
+    userId,
+    text,
+    offset,
+    expectedVersion
+  ) {
+    const UpdateManager = require('./UpdateManager')
+    await UpdateManager.promises.lockUpdatesAndDo(
+      DocumentManager.addComment,
+      projectId,
+      docId,
+      threadId,
+      userId,
+      text,
+      offset,
+      expectedVersion
     )
   },
 

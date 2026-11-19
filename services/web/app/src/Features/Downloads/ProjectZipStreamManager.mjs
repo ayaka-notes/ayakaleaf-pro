@@ -5,7 +5,73 @@ import ProjectEntityHandler from '../Project/ProjectEntityHandler.mjs'
 import ProjectGetter from '../Project/ProjectGetter.mjs'
 import HistoryManager from '../History/HistoryManager.mjs'
 import Metrics from '@overleaf/metrics'
+import DocstoreManager from '../Docstore/DocstoreManager.mjs'
+import ChatApiHandler from '../Chat/ChatApiHandler.mjs'
 let ProjectZipStreamManager
+
+// A project's review state (comment threads + tracked changes) lives outside
+// the project files (docstore ranges + chat service), so a zip of the files
+// alone would lose it. Every project zip therefore bundles this JSON, which
+// scripts/import-project-review.mjs reconstitutes on import.
+export const REVIEW_JSON_NAME = 'overleaf-comments-and-changes.json'
+
+// Snapshot of a project's comment threads and tracked changes, read from
+// docstore and the chat service (same sources the editor uses). Throws on
+// failure — callers that must not break (zip downloads) catch and skip.
+export async function getReviewState(projectId) {
+  const [docs, threads] = await Promise.all([
+    DocstoreManager.promises.getAllDocsWithRanges(projectId),
+    ChatApiHandler.promises
+      .getThreads(projectId)
+      .catch(err => {
+        // Threads are optional: a failed chat service must not break the
+        // download, but it means comments would be lost on import.
+        logger.warn(
+          { err, projectId },
+          'could not read comment threads for export; comments will be missing from the bundle'
+        )
+        return {}
+      }),
+  ])
+  // Only threads that are anchored by a comment range in some doc; global
+  // messages and orphan threads are not part of the review state.
+  const anchoredThreadIds = new Set()
+  for (const doc of docs) {
+    for (const comment of doc.ranges?.comments ?? []) {
+      if (comment?.op?.t != null) anchoredThreadIds.add(String(comment.op.t))
+    }
+  }
+  const outThreads = {}
+  for (const [threadId, thread] of Object.entries(threads ?? {})) {
+    if (!anchoredThreadIds.has(threadId)) continue
+    outThreads[threadId] = {
+      resolved: Boolean(thread.resolved),
+      resolved_at: thread.resolved_at ?? null,
+      resolved_by_user_id: thread.resolved_by_user_id ?? null,
+      messages: (thread.messages ?? [])
+        .map(message => ({
+          user_id: message.user_id,
+          content: message.content,
+          timestamp: message.timestamp,
+        }))
+        .filter(message => message.user_id != null && message.content != null),
+    }
+  }
+  return {
+    format: 'overleaf-comments-and-changes',
+    version: 1,
+    project_id: projectId,
+    exported_at: new Date().toISOString(),
+    docs: docs.map(doc => ({
+      id: typeof doc._id === 'string' ? doc._id : doc._id.toString(),
+      ranges: {
+        comments: doc.ranges?.comments ?? [],
+        changes: doc.ranges?.changes ?? [],
+      },
+    })),
+    threads: outThreads,
+  }
+}
 
 export default ProjectZipStreamManager = {
   createZipStreamForMultipleProjects(projectIds, zipFromHistory, callback) {
@@ -69,7 +135,18 @@ export default ProjectZipStreamManager = {
     })
   },
 
-  createZipStreamForProject(projectId, zipFromHistory, historyId, callback) {
+  createZipStreamForProject(
+    projectId,
+    zipFromHistory,
+    historyId,
+    callback,
+    // options.includeReviewState (default true): bundle the comment/thread
+    // state JSON into the zip. Templates are created from this manager and
+    // must never carry comments or tracked changes, so the template path
+    // passes { includeReviewState: false }.
+    options = {}
+  ) {
+    const includeReviewState = options.includeReviewState !== false
     Metrics.inc('project_zip_download', 1, {
       method: zipFromHistory ? 'history-v1' : 'web',
     })
@@ -102,7 +179,27 @@ export default ProjectZipStreamManager = {
             'error adding files to zip stream'
           )
         }
-        archive.finalize()
+        if (!includeReviewState) {
+          // e.g. template creation: comments and tracked changes must not
+          // be carried over into the template.
+          archive.finalize()
+          return
+        }
+        // Bundle the review state (comments + tracked changes); a failure
+        // must never break the download itself.
+        getReviewState(projectId)
+          .then(state =>
+            archive.append(JSON.stringify(state, null, 2), {
+              name: REVIEW_JSON_NAME,
+            })
+          )
+          .catch(err =>
+            logger.warn(
+              { err, projectId },
+              'could not bundle review state into project zip'
+            )
+          )
+          .finally(() => archive.finalize())
       })
     })
   },

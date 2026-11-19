@@ -69,6 +69,12 @@ describe('ProjectUploadManager', function () {
     ctx.fs = {
       promises: {
         rm: sinon.stub().resolves(),
+        readFile: sinon.stub().rejects(Object.assign(new Error('no bundle'), { code: 'ENOENT' })),
+      },
+    }
+    ctx.ReviewStateManager = {
+      promises: {
+        restoreReviewState: sinon.stub().resolves({ docs: [], threads: [] }),
       },
     }
     ctx.ArchiveManager = {
@@ -190,6 +196,13 @@ describe('ProjectUploadManager', function () {
       '../../../../app/src/Features/Uploads/FileSystemImportManager',
       () => ({
         default: ctx.FileSystemImportManager,
+      })
+    )
+
+    vi.doMock(
+      '../../../../app/src/Features/Reviews/ReviewStateManager',
+      () => ({
+        default: ctx.ReviewStateManager,
       })
     )
 
@@ -428,6 +441,105 @@ describe('ProjectUploadManager', function () {
       ctx.fs.promises.rm.should.have.been.calledWith(ctx.extractedZipPath, {
         recursive: true,
         force: true,
+      })
+    })
+
+    describe('when the zip contains the review state bundle', function () {
+      beforeEach(function (ctx) {
+        // A project zip download bundles its review state (comments +
+        // tracked changes) as this file.
+        ctx.importEntries.push({
+          type: 'file',
+          projectPath: '/overleaf-comments-and-changes.json',
+          fsPath: '/path/to/review-json',
+        })
+        ctx.bundle = {
+          format: 'overleaf-comments-and-changes',
+          version: 1,
+          project_id: 'aaaaaaaaaaaaaaaaaaaaaaaa',
+          docs: [
+            {
+              id: 'aaaaaaaaaaaaaaaaaaaaaaaa',
+              ranges: {
+                comments: [
+                  {
+                    id: 'bbbbbbbbbbbbbbbbbbbbbbbb',
+                    op: { c: 'My thesis', p: 0, t: 'bbbbbbbbbbbbbbbbbbbbbbbb' },
+                    metadata: {},
+                  },
+                ],
+                changes: [],
+              },
+            },
+          ],
+          threads: {
+            bbbbbbbbbbbbbbbbbbbbbbbb: {
+              resolved: false,
+              messages: [
+                { user_id: 'cccccccccccccccccccccccc', content: 'hi', timestamp: 1 },
+              ],
+            },
+          },
+        }
+        ctx.fs.promises.readFile.resolves(JSON.stringify(ctx.bundle))
+      })
+
+      it('should not create the bundle file in the project', async function (ctx) {
+        await ctx.ProjectUploadManager.promises.createProjectFromZipArchiveWithName(
+          ctx.ownerId,
+          ctx.projectName,
+          ctx.zipPath
+        )
+        const calls = ctx.FileStoreHandler.promises.uploadFileFromDiskWithHistoryId.args
+        for (const call of calls) {
+          expect(call.some(arg => String(arg).includes('overleaf-comments-and-changes.json'))).to.equal(
+            false
+          )
+        }
+      })
+
+      it('should reconstitute the review state in the new project', async function (ctx) {
+        await ctx.ProjectUploadManager.promises.createProjectFromZipArchiveWithName(
+          ctx.ownerId,
+          ctx.projectName,
+          ctx.zipPath
+        )
+        expect(ctx.ReviewStateManager.promises.restoreReviewState).to.have.been.calledOnce
+        const [params] = ctx.ReviewStateManager.promises.restoreReviewState.getCall(0).args
+        expect(String(params.project._id)).to.equal(String(ctx.project._id))
+        expect(params.state.format).to.equal('overleaf-comments-and-changes')
+        expect(params.docs[0].text).to.equal(ctx.docLines.join('\n'))
+        expect(String(params.docs[0].docId)).to.equal(String(ctx.doc._id))
+      })
+
+      it('should still create the other files', function (ctx) {
+        ctx.ProjectEntityMongoUpdateHandler.promises.createNewFolderStructure.should.have.been.calledWith(
+          ctx.project._id,
+          ctx.docEntries,
+          ctx.fileEntries
+        )
+      })
+
+      it('should not break the import when the restore fails', async function (ctx) {
+        ctx.ReviewStateManager.promises.restoreReviewState.rejects(new Error('restore failed'))
+        let threw = null
+        try {
+          await ctx.ProjectUploadManager.promises.createProjectFromZipArchiveWithName(
+            ctx.ownerId,
+            ctx.projectName,
+            ctx.zipPath
+          )
+        } catch (err) {
+          threw = err
+        }
+        expect(threw).to.equal(null)
+        expect(ctx.ProjectEntityMongoUpdateHandler.promises.createNewFolderStructure).to.have.been.called
+      })
+    })
+
+    describe('when the zip has no review state bundle', function () {
+      it('should not attempt a restore', function (ctx) {
+        expect(ctx.ReviewStateManager.promises.restoreReviewState.callCount).to.equal(0)
       })
     })
 
