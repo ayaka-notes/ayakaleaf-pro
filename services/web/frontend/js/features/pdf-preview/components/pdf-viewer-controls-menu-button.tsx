@@ -9,8 +9,12 @@ import OLTooltip from '@/shared/components/ol/ol-tooltip'
 import OLButton from '@/shared/components/ol/ol-button'
 import OLOverlay from '@/shared/components/ol/ol-overlay'
 import OLPopover from '@/shared/components/ol/ol-popover'
+import PdfNavigationControls, {
+  PdfNavigationControlsProps,
+} from './pdf-navigation-controls'
 
 type PdfViewerControlsMenuButtonProps = {
+  navigation: PdfNavigationControlsProps
   setZoom: (zoom: string) => void
   setPage: (page: number) => void
   page: number
@@ -19,6 +23,7 @@ type PdfViewerControlsMenuButtonProps = {
 }
 
 export default function PdfViewerControlsMenuButton({
+  navigation,
   setZoom,
   setPage,
   page,
@@ -67,6 +72,7 @@ export default function PdfViewerControlsMenuButton({
           id="pdf-toolbar-popover-menu"
           ref={popoverRef}
         >
+          <PdfNavigationControls {...navigation} />
           <PdfPageNumberControl
             setPage={setPage}
             page={page}
