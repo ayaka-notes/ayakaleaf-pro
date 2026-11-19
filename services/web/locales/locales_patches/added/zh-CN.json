@@ -11,6 +11,8 @@
   "expires_in_one_hour": "1 小时后过期",
   "export_project_to_x": "将项目导出到__provider__",
   "found_matching_deleted_projects": "找到 __count__ 个匹配的已删除项目",
+  "gitea": "Gitea",
+  "gitlab": "GitLab",
   "hide_deleted_projects": "隐藏已删除的项目",
   "import_from_x": "从__provider__导入",
   "importing_and_merging_changes_in_x": "正在导入合并__provider__中的更改",

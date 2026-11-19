@@ -11,6 +11,8 @@
   "expires_in_one_hour": "Wygasa za 1 godzinę",
   "export_project_to_x": "Eksportuj projekt do __provider__",
   "found_matching_deleted_projects": "Znaleziono pasujących usuniętych projektów: __count__",
+  "gitea": "Gitea",
+  "gitlab": "GitLab",
   "hide_deleted_projects": "Ukryj usunięte projekty",
   "import_from_x": "Importuj z __provider__",
   "importing_and_merging_changes_in_x": "Importowanie i scalanie zmian w __provider__",
