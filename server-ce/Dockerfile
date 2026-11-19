@@ -11,7 +11,7 @@ WORKDIR /overleaf
 # Add required source files for yarn install
 # -------------------------------------------
 COPY --parents libraries/*/package.json .yarn/patches/ services/*/package.json tools/migrations/ package.json yarn.lock .yarnrc.yml .pnp.register.mjs /overleaf/
-COPY server-ce/genScript.js server-ce/services.js /overleaf/
+COPY server-ce/genScript.js server-ce/services.js server-ce/prepare-locales.mjs /overleaf/
 
 # Pre-install yarn via corepack so it is available at runtime for all users
 # -------------------------------------------------------------------------
@@ -30,6 +30,11 @@ RUN --mount=type=cache,target=/root/.cache \
 # Add the actual source files
 # ---------------------------
 COPY --parents libraries/ services/ tools/migrations/ /overleaf/
+# Apply the locale patches (highest-versioned + added translations) so the
+# frontend key extraction in the compile step below keeps the added keys.
+# Runs inside the image, so a pristine checkout builds correctly without
+# touching the host working tree.
+RUN node prepare-locales.mjs
 RUN --mount=type=cache,target=/root/.cache \
     --mount=type=cache,target=/root/.yarn/berry/cache,id=server-ce-yarn-cache \
     --mount=type=cache,target=/usr/local/share/.cache/yarn,id=server-ce-yarn-fallback-cache \
