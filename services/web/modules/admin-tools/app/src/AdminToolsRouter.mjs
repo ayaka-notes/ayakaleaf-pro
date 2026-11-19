@@ -3,6 +3,7 @@ import AuthenticationController from '../../../../app/src/Features/Authenticatio
 import AuthorizationMiddleware from '../../../../app/src/Features/Authorization/AuthorizationMiddleware.mjs'
 import AdminProjectController from './AdminProjectController.mjs'
 import AdminUserController from './AdminUserController.mjs'
+import SiteSettingsController from './SiteSettingsController.mjs'
 
 // Every route is for site admins. Loaded before core's user-activate module
 // (moduleImportSequence), whose /admin/user only redirects to its own page.
@@ -146,6 +147,26 @@ export default {
       '/admin/project/:projectId/purge',
       admin,
       AdminProjectController.purgeDeletedProject
+    )
+
+    // the site's admin-managed settings (site_settings): the env-parameter
+    // overrides that hydrate the services' settings at boot. External
+    // docker env (compose) always wins over the stored values.
+    webRouter.get('/admin/site-settings', admin, SiteSettingsController.page)
+    webRouter.get(
+      '/admin/site-settings/list',
+      admin,
+      SiteSettingsController.list
+    )
+    webRouter.put(
+      '/admin/site-settings/:section',
+      admin,
+      SiteSettingsController.save
+    )
+    webRouter.delete(
+      '/admin/site-settings/:section',
+      admin,
+      SiteSettingsController.reset
     )
   },
 }

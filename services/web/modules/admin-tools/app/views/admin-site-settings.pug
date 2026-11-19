@@ -1,0 +1,11 @@
+extends ../../../../app/views/layout-react
+
+block entrypointVar
+	- entrypoint = 'modules/admin-tools/pages/admin-site-settings'
+
+block vars
+	- isWebsiteRedesign = true
+
+block content
+	main.content.content-alt#main-content
+		#admin-site-settings-root
