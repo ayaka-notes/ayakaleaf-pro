@@ -98,9 +98,6 @@ module.exports = {
   parallelFileDownloads:
     parseInt(process.env.FILESTORE_PARALLEL_FILE_DOWNLOADS, 10) || 1,
   filestoreDomainOveride: process.env.FILESTORE_DOMAIN_OVERRIDE,
-  texliveImageNameOveride: process.env.TEX_LIVE_IMAGE_NAME_OVERRIDE,
-  texliveOpenoutAny: process.env.TEXLIVE_OPENOUT_ANY,
-  texliveMaxPrintLine: process.env.TEXLIVE_MAX_PRINT_LINE,
   enablePdfCaching: process.env.ENABLE_PDF_CACHING === 'true',
   enablePdfCachingDark: process.env.ENABLE_PDF_CACHING_DARK === 'true',
   pdfCachingMinChunkSize:
@@ -139,15 +136,19 @@ if ((process.env.DOCKER_RUNNER || process.env.SANDBOXED_COMPILES) === 'true') {
   }
 
   module.exports.clsi = {
-    // clsi-typst runs the typst binary directly (baked into the image at
-    // /usr/local/bin/typst) rather than in a Docker sandbox. The www-data user
-    // has no access to /var/run/docker.sock, so the Docker runner is disabled.
-    dockerRunner: false,
+    // By default clsi-typst runs the typst binary directly (baked into the
+    // Overleaf image at /usr/local/bin/typst). Set
+    // CLSI_TYPST_DOCKER_RUNNER=true to sandbox each compile in a sibling
+    // Docker container of the standalone typst image (clsi-typst's DockerRunner;
+    // needs the service user to reach /var/run/docker.sock, e.g. www-data in
+    // the server-ce image, which is in the docker-on-host group).
+    dockerRunner: process.env.CLSI_TYPST_DOCKER_RUNNER === 'true',
     docker: {
       runtime: process.env.DOCKER_RUNTIME,
-      image:
-        process.env.TYPST_IMAGE ||
-        'ollitex/typst:main',
+      // Full image name for sandboxed compiles (registry included). Built by
+      // `make build-typst` (server-ce) from the typst-runtime Dockerfile stage;
+      // default is the rolling `ollitex/typst:main`.
+      image: process.env.TYPST_IMAGE || 'ollitex/typst:main',
       env: {
         HOME: '/tmp',
         CLSI: 1,

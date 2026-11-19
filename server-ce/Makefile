@@ -11,11 +11,16 @@ export OVERLEAF_BASE_TAG ?= sharelatex/sharelatex-base:$(BRANCH_NAME_TAG_SAFE)-$
 export OVERLEAF_BRANCH ?= sharelatex/sharelatex:$(BRANCH_NAME_TAG_SAFE)
 export OVERLEAF_LATEST ?= sharelatex/sharelatex
 export OVERLEAF_TAG ?= sharelatex/sharelatex:$(BRANCH_NAME_TAG_SAFE)-$(MONOREPO_REVISION)
+# Standalone Typst runtime image (typst-runtime stage) — sibling container for
+# clsi-typst sandboxed compiles (CLSI_TYPST_DOCKER_RUNNER=true, TYPST_IMAGE).
+export OVERLEAF_TYPSF_BRANCH ?= ollitex/typst:$(BRANCH_NAME_TAG_SAFE)
+export OVERLEAF_TYPSF_LATEST ?= ollitex/typst:latest
+export OVERLEAF_TYPSF_TAG ?= ollitex/typst:$(BRANCH_NAME_TAG_SAFE)-$(MONOREPO_REVISION)
 
-all: build-base build-community
+all: build-base build-community build-typst
 
 clean:
-	-docker rmi --force $(OVERLEAF_BASE_TAG) $(OVERLEAF_TAG)
+	-docker rmi --force $(OVERLEAF_BASE_TAG) $(OVERLEAF_TAG) $(OVERLEAF_TYPSF_TAG)
 
 refresh-cache: refresh-cache-branch
 refresh-cache-branch:
@@ -53,6 +58,22 @@ build-community:
 	  --tag $(OVERLEAF_TAG) \
 	  --tag $(OVERLEAF_BRANCH) \
 	  $(MONOREPO_ROOT)
+
+build-typst: ## Build the standalone Typst runtime image (typst-runtime stage) for clsi-typst sandboxed compiles
+	cp .dockerignore $(MONOREPO_ROOT)
+	docker build \
+	  --build-arg BUILDKIT_INLINE_CACHE=1 \
+	  --progress=plain \
+	  --build-arg TYPST_REF=$(TYPST_REF) \
+	  --label "com.overleaf.ce.revision=$(MONOREPO_REVISION)" \
+	  --cache-from $(OVERLEAF_TYPSF_LATEST) \
+	  --cache-from $(OVERLEAF_TYPSF_BRANCH) \
+	  --target typst-runtime \
+	  --file Dockerfile \
+	  --tag $(OVERLEAF_TYPSF_TAG) \
+	  --tag $(OVERLEAF_TYPSF_BRANCH) \
+	  $(MONOREPO_ROOT)
+	@echo "Built standalone Typst image: $(OVERLEAF_TYPSF_TAG)  (TYPST_REF=$(TYPST_REF))"
 
 # --- Typst compiler (fork + CLSI sourcemap sidecar) -------------------------
 # The typst compiler is NOT committed to the repo (the source tree + built
@@ -102,6 +123,8 @@ push:
 	docker push $(OVERLEAF_BASE_BRANCH)
 	docker push $(OVERLEAF_TAG)
 	docker push $(OVERLEAF_BRANCH)
+	docker push $(OVERLEAF_TYPSF_TAG)
+	docker push $(OVERLEAF_TYPSF_BRANCH)
 
 SHELLCHECK_OPTS = \
 	--shell=bash \
@@ -123,6 +146,6 @@ shellcheck_fix:
 	done
 
 .PHONY: all \
-	build-base build-community \
+	build-base build-community build-typst \
 	typst typst-build typst-verify \
 	shellcheck shellcheck_fix

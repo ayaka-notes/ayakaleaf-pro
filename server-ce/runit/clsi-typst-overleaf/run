@@ -6,6 +6,17 @@ if [ "$DEBUG_NODE" == "true" ]; then
     NODE_PARAMS="--inspect=0.0.0.0:30131"
 fi
 
+# Set permissions on docker.sock if present,
+# to enable sandboxed compiles in sibling containers (CLSI_TYPST_DOCKER_RUNNER=true).
+# Mirrors the clsi-overleaf run script: the process (www-data) must be in the
+# socket's group or DockerRunner gets EACCES on connect.
+if [ -e '/var/run/docker.sock' ]; then
+  echo ">> Setting permissions on docker socket"
+  DOCKER_GROUP=$(stat -c '%g' /var/run/docker.sock)
+  groupadd --non-unique --gid "${DOCKER_GROUP}" dockeronhost
+  usermod -aG dockeronhost www-data
+fi
+
 source /etc/overleaf/env.sh
 export LISTEN_ADDRESS=127.0.0.1
 

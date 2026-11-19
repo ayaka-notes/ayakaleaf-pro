@@ -74,17 +74,14 @@ function parse(body, callback) {
       default: MAX_TIMEOUT,
       type: 'number',
     })
-    response.imageName = _parseAttribute(
-      'imageName',
-      compile.options.imageName,
-      {
-        type: 'string',
-        validValues:
-          settings.clsi &&
-          settings.clsi.docker &&
-          settings.clsi.docker.allowedImages,
-      }
-    )
+    // The sandbox image for typst compiles is a deployment-level setting
+    // (TYPST_IMAGE / clsi.docker.image), NOT a per-project choice. The web
+    // sends the project's TeX imageName in compile options for every project
+    // (typst projects inherit a default texlive image at creation) — using it
+    // here would spawn the sandbox from the texlive image, which has neither
+    // the typst binary nor the `typst` user ("unable to find user typst").
+    // Ignore it so DockerRunner falls back to the configured typst image.
+    response.imageName = undefined
     response.draft = _parseAttribute('draft', compile.options.draft, {
       default: false,
       type: 'boolean',

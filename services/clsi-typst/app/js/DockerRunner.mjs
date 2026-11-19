@@ -43,13 +43,6 @@ const DockerRunner = {
       return callback(new Error('image not allowed'))
     }
 
-    if (
-      Settings.texliveImageNameOveride != null &&
-      !['conversions', 'png2pdf'].includes(compileGroup)
-    ) {
-      image = `${Settings.texliveImageNameOveride}/${Path.basename(image)}`
-    }
-
     if (compileGroup === 'synctex-output') {
       // In: directory = '/overleaf/services/clsi/output/projectId-userId/generated-files/buildId'
       //             directory.split('/').slice(-3) === 'projectId-userId/generated-files/buildId'
@@ -267,6 +260,12 @@ const DockerRunner = {
     env.PATH = `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/texlive/${year}/bin/x86_64-linux/`
     const options = {
       Cmd: command,
+      // Clear the image ENTRYPOINT: the typst runtime image sets one (the
+      // typst binary) for interactive use, and a container's image entrypoint
+      // would otherwise prefix our Cmd ("typst sh -c ..." → exit 2, no output).
+      // DockerRunner always drives the command itself (as OlliTeX's Go
+      // clsi_typst does, and as pandoc/typst's pandoc ENTRYPOINT requires).
+      Entrypoint: [],
       Image: image,
       WorkingDir: cwd ? Path.posix.join('/compile', cwd) : '/compile',
       NetworkDisabled: true,

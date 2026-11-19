@@ -51,6 +51,30 @@ RUN --mount=type=cache,target=/root/.cargo/git/db \
     OPENSSL_DIR="/usr" \
     cargo build -p typst-cli --release
 
+# ---------------------------------------------------------------------------
+# Standalone Typst runtime image (typst-runtime stage) — the sibling-container
+# image for clsi-typst sandboxed compiles (`CLSI_TYPST_DOCKER_RUNNER=true`).
+# Static musl binary on minimal alpine: no shared-library dependencies.
+# `typst` user is uid/gid 33 to match www-data (33) in the Overleaf image so
+# it can read/write the bind-mounted /compile dir (owned by the host service
+# user). clsi-typst's DockerRunner drives it: Cmd = sh -c '... typst compile
+# ...', User = typst, network disabled, CapDrop ALL.
+FROM alpine:3.24 AS typst-runtime
+
+RUN addgroup -g 33 typst && adduser -D -u 33 -G typst typst
+
+COPY --from=typst-build /app/target/release/typst /usr/local/bin/typst
+RUN chmod 0555 /usr/local/bin/typst
+
+ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+LABEL org.opencontainers.image.source="https://github.com/typst/typst"
+LABEL org.opencontainers.image.description="Typst compiler (fork at v0.15.1, D21 sourcemap sidecar) for clsi-typst sandboxed compiles"
+
+USER typst
+ENTRYPOINT [ "/usr/local/bin/typst" ]
+CMD [ "--version" ]
+
 FROM $OVERLEAF_BASE_TAG
 
 WORKDIR /overleaf
