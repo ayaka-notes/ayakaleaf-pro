@@ -1,4 +1,5 @@
 import UserGetter from './UserGetter.mjs'
+import UserSettingsHelper from '../Project/UserSettingsHelper.mjs'
 import OError from '@overleaf/o-error'
 import UserSessionsManager from './UserSessionsManager.mjs'
 import logger from '@overleaf/logger'
@@ -325,6 +326,31 @@ const UserPagesController = {
   renderReconfirmAccountPage: expressify(reconfirmAccountPage),
 
   settingsPage: expressify(settingsPage),
+
+  // /user/keybind — standalone key-bindings settings page (keymap mode +
+  // custom "rebind your own keys" manager).
+  keybindPage: expressify(async (req, res) => {
+    const userId = SessionManager.getLoggedInUserId(req.session)
+    const user = await UserGetter.promises.getUser(userId)
+    if (!user) {
+      // The user has just deleted their account.
+      return UserSessionsManager.removeSessionsFromRedis(
+        { _id: userId },
+        null,
+        () => res.redirect('/')
+      )
+    }
+    const userSettings = await UserSettingsHelper.buildUserSettings(
+      req,
+      res,
+      user
+    )
+    res.render('user/keybind', {
+      title: 'keybindings',
+      user,
+      userSettings,
+    })
+  }),
 
   sessionsPage(req, res, next) {
     const user = SessionManager.getSessionUser(req.session)
