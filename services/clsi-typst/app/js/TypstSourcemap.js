@@ -2,14 +2,14 @@ import fs from 'node:fs/promises'
 import Path from 'node:path'
 import OError from '@overleaf/o-error'
 
-// TypstSourcemap — reader + coordinate math over the D21
+// TypstSourcemap — reader + coordinate math over the
 // `output.sourcemap.json` sidecar (ported from the OlliTeX Go
-// `clsitypst/sourcemap` package, which in turn implements the reader half
-// of the typst fork's sourcemap extension — see the clsi-typst Dockerfile
-// build stage, based on `patches/0001-clsi-sourcemap.patch`).
+// `clsitypst/sourcemap` package).
 //
-// The sidecar is written by the patched typst during `typst compile` and
-// lives NEXT TO the compiled PDF (the same compile dir as output.pdf).
+// The sidecar lives NEXT TO the compiled PDF (the same compile dir as
+// output.pdf). It is produced by `tinymist compile --synctex` (which writes
+// `output.synctex.gz`); SynctexAdapter converts that to this format after
+// each compile (byteOffset at line-level precision).
 // Schema (one object):
 //
 //   {
@@ -57,10 +57,53 @@ function pageSize(s, i) {
   return [s.pageSizes[i][0], s.pageSizes[i][1]]
 }
 
-// offsetAt maps a 1-based (line, column) position to a 0-based byte offset
-// in content (line 1 column 1 -> 0). Out-of-range positions saturate to the
-// end of content (the reader is total; the caller has pre-validated the file
-// exists).
+// ---- byte/char conversion --------------------------------------------
+// content is a JS string: indices are UTF-16 code units. The sidecar stores
+// a UTF-8 BYTE offset (what tinymist / the typst fork emit), which only equals
+// the char index for pure-ASCII content. These helpers bridge the two so the
+// consumer is exact for multi-byte content (e.g. an em dash in a comment).
+function utf8ByteLen(cp) {
+  if (cp < 0x80) return 1
+  if (cp < 0x800) return 2
+  if (cp < 0x10000) return 3
+  return 4
+}
+
+// 0-based char index -> UTF-8 byte offset.
+function charToByte(content, charIndex) {
+  if (charIndex <= 0) return 0
+  if (charIndex >= content.length) {
+    return Buffer.byteLength(content, 'utf8')
+  }
+  let byte = 0
+  for (let i = 0; i < charIndex; i++) {
+    const cp = content.codePointAt(i)
+    byte += utf8ByteLen(cp)
+    if (cp > 0xffff) i++ // a supplementary char occupies 2 code units
+  }
+  return byte
+}
+
+// UTF-8 byte offset -> 0-based char index (clamps to [0, len]).
+function byteToChar(content, byteOffset) {
+  if (byteOffset <= 0) return 0
+  const total = Buffer.byteLength(content, 'utf8')
+  if (byteOffset >= total) return content.length
+  let byte = 0
+  for (let i = 0; i < content.length; i++) {
+    const cp = content.codePointAt(i)
+    const blen = utf8ByteLen(cp)
+    if (byte + blen > byteOffset) return i
+    byte += blen
+    if (cp > 0xffff) i++ // a supplementary char occupies 2 code units
+  }
+  return content.length
+}
+
+// offsetAt maps a 1-based (line, column) position to a 0-based UTF-8 byte
+// offset in content (line 1 column 1 -> 0). Out-of-range positions saturate
+// to the end of content (the reader is total; the caller has pre-validated
+// the file exists). (line, column) are char-based, as in the editor.
 function offsetAt(content, line, column) {
   let start = 0
   if (line >= 2) {
@@ -76,7 +119,7 @@ function offsetAt(content, line, column) {
       }
     }
     if (found < line - 2) {
-      return content.length // past the last line
+      return Buffer.byteLength(content, 'utf8') // past the last line
     }
   }
   // end of the line: next newline after start, else end of content.
@@ -89,17 +132,19 @@ function offsetAt(content, line, column) {
   }
   if (column < 1) column = 1
   if (column > end - start) column = end - start
-  return start + column - 1
+  return charToByte(content, start + column - 1)
 }
 
-// lineColAt maps a 0-based byte offset in content to a 1-based (line,
-// column). Saturates: offset < 0 -> (1,1); offset >= len -> (lastLine, last).
+// lineColAt maps a 0-based UTF-8 byte offset in content to a 1-based
+// (line, column). Saturates: offset < 0 -> (1,1); offset >= byteLen -> (last,
+// last).
 function lineColAt(content, offset) {
-  if (offset < 0) offset = 0
-  if (offset > content.length) offset = content.length
+  const total = Buffer.byteLength(content, 'utf8')
+  const charIndex = Math.max(0, Math.min(offset, total))
+  const idx = byteToChar(content, charIndex)
   let line = 1
   let column = 1
-  for (let i = 0; i < offset && i < content.length; i++) {
+  for (let i = 0; i < idx; i++) {
     if (content[i] === '\n') {
       line++
       column = 1

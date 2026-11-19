@@ -1,0 +1,1015 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 50e4ab7..b0b54a7 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -6496,6 +6496,7 @@ dependencies = [
+ name = "tests"
+ version = "0.15.10"
+ dependencies = [
++ "flate2",
+  "insta",
+  "insta-cmd",
+  "lsp-types",
+@@ -7169,6 +7170,7 @@ dependencies = [
+  "comemo",
+  "dirs",
+  "ecow",
++ "flate2",
+  "log",
+  "notify",
+  "parking_lot",
+diff --git a/crates/tinymist-cli/src/cmd/generate_script.rs b/crates/tinymist-cli/src/cmd/generate_script.rs
+index cc4441a..1e3121e 100644
+--- a/crates/tinymist-cli/src/cmd/generate_script.rs
++++ b/crates/tinymist-cli/src/cmd/generate_script.rs
+@@ -187,6 +187,10 @@ fn shell_build_script(shell: Shell) -> Result<String> {
+                     cmd.push("--no-pdf-tags");
+                 }
+ 
++                if task.synctex {
++                    cmd.push("--synctex");
++                }
++
+                 if let Some(output) = &task.creation_timestamp {
+                     cmd.push("--creation-timestamp");
+                     cmd.push(output.to_string());
+diff --git a/crates/tinymist-project/src/args.rs b/crates/tinymist-project/src/args.rs
+index ddf78f0..1f3353b 100644
+--- a/crates/tinymist-project/src/args.rs
++++ b/crates/tinymist-project/src/args.rs
+@@ -170,6 +170,12 @@ pub struct TaskCompileArgs {
+     #[clap(flatten)]
+     pub pdf: PdfExportArgs,
+ 
++    /// Write a `.synctex.gz` file next to the PDF, mapping PDF positions to
++    /// source lines for viewers such as Skim or Okular. Only for PDF output of
++    /// all pages.
++    #[arg(long = "synctex", conflicts_with = "pages")]
++    pub synctex: bool,
++
+     /// Specify the PNG export related arguments.
+     #[clap(flatten)]
+     pub png: PngExportArgs,
+@@ -204,6 +210,10 @@ impl TaskCompileArgs {
+             OutputFormat::Pdf
+         };
+ 
++        if self.synctex && output_format != OutputFormat::Pdf {
++            bail!("--synctex requires PDF output");
++        }
++
+         let output = self.output.as_ref().map(|output| {
+             let output = Path::new(output);
+             let output = if output.is_absolute() {
+@@ -238,6 +248,7 @@ impl TaskCompileArgs {
+                 pdf_standards: self.pdf.standard.clone(),
+                 no_pdf_tags: self.pdf.no_tags,
+                 creation_timestamp: None,
++                synctex: self.synctex,
+             }),
+             OutputFormat::Png => ProjectTask::ExportPng(ExportPngTask {
+                 export,
+diff --git a/crates/tinymist-task/Cargo.toml b/crates/tinymist-task/Cargo.toml
+index a6cfd50..ed9fc43 100644
+--- a/crates/tinymist-task/Cargo.toml
++++ b/crates/tinymist-task/Cargo.toml
+@@ -20,6 +20,7 @@ clap.workspace = true
+ comemo.workspace = true
+ dirs.workspace = true
+ ecow.workspace = true
++flate2.workspace = true
+ log.workspace = true
+ notify.workspace = true
+ parking_lot.workspace = true
+diff --git a/crates/tinymist-task/src/compute.rs b/crates/tinymist-task/src/compute.rs
+index 4e5bd2f..9da2c39 100644
+--- a/crates/tinymist-task/src/compute.rs
++++ b/crates/tinymist-task/src/compute.rs
+@@ -27,6 +27,10 @@ pub use svg::*;
+ pub mod pdf;
+ #[cfg(feature = "pdf")]
+ pub use pdf::*;
++#[cfg(feature = "pdf")]
++pub mod synctex;
++#[cfg(feature = "pdf")]
++pub use synctex::*;
+ #[cfg(feature = "text")]
+ pub mod text;
+ #[cfg(feature = "text")]
+diff --git a/crates/tinymist-task/src/compute/synctex.rs b/crates/tinymist-task/src/compute/synctex.rs
+new file mode 100644
+index 0000000..6095eba
+--- /dev/null
++++ b/crates/tinymist-task/src/compute/synctex.rs
+@@ -0,0 +1,254 @@
++//! SyncTeX output for paged documents.
++//!
++//! SyncTeX is how LaTeX editors and PDF viewers link a PDF to its sources: a
++//! file next to the PDF lists boxes on each page with the source file and line
++//! they came from. Viewers use it to show the PDF position of an editor line
++//! (forward search) and to open the source line of a clicked point (backward
++//! search). Nothing in these files is specific to LaTeX, so by writing one we
++//! get both features for Typst sources, without any change to the viewers.
++//!
++//! The format is documented in `synctex(5)`, see
++//! <https://github.com/jlaurens/synctex/blob/main/man5/synctex.5>, the design
++//! in J. Laurens, "Direct and reverse synchronization with SyncTeX", TUGboat
++//! 29:3 (2008), <https://tug.org/TUGboat/tb29-3/tb93laurens.pdf>. The reference
++//! reader is `synctex_parser`, which the `synctex` command-line tool of TeX
++//! Live wraps. Lengths are in scaled points; this generator writes:
++//!
++//! ```text
++//! SyncTeX Version:1
++//! Input:1:/path/to/main.typ        one per source file, numbered by tag
++//! Output:pdf
++//! Magnification:1000
++//! Unit:1
++//! X Offset:0
++//! Y Offset:0
++//! Content:
++//! {1                               page 1
++//! [1,2:0,842:595,842,0             page box:  tag,line:x,y:width,height,depth
++//! (1,2,47:72,100:300,9,3           text run:  tag,line,byteoff:x,y:width,height,depth
++//! )
++//! ]
++//! }1
++//! Postamble:
++//! Count:2                          number of boxes
++//! Post scriptum:
++//! ```
++//!
++//! Every text run becomes one hbox record carrying the file tag, line, and a
++//! byte offset into the source file for its glyphs; runs are split where the
++//! source line changes. The byte offset (the third link field, an extension of
++//! the SyncTeX `column`) lets a consumer jump to the exact spot rather than the
++//! line start; for ASCII sources it equals the character column. Outline entries are
++//! skipped: their text carries the heading's span, and a viewer would otherwise
++//! jump to the table of contents instead of the heading.
++//!
++//! The file is gzip-compressed like the `.synctex.gz` files of `pdflatex
++//! -synctex=1`. The text compresses by a factor of about 5, and viewers read
++//! both forms.
++
++use std::collections::HashMap;
++use std::fmt::Write as _;
++use std::io::Write as _;
++
++use tinymist_std::error::prelude::*;
++use tinymist_std::typst::TypstPagedDocument;
++use tinymist_world::{CompilerFeat, CompilerWorld};
++use typst::World;
++use typst::foundations::{Bytes, NativeElement};
++use typst::introspection::{Location, Tag};
++use typst::layout::{Abs, Frame, FrameItem, Point, Transform};
++use typst::model::OutlineEntry;
++use typst::syntax::{FileId, Source};
++
++/// Scaled points per PostScript point: 65536 sp per TeX point, 72.27 TeX
++/// points per 72 PostScript points.
++const SP_PER_PT: f64 = 65536.0 * 72.27 / 72.0;
++
++/// Generates the gzip-compressed SyncTeX data for a document.
++pub fn synctex_gz<F: CompilerFeat>(
++    world: &CompilerWorld<F>,
++    doc: &TypstPagedDocument,
++) -> Result<Bytes> {
++    let mut writer = SyncTexGen {
++        world,
++        files: Vec::new(),
++        tags: HashMap::new(),
++        content: String::new(),
++        records: 0,
++        open_entries: Vec::new(),
++    };
++
++    for (idx, page) in doc.pages().iter().enumerate() {
++        writer.page(idx + 1, &page.frame);
++    }
++
++    let mut out = String::new();
++    out.push_str("SyncTeX Version:1\n");
++    for (tag, path) in writer.files.iter().enumerate() {
++        let _ = writeln!(out, "Input:{}:{path}", tag + 1);
++    }
++    out.push_str("Output:pdf\nMagnification:1000\nUnit:1\nX Offset:0\nY Offset:0\nContent:\n");
++    out.push_str(&writer.content);
++    let _ = write!(
++        out,
++        "Postamble:\nCount:{}\nPost scriptum:\n",
++        writer.records
++    );
++
++    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
++    encoder
++        .write_all(out.as_bytes())
++        .and_then(|_| encoder.finish())
++        .map(Bytes::new)
++        .context("compress synctex data")
++}
++
++struct SyncTexGen<'a, F: CompilerFeat> {
++    world: &'a CompilerWorld<F>,
++    /// Absolute paths, indexed by tag - 1.
++    files: Vec<String>,
++    tags: HashMap<FileId, Option<(usize, Source)>>,
++    content: String,
++    records: usize,
++    /// Outline entries whose end tag has not been seen yet.
++    open_entries: Vec<Location>,
++}
++
++/// A text run's source location and extent.
++struct Run {
++    tag: usize,
++    line: usize,
++    offset: usize,
++    origin: Point,
++    width: Abs,
++    ascent: Abs,
++    descent: Abs,
++}
++
++impl<F: CompilerFeat> SyncTexGen<'_, F> {
++    fn page(&mut self, number: usize, frame: &Frame) {
++        let mut runs = Vec::new();
++        self.collect(frame, Transform::identity(), &mut runs);
++
++        // The page vbox takes the location of its first run so that it maps to
++        // a meaningful line.
++        let (tag, line) = runs.first().map_or((1, 1), |run| (run.tag, run.line));
++        let w = sp(frame.width());
++        let h = sp(frame.height());
++
++        let _ = writeln!(self.content, "{{{number}");
++        let _ = writeln!(self.content, "[{tag},{line}:0,{h}:{w},{h},0");
++        self.records += 1;
++
++        for run in runs {
++            let _ = writeln!(
++                self.content,
++                "({},{},{}:{},{}:{},{},{}\n)",
++                run.tag,
++                run.line,
++                run.offset,
++                sp(run.origin.x),
++                sp(run.origin.y),
++                sp(run.width),
++                sp(run.ascent),
++                sp(run.descent)
++            );
++            self.records += 1;
++        }
++
++        let _ = writeln!(self.content, "]\n}}{number}");
++    }
++
++    fn collect(&mut self, frame: &Frame, ts: Transform, runs: &mut Vec<Run>) {
++        for &(pos, ref item) in frame.items() {
++            match item {
++                FrameItem::Group(group) => {
++                    let ts = ts
++                        .pre_concat(Transform::translate(pos.x, pos.y))
++                        .pre_concat(group.transform);
++                    self.collect(&group.frame, ts, runs);
++                }
++                FrameItem::Tag(Tag::Start(content, _)) => {
++                    if content.elem() == OutlineEntry::ELEM
++                        && let Some(loc) = content.location()
++                    {
++                        self.open_entries.push(loc);
++                    }
++                }
++                FrameItem::Tag(Tag::End(loc, _, _)) => {
++                    if self.open_entries.last() == Some(loc) {
++                        self.open_entries.pop();
++                    }
++                }
++                FrameItem::Text(_) if !self.open_entries.is_empty() => {}
++                FrameItem::Text(text) => {
++                    let metrics = text.font.metrics();
++                    let ascent = metrics.ascender.at(text.size);
++                    let descent = -metrics.descender.at(text.size);
++
++                    let mut start = pos;
++                    let mut x = pos.x;
++                    let mut current: Option<Run> = None;
++                    for glyph in &text.glyphs {
++                        let advance = glyph.x_advance.at(text.size);
++                        let loc = self.locate(glyph.span.0, glyph.span.1 as usize);
++
++                        let same = matches!((&current, loc),
++                            (Some(run), Some((tag, line, _))) if run.tag == tag && run.line == line);
++                        if !same {
++                            if let Some(run) = current.take() {
++                                runs.push(run);
++                            }
++                            start = Point::new(x, pos.y);
++                            current = loc.map(|(tag, line, offset)| Run {
++                                tag,
++                                line,
++                                offset,
++                                origin: start.transform(ts),
++                                width: Abs::zero(),
++                                ascent,
++                                descent,
++                            });
++                        }
++
++                        x += advance;
++                        if let Some(run) = &mut current {
++                            run.width = x - start.x;
++                        }
++                    }
++                    if let Some(run) = current {
++                        runs.push(run);
++                    }
++                }
++                _ => {}
++            }
++        }
++    }
++
++    /// Resolves a span to its file tag, 1-based line, and byte offset.
++    fn locate(&mut self, span: typst::syntax::Span, offset: usize) -> Option<(usize, usize, usize)> {
++        let id = span.id()?;
++        if !self.tags.contains_key(&id) {
++            let entry = self.register(id);
++            self.tags.insert(id, entry);
++        }
++        let (tag, source) = self.tags.get(&id)?.as_ref()?;
++
++        let node = source.find(span)?;
++        let byte = node.offset() + offset;
++        let line = source.lines().byte_to_line(byte)?;
++        Some((*tag, line + 1, byte))
++    }
++
++    fn register(&mut self, id: FileId) -> Option<(usize, Source)> {
++        let source = self.world.source(id).ok()?;
++        let path = self.world.path_for_id(id).ok()?;
++        self.files
++            .push(path.as_path().to_string_lossy().into_owned());
++        Some((self.files.len(), source))
++    }
++}
++
++fn sp(len: Abs) -> i64 {
++    (len.to_pt() * SP_PER_PT).round() as i64
++}
+diff --git a/crates/tinymist-task/src/model.rs b/crates/tinymist-task/src/model.rs
+index 11c5f53..5df4966 100644
+--- a/crates/tinymist-task/src/model.rs
++++ b/crates/tinymist-task/src/model.rs
+@@ -260,6 +260,10 @@ pub struct ExportPdfTask {
+     /// For more information, see <https://reproducible-builds.org/specs/source-date-epoch/>.
+     #[serde(skip_serializing_if = "Option::is_none", default)]
+     pub creation_timestamp: Option<i64>,
++    /// Whether to write a `.synctex.gz` file next to the PDF, mapping PDF
++    /// positions to source lines for viewers such as Skim or Okular.
++    #[serde(skip_serializing_if = "std::ops::Not::not", default)]
++    pub synctex: bool,
+ }
+ 
+ /// An export png task specifier.
+diff --git a/crates/tinymist/src/cmd/export.rs b/crates/tinymist/src/cmd/export.rs
+index 836a524..404ba1b 100644
+--- a/crates/tinymist/src/cmd/export.rs
++++ b/crates/tinymist/src/cmd/export.rs
+@@ -135,6 +135,7 @@ impl ServerState {
+             pdf_standards,
+             no_pdf_tags,
+             creation_timestamp,
++            synctex: false,
+         });
+ 
+         if path.extension().and_then(|ext| ext.to_str()) == Some("md") {
+diff --git a/crates/tinymist/src/config.rs b/crates/tinymist/src/config.rs
+index 61070bf..5368aa0 100644
+--- a/crates/tinymist/src/config.rs
++++ b/crates/tinymist/src/config.rs
+@@ -694,6 +694,7 @@ impl Config {
+                 pdf_standards: self.pdf_standards().unwrap_or_default(),
+                 no_pdf_tags: self.no_pdf_tags(),
+                 creation_timestamp: self.creation_timestamp(),
++                synctex: false,
+             }),
+             count_words: self.notify_status,
+             development: self.development,
+diff --git a/crates/tinymist/src/task/export.rs b/crates/tinymist/src/task/export.rs
+index 8562a54..77d8a88 100644
+--- a/crates/tinymist/src/task/export.rs
++++ b/crates/tinymist/src/task/export.rs
+@@ -500,6 +500,16 @@ impl ExportTask {
+             Some(())
+         });
+ 
++        // `do_export_bytes` consumes `artifact`, but the SyncTeX file is generated
++        // after it, from the document and the world in `graph`, which maps source
++        // locations to files. Both are `Arc`s, so keeping them copies no data.
++        let synctex = match (&task, &artifact.doc) {
++            (ProjectTask::ExportPdf(config), Some(TypstDocument::Paged(doc))) if config.synctex => {
++                Some((graph.clone(), doc.clone()))
++            }
++            _ => None,
++        };
++
+         // Generate the data using common logic
+         let artifact = Self::do_export_bytes(task.clone(), artifact, export_id).await?;
+ 
+@@ -515,6 +525,19 @@ impl ExportTask {
+                     .await
+                     .context_ut("failed to export")??;
+ 
++                // If requested, write the SyncTeX file next to the PDF. Generating
++                // it walks the whole document, so it leaves the async executor
++                // like the PDF write above.
++                if let Some((graph, doc)) = synctex {
++                    let to = write_to.with_extension("synctex.gz");
++                    tokio::task::spawn_blocking(move || {
++                        let data = tinymist_task::synctex_gz(graph.world(), &doc)?;
++                        write_atomic(to, data)
++                    })
++                    .await
++                    .context_ut("failed to export synctex")??;
++                }
++
+                 res
+             }
+             ExportArtifact::Paged { total_pages, items } => {
+@@ -854,6 +877,7 @@ impl Default for ExportUserConfig {
+                 pdf_standards: vec![],
+                 no_pdf_tags: false,
+                 creation_timestamp: None,
++                synctex: false,
+             }),
+             count_words: false,
+             development: false,
+diff --git a/docs/tinymist/feature/cli.typ b/docs/tinymist/feature/cli.typ
+index 6aacb58..7d6b0d3 100644
+--- a/docs/tinymist/feature/cli.typ
++++ b/docs/tinymist/feature/cli.typ
+@@ -62,6 +62,12 @@ tinymist compile --lockfile some/tinymist.lock path/to/main.typ
+ 
+ The lock file feature is in development. It is to help the language server to understand the structure of your projects. See #github-link("/editors/vscode/Configuration.md#tinymistprojectresolution")[Configuration: tinymist.projectResolution].
+ 
++To write a SyncTeX file next to the PDF, so that PDF viewers can jump between the PDF and its source lines (see #cross-link("/feature/preview.typ", [Preview Feature])):
++
++```bash
++tinymist compile --synctex path/to/main.typ
++```
++
+ == Running Tests
+ 
+ To run tests, you can use the `test` command, which is also compatible with `typst compile`:
+diff --git a/docs/tinymist/feature/preview.typ b/docs/tinymist/feature/preview.typ
+index a0f7b3b..e1c392c 100644
+--- a/docs/tinymist/feature/preview.typ
++++ b/docs/tinymist/feature/preview.typ
+@@ -46,6 +46,20 @@ return {
+   ```
+ ]
+ 
++== Jumping between PDF and Source with SyncTeX
++
++SyncTeX is how LaTeX editors and PDF viewers link a PDF to its sources. The following command also writes `main.synctex.gz` next to `main.pdf`:
++
++```bash
++tinymist compile --synctex path/to/main.typ
++```
++
++Viewers such as Evince, Okular, Skim, SumatraPDF and Zathura use this file to show the PDF position of an editor line (forward search) and to open the source line of a clicked point (backward search). Set them up as for LaTeX. For example, Skim's `displayline` tool runs forward search, and its Sync preferences name the editor for backward search.
++
++Compared to the web preview, this shows the final PDF in a viewer of your choice and needs no language server, so it works with any editor that can run a command. In exchange, it jumps by line instead of by position, covers only text, and exports the whole PDF on each compilation.
++
++`--synctex` requires PDF output of all pages, so it cannot be combined with `--pages`. The `tinymist.exportPdf` setting does not write the file.
++
+ Also see:
+ 
+ - #github-link("/editors/vscode/Configuration.md")[VS Cod(e,ium): Tinymist Server Configuration]
+diff --git a/openspec/changes/add-synctex-export/design.md b/openspec/changes/add-synctex-export/design.md
+new file mode 100644
+index 0000000..ab4dfef
+--- /dev/null
++++ b/openspec/changes/add-synctex-export/design.md
+@@ -0,0 +1,88 @@
++## Context
++
++SyncTeX is the de-facto interface between TeX engines and PDF viewers. The format is documented in `synctex(5)` and in J. Laurens, "Direct and reverse synchronization with SyncTeX", TUGboat 29:3 (2008). The viewer side is largely one C library, `synctex_parser`, embedded in Okular, Zathura and SumatraPDF, among others. It reads a text file (plain or gzip) with a header naming the input files, a `Content:` section with one block per page and nested box records with coordinates, and a postamble. Every record carries a file tag and a source line. Forward search looks up all records with a given tag and line and shows the first; backward search finds the box enclosing a point and returns its tag and line.
++
++Typst's `PagedDocument` holds, per page, a `Frame` of items. `FrameItem::Text` carries shaped glyphs, each with the `Span` of the source node and a byte offset into it, and the font metrics give ascent and descent. `FrameItem::Group` nests a frame under a transform. The `CompilerWorld` resolves a span's `FileId` to a `Source` (for the line) and to an absolute path.
++
++## Goals / Non-Goals
++
++**Goals:**
++- Produce a file that `synctex_parser` reads without warnings, so every viewer that supports LaTeX works unchanged.
++- Map every text run to the source line of its glyphs, across all files of a project (chapters, templates, packages).
++- Keep the output opt-in and the cost confined to `--synctex` runs.
++
++**Non-Goals:**
++- Records for shapes, images or links; viewers fall back to the nearest text box.
++- Column precision inside a line. SyncTeX forward search works on lines; backward search reports a column of -1 like pdfTeX does for most boxes.
++- Supporting `--pages`; see decision 8.
++- SyncTeX for the browser preview, which has its own jump protocol.
++- A language server setting. `tinymist.exportPdf` users would benefit, but that is a separate configuration decision; see Open Questions.
++
++## Decisions
++
++### 1. Emit pdfTeX's file layout, with scaled points from the top-left page corner
++
++The generator writes the header (`SyncTeX Version:1`, `Input:` lines, `Output:pdf`, `Magnification:1000`, `Unit:1`, offsets 0), then per page `{n`, one page-sized vbox `[`…`]`, one hbox `(`…`)` per text run, `}n`, and the postamble with a record count. Lengths are scaled points, `pt × 72.27 / 72 × 65536`, measured from the top-left corner with y downwards; this is what pdfTeX writes with zero offsets, so the parser's unit conversion applies unchanged.
++
++Alternative considered:
++- A reduced custom format read by a viewer plug-in. Rejected: the value of SyncTeX is that existing viewers already speak it.
++
++### 2. One hbox per text run, split where the source line changes
++
++A text run (`FrameItem::Text`) is one shaped segment of one line of output, but its glyphs may come from several source lines when a paragraph is wrapped differently in the source. The generator walks the glyphs, resolves each to (tag, line), and starts a new hbox whenever that pair changes. The hbox origin is the baseline start, its width the sum of advances, its height the font's ascent and its depth the font's descent at the text size.
++
++Alternative considered:
++- One hbox per glyph. Rejected: ten times the records for no gain in line precision.
++- One hbox per run with the first glyph's line. Rejected: a wrapped paragraph would send forward search for the second source line to the wrong place or nowhere.
++
++### 3. Apply group transforms to the origin
++
++Groups carry translations for most layout and full affine transforms for rotated or scaled content. The generator composes the transforms along the path to a text item and transforms the baseline origin; width, height and depth stay in the item's own scale. Rotated text therefore gets a correct anchor and an approximate extent, which is enough for line lookup.
++
++### 4. Skip text inside outline entries
++
++Entries of `outline()` render the heading's text with the heading's span, so forward search for a heading line would list the table of contents first and the viewer would show it instead of the heading. The generator tracks `Tag::Start`/`Tag::End` of `OutlineEntry` elements in the frame and emits no records between them. Index entries and cross references are not affected: their text carries the span of the `ref` or `index` call site, which is where a user expects to land.
++
++Alternative considered:
++- Keep all records and rely on the viewer choosing the best match. Rejected: `synctex_parser` returns matches in file order and Skim takes the first.
++
++### 5. Absolute paths in `Input:` records
++
++`synctex_parser` resolves relative input names against the PDF's directory, which for Typst projects is usually an output directory outside the source tree. Absolute paths, resolved through the world's path mapper, work from any output location and let the viewer open package files from the cache. The main file is included like every other source; there is no distinguished tag.
++
++### 6. Generate in the export task after the PDF bytes are written
++
++The SyncTeX file belongs to a specific PDF, so `ExportTask::do_export` keeps the paged document alongside the PDF bytes and writes `<output>.synctex.gz` with the same atomic write after the PDF. The generator runs in the blocking pool like the PDF export itself. The compile command and the language server share this path, so an export task with `synctex: true` produces the same file wherever it runs. The language server's own tasks set it to false for now.
++
++### 7. Compress with gzip
++
++`pdflatex -synctex=1` writes `.synctex.gz`, and viewers read both that and plain `.synctex`. The text is highly repetitive: on a 107-page document with 43972 text runs, 2.1 MB shrink to 430 kB, about 13 % of the 3.3 MB PDF. `flate2` is a Rust gzip library that `tinymist-world` already depends on, so this adds no package to the build.
++
++Alternative considered:
++- Plain `.synctex` without the dependency. Rejected: five times the size next to every PDF, for one dependency edge.
++
++### 8. Reject output the file cannot describe
++
++The flag is meaningful only for a PDF of all pages. For other formats it would be ignored. With `--pages` the file's page numbers would follow the document and not the exported subset, so viewers would jump to wrong pages. Both are errors: clap rejects `--synctex --pages`, and `TaskCompileArgs::to_task` rejects non-PDF formats once the format is inferred from the output path.
++
++Alternative considered:
++- Filter and renumber pages for `--pages`. Rejected for now: more code for a mode that is rarely combined with live navigation, and it can be added later without breaking anyone.
++
++## Risks / Trade-offs
++
++- [Outline detection depends on frame tags] -> Tags are placed for every `Locatable` element in paged export; if a future Typst version drops them, records degrade to the pre-change behavior, nothing breaks.
++- [Viewers assume one `Input:` per file and stable paths] -> Paths come from the world's resolver, the same source the language server uses for diagnostics.
++- [Rotated or scaled text extents are approximate] -> Line lookup needs only the anchor; acceptable.
++
++## Migration Plan
++
++1. Add the `synctex` flag to the task model and CLI arguments with a false default.
++2. Add the generator in `tinymist-task` behind the `pdf` feature.
++3. Write the file from the export task when the flag is set.
++4. Validate with `synctex view` and `synctex edit` from TeX Live against a multi-file document, then with a viewer.
++
++No rollback concerns: without the flag the export path is unchanged.
++
++## Open Questions
++
++- Whether the language server should offer a setting, so that `tinymist.exportPdf` writes the file as well; the task model already carries the flag.
+diff --git a/openspec/changes/add-synctex-export/proposal.md b/openspec/changes/add-synctex-export/proposal.md
+new file mode 100644
+index 0000000..e7f2d7d
+--- /dev/null
++++ b/openspec/changes/add-synctex-export/proposal.md
+@@ -0,0 +1,37 @@
++## Why
++
++SyncTeX is how LaTeX editors and PDF viewers link a PDF to its sources. The compiler writes a file next to the PDF that lists the boxes on each page with the source file and line they came from. Viewers use it for forward search (show the PDF position of the editor's line) and backward search (click the PDF to open that line in the editor). Evince, Okular, Skim, SumatraPDF, Zathura and others read this file, so any compiler that writes it gets this navigation without viewer changes.
++
++Tinymist documents two ways to preview a document: the web preview, with bidirectional navigation, and PDF preview in the user's own viewer, without any navigation. SyncTeX closes that gap. It complements the web preview:
++
++- For SyncTeX: it shows the final PDF in a native viewer, and it works from any editor that can run a command, without a language server.
++- Against it: it jumps by line instead of by position, covers only text, and exports the whole PDF on each compilation.
++
++Typst closed its SyncTeX request (typst/typst#289), pointing to its `ide` functions as what a language server would call. Those functions answer one position at a time; a SyncTeX file lists all positions in advance. Tinymist already has what that needs, the paged document with spans on every glyph and a world that maps spans to files and lines, and it is the tool that connects editors and viewers. The generator reads only public Typst data and can be removed if Typst ever writes the file itself.
++
++#2704 asks for forward search to Skim through a new LSP command, which every editor and viewer pair would have to script. SyncTeX serves that case without per-viewer code, in both directions.
++
++## What Changes
++
++- Add `--synctex` to `tinymist compile`. After a successful PDF export the compiler writes `<output>.synctex.gz` next to the PDF.
++- Reject `--synctex` for non-PDF output and together with `--pages`, where it could only be ignored or wrong.
++- Add a `synctex` flag to the PDF export task so the lock file and `tinymist generate-script` keep the option.
++- Add a SyncTeX generator to `tinymist-task` that walks the page frames and emits one hbox record per text run, tagged with the source file and line of its glyphs, in the format of pdfTeX.
++- Document the option in the CLI and preview feature pages.
++
++## Capabilities
++
++### New Capabilities
++
++- `synctex-export`: Defines the SyncTeX file written next to an exported PDF and how PDF positions map to source lines.
++
++### Modified Capabilities
++
++- None.
++
++## Impact
++
++- Affected code: `crates/tinymist-task/src/compute/synctex.rs` (new), `crates/tinymist-task/src/compute.rs`, `crates/tinymist-task/src/model.rs`, `crates/tinymist-project/src/args.rs`, `crates/tinymist/src/task/export.rs`, `crates/tinymist/src/cmd/export.rs`, `crates/tinymist/src/config.rs`, `crates/tinymist-cli/src/cmd/generate_script.rs`.
++- `tinymist-task` gains a dependency on `flate2`, a gzip library that `tinymist-world` already uses, so `Cargo.lock` adds no package. The e2e tests use it to read the file back.
++- The export task model gains an optional boolean field; serialized tasks without it keep their meaning.
++- No change for users who do not pass `--synctex`.
+diff --git a/openspec/changes/add-synctex-export/specs/synctex-export/spec.md b/openspec/changes/add-synctex-export/specs/synctex-export/spec.md
+new file mode 100644
+index 0000000..27a8362
+--- /dev/null
++++ b/openspec/changes/add-synctex-export/specs/synctex-export/spec.md
+@@ -0,0 +1,76 @@
++## ADDED Requirements
++
++### Requirement: `--synctex` writes a SyncTeX file next to the PDF
++`tinymist compile --synctex` SHALL write `<output>.synctex.gz` in the directory of the exported PDF after a successful PDF export, and SHALL write nothing extra without the flag.
++
++#### Scenario: PDF export with the flag
++- **WHEN** `tinymist compile --synctex main.typ out/main.pdf` succeeds
++- **THEN** `out/main.synctex.gz` exists
++- **AND** it is a gzip-compressed text file that `synctex_parser` opens without warnings
++
++#### Scenario: PDF export without the flag
++- **WHEN** `tinymist compile main.typ out/main.pdf` succeeds
++- **THEN** no `out/main.synctex.gz` is written
++
++#### Scenario: Compile error
++- **WHEN** the document fails to compile
++- **THEN** no SyncTeX file is written or replaced
++
++### Requirement: `--synctex` is rejected where the file would be missing or wrong
++`tinymist compile` SHALL fail with an error when `--synctex` is combined with `--pages` or with an output format other than PDF.
++
++#### Scenario: Non-PDF output
++- **WHEN** `tinymist compile --synctex main.typ main.png` runs
++- **THEN** the command fails and writes no SyncTeX file
++
++#### Scenario: Page subset
++- **WHEN** `tinymist compile --synctex --pages 1 main.typ main.pdf` runs
++- **THEN** the command fails and writes no SyncTeX file
++
++### Requirement: SyncTeX records map text runs to source lines
++Every run of text in the paged document SHALL appear as an hbox record whose tag and line name the source file and the 1-based line of its glyphs, with the baseline start as position and width, ascent and descent as extent, in scaled points measured from the top-left corner of the page.
++
++#### Scenario: Forward search for a body line
++- **GIVEN** a document whose chapter file `kapitel/a.typ` has prose on line 81 that is typeset on page 9
++- **WHEN** a viewer asks for line 81 of `kapitel/a.typ`
++- **THEN** the result is on page 9 at the position of that text
++
++#### Scenario: Backward search on a body line
++- **WHEN** a viewer asks for the source of a point inside typeset prose on page 9
++- **THEN** the result names the file and the line whose glyphs cover that point
++
++#### Scenario: Paragraph wrapped differently in the source
++- **GIVEN** one typeset line whose words come from two consecutive source lines
++- **THEN** the typeset line yields two hbox records, one per source line, each covering only the glyphs of that line
++
++#### Scenario: Text inside a transformed group
++- **GIVEN** text placed through `place`, `move`, `rotate` or `scale`
++- **THEN** its record's position is the transformed baseline start on the page
++
++### Requirement: Every source file gets one `Input:` record with an absolute path
++The header SHALL list each source file that contributed text once, tagged consecutively from 1 in order of first appearance, with the absolute path the world resolves for it; package files resolve to their path in the package cache.
++
++#### Scenario: Multi-file project
++- **GIVEN** `main.typ` that includes `kapitel/a.typ` and `kapitel/b.typ`
++- **THEN** the header has one `Input:` line per file that produced text, each with an absolute path
++- **AND** records for text from `kapitel/b.typ` carry that file's tag
++
++### Requirement: Outline entries carry no records
++Text rendered by `outline()` entries SHALL produce no SyncTeX records, so a lookup for a heading's line finds the heading.
++
++#### Scenario: Forward search for a heading line
++- **GIVEN** a document with a table of contents on page 2 and a heading from line 16 of `kapitel/a.typ` on page 8
++- **WHEN** a viewer asks for line 16 of `kapitel/a.typ`
++- **THEN** the first result is on page 8
++
++### Requirement: The task model carries the flag
++`ExportPdfTask` SHALL have a boolean `synctex` field, default false and omitted from serialization when false, so lock files can request the file, and `tinymist generate-script` SHALL emit `--synctex` for a task that has it.
++
++#### Scenario: Lock file without the field
++- **WHEN** a lock file written before this change is read
++- **THEN** its PDF tasks deserialize with `synctex` false
++
++#### Scenario: Generated build script
++- **GIVEN** a lock file written by `tinymist compile --save-lock --synctex main.typ`
++- **WHEN** `tinymist generate-script` runs
++- **THEN** the script's compile command contains `--synctex`
+diff --git a/openspec/changes/add-synctex-export/tasks.md b/openspec/changes/add-synctex-export/tasks.md
+new file mode 100644
+index 0000000..e4093ba
+--- /dev/null
++++ b/openspec/changes/add-synctex-export/tasks.md
+@@ -0,0 +1,32 @@
++## 1. Task Model and Arguments
++
++- [x] 1.1 Add `synctex: bool` to `ExportPdfTask`, serialized only when true, default false.
++- [x] 1.2 Add `--synctex` to `TaskCompileArgs` and pass it through `TaskCompileArgs::to_task`; `PdfExportArgs` is shared with `tinymist preview`, which writes no PDF.
++- [x] 1.3 Set `synctex: false` at the remaining constructors of `ExportPdfTask`.
++- [x] 1.4 Reject `--synctex` together with `--pages` and for non-PDF output.
++- [x] 1.5 Pass `--synctex` through `tinymist generate-script`.
++
++## 2. Generator
++
++- [x] 2.1 Add `crates/tinymist-task/src/compute/synctex.rs` with `synctex_gz(world, doc) -> Bytes`, behind the `pdf` feature, and `flate2` as a dependency of `tinymist-task`.
++- [x] 2.2 Walk page frames recursively, composing group transforms, and collect one run per (file, line) stretch of glyphs with baseline origin, width, ascent and descent.
++- [x] 2.3 Resolve spans to file tags and 1-based lines through the world; assign tags in order of first appearance and record absolute paths.
++- [x] 2.4 Skip text between the start and end tags of `OutlineEntry` elements.
++- [x] 2.5 Write header, per-page blocks, postamble and record count in pdfTeX's layout, coordinates in scaled points from the top-left corner, gzip-compressed.
++
++## 3. Export
++
++- [x] 3.1 In `ExportTask::do_export`, keep the paged document when the task is a PDF export with `synctex` set, and write `<output>.synctex.gz` with `write_atomic` after the PDF.
++
++## 4. Validate
++
++- [x] 4.1 `cargo build --release -p tinymist-cli`, then compile a multi-file document with `--synctex` and confirm `<output>.synctex.gz` appears next to the PDF.
++- [x] 4.2 `synctex view -i <line>:1:<absolute source path> -o <pdf>` returns the page and position of that line; `synctex edit -o <page>:<x>:<y>:<pdf>` returns the source file and line under that point.
++- [x] 4.3 Forward search for a heading line lands on the heading, not on the table of contents.
++- [x] 4.4 A PDF viewer (Skim): forward search shows the line, Shift-Command-click opens the source line in the editor.
++- [x] 4.5 `cargo test -p tinymist-task`, `cargo clippy -p tinymist-task -p tinymist --all-targets`, `cargo fmt --check --all`.
++- [x] 4.6 Add e2e tests for the `Input:` records of a two-file document, for outline entries, source line splits and group transforms, for rejected flag combinations, and for `generate-script`.
++
++## 5. Documentation
++
++- [x] 5.1 Document `--synctex` in `docs/tinymist/feature/cli.typ` and `docs/tinymist/feature/preview.typ`.
+diff --git a/tests/Cargo.toml b/tests/Cargo.toml
+index df9835a..f908347 100644
+--- a/tests/Cargo.toml
++++ b/tests/Cargo.toml
+@@ -15,4 +15,5 @@ serde.workspace = true
+ serde_json.workspace = true
+ tinymist-std = { workspace = true, features = ["system"] }
+ insta.workspace = true
++flate2.workspace = true
+ insta-cmd.workspace = true
+diff --git a/tests/e2e/e2e/cli.rs b/tests/e2e/e2e/cli.rs
+index 15f3b1c..f2cda7d 100644
+--- a/tests/e2e/e2e/cli.rs
++++ b/tests/e2e/e2e/cli.rs
+@@ -1,3 +1,6 @@
++use std::io::Read;
++use std::path::Path;
++
+ use tinymist_std::path::PathClean;
+ 
+ use crate::artifact::{cli, GIT_ROOT};
+@@ -215,6 +218,10 @@ fn test_help_compile_alias() {
+               written to provide a baseline of accessibility. In some circumstances (for example when
+               trying to reduce the size of a document) it can be desirable to disable tagged PDF
+ 
++          --synctex
++              Write a `.synctex.gz` file next to the PDF, mapping PDF positions to source lines for
++              viewers such as Skim or Okular. Only for PDF output of all pages
++
+           --ppi <PPI>
+               Specify the PPI (pixels per inch) to use for PNG export
+               
+@@ -354,6 +361,10 @@ fn test_help_compile() {
+               written to provide a baseline of accessibility. In some circumstances (for example when
+               trying to reduce the size of a document) it can be desirable to disable tagged PDF
+ 
++          --synctex
++              Write a `.synctex.gz` file next to the PDF, mapping PDF positions to source lines for
++              viewers such as Skim or Okular. Only for PDF output of all pages
++
+           --ppi <PPI>
+               Specify the PPI (pixels per inch) to use for PNG export
+               
+@@ -651,3 +662,226 @@ fn test_compile_alias() {
+     })
+     .expect("test should succeed");
+ }
++
++/// Reads a SyncTeX file, which is gzip-compressed text.
++fn read_synctex(path: &Path) -> String {
++    let file = std::fs::File::open(path).expect("synctex file should exist");
++    let mut text = String::new();
++    flate2::read::GzDecoder::new(file)
++        .read_to_string(&mut text)
++        .expect("synctex file should be gzip-compressed text");
++    text
++}
++
++/// Scaled points, the unit of SyncTeX coordinates.
++fn sp(pt: f64) -> i64 {
++    (pt * 65536.0 * 72.27 / 72.0).round() as i64
++}
++
++/// The source line, byte offset, and position of an hbox record
++/// `(tag,line,offset:x,y:w,h,d`.
++fn hbox(record: &str) -> (usize, usize, i64, i64) {
++    let (_, rest) = record.split_once(',').expect("record should have a tag");
++    let mut fields = rest.split([':', ',']);
++    let mut field = || fields.next().expect("record should have all fields");
++    (
++        field().parse().expect("line"),
++        field().parse().expect("byte offset"),
++        field().parse().expect("x"),
++        field().parse().expect("y"),
++    )
++}
++
++#[test]
++fn test_compile_synctex_records() {
++    const SOURCE: &str = "\
++#set page(width: 300pt, height: 300pt, margin: 0pt)
++#outline()
++
++= Alpha
++
++first source line
++second source line
++
++#place(top + left, dx: 100pt, dy: 200pt, scale(200%, origin: top + left)[Scaled])
++";
++    const HEADING: usize = 4;
++    const FIRST: usize = 6;
++    const SECOND: usize = 7;
++    const SCALED: usize = 9;
++
++    let root = GIT_ROOT.join("target/e2e/tinymist-cli");
++    tinymist_std::fs::paths::temp_dir_in(root, |tmp| {
++        let tmp = tmp.clean();
++        let input = tmp.join("main.typ");
++        let out = tmp.join("main.pdf");
++        std::fs::write(&input, SOURCE).expect("should write the source");
++
++        let status = cli()
++            .arg("compile")
++            .arg("--synctex")
++            .arg(&input)
++            .arg(&out)
++            .status();
++        assert!(status.expect("should run").success());
++
++        let text = read_synctex(&out.with_extension("synctex.gz"));
++        let hboxes = text
++            .lines()
++            .filter(|l| l.starts_with('('))
++            .map(hbox)
++            .collect::<Vec<_>>();
++        let on_line = |line| hboxes.iter().filter(|h| h.0 == line).collect::<Vec<_>>();
++
++        // The outline renders "Alpha" as well, with the heading's span.
++        assert_eq!(
++            on_line(HEADING).len(),
++            1,
++            "only the heading itself: {hboxes:?}"
++        );
++
++        // One typeset line from two source lines gives one record per source line.
++        let (first, second) = (on_line(FIRST), on_line(SECOND));
++        assert_eq!((first.len(), second.len()), (1, 1), "{hboxes:?}");
++        assert_eq!(first[0].3, second[0].3, "both on the same typeset line");
++        assert!(first[0].2 < second[0].2, "second source line further right");
++        assert!(first[0].1 < second[0].1, "second source line further into the file");
++
++        // The scaled text sits at the place offset, not at the origin of its group.
++        let scaled = on_line(SCALED);
++        assert_eq!(scaled.len(), 1, "{hboxes:?}");
++        assert_eq!(scaled[0].2, sp(100.0));
++        assert!(scaled[0].3 > sp(200.0), "baseline below the place offset");
++
++        Ok(())
++    })
++    .expect("test should succeed");
++}
++
++#[test]
++fn test_compile_synctex_only_for_correct_output() {
++    let root = GIT_ROOT.join("target/e2e/tinymist-cli");
++    tinymist_std::fs::paths::temp_dir_in(root, |tmp| {
++        let tmp = tmp.clean();
++        let input = tmp.join("main.typ");
++        std::fs::write(&input, "Hello\n").expect("should write the source");
++
++        let synctex_of = |name: &str| tmp.join(name).with_extension("synctex.gz");
++        let compile = |args: &[&str], name: &str| {
++            let status = cli()
++                .arg("compile")
++                .args(args)
++                .arg(&input)
++                .arg(tmp.join(name))
++                .status();
++            status.expect("should run").success()
++        };
++
++        assert!(compile(&[], "plain.pdf"));
++        assert!(
++            !synctex_of("plain.pdf").exists(),
++            "no file without the flag"
++        );
++
++        // Neither output can have a correct SyncTeX file, so they must not
++        // silently go without one or get a wrong one.
++        assert!(!compile(&["--synctex"], "image.png"));
++        assert!(!synctex_of("image.png").exists());
++        assert!(!compile(&["--synctex", "--pages", "1"], "subset.pdf"));
++        assert!(!synctex_of("subset.pdf").exists());
++
++        std::fs::write(&input, "#panic()\n").expect("should write the source");
++        assert!(!compile(&["--synctex"], "broken.pdf"));
++        assert!(
++            !synctex_of("broken.pdf").exists(),
++            "no file for a failed compilation"
++        );
++
++        Ok(())
++    })
++    .expect("test should succeed");
++}
++
++#[test]
++fn test_generate_script_keeps_synctex() {
++    let root = GIT_ROOT.join("target/e2e/tinymist-cli");
++    tinymist_std::fs::paths::temp_dir_in(root, |tmp| {
++        let tmp = tmp.clean();
++        std::fs::write(tmp.join("main.typ"), "Hello\n").expect("should write the source");
++
++        let run = |args: &[&str]| cli().current_dir(&tmp).args(args).status();
++        let compile = run(&["compile", "--save-lock", "--synctex", "main.typ"]);
++        assert!(compile.expect("should run").success());
++        assert!(run(&["generate-script", "bash"])
++            .expect("should run")
++            .success());
++
++        let script = std::fs::read_to_string(tmp.join("build.sh")).expect("script should exist");
++        assert!(
++            script.contains("--synctex"),
++            "script should keep the flag: {script}"
++        );
++
++        Ok(())
++    })
++    .expect("test should succeed");
++}
++
++#[test]
++fn test_compile_synctex() {
++    const INPUT_REL: &str = "tests/workspaces/book/main.typ";
++
++    let cwd = GIT_ROOT.clone();
++    let root = cwd.join("target/e2e/tinymist-cli");
++
++    std::env::set_current_dir(&cwd).expect("should change current directory");
++    tinymist_std::fs::paths::temp_dir_in(root, |tmp| {
++        let out = tmp.clean().join("book.pdf");
++
++        insta_cmd::assert_cmd_snapshot!(cli().arg("compile").arg("--synctex").arg(INPUT_REL).arg(&out), @"
++        success: true
++        exit_code: 0
++        ----- stdout -----
++
++        ----- stderr -----
++        ");
++        assert!(out.exists(), "pdf should exist: {out:?}");
++
++        let text = read_synctex(&out.with_extension("synctex.gz"));
++
++        // The header names every file that contributed text, with absolute
++        // paths; main.typ only includes the chapters and has no text of its own.
++        let header = text
++            .lines()
++            .take_while(|line| !line.starts_with("Content:"))
++            .collect::<Vec<_>>()
++            .join("\n")
++            .replace(&*cwd.to_string_lossy(), "<root>")
++            .replace('\\', "/");
++        insta::assert_snapshot!(header, @"
++        SyncTeX Version:1
++        Input:1:<root>/tests/workspaces/book/chapters/chapter1.typ
++        Input:2:<root>/tests/workspaces/book/chapters/chapter2.typ
++        Output:pdf
++        Magnification:1000
++        Unit:1
++        X Offset:0
++        Y Offset:0
++        ");
++
++        // One page block with a page box and one hbox per text run; the
++        // heading of chapter 1 is on line 2 of its file, the lorem text on
++        // line 4.
++        assert!(text.contains("\n{1\n[1,2:"), "page 1 should start with the page box");
++        assert!(text.contains("\n}1\n"), "page 1 should be closed");
++        let hboxes = text.lines().filter(|line| line.starts_with('(')).collect::<Vec<_>>();
++        assert!(hboxes.len() >= 4, "expected text runs for two headings and two paragraphs, got {hboxes:?}");
++        assert!(hboxes.iter().any(|line| line.starts_with("(1,2:")), "heading of chapter 1 on line 2");
++        assert!(hboxes.iter().any(|line| line.starts_with("(1,4:")), "text of chapter 1 on line 4");
++        assert!(hboxes.iter().any(|line| line.starts_with("(2,2:")), "heading of chapter 2 on line 2");
++        assert!(text.contains("\nPostamble:\nCount:"), "postamble should carry a record count");
++
++        Ok(())
++    })
++    .expect("test should succeed");
++}

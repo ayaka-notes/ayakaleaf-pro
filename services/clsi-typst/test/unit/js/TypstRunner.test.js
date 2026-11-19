@@ -27,19 +27,24 @@ describe('TypstRunner', () => {
         },
       },
     }))
+    vi.doMock('../../../app/js/SynctexAdapter', () => ({
+      default: {
+        synctexToSidecar: vi.fn(() => Promise.resolve({})),
+      },
+    }))
   })
   afterEach(() => {
     vi.resetModules()
   })
 
-  it('builds the typst compile command (exit 0 is deliberate)', async () => {
+  it('builds the tinymist compile command (--synctex, exit 0 is deliberate)', async () => {
     const { buildTypstCompileCommand } = (
       await import(modulePath)
     ).default
     const cmd = buildTypstCompileCommand('main.typ')
     expect(cmd[0]).toBe('sh')
     expect(cmd[1]).toBe('-c')
-    expect(cmd[2]).toContain('typst compile "$1" "$2"')
+    expect(cmd[2]).toContain('tinymist compile --synctex "$1" "$2"')
     expect(cmd[2]).toContain('exit 0')
     expect(cmd).toContain(Path.join('$COMPILE_DIR', 'main.typ'))
     expect(cmd).toContain('output.pdf')

@@ -1,5 +1,13 @@
 # Typst support — port plan (from the OlliTeX golang branch)
 
+> **Status (2026-11-19):** the compiler engine has moved on since this plan
+> was written. We no longer build a patched typst fork; the compiler is
+> **tinymist** (fingolfin/tinymist, `synctex` branch — `--synctex`), and the
+> `output.sourcemap.json` sidecar is produced by `SynctexAdapter.js` from the
+> compiler's standard SyncTeX output. The fork/patch approach below is
+> historical context only. Current engine docs:
+> `services/clsi-typst/README.md`.
+
 Goal: first-class Typst support in this repo, as close as possible to the TeX
 experience (compile, logs, click-to-source, word count, new-project flow,
 editor language features). Source of truth for the feature set:

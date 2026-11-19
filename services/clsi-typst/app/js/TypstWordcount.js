@@ -225,7 +225,7 @@ async function wordcount({
     try {
       await CommandRunner.promises.run(
         compileName,
-        ['typst', 'compile', WCMain, WCOutPDF],
+        ['tinymist', 'compile', WCMain, WCOutPDF],
         compileDir,
         image,
         (request && request.timeout) || 60 * 1000,

@@ -7,17 +7,21 @@ Typst:
 
 | TeX (services/clsi) | Typst (services/clsi-typst) |
 |---|---|
-| `latexmk` passes (`LatexRunner`) | `typst compile` single pass (`TypstRunner`) — the runner exits 0 even on diagnostics; success gate = `output.pdf` exists, `^error:` lines counted into `typst-errors` |
-| `.synctex.gz` + `synctex` binary | D21 `output.sourcemap.json` sidecar from the typst fork (`TypstSourcemap`) — same `/sync/code` & `/sync/pdf` wire shape |
+| `latexmk` passes (`LatexRunner`) | `tinymist compile --synctex` single pass (`TypstRunner`) — the runner exits 0 even on diagnostics; success gate = `output.pdf` exists, `^error:` lines counted into `typst-errors` |
+| `.synctex.gz` + `synctex` binary | tinymist `--synctex` → `output.synctex.gz`, adapted to `output.sourcemap.json` (`SynctexAdapter` → `TypstSourcemap`) — same `/sync/code` & `/sync/pdf` wire shape |
 | `texcount` | wordometer injected doc + PDF marker read (`TypstWordcount`, pdfjs-dist), `wc -w` fallback — same `texcount` response key |
 | TeX-specific managers (tikz, draft, png2pdf, content cache, xref) | no-op stubs |
 
 ## Compiler image
 
-`Dockerfile` builds the typst fork (0.15.1-with-extras @ `d101c2f5`) with the
-CLSI sourcemap-sidecar patch (`patches/0001-clsi-sourcemap.patch`, D21) as a
-fully static musl binary, then adds it to the Node app stage at
-`/usr/local/bin/typst` (the path the runner expects).
+`Dockerfile` builds **tinymist** (fingolfin/tinymist), branch `synctex` — Max
+Horn's unmerged `feat(cli): add --synctex for PDF export` (pinned via
+`TINYMIST_REF`) — as a fully static musl binary, then adds it to the Node app
+stage at `/usr/local/bin/tinymist` (the path the runner expects). The
+`--synctex` flag makes the compiler write a standard SyncTeX file
+(`output.synctex.gz`) next to the PDF; `TypstRunner` adapts it to the
+`output.sourcemap.json` sidecar the consumer reads (`SynctexAdapter.js`) —
+no typst fork, no compiler patch.
 
 ## Development
 
@@ -28,7 +32,7 @@ cd services/clsi-typst
 yarn test:unit
 yarn types:check
 
-# run locally (needs `typst` on PATH for real compiles)
+# run locally (needs `tinymist` on PATH for real compiles)
 yarn node app.js     # listens on 127.0.0.1:3013
 ```
 

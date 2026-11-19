@@ -4,14 +4,23 @@
 # ---------------------------------------------
 
 # Global build args (must be declared before any FROM to be usable in FROM).
-ARG TYPST_REF=d101c2f507acd2e680a187735c5c201094e00077
+# Compiler: tinymist (canonical Myriad-Dreamin/tinymist) at a pinned base SHA,
+# with our VENDORed copy of the `--synctex` feature (patches/tinymist-synctex.patch,
+# Max Horn's unmerged PR #2766, commit TINYMIST_REF) applied on top. Building from
+# the canonical base + our own patch means we do NOT depend on the contributor's
+# PR branch surviving. tinymist computes the source mapping in-process and writes
+# it as a standard SyncTeX file (`output.synctex.gz`); clsi-typst adapts it to the
+# `output.sourcemap.json` sidecar (app/js/SynctexAdapter.js) — no typst fork.
+ARG TINYMIST_BASE_REF=73db58b8e2fd2cc6b85038594464b91684c79491
+ARG TINYMIST_REF=4eef4a4c3929d27ac6444af447a1f78a0868f17b
 ARG OVERLEAF_BASE_TAG=sharelatex/sharelatex-base:latest
 
-# Typst compiler (forked, sourcemap sidecar) — shared by the main image and
+# Typst compiler (tinymist + vendored --synctex) — shared by the main image and
 # the clsi-typst service. Mirrors services/clsi-typst/Dockerfile.
 FROM rust:alpine3.24 AS typst-build
 
-ARG TYPST_REF
+ARG TINYMIST_BASE_REF
+ARG TINYMIST_REF
 
 # build-base = gcc, make, musl-dev; static linking -> no runtime shared deps.
 RUN apk add --no-cache \
@@ -28,15 +37,22 @@ RUN apk add --no-cache \
 
 ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 
-RUN git clone --single-branch --branch 0.15.1-with-extras \
-        https://github.com/typst/typst.git /app \
-    && git -C /app rev-parse HEAD | grep -q "^${TYPST_REF}\$" \
-    && git -C /app checkout -q "$TYPST_REF"
+# 1) Fetch the CANONICAL tinymist at the pinned base SHA. (GitHub allows
+#    fetching a reachable SHA; the base is on main, so this is stable and does
+#    not depend on any contributor branch.)
+RUN git init /app \
+    && git -C /app remote add origin https://github.com/Myriad-Dreamin/tinymist.git \
+    && git -C /app fetch --depth 1 origin "${TINYMIST_BASE_REF}" \
+    && git -C /app checkout -q FETCH_HEAD \
+    && git -C /app rev-parse HEAD | grep -q "^${TINYMIST_BASE_REF}$"
 WORKDIR /app
 
-COPY services/clsi-typst/patches/0001-clsi-sourcemap.patch /tmp/sourcemap.patch
-RUN git -C /app apply /tmp/sourcemap.patch \
-    && rm /tmp/sourcemap.patch
+# 2) Apply our vendored copy of the --synctex feature (PR #2766, commit
+#    ${TINYMIST_REF}), so the build is self-contained if that branch/PR vanishes.
+COPY services/clsi-typst/patches/tinymist-synctex.patch /tmp/synctex.patch
+RUN git -C /app apply --whitespace=nowarn /tmp/synctex.patch \
+    && test -f /app/crates/tinymist-task/src/compute/synctex.rs \
+    && rm /tmp/synctex.patch
 
 RUN --mount=type=cache,target=/root/.cargo/git/db \
     --mount=type=cache,target=/root/.cargo/registry/cache \
@@ -49,7 +65,7 @@ RUN --mount=type=cache,target=/root/.cargo/git/db \
     --mount=type=cache,target=/root/.cargo/registry/index \
     OPENSSL_NO_PKG_CONFIG=1 OPENSSL_STATIC=1 \
     OPENSSL_DIR="/usr" \
-    cargo build -p typst-cli --release
+    cargo build --release -p tinymist-cli
 
 # ---------------------------------------------------------------------------
 # Standalone Typst runtime image (typst-runtime stage) — the sibling-container
@@ -57,22 +73,22 @@ RUN --mount=type=cache,target=/root/.cargo/git/db \
 # Static musl binary on minimal alpine: no shared-library dependencies.
 # `typst` user is uid/gid 33 to match www-data (33) in the Overleaf image so
 # it can read/write the bind-mounted /compile dir (owned by the host service
-# user). clsi-typst's DockerRunner drives it: Cmd = sh -c '... typst compile
-# ...', User = typst, network disabled, CapDrop ALL.
+# user). clsi-typst's DockerRunner drives it: Cmd = sh -c '... tinymist
+# compile --synctex ...', User = typst, network disabled, CapDrop ALL.
 FROM alpine:3.24 AS typst-runtime
 
 RUN addgroup -g 33 typst && adduser -D -u 33 -G typst typst
 
-COPY --from=typst-build /app/target/release/typst /usr/local/bin/typst
-RUN chmod 0555 /usr/local/bin/typst
+COPY --from=typst-build /app/target/release/tinymist /usr/local/bin/tinymist
+RUN chmod 0555 /usr/local/bin/tinymist
 
 ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-LABEL org.opencontainers.image.source="https://github.com/typst/typst"
-LABEL org.opencontainers.image.description="Typst compiler (fork at v0.15.1, D21 sourcemap sidecar) for clsi-typst sandboxed compiles"
+LABEL org.opencontainers.image.source="https://github.com/Myriad-Dreamin/tinymist"
+LABEL org.opencontainers.image.description="Typst compiler: tinymist base ${TINYMIST_BASE_REF} + vendored --synctex ${TINYMIST_REF}"
 
 USER typst
-ENTRYPOINT [ "/usr/local/bin/typst" ]
+ENTRYPOINT [ "/usr/local/bin/tinymist" ]
 CMD [ "--version" ]
 
 FROM $OVERLEAF_BASE_TAG
@@ -82,10 +98,10 @@ WORKDIR /overleaf
 # Typst compiler binary for the clsi-typst service (static musl binary; the
 # typst-build stage above is independent of the app layers so it can build in
 # parallel). Kept before the app COPYs so a source change doesn't rebuild it.
-COPY --from=typst-build /app/target/release/typst /usr/local/bin/typst
-RUN chmod 0555 /usr/local/bin/typst
+COPY --from=typst-build /app/target/release/tinymist /usr/local/bin/tinymist
+RUN chmod 0555 /usr/local/bin/tinymist
 
-LABEL org.opencontainers.image.description="Overleaf Community Edition (with Typst support: typst fork 0.15.1 + CLSI sourcemap sidecar)"
+LABEL org.opencontainers.image.description="Overleaf Community Edition (with Typst support: tinymist synctex-branch compiler + CLSI sourcemap adapter)"
 
 # Add required source files for yarn install
 # -------------------------------------------

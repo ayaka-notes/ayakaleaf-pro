@@ -4,3 +4,9 @@
 # user defined files
 .env
 docker-compose.override.yml
+
+# Yarn (PnP) dependency caches and node_modules are local build artifacts — never commit
+node_modules/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/install-state.gz
