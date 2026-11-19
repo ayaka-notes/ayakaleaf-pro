@@ -28,6 +28,7 @@ export default function useUserWideSettings() {
     nonBlinkingCursor,
     darkModePdf,
     floatingMenu,
+    highlight,
     zotero,
     mendeley,
     papers,
@@ -160,6 +161,13 @@ export default function useUserWideSettings() {
     [saveUserSettings]
   )
 
+  const setHighlight = useCallback(
+    (highlight: UserSettings['highlight']) => {
+      saveUserSettings('highlight', highlight)
+    },
+    [saveUserSettings]
+  )
+
   const setZotero = useCallback(
     (zotero: UserSettings['zotero']) => {
       saveUserSettings('zotero', zotero)
@@ -220,6 +228,8 @@ export default function useUserWideSettings() {
     setDarkModePdf,
     floatingMenu,
     setFloatingMenu,
+    highlight,
+    setHighlight,
     zotero,
     setZotero,
     mendeley,

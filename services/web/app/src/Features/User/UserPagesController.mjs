@@ -8,6 +8,7 @@ import SessionManager from '../Authentication/SessionManager.mjs'
 import SubscriptionLocator from '../Subscription/SubscriptionLocator.mjs'
 import _ from 'lodash'
 import { expressify } from '@overleaf/promise-utils'
+import UserSettingsHelper from '../Project/UserSettingsHelper.mjs'
 import Features from '../../infrastructure/Features.mjs'
 import Modules from '../../infrastructure/Modules.mjs'
 import SplitTestHandler from '../SplitTests/SplitTestHandler.mjs'
@@ -260,6 +261,31 @@ async function emailPreferencesPage(req, res) {
   })
 }
 
+async function highlightPage(req, res) {
+  const userId = SessionManager.getLoggedInUserId(req.session)
+  const user = await UserGetter.promises.getUser(userId, {
+    _id: 1,
+    email: 1,
+    first_name: 1,
+    last_name: 1,
+    'ace.highlight': 1,
+  })
+
+  if (!user) {
+    throw new Error('User not found')
+  }
+
+  const highlightTags = UserSettingsHelper.buildHighlightTags(
+    user.ace?.highlight
+  )
+
+  res.render('user/highlight', {
+    title: 'highlight',
+    user,
+    highlightTags,
+  })
+}
+
 const loginPageSchema = z.object({
   query: z.object({
     redir: z.string().optional(),
@@ -353,6 +379,8 @@ const UserPagesController = {
   },
 
   emailPreferencesPage: expressify(emailPreferencesPage),
+
+  highlightPage: expressify(highlightPage),
 
   async compromisedPasswordPage(req, res) {
     res.render('user/compromised_password')

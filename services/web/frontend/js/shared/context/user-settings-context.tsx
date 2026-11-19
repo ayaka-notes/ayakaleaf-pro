@@ -31,6 +31,12 @@ export const defaultSettings: UserSettings = {
   nonBlinkingCursor: false,
   darkModePdf: false,
   floatingMenu: true,
+  highlight: [
+    { tag: 'TODO', color: '#ff8c00' },
+    { tag: 'FIXME', color: '#e5484d' },
+    { tag: 'BUG', color: '#8b5cf6' },
+    { tag: 'CITATION', color: '#3b82f6' },
+  ],
   zotero: {
     enabled: true,
     groups: [],

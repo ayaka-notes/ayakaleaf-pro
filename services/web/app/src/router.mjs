@@ -477,6 +477,12 @@ async function initialize(webRouter, privateApiRouter, publicApiRouter) {
     UserPagesController.emailPreferencesPage
   )
 
+  webRouter.get(
+    '/user/highlight',
+    AuthenticationController.requireLogin(),
+    UserPagesController.highlightPage
+  )
+
   webRouter.post(
     '/user/delete',
     RateLimiterMiddleware.rateLimit(rateLimiters.deleteUser),
