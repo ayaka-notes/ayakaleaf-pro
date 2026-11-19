@@ -1,0 +1,102 @@
+% LanguageTool level test — ext-ce-v6.3.1 + erikvl87/languagetool
+%
+% Section A: expected to be flagged ONLY in Picky mode (level=picky).
+% Section B: expected to be flagged in BOTH modes (default and picky).
+%
+% All sentences below were verified live against the running server
+% (2026-10-26), with the exact disabledRules the Overleaf proxy sends.
+%
+% Usage: open in Overleaf, wait ~2 s after the last edit,
+% hover a wavy underline for the message + one-click replacements.
+% Toggle Settings → Spelling and Language → LanguageTool → "Picky mode"
+% off/on and compare: section A marks should appear/disappear.
+
+\documentclass{article}
+\begin{document}
+
+\section*{A: Picky-only (missed at default level)}
+
+% PASSIVE_VOICE_SIMPLE — passive voice
+The experiment was conducted by our group.
+
+% PASSIVE_VOICE_SIMPLE — passive voice
+The error was detected by the test suite.
+
+\section*{B: Both modes (default and picky)}
+
+% EN_A_VS_AN — wrong article
+An sequence off independent variables.
+
+% MORFOLOGIK_RULE_EN_US — spelling mistake
+You can recieve a bonus for this.
+
+% MORFOLOGIK_RULE_EN_US — spelling mistake
+This is a realy interesting result.
+
+% MORFOLOGIK_RULE_EN_US — spelling mistake
+He shoulda told us about the crash.
+
+% AGREEMENT_SENT_START — agreement error
+The results shows a significant difference.
+
+% BEEN_PART_AGREEMENT — possible agreement error
+A new paper was publish last week.
+
+% THERE_S_MANY — possible agreement error
+There is three reasons for this choice.
+
+% IT_IS — possible typo (missing apostrophe)
+Its time to finish the manuscript.
+
+% AFFECT_EFFECT — commonly confused word
+This should have an affect on the outcome.
+
+% LOOSE_LOSE — possible typo
+You will loose the key if you leave it here.
+
+% MODAL_OF — possible typo
+You should of checked the configuration.
+
+% MODAL_OF — possible typo
+It might of happened last night.
+
+% MODAL_OF — possible typo
+We could of fixed the bug yesterday.
+
+% INFORMATIONS — nonstandard word
+We need more informations about this topic.
+
+% EN_A_VS_AN — wrong article (uncountable)
+He gave me a advice yesterday morning.
+
+% ENGLISH_WORD_REPEAT_RULE — word repetition
+The the method was tested twice.
+
+% ADMIT_ENJOY_VB — use 'ing'
+I look forward to hear from you again.
+
+% TOO_TO — possible typo
+I want to too participate in this.
+
+% AGREEMENT_SENT_START — agreement error
+Each of the students have passed the exam.
+
+% AGREEMENT_SENT_START — agreement error
+The dog which barks is friendly.
+
+% RB_RB_COMMA — intensifier comma
+We have a very very good result here.
+
+% FREE_GIFT — redundant phrase
+This is a free gift for all of you.
+
+% ADMIT_ENJOY_VB — use 'ing'
+The manual recommends to restart the server.
+
+% ALLOW_TO — use a gerund
+The tool allows to configure the output.
+
+% ALLOW_TO — use a gerund
+The server requires to restart after the change.
+
+\end{document}
