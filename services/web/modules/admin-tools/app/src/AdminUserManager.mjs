@@ -227,7 +227,7 @@ async function getActivationLink(userId) {
 // What the panel's forms send, and nothing else: the rest of the user document
 // is not for them. assertUpdateAllowed has the limits of the numbers
 const featureSwitch = z.boolean().optional()
-export const updateSchema = z.strictObject({
+const updateSchema = z.strictObject({
   email: z.string().optional(),
   firstName: nameField,
   lastName: nameField,
