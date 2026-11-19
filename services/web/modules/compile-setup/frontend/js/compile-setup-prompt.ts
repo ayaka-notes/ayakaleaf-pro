@@ -1,0 +1,1 @@
+export const COMPILE_SETUP_PROMPT_ENABLED_KEY = 'compile_setup_prompt_enabled'
