@@ -1,0 +1,51 @@
+# replacement for quay.io/sharelatex/png2pdf:2026-06-24 (clsitex PNG→PDF)
+#
+# Engine: img2pdf (josch) — lossless. For PNG input the IDAT streams are
+# embedded verbatim into the PDF (no re-encode); the alpha channel becomes
+# a PDF soft mask (/SMask), also lossless. That is the mechanism of the
+# whole feature: pdfTeX copies PDF image streams cheaply, while PNGs with
+# alpha/gamma/palette/interlace are re-decoded on every compile, which is
+# what made them "slow" and what fills CLSI's slow-PNG list.
+#
+# The SaaS tool is proprietary. The Go port (go/services/clsitex/png2pdf)
+# pins the exact container contract this image fulfils:
+#   ENTRYPOINT + ["--in-place", "--", "<relpath>", ...]   CWD=/compile
+#   stdout: one "Converted <f> to PDF" line per file     (counted by Go)
+#   exit non-zero on first failure (CLSI falls back to the original PNGs)
+#
+# Why git@commit instead of `pip install img2pdf==0.6.3`:
+#   0.6.3 (2025-11-06) is the last PyPI release, and it PRE-DATES the
+#   parse_png quadratic-rewrite fix (2025-11-16, "my 311MB ARCHD at 600dpi
+#   with 17638 IDAT records went from many minutes to 320ms"). The slow-PNG
+#   list is populated by BIG PNGs (min 1MB, no upper bound), so we pin main
+#   at this commit: it is still reproducible (exact hash) and carries the
+#   fix plus the JPEG2000/ICC and pikepdf-writer-close follow-ups.
+#
+# pikepdf + pillow have musllinux cp314 wheels for this python version, so
+# no compiler is needed; git is needed only for the pinned checkout.
+
+FROM python:3.14-alpine
+
+ARG IMG2PDF_REF=0fafa2c312be50c68a07e2331a89bf4adbd274ed
+
+RUN apk update \
+ && apk add --no-cache git \
+ && pip install --no-cache-dir --disable-pip-version-check \
+    "git+https://gitlab.mister-muffin.de/josch/img2pdf.git@${IMG2PDF_REF}#egg=img2pdf" \
+    pikepdf==10.15.0 \
+    pillow==12.3.0 \
+    packaging \
+ && rm -rf /root/.cache/pip /usr/src/python/lib*
+
+# shim: arg parsing, leading-dash path handling (paths derive from URL
+# paths and start with '-'), temp-file + atomic replace (input must survive
+# a failed conversion — CLSI renames the untouched original as fallback),
+# and the "Converted <f> to PDF" stdout line Go counts.
+COPY server-ce/png2pdf/png2pdf.sh /usr/local/bin/png2pdf
+RUN chmod 0755 /usr/local/bin/png2pdf
+
+# The Go runner passes the arg list ["--in-place", "--", ...] as the container
+# command, never a binary name — see the pdftocairo image (ENTRYPOINT []) for
+# the contrast: that image provides the binary NAME in its command, this one
+# relies on the image's own ENTRYPOINT.
+ENTRYPOINT ["/usr/local/bin/png2pdf"]

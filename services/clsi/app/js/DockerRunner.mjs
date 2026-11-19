@@ -103,34 +103,36 @@ const DockerRunner = {
     // logOptions = _.clone(options)
     // logOptions?.HostConfig?.SecurityOpt = "secomp used, removed in logging"
     logger.debug({ projectId }, 'running docker container')
-    DockerRunner._runAndWaitForContainer(
-      options,
-      volumes,
-      timeout,
-      (error, output) => {
-        if (error && error.statusCode === 500) {
-          logger.debug(
-            { err: error, projectId },
-            'error running container so destroying and retrying'
-          )
-          DockerRunner.destroyContainer(name, null, true, error => {
-            if (error != null) {
-              return callback(error)
-            }
-            DockerRunner._runAndWaitForContainer(
-              options,
-              volumes,
-              timeout,
-              callback,
-              compileGroup
+    // Bounded retry: a permanent container create/start failure (e.g.
+    // "unable to find user" on a FROM-scratch image) must not busy-loop
+    // forever — surface the error to the caller after a couple of attempts.
+    let retriesLeft = 2
+    const runAttempt = () => {
+      DockerRunner._runAndWaitForContainer(
+        options,
+        volumes,
+        timeout,
+        (error, output) => {
+          if (error && error.statusCode === 500 && retriesLeft > 0) {
+            retriesLeft -= 1
+            logger.debug(
+              { err: error, projectId, retriesLeft },
+              'error running container so destroying and retrying'
             )
-          })
-        } else {
-          callback(error, output)
-        }
-      },
-      compileGroup
-    )
+            DockerRunner.destroyContainer(name, null, true, destroyErr => {
+              if (destroyErr != null) {
+                return callback(destroyErr)
+              }
+              runAttempt()
+            })
+          } else {
+            callback(error, output)
+          }
+        },
+        compileGroup
+      )
+    }
+    runAttempt()
 
     // pass back the container name to allow it to be killed
     return name

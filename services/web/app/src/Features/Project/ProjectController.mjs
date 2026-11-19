@@ -1105,10 +1105,8 @@ const _ProjectController = {
         canUseClsiCache:
           Features.hasFeature('saas') &&
           ownerFeatures?.compileGroup === 'priority',
-        canUsePng2Pdf:
-          Features.hasFeature('saas') &&
-          ownerFeatures?.compileGroup === 'priority' &&
-          splitTestAssignments['png2pdf']?.variant === 'enabled',
+        // CE: saas/priority gate removed so the "Optimise images" toggle is available
+        canUsePng2Pdf: true,
         user: {
           id: userId,
           email: user.email,
