@@ -230,6 +230,20 @@ const AuthenticationController = {
       auditInfo
     )
 
+    // Notify the user of this sign-in (best-effort). Carries IP + UA for the
+    // "new sign-in" security notice.
+    try {
+      await Modules.promises.hooks.fire('userLoggedIn', {
+        targetUserId: String(userId),
+        context: {
+          ip: req.ip,
+          userAgent: req.headers ? req.headers['user-agent'] : undefined,
+        },
+      })
+    } catch (err) {
+      logger.warn({ err, userId }, 'failed to fire userLoggedIn hook')
+    }
+
     await _afterLoginSessionSetupAsync(req, user)
 
     AuthenticationController._clearRedirectFromSession(req)

@@ -1,4 +1,5 @@
 import logger from '@overleaf/logger'
+import NotificationAdminController from './NotificationAdminController.mjs'
 import AuthenticationController from '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
 import AuthorizationMiddleware from '../../../../app/src/Features/Authorization/AuthorizationMiddleware.mjs'
 import AdminProjectController from './AdminProjectController.mjs'
@@ -39,6 +40,7 @@ export default {
       admin,
       AdminUserController.aiUsage
     )
+
     webRouter.post(
       '/admin/user/:userId/ai-usage/reset',
       admin,
@@ -48,6 +50,40 @@ export default {
       '/admin/user/:userId/clear-sessions',
       admin,
       AdminUserController.clearSessions
+    )
+
+    // Notification dispatch management (Apprise)
+    webRouter.get('/admin/notifications',
+      admin,
+      NotificationAdminController.notificationsAdminPage
+    )
+    webRouter.post('/admin/notifications/state',
+      admin,
+      NotificationAdminController.state
+    )
+    webRouter.post('/admin/notifications/dry-run',
+      admin,
+      NotificationAdminController.setDryRun
+    )
+    webRouter.post('/admin/notifications/user-url',
+      admin,
+      NotificationAdminController.setUserUrl
+    )
+    webRouter.post('/admin/notifications/test',
+      admin,
+      NotificationAdminController.testSend
+    )
+    webRouter.post('/admin/notifications/queue/retry',
+      admin,
+      NotificationAdminController.queueRetry
+    )
+    webRouter.post('/admin/notifications/queue/clear',
+      admin,
+      NotificationAdminController.queueClear
+    )
+    webRouter.post('/admin/notifications/channels',
+      admin,
+      NotificationAdminController.saveChannels
     )
 
     // what happens to an account

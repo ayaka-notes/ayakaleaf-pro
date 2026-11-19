@@ -96,6 +96,7 @@ export const db = {
   notifications: internalDb.collection('notifications'),
   emailNotifications: internalDb.collection('emailNotifications'),
   notificationsPreferences: internalDb.collection('notificationsPreferences'),
+  notificationSettings: internalDb.collection('notificationSettings'),
   oauthAccessTokens: internalDb.collection('oauthAccessTokens'),
   oauthApplications: internalDb.collection('oauthApplications'),
   oauthAuthorizationCodes: internalDb.collection('oauthAuthorizationCodes'),

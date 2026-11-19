@@ -11,6 +11,8 @@ import DocstoreManager from '../../../../app/src/Features/Docstore/DocstoreManag
 import DocumentUpdaterHandler from '../../../../app/src/Features/DocumentUpdater/DocumentUpdaterHandler.mjs'
 import { Project } from '../../../../app/src/models/Project.mjs'
 import pLimit from 'p-limit'
+import Modules from '../../../../app/src/infrastructure/Modules.mjs'
+import logger from '@overleaf/logger'
 
 const TrackChangesController = {
   async trackChanges(req, res, next) {
@@ -24,6 +26,16 @@ const TrackChangesController = {
       if (guests) state.__guests__ = true
       await Project.updateOne({_id: project_id}, {track_changes: state}).exec()  //do not wait?
       EditorRealTimeController.emitToRoom(project_id, 'toggle-track-changes', state)
+      // Notify members that track-changes was toggled (best-effort).
+      try {
+        const userId = SessionManager.getLoggedInUserId(req.session)
+        await Modules.promises.hooks.fire('trackChangesToggled', {
+          projectId: String(project_id),
+          actorId: userId ? String(userId) : null,
+        })
+      } catch (err) {
+        logger.warn({ err, project_id }, 'failed to fire trackChangesToggled hook')
+      }
       res.sendStatus(204)
     } catch (err) {
       next(err)

@@ -128,13 +128,17 @@ async function main() {
     let deleteMismatches = 0
     let lastProgressLog = Date.now()
 
-    for (const { projectId, timestamp } of projects) {
+    for (const { projectId, timestamp, userId } of projects) {
       const numericTimestamp = parseInt(timestamp, 10)
       try {
         await projectNotificationQueue.add(
-          { projectId, timestamp: numericTimestamp },
+          { projectId, timestamp: numericTimestamp, userId },
           {
-            jobId: projectId,
+            // One job id per BATCH (project + its timestamp), not per project:
+            // Bull de-dupes by jobId, and a stuck/failing predecessor job with a
+            // plain projectId id would silently swallow every later batch for
+            // that project.
+            jobId: `${projectId}:${numericTimestamp}`,
             delay: 1000,
           }
         )
@@ -145,6 +149,10 @@ async function main() {
         )
         if (!deleted) {
           deleteMismatches++
+        } else {
+          // Consume the companion editor key only when the timestamp batch
+          // was actually ours (CAS-checked by the delete script).
+          await redisClient.del(`ProjectNotificationEditor:{${projectId}}`)
         }
 
         queued++
@@ -315,6 +323,14 @@ async function getProjectsToNotify() {
 
         const timestamps = await redisClient.mget(keys)
 
+        // Editor ids sit next to the timestamp keys (same batch semantics),
+        // letting the scheduler exclude the author of the change.
+        const editorKeys = keys.map(key => {
+          const pid = extractProjectId(key)
+          return pid ? `ProjectNotificationEditor:{${pid}}` : key
+        })
+        const editorUserIds = await redisClient.mget(editorKeys)
+
         // Extract valid (projectId, timestamp) pairs from this batch
         const candidates = []
         for (const [index, key] of keys.entries()) {
@@ -343,7 +359,11 @@ async function getProjectsToNotify() {
             continue
           }
 
-          candidates.push({ projectId, timestamp })
+          candidates.push({
+            projectId,
+            timestamp,
+            userId: editorUserIds[index] ?? undefined,
+          })
         }
 
         // Bulk-check collaborators for the whole batch

@@ -57,6 +57,16 @@ const InactiveProjectManager = {
     }
 
     await ProjectUpdateHandler.promises.markAsActive(projectId)
+
+    // Notify members that the project was restored (best-effort).
+    try {
+      await Modules.promises.hooks.fire('projectRestored', String(projectId))
+    } catch (err) {
+      logger.warn(
+        { err, projectId },
+        'failed to fire projectRestored notification hook'
+      )
+    }
   },
 
   async deactivateOldProjects(limit, daysOld) {

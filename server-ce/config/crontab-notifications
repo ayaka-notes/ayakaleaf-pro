@@ -1,0 +1,2 @@
+* * * * *    root  /overleaf/cron/project-notification-enqueue.sh >> /var/log/overleaf/cron-project-notification-enqueue.log 2>&1
+* * * * *    root  /overleaf/cron/notification-email-dispatch.sh >> /var/log/overleaf/cron-notification-email-dispatch.log 2>&1

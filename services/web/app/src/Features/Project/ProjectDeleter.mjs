@@ -382,6 +382,21 @@ async function expireDeletedProject(projectId) {
 
     logger.info({ projectId, userId }, 'destroying expired project data')
 
+    // Capture members before destruction so we can notify them.
+    let memberIds = []
+    try {
+      const p = deletedProject.project
+      memberIds = [
+        p.owner_ref,
+        ...(p.collaberator_refs || []),
+        ...(p.readOnly_refs || []),
+        ...(p.tokenAccessReadAndWrite_refs || []),
+        ...(p.tokenAccessReadOnly_refs || []),
+      ].filter(Boolean)
+    } catch {
+      memberIds = []
+    }
+
     await Promise.all([
       DocstoreManager.promises.destroyProject(deletedProject.project._id),
       HistoryManager.promises.deleteProject(
@@ -391,6 +406,15 @@ async function expireDeletedProject(projectId) {
       ChatApiHandler.promises.destroyProject(deletedProject.project._id),
       ProjectAuditLogEntry.deleteMany({ projectId }),
       Modules.promises.hooks.fire('projectExpired', deletedProject.project._id),
+      // Also notify members that the project is permanently gone.
+      Modules.promises.hooks
+        .fire('projectDeleted', {
+          projectId: String(deletedProject.project._id),
+          memberIds: memberIds.map(String),
+        })
+        .catch(err =>
+          logger.warn({ err, projectId }, 'failed to fire projectDeleted hook')
+        ),
     ])
 
     logger.info(
