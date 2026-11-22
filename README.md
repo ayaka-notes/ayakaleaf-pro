@@ -86,6 +86,8 @@ If you just want to try Ayakaleaf Pro without setting up a server, you can use o
 
 If you want to deploy Ayakaleaf Pro for production use,  we have detailed installation instructions on the [Documents](https://ayakaleaf-pro.ayaka.space/) page. We highly recommend installing Ayakaleaf Pro using the [ayaka-notes/Toolkit](https://github.com/ayaka-notes/toolkit/).
 
+When public registration is enabled, set `OVERLEAF_REQUIRE_REGISTRATION_NAME=true` in the web service environment to require a first and last name on `/register`. This applies to both password registration and registration by activation email. The option defaults to off.
+
 ## Upgrading
 
 If you are upgrading from a previous version of Ayakaleaf Pro, please see the [Releases page](https://github.com/ayaka-notes/ayakaleaf-pro/releases) for the changes in each version between your current version and the one you are upgrading to.

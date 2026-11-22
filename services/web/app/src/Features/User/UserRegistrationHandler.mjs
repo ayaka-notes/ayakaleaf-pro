@@ -59,6 +59,13 @@ const UserRegistrationHandler = {
       throw new OError('EmailAlreadyRegistered', { userId: user._id })
     }
 
+    const updates = { holdingAccount: false }
+    if (user) {
+      // A holding account already exists, so UserCreator won't set its name.
+      if (userDetails.first_name) updates.first_name = userDetails.first_name
+      if (userDetails.last_name) updates.last_name = userDetails.last_name
+    }
+
     user = await UserRegistrationHandler._createNewUserIfRequired(
       user,
       userDetails
@@ -66,7 +73,7 @@ const UserRegistrationHandler = {
 
     await User.updateOne(
       { _id: user._id },
-      { $set: { holdingAccount: false } }
+      { $set: updates }
     ).exec()
 
     await AuthenticationManager.promises.setUserPassword(
@@ -94,10 +101,15 @@ const UserRegistrationHandler = {
     return user
   },
 
-  async registerNewUserAndSendActivationEmail(email) {
+  /**
+   * @param {string} email
+   * @param {{ first_name?: string, last_name?: string }} [name]
+   */
+  async registerNewUserAndSendActivationEmail(email, name = {}) {
     let user
     try {
       user = await UserRegistrationHandler.registerNewUser({
+        ...name,
         email,
         password: crypto.randomBytes(32).toString('hex'),
         analyticsId: crypto.randomUUID(),

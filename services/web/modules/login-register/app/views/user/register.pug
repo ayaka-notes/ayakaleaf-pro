@@ -58,6 +58,25 @@ block content
 										autocomplete="username",
 										autofocus
 									)
+								if requireName
+									.form-group.form-group-ds
+										label(for='registrationFirstName') #{translate('first_name')}
+										input#registrationFirstName.form-control.form-control-ds.form-control-lg(
+											type='text'
+											name='first_name'
+											autocomplete='given-name'
+											maxlength=maxNameLength
+											required
+										)
+									.form-group.form-group-ds
+										label(for='registrationLastName') #{translate('last_name')}
+										input#registrationLastName.form-control.form-control-ds.form-control-lg(
+											type='text'
+											name='last_name'
+											autocomplete='family-name'
+											maxlength=maxNameLength
+											required
+										)
 								if showPasswordField
 									.form-group.form-group-ds
 										label(for='passwordField') #{translate("password")}
