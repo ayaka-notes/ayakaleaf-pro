@@ -13,17 +13,58 @@ import { Project } from '../../../../app/src/models/Project.mjs'
 import { parseReq, z, zz } from '../../../../app/src/infrastructure/Validation.mjs'
 import pLimit from 'p-limit'
 
-const projectParams = z.strictObject({ project_id: zz.objectId() })
-const docParams = projectParams.extend({ doc_id: zz.objectId() })
-const threadParams = projectParams.extend({ thread_id: zz.objectId() })
-
-const docRequestSchema = z.object({ params: docParams })
-const threadRequestSchema = z.object({ params: threadParams })
-const messageRequestSchema = z.object({
-  params: threadParams.extend({ message_id: zz.objectId() }),
+const acceptChangesSchema = z.object({
+  params: z.strictObject({
+    project_id: zz.objectId(),
+    doc_id: zz.objectId(),
+  }),
 })
-const docThreadRequestSchema = z.object({
-  params: docParams.extend({ thread_id: zz.objectId() }),
+
+const sendCommentSchema = z.object({
+  params: z.strictObject({
+    project_id: zz.objectId(),
+    thread_id: zz.objectId(),
+  }),
+})
+
+const editMessageSchema = z.object({
+  params: z.strictObject({
+    project_id: zz.objectId(),
+    thread_id: zz.objectId(),
+    message_id: zz.objectId(),
+  }),
+})
+
+const deleteMessageSchema = z.object({
+  params: z.strictObject({
+    project_id: zz.objectId(),
+    thread_id: zz.objectId(),
+    message_id: zz.objectId(),
+  }),
+})
+
+const resolveThreadSchema = z.object({
+  params: z.strictObject({
+    project_id: zz.objectId(),
+    doc_id: zz.objectId(),
+    thread_id: zz.objectId(),
+  }),
+})
+
+const reopenThreadSchema = z.object({
+  params: z.strictObject({
+    project_id: zz.objectId(),
+    doc_id: zz.objectId(),
+    thread_id: zz.objectId(),
+  }),
+})
+
+const deleteThreadSchema = z.object({
+  params: z.strictObject({
+    project_id: zz.objectId(),
+    doc_id: zz.objectId(),
+    thread_id: zz.objectId(),
+  }),
 })
 
 const TrackChangesController = {
@@ -45,7 +86,7 @@ const TrackChangesController = {
   },
   async acceptChanges(req, res, next) {
     try {
-      const { params } = parseReq(req, docRequestSchema)
+      const { params } = parseReq(req, acceptChangesSchema)
       const { project_id, doc_id } = params
       const change_ids = req.body.change_ids
       EditorRealTimeController.emitToRoom(project_id, 'accept-changes', doc_id, change_ids)
@@ -103,7 +144,7 @@ const TrackChangesController = {
   },
   async sendComment(req, res, next) {
     try {
-      const { params } = parseReq(req, threadRequestSchema)
+      const { params } = parseReq(req, sendCommentSchema)
       const { project_id, thread_id } = params
       const { content } = req.body
       const user_id = SessionManager.getLoggedInUserId(req.session)
@@ -119,7 +160,7 @@ const TrackChangesController = {
   },
   async editMessage(req, res, next) {
     try {
-      const { params } = parseReq(req, messageRequestSchema)
+      const { params } = parseReq(req, editMessageSchema)
       const { project_id, thread_id, message_id } = params
       const { content } = req.body
       const user_id = SessionManager.getLoggedInUserId(req.session)
@@ -133,7 +174,7 @@ const TrackChangesController = {
   },
   async deleteMessage(req, res, next) {
     try {
-      const { params } = parseReq(req, messageRequestSchema)
+      const { params } = parseReq(req, deleteMessageSchema)
       const { project_id, thread_id, message_id } = params
       const user_id = SessionManager.getLoggedInUserId(req.session)
       const token = TokenAccessHandler.getRequestToken(req, project_id)
@@ -153,7 +194,7 @@ const TrackChangesController = {
   },
   async resolveThread(req, res, next) {
     try {
-      const { params } = parseReq(req, docThreadRequestSchema)
+      const { params } = parseReq(req, resolveThreadSchema)
       const { project_id, doc_id, thread_id } = params
       const user_id = SessionManager.getLoggedInUserId(req.session)
       if (!user_id) return HttpErrorHandler.forbidden(req, res)
@@ -173,7 +214,7 @@ const TrackChangesController = {
   },
   async reopenThread(req, res, next) {
     try {
-      const { params } = parseReq(req, docThreadRequestSchema)
+      const { params } = parseReq(req, reopenThreadSchema)
       const { project_id, doc_id, thread_id } = params
       const user_id = SessionManager.getLoggedInUserId(req.session)
       if (!user_id) return HttpErrorHandler.forbidden(req, res)
@@ -187,7 +228,7 @@ const TrackChangesController = {
   },
   async deleteThread(req, res, next) {
     try {
-      const { params } = parseReq(req, docThreadRequestSchema)
+      const { params } = parseReq(req, deleteThreadSchema)
       const { project_id, doc_id, thread_id } = params
       // signed-out editors (link sharing) have no id; document-updater rejects null
       const user_id = SessionManager.getLoggedInUserId(req.session) ?? undefined
