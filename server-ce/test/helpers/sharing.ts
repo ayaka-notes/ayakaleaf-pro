@@ -32,6 +32,18 @@ export function shareProject(
   })
 }
 
+// Invites the address by email as the logged in owner, answers the invite id
+export function inviteToProject(projectId: string, email: string) {
+  cy.visit('/project')
+  return postWithCsrf(`/project/${projectId}/invite`, {
+    email,
+    privileges: 'readAndWrite',
+  }).then(response => {
+    expect(response.status).to.equal(200)
+    return response.body.invite._id as string
+  })
+}
+
 // Turns on link sharing as the logged in owner, then joins the project as the
 // user through the view or the edit link.
 export function shareProjectByLink(

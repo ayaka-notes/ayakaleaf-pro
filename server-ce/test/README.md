@@ -42,11 +42,18 @@ One folder per module in `toolkit/suites/`, named and nested like
 - `login-register/` – login, logout and public sign up with email and
   password. The variants sign up with an activation email: `any-domain/`
   for any domain (`@*`), `domain/` for one domain, `domains/` for a list
-  with a `*.` subdomain wildcard.
+  with a `*.` subdomain wildcard. Through a project invite: `invite/` for the
+  invites of admins and of users with an address of the listed domains
+  (`invite@`, subdomain wildcard too), not of guests who signed up that way
+  or who only typed such an address into the account form, `invite-anyone/`
+  for those of any user (`invite@*`), `invite-and-domain/` for both ways at
+  once. `open-and-invite/` checks that `true` opens sign up whatever else is
+  listed, `without-email/` that the email entries do nothing without an email
+  server.
 - `user-emails/` – without a mail server the single email field stays. The
-  `smtp/` variant adds, confirms, removes and makes an email primary, then
-  logs in and resets the password with it; `with-captcha/` asks for a captcha
-  when adding one.
+  `smtp/` variant adds, confirms, removes and makes an email primary (never
+  through the account form without a code), then logs in and resets the
+  password with it; `with-captcha/` asks for a captcha when adding one.
 - `sandboxed-compiles/` – compiling in sibling containers, switching between
   two TeX Live images, XeLaTeX, errors, stopping a compile, SyncTeX.
 - `symbol-palette/` – opening and closing the palette, switching categories
@@ -180,8 +187,10 @@ One folder per module in `toolkit/suites/`, named and nested like
   login through [goauthentik](https://goauthentik.io), admin mapping and its
   updates on login. LDAP and SAML start with the launchpad's email-only admin
   form on the empty instance. Each has a variant without admin mapping, OIDC
-  one with allowed email domains too. These are separate suites, run them
-  with `make setup SUITE=authentication/saml` and
+  one with allowed email domains too, LDAP one where the project invites of
+  directory users of a domain let guests sign up (`invite-registration/`).
+  These are separate suites, run them with
+  `make setup SUITE=authentication/saml` and
   `make test SUITE=authentication/saml`.
 
 Things that need email (activation mails, password reset) are not tested.
@@ -199,6 +208,8 @@ Things that need email (activation mails, password reset) are not tested.
 - `toolkit/suites/<name>/<variant>/` – optional second mode of the same
   module: its own specs plus the settings that differ. `make test_<name>`
   applies them, restarts Overleaf and runs the variant after the main specs.
+  Settings carry over to the next variant; a `#KEY=` line (no space) comments
+  KEY out again.
 - `helpers/` – small functions shared by tests, like logging in or creating
   a user or a project.
 - `toolkit/services/` – extra containers a suite needs, e.g. `authentik/` or

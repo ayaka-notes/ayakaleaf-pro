@@ -1,6 +1,12 @@
 import logger from "@overleaf/logger"
 import Settings from "@overleaf/settings"
-import RegisterController from './RegisterController.mjs'
+import { expressify } from '@overleaf/promise-utils'
+import RegisterController, {
+  domainRegistrationEnabled,
+  inviteRegistrationEnabled,
+  openRegistration,
+  warnAboutRegistrationWithoutEmail,
+} from './RegisterController.mjs'
 import LoginController, { localLoginDisabled } from "./LoginController.mjs"
 import AuthenticationController from '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
 import RateLimiterMiddleware from "../../../../app/src/Features/Security/RateLimiterMiddleware.mjs"
@@ -19,10 +25,10 @@ export default {
   apply(webRouter) {
     logger.debug({}, 'Init Registration module')
 
-    // Public Register
-    if (process.env.OVERLEAF_ALLOW_PUBLIC_REGISTRATION === 'true' ||
-      (process.env.OVERLEAF_ALLOW_PUBLIC_REGISTRATION != null &&
-        process.env.OVERLEAF_ALLOW_PUBLIC_REGISTRATION.startsWith('@'))) {
+    warnAboutRegistrationWithoutEmail()
+
+    // Public Register, or only for invited addresses
+    if (openRegistration() || domainRegistrationEnabled() || inviteRegistrationEnabled()) {
       // remove default registration router if it exists
       webRouter.stack = webRouter.stack.filter(layer => {
         return !(layer.route && layer.route.path === '/register' && layer.route.methods.get)
@@ -30,15 +36,12 @@ export default {
 
       webRouter.get(
         '/register',
-        RegisterController.registerPage
+        expressify(RegisterController.registerPage)
       )
 
-      const allowedRegistrationDomain =
-        process.env.OVERLEAF_ALLOW_PUBLIC_REGISTRATION
-
-      // If set to 'true', allow registration via username and password
-      // If set to email domains (e.g., '@example.com,@*.example.org' or '@*'), allow registration via an activation email for those domains
-      if (allowedRegistrationDomain != null && allowedRegistrationDomain == 'true') {
+      // 'true': registration with email and password
+      // '@example.com,@*.example.org' or '@*': registration via an activation email for those domains
+      if (openRegistration()) {
         webRouter.post(
           '/register',
           RateLimiterMiddleware.rateLimit(registrationRateLimiters.postRegister),
@@ -46,13 +49,22 @@ export default {
           RegisterController.registerWithUsernameAndPassword
         )
       }
-      else if (allowedRegistrationDomain != null && allowedRegistrationDomain.startsWith('@')) {
+      else if (domainRegistrationEnabled()) {
         webRouter.post(
           '/register',
           RateLimiterMiddleware.rateLimit(registrationRateLimiters.postRegister),
           CaptchaMiddleware.validateCaptcha('register'),
           RegisterController.registerWithEmail
         )
+      }
+      if (inviteRegistrationEnabled()) {
+        webRouter.post(
+          '/register/invite',
+          RateLimiterMiddleware.rateLimit(registrationRateLimiters.postRegister),
+          CaptchaMiddleware.validateCaptcha('register'),
+          expressify(RegisterController.registerWithInvite)
+        )
+        AuthenticationController.addEndpointToLoginWhitelist('/register/invite')
       }
       AuthenticationController.addEndpointToLoginWhitelist('/register')
     }
@@ -64,7 +76,11 @@ export default {
       return !(layer.route && layer.route.path === '/login' && (layer.route.methods.get || (layer.route.methods.post && localLoginDisabled())))
     })
 
-    webRouter.get('/login', LoginController.loginPage)
+    webRouter.get(
+      '/login',
+      expressify(RegisterController.inviteForLoginPage),
+      LoginController.loginPage
+    )
     AuthenticationController.addEndpointToLoginWhitelist('/login')
     // Where suspended users are sent on login, they have no session
     AuthenticationController.addEndpointToLoginWhitelist('/account-suspended')

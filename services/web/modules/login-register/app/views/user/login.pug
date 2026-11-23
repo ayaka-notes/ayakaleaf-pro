@@ -94,7 +94,7 @@ block content
 									)
 										span(data-ol-inflight="idle") #{settings.oidc.identityServiceName}
 										span(hidden data-ol-inflight="pending") #{translate("logging_in")}…
-							if hasFeature('registration-page')
+							if hasFeature('registration-page') || registerViaInvite
 								.login-register-hr-text-container
 								.ciam-register-login-link
 									.login-register-other-links
