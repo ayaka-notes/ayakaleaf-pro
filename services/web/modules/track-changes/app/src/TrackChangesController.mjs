@@ -10,7 +10,21 @@ import UserInfoController from '../../../../app/src/Features/User/UserInfoContro
 import DocstoreManager from '../../../../app/src/Features/Docstore/DocstoreManager.mjs'
 import DocumentUpdaterHandler from '../../../../app/src/Features/DocumentUpdater/DocumentUpdaterHandler.mjs'
 import { Project } from '../../../../app/src/models/Project.mjs'
+import { parseReq, z, zz } from '../../../../app/src/infrastructure/Validation.mjs'
 import pLimit from 'p-limit'
+
+const projectParams = z.strictObject({ project_id: zz.objectId() })
+const docParams = projectParams.extend({ doc_id: zz.objectId() })
+const threadParams = projectParams.extend({ thread_id: zz.objectId() })
+
+const docRequestSchema = z.object({ params: docParams })
+const threadRequestSchema = z.object({ params: threadParams })
+const messageRequestSchema = z.object({
+  params: threadParams.extend({ message_id: zz.objectId() }),
+})
+const docThreadRequestSchema = z.object({
+  params: docParams.extend({ thread_id: zz.objectId() }),
+})
 
 const TrackChangesController = {
   async trackChanges(req, res, next) {
@@ -31,7 +45,8 @@ const TrackChangesController = {
   },
   async acceptChanges(req, res, next) {
     try {
-      const { project_id, doc_id } = req.params
+      const { params } = parseReq(req, docRequestSchema)
+      const { project_id, doc_id } = params
       const change_ids = req.body.change_ids
       EditorRealTimeController.emitToRoom(project_id, 'accept-changes', doc_id, change_ids)
       await DocumentUpdaterHandler.promises.acceptChanges(project_id, doc_id, change_ids)
@@ -88,7 +103,8 @@ const TrackChangesController = {
   },
   async sendComment(req, res, next) {
     try {
-      const { project_id, thread_id } = req.params
+      const { params } = parseReq(req, threadRequestSchema)
+      const { project_id, thread_id } = params
       const { content } = req.body
       const user_id = SessionManager.getLoggedInUserId(req.session)
       if (!user_id) throw new Error('no logged-in user')
@@ -103,7 +119,8 @@ const TrackChangesController = {
   },
   async editMessage(req, res, next) {
     try {
-      const { project_id, thread_id, message_id } = req.params
+      const { params } = parseReq(req, messageRequestSchema)
+      const { project_id, thread_id, message_id } = params
       const { content } = req.body
       const user_id = SessionManager.getLoggedInUserId(req.session)
       if (!user_id) throw new Error('no logged-in user')
@@ -116,7 +133,8 @@ const TrackChangesController = {
   },
   async deleteMessage(req, res, next) {
     try {
-      const { project_id, thread_id, message_id } = req.params
+      const { params } = parseReq(req, messageRequestSchema)
+      const { project_id, thread_id, message_id } = params
       const user_id = SessionManager.getLoggedInUserId(req.session)
       const token = TokenAccessHandler.getRequestToken(req, project_id)
       // Reviewers may only delete their own messages, like the review panel
@@ -135,7 +153,8 @@ const TrackChangesController = {
   },
   async resolveThread(req, res, next) {
     try {
-      const { project_id, doc_id, thread_id } = req.params
+      const { params } = parseReq(req, docThreadRequestSchema)
+      const { project_id, doc_id, thread_id } = params
       const user_id = SessionManager.getLoggedInUserId(req.session)
       if (!user_id) return HttpErrorHandler.forbidden(req, res)
       const user = await UserInfoManager.promises.getPersonalInfo(user_id)
@@ -154,7 +173,8 @@ const TrackChangesController = {
   },
   async reopenThread(req, res, next) {
     try {
-      const { project_id, doc_id, thread_id } = req.params
+      const { params } = parseReq(req, docThreadRequestSchema)
+      const { project_id, doc_id, thread_id } = params
       const user_id = SessionManager.getLoggedInUserId(req.session)
       if (!user_id) return HttpErrorHandler.forbidden(req, res)
       await ChatApiHandler.promises.reopenThread(project_id, thread_id)
@@ -167,7 +187,8 @@ const TrackChangesController = {
   },
   async deleteThread(req, res, next) {
     try {
-      const { project_id, doc_id, thread_id } = req.params
+      const { params } = parseReq(req, docThreadRequestSchema)
+      const { project_id, doc_id, thread_id } = params
       // signed-out editors (link sharing) have no id; document-updater rejects null
       const user_id = SessionManager.getLoggedInUserId(req.session) ?? undefined
       await ChatApiHandler.promises.deleteThread(project_id, thread_id)
