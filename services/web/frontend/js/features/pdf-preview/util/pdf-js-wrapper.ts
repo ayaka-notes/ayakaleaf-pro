@@ -1,22 +1,23 @@
 import { captureException } from '@/infrastructure/error-reporter'
 import { generatePdfCachingTransportFactory } from './pdf-caching-transport'
 import { PDFJS, loadPdfDocumentFromUrl, imageResourcesPath } from './pdf-js'
-import {
-  PDFViewer,
-  EventBus,
-  PDFLinkService,
-  LinkTarget,
-} from 'pdfjs-dist/web/pdf_viewer.mjs'
+import { PDFViewer, EventBus, LinkTarget } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import 'pdfjs-dist/web/pdf_viewer.css'
 import browser from '@/features/source-editor/extensions/browser'
 import { PDFFile } from '@ol-types/compile'
+import {
+  PdfNavigationHistory,
+  PdfNavigationPosition,
+} from './pdf-navigation-history'
+import { PdfNavigationLinkService } from './pdf-navigation-link-service'
 
 const DEFAULT_RANGE_CHUNK_SIZE = 128 * 1024 // 128K chunks
 
 export default class PDFJSWrapper {
   public readonly viewer: PDFViewer
   public readonly eventBus: EventBus
-  private readonly linkService: PDFLinkService
+  public readonly navigationHistory: PdfNavigationHistory
+  private readonly linkService: PdfNavigationLinkService
   private readonly pdfCachingTransportFactory: any
   private url?: string
 
@@ -26,7 +27,7 @@ export default class PDFJSWrapper {
     this.eventBus = new EventBus()
 
     // create the link service
-    this.linkService = new PDFLinkService({
+    this.linkService = new PdfNavigationLinkService({
       eventBus: this.eventBus,
       externalLinkTarget: LinkTarget.BLANK,
       externalLinkRel: 'noopener',
@@ -45,6 +46,16 @@ export default class PDFJSWrapper {
 
     this.linkService.setViewer(this.viewer)
 
+    // Reuse PDF.js's validated navigation hooks without using browser history.
+    this.navigationHistory = new PdfNavigationHistory(
+      () => {
+        if (!this.viewer.pdfDocument || !this.viewer.getPageView(0)) return
+        return this.currentPosition
+      },
+      position => this.restoreNavigationPosition(position),
+      () => this.eventBus.dispatch('navigationhistorychanged', { source: this })
+    )
+
     this.pdfCachingTransportFactory = generatePdfCachingTransportFactory()
   }
 
@@ -61,6 +72,11 @@ export default class PDFJSWrapper {
     handleFetchError: (error: any) => void
   }) {
     this.url = url
+    // Disable recording while the old PDF is being replaced. Reset on every
+    // load, including recompiles with the same page count but a different layout.
+    this.linkService.invalidatePendingNavigation()
+    this.linkService.setHistory(null)
+    this.navigationHistory.reset()
 
     const rangeTransport = this.pdfCachingTransportFactory({
       url,
@@ -103,6 +119,7 @@ export default class PDFJSWrapper {
       const setDocument = () => {
         this.viewer.setDocument(doc)
         this.linkService.setDocument(doc)
+        this.linkService.setHistory(this.navigationHistory)
       }
 
       const container = this.container as typeof this.container & {
@@ -264,6 +281,24 @@ export default class PDFJSWrapper {
         this.viewer.container.scrollTop = 0
       }
     }
+  }
+
+  private restoreNavigationPosition(position: PdfNavigationPosition) {
+    this.scrollToPosition(position)
+
+    // scrollToPosition intentionally snaps the document's top margin into view.
+    // History must also distinguish that margin from the content's exact top.
+    // Align the saved PDF point after the normal navigation API has positioned
+    // the page; this also accounts for page borders and the current zoom level.
+    const pageView = this.viewer.getPageView(position.page)
+    const pageRect = pageView.div.getBoundingClientRect()
+    const containerRect = this.container.getBoundingClientRect()
+    const [left, top] = pageView.viewport.convertToViewportPoint(
+      position.offset.left,
+      position.offset.top
+    )
+    this.container.scrollTop += pageRect.top + top - containerRect.top
+    this.container.scrollLeft += pageRect.left + left - containerRect.left
   }
 
   isVisible() {

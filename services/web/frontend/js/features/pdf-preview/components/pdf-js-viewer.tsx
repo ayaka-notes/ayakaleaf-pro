@@ -46,6 +46,28 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
   const [pdfJsWrapper, setPdfJsWrapper] = useState<PDFJSWrapper | null>()
   const [initialised, setInitialised] = useState(false)
 
+  const [navigationState, setNavigationState] = useState({
+    canGoBack: false,
+    canGoForward: false,
+  })
+
+  useEffect(() => {
+    const updateNavigationState = () => {
+      setNavigationState({
+        canGoBack: pdfJsWrapper?.navigationHistory.canGoBack ?? false,
+        canGoForward: pdfJsWrapper?.navigationHistory.canGoForward ?? false,
+      })
+    }
+    updateNavigationState()
+    pdfJsWrapper?.eventBus.on('navigationhistorychanged', updateNavigationState)
+    return () => {
+      pdfJsWrapper?.eventBus.off(
+        'navigationhistorychanged',
+        updateNavigationState
+      )
+    }
+  }, [pdfJsWrapper])
+
   const handlePageChange = useCallback(
     (newPage: number) => {
       if (!totalPages || newPage < 1 || newPage > totalPages) {
@@ -524,6 +546,11 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
       </div>
       {toolbarInfoLoaded && (
         <PdfViewerControlsToolbar
+          navigation={{
+            ...navigationState,
+            goBack: () => pdfJsWrapper?.navigationHistory.back(),
+            goForward: () => pdfJsWrapper?.navigationHistory.forward(),
+          }}
           requestPresentationMode={requestPresentationMode}
           setZoom={setZoom}
           rawScale={rawScale}
