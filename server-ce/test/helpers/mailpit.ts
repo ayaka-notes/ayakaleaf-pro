@@ -46,3 +46,8 @@ export function activationLink(text: string) {
 export function passwordResetLink(text: string) {
   return text.match(/\S*\/user\/password\/set\?passwordResetToken=\S+/)![0]
 }
+
+// The link of a project invite email of Overleaf
+export function inviteLink(text: string) {
+  return text.match(/\S*\/project\/[0-9a-f]{24}\/invite\/token\/[0-9a-f]+/)![0]
+}

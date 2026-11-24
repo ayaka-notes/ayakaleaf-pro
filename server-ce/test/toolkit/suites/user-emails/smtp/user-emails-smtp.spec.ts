@@ -55,6 +55,18 @@ describe('the emails of an account', function () {
     cy.get('#email-input').should('not.exist')
   })
 
+  it('keeps the primary email when the account form is sent one without a code', function () {
+    const typed = address('typed')
+    cy.visit('/user/settings')
+    postWithCsrf('/user/settings', { email: typed })
+      .its('status')
+      .should('equal', 200)
+    currentUser().its('email').should('equal', user)
+    cy.visit('/user/settings')
+    emailRow(user).contains('Primary')
+    cy.contains(typed).should('not.exist')
+  })
+
   it('does not ask about an institution', function () {
     openAddEmailForm(address('institution'))
     cy.findByRole('button', { name: 'Add new email' }).should('be.enabled')

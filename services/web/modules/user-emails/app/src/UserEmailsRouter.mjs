@@ -46,6 +46,13 @@ export default {
       next()
     })
 
+    // With that feature the account form sends no email: an email gets in only
+    // through its code, never through core's unconfirmed change of the primary
+    webRouter.post('/user/settings', (req, res, next) => {
+      delete req.body.email
+      next()
+    })
+
     // The form looks up the institution of each address it is given; CE has none
     webRouter.get(
       '/institutions/domains',
