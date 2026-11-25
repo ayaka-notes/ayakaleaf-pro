@@ -176,6 +176,19 @@ describe('UserRegistrationHandler', function () {
         assert.deepEqual(update[0], { _id: ctx.user._id })
         assert.deepEqual(update[1], { $set: { holdingAccount: false } })
       })
+
+      it('should save the submitted name when activating a holding account', async function (ctx) {
+        const name = { first_name: '三', last_name: '张' }
+        await ctx.handler.promises.registerNewUser({
+          ...ctx.passingRequest,
+          ...name,
+        })
+        sinon.assert.calledWith(
+          ctx.User.updateOne,
+          { _id: ctx.user._id },
+          { $set: { holdingAccount: false, ...name } }
+        )
+      })
     })
 
     describe('invalidRequest', function () {
@@ -338,6 +351,21 @@ describe('UserRegistrationHandler', function () {
         ctx.OneTimeTokenHandler.promises.getNewToken.called.should.equal(true)
         ctx.EmailHandler.promises.sendEmail.called.should.equal(true)
       })
+    })
+
+    it('should forward the submitted name when creating an account by email', async function (ctx) {
+      const name = { first_name: '三', last_name: '张' }
+      ctx.handler.promises.registerNewUser.resolves(ctx.user)
+
+      await ctx.handler.promises.registerNewUserAndSendActivationEmail(
+        ctx.email,
+        name
+      )
+
+      sinon.assert.calledWith(
+        ctx.handler.promises.registerNewUser,
+        sinon.match({ email: ctx.email, ...name })
+      )
     })
   })
 })

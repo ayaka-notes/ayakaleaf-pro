@@ -6,6 +6,8 @@ import EmailHelper from '../../../../app/src/Features/Helpers/EmailHelper.mjs'
 import HaveIBeenPwned from '../../../../app/src/Features/Authentication/HaveIBeenPwned.mjs'
 import UserAuditLogHandler from '../../../../app/src/Features/User/UserAuditLogHandler.mjs'
 import UserGetter from '../../../../app/src/Features/User/UserGetter.mjs'
+import { sanitizeControlCharacters } from '../../../../app/src/infrastructure/Sanitize.mjs'
+import { MAX_NAME_LENGTH } from '../../../../app/src/models/User.mjs'
 
 // The new account goes on its own audit log, as an account made at a first
 // SSO login: nobody else asked for it
@@ -34,6 +36,31 @@ function isAllowedDomain(domain) {
     })
 }
 
+function requireRegistrationName() {
+  return process.env.OVERLEAF_REQUIRE_REGISTRATION_NAME === 'true'
+}
+
+function readRegistrationName(req, res) {
+  if (!requireRegistrationName()) return {}
+
+  const name = {}
+  for (const field of ['first_name', 'last_name']) {
+    const value = req.body[field]
+    const trimmed = typeof value === 'string' ? value.trim() : ''
+    const normalized = sanitizeControlCharacters(trimmed)
+    if (!normalized || normalized.length > MAX_NAME_LENGTH) {
+      const t = req.i18n.translate
+      const error = normalized ? 'invalid_request' : 'this_field_is_required'
+      res.status(400).json({
+        message: { type: 'error', text: `${t(field)}: ${t(error)}` },
+      })
+      return null
+    }
+    name[field] = normalized
+  }
+  return name
+}
+
 export default {
   async registerPage(req, res, next) {
     // Check if the user is already logged in
@@ -47,6 +74,8 @@ export default {
     const __dirname = Path.dirname(new URL(import.meta.url).pathname)
     res.render(Path.resolve(__dirname, '../views/user/register'), {
       showPasswordField,
+      requireName: requireRegistrationName(),
+      maxNameLength: MAX_NAME_LENGTH,
       csrfToken: req.csrfToken(),
     })
   },
@@ -57,6 +86,8 @@ export default {
     if (email == null || email === '') {
       return res.sendStatus(422) // Unprocessable Entity
     }
+    const name = readRegistrationName(req, res)
+    if (name == null) return
 
     // Validate email format before attempting to register the user
     const invalidEmail = AuthenticationManager.validateEmail(email)
@@ -84,6 +115,7 @@ export default {
     )
     UserRegistrationHandler.registerNewUserAndSendActivationEmail(
       email,
+      name,
       (error, user, setNewPasswordUrl) => {
         if (error != null) {
           return next(error)
@@ -102,6 +134,8 @@ export default {
     if (email == null || email === '' || password == null || password === '') {
       return res.sendStatus(422) // Unprocessable Entity
     }
+    const name = readRegistrationName(req, res)
+    if (name == null) return
 
     // Validate email and password format before attempting to register the user
     const invalidEmail = AuthenticationManager.validateEmail(email)
@@ -146,6 +180,7 @@ export default {
       email: email,
       password: password,
       analyticsId: crypto.randomUUID(),
+      ...name,
     }
 
     UserRegistrationHandler.registerNewUser(

@@ -6,7 +6,7 @@ const { ObjectId } = Schema
 
 // See https://stackoverflow.com/questions/386294/what-is-the-maximum-length-of-a-valid-email-address/574698#574698
 const MAX_EMAIL_LENGTH = 254
-const MAX_NAME_LENGTH = 255
+export const MAX_NAME_LENGTH = 255
 const refProviderSettingsSchema = {
   enabled: { type: Boolean, default: true },
   groups: {
