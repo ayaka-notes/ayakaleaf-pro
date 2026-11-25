@@ -20,6 +20,42 @@ const datetimeSchema = ({ allowNull, allowUndefined, ...zodOptions } = {}) => {
   })
 }
 
+// "\" is a path separator in http(s) URLs (and on Windows); the URL parser
+// drops tab/LF/CR, so ".\t." becomes "..". No project path contains either.
+// eslint-disable-next-line no-control-regex
+const FILEPATH_BAD_CHAR_RX = /[\\\x00-\x1f\x7f]/
+
+// A route segment is opaque, so unlike a file path it never needs "%": with
+// no escape left, nothing downstream (URL.pathname, nginx, Rails) can decode
+// it into "..", "/", "?" or "#". Control characters as for filepath().
+// eslint-disable-next-line no-control-regex
+const ROUTE_SEGMENT_BAD_CHAR_RX = /[%\x00-\x1f\x7f]/
+
+// A ".." segment as the WHATWG URL parser sees it, e.g. when assigned to
+// URL.pathname: each dot may be percent-encoded ("%2e%2e", ".%2E", ...).
+// With FILEPATH_BAD_CHAR_RX ("\" and tab/LF/CR) this covers every form that
+// climbs a level there. Where the URL is built by string concatenation, a
+// "?" or "#" ends the path right after the "..", and trailing spaces at the
+// end of the URL are trimmed, so those count as ".." too.
+const DOUBLE_DOT_SEGMENT_RX = /^(?:\.|%2e){2}(?:[?#]| *$)/i
+
+// The receiving nginx (e.g. CLSI's download host) decodes the path once more
+// before it resolves dot segments, turning "%2f" (and "%5c") into separators.
+// Splitting on those as well yields the segments it sees, so "..%2f" is
+// caught while "chapter%2fnotes.tex" is not. nginx decodes only once, so
+// "%252e" stays a literal "%2e" there.
+const SEPARATOR_RX = /\/|%2f|%5c/i
+
+/**
+ * @param {string} s
+ * @return {boolean}
+ */
+function hasTraversal(s) {
+  return s
+    .split(SEPARATOR_RX)
+    .some(segment => DOUBLE_DOT_SEGMENT_RX.test(segment))
+}
+
 const zz = {
   /**
    * A field whose absence its source represents inconsistently: left out of
@@ -67,12 +103,21 @@ const zz = {
       message: 'invalid compileGroup',
     }),
   submissionId: () => z.string().regex(/^[a-zA-Z0-9_-]+$/),
+  /**
+   * A relative file path. Besides filesystem use, it often ends up in an
+   * outbound URL path (e.g. web's CLSI output-file URLs), so ".." is
+   * rejected in every form that resolves like it there -- see
+   * hasTraversal().
+   */
   filepath: () =>
     z
       .string()
       .nonempty({ message: 'path is empty' })
+      .refine(s => !FILEPATH_BAD_CHAR_RX.test(s), {
+        message: 'path contains a backslash or control character',
+      })
       .refine(s => !s.startsWith('/'), { message: 'path is absolute' })
-      .refine(s => !s.split('/').includes('..'), {
+      .refine(s => !hasTraversal(s), {
         message: 'path traversal detected',
       }),
   /**
@@ -92,6 +137,9 @@ const zz = {
       .nonempty({ message: 'route segment is empty' })
       .refine(s => !/[/\\?#]/.test(s), {
         message: 'route segment contains a path, query or fragment separator',
+      })
+      .refine(s => !ROUTE_SEGMENT_BAD_CHAR_RX.test(s), {
+        message: 'route segment contains a percent sign or control character',
       })
       .refine(s => s !== '.' && s !== '..', {
         message: 'route segment is a relative path component',
@@ -131,7 +179,7 @@ const zz = {
       .refine(s => !s.endsWith('/'), {
         message: 'path is a folder, not a file',
       })
-      .refine(s => !s.split('/').includes('..'), {
+      .refine(s => !hasTraversal(s), {
         message: 'path traversal detected',
       })
       .refine(s => !s.split('/').some(seg => BAD_SEGMENT_RX.test(seg)), {

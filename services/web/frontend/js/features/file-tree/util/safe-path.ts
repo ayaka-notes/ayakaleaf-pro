@@ -56,13 +56,26 @@ prototype\
 )$\
 `)
 
+// Names that turn into ".." in a URL: each dot may be "%2e", a "?" or "#"
+// may follow, and "%2f"/"%5c" act as separators once a server decodes them.
+// Keep in sync with hasTraversal in libraries/validation-tools.
+const DOUBLE_DOT_SEGMENT_RX = /^(?:\.|%2e){2}(?:[?#]| *$)/i
+const ENCODED_SEPARATOR_RX = /%2f|%5c/i
+
+function hasEncodedTraversal(filename: string): boolean {
+  return filename
+    .split(ENCODED_SEPARATOR_RX)
+    .some(segment => DOUBLE_DOT_SEGMENT_RX.test(segment))
+}
+
 const MAX_PATH = 1024 // Maximum path length, in characters. This is fairly arbitrary.
 
 export function isCleanFilename(filename: string): boolean {
   return (
     isAllowedLength(filename) &&
     !filename.match(BADCHAR_RX) &&
-    !filename.match(BADFILE_RX)
+    !filename.match(BADFILE_RX) &&
+    !hasEncodedTraversal(filename)
   )
 }
 

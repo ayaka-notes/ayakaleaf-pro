@@ -8,6 +8,7 @@ import ProjectUploadManager from './ProjectUploadManager.mjs'
 import SessionManager from '../Authentication/SessionManager.mjs'
 import EditorController from '../Editor/EditorController.mjs'
 import ProjectLocator from '../Project/ProjectLocator.mjs'
+import SafePath from '../Project/SafePath.mjs'
 import Settings from '@overleaf/settings'
 import { InvalidZipFileError } from './ArchiveErrors.mjs'
 import { expressify } from '@overleaf/promise-utils'
@@ -57,7 +58,7 @@ const uploadFileSchema = z.object({
     type: uploadMetaTypeSchema,
     targetFolderId: zz.objectId().optional(),
   }),
-  file: zz.uploadedFile(),
+  file: zz.uploadedFile().strip().omit({ originalname: true }),
 })
 
 const importDocumentSchema = z.object({
@@ -130,16 +131,18 @@ function uploadProject(req, res) {
  */
 async function uploadFile(req, res) {
   const timer = new metrics.Timer('file-upload')
-  const { params, query, body, file } = parseReq(req, uploadFileSchema, {
-    logOnly: true,
-    logFields: ['body.relativePath'],
-  })
+  const { params, query, body, file } = parseReq(req, uploadFileSchema)
   const name = body.name
   const { path } = file
   const projectId = params.Project_id
   const userId = SessionManager.getLoggedInUserId(req.session)
   let folderId = query.folder_id
-  if (name == null || name.length === 0 || name.length > 150) {
+  if (
+    name == null ||
+    name.length === 0 ||
+    name.length > 150 ||
+    !SafePath.isCleanFilename(name)
+  ) {
     await fsPromises.unlink(path).catch(unlinkErr => {
       logger.warn({ err: unlinkErr, path }, 'error unlinking uploaded file')
     })
