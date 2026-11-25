@@ -98,6 +98,7 @@ export const db = {
   notificationsPreferences: internalDb.collection('notificationsPreferences'),
   oauthAccessTokens: internalDb.collection('oauthAccessTokens'),
   oauthApplications: internalDb.collection('oauthApplications'),
+  siteSettings: internalDb.collection('site_settings'),
   oauthAuthorizationCodes: internalDb.collection('oauthAuthorizationCodes'),
   projectAuditLogEntries: internalDb.collection('projectAuditLogEntries'),
   projectHistoryChunks: internalDb.collection('projectHistoryChunks'),
