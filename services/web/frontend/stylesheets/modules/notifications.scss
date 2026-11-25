@@ -1,0 +1,131 @@
+// Notification preferences page
+// (modules/notifications → /user/notification-preferences)
+
+.notification-settings-container {
+  // Section titles ("Notification events", "Delivery channels") — bigger,
+  // with a bit of breathing room above and below.
+  .notification-section-title {
+    font-size: 1.35rem;
+    font-weight: 600;
+    margin: 2.25rem 0 0.75rem;
+    line-height: 1.2;
+
+    &:first-child {
+      margin-top: 0.5rem;
+    }
+  }
+
+  // Sub-group titles inside the events section ("Project",
+  // "Collaboration", "Security & account").
+  .event-group-title {
+    font-size: 1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--ol-secondary-color, #666);
+    margin: 1.25rem 0 0.25rem;
+
+    &:first-of-type {
+      margin-top: 0.25rem;
+    }
+  }
+
+  .setting-container {
+    margin-bottom: 0.5rem;
+  }
+
+  // Delivery-channel cards.
+  .channel-card {
+    border: 1px solid var(--ol-border-color, #e0e0e0);
+    border-radius: 10px;
+    background: var(--ol-white, #fff);
+    margin-bottom: 1.1rem;
+    overflow: hidden;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+    &:hover {
+      border-color: var(--ol-primary-color, #22643f);
+    }
+
+    &.active-channel {
+      border-color: var(--ol-primary-color, #22643f);
+      box-shadow: 0 0 0 1px var(--ol-primary-color, #22643f) inset;
+    }
+
+    .channel-card-head {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.8rem 1rem;
+      background: var(--ol-light-grey, #f7f7f7);
+      border-bottom: 1px solid var(--ol-border-color, #e0e0e0);
+
+      .channel-title {
+        font-weight: 600;
+        font-size: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+
+        .text-muted {
+          font-weight: 400;
+          font-size: 0.85rem;
+        }
+      }
+
+      .channel-active-badge {
+        background: var(--ol-primary-color, #22643f);
+        color: #fff;
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+      }
+    }
+
+    .channel-card-body {
+      padding: 0.9rem 1rem;
+
+      .channel-field {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.6rem;
+
+        &:last-child {
+          margin-bottom: 0;
+        }
+
+        label {
+          flex: 0 0 9rem;
+          font-size: 0.9rem;
+          color: var(--ol-secondary-color, #555);
+          margin-bottom: 0;
+        }
+
+        .input-group,
+        .form-control {
+          flex: 1;
+        }
+
+        &.channel-field-pinned label {
+          font-style: italic;
+          color: var(--ol-secondary-color, #777);
+        }
+      }
+
+      .d-flex.mt-2 {
+        margin-top: 0.9rem !important;
+        padding-top: 0.7rem;
+        border-top: 1px solid var(--ol-border-color, #eee);
+      }
+    }
+  }
+
+  .channel-apprise-hint {
+    margin: 0.75rem 0;
+  }
+}

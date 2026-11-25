@@ -12,6 +12,8 @@ import DocumentUpdaterHandler from '../../../../app/src/Features/DocumentUpdater
 import { Project } from '../../../../app/src/models/Project.mjs'
 import { parseReq, z, zz } from '../../../../app/src/infrastructure/Validation.mjs'
 import pLimit from 'p-limit'
+import Modules from '../../../../app/src/infrastructure/Modules.mjs'
+import logger from '@overleaf/logger'
 
 const acceptChangesSchema = z.object({
   params: z.strictObject({
@@ -79,6 +81,16 @@ const TrackChangesController = {
       if (guests) state.__guests__ = true
       await Project.updateOne({_id: project_id}, {track_changes: state}).exec()  //do not wait?
       EditorRealTimeController.emitToRoom(project_id, 'toggle-track-changes', state)
+      // Notify members that track-changes was toggled (best-effort).
+      try {
+        const userId = SessionManager.getLoggedInUserId(req.session)
+        await Modules.promises.hooks.fire('trackChangesToggled', {
+          projectId: String(project_id),
+          actorId: userId ? String(userId) : null,
+        })
+      } catch (err) {
+        logger.warn({ err, project_id }, 'failed to fire trackChangesToggled hook')
+      }
       res.sendStatus(204)
     } catch (err) {
       next(err)

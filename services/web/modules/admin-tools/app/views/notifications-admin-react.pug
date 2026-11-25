@@ -1,0 +1,24 @@
+extends ../../../../app/views/layout-react
+
+block entrypointVar
+	- entrypoint = 'modules/admin-tools/pages/notifications'
+
+block vars
+	- const suppressNavContentLinks = true
+
+block append meta
+	meta(name='ol-userSettings' data-type='json' content=userSettings)
+	meta(name='ol-notificationsAdmin' data-type='json' content=initialState)
+	if suggestedLanguageSubdomainConfig
+		meta(
+			name='ol-suggestedLanguage'
+			data-type='json'
+			content=Object.assign(suggestedLanguageSubdomainConfig, {
+				lngName: translate(suggestedLanguageSubdomainConfig.lngCode),
+				imgUrl: buildImgPath('flags/24/' + suggestedLanguageSubdomainConfig.lngCode + '.png'),
+			})
+		)
+
+block content
+	main#main-content.content.content-alt
+		#notifications-admin-root

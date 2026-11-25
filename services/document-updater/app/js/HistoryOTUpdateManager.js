@@ -128,7 +128,8 @@ async function tryApplyUpdate(projectId, docId, update, profiler) {
     }
     await RedisManager.promises.recordProjectNotificationTimestamp(
       projectId,
-      update.meta.ts
+      update.meta.ts,
+      update.meta?.user_id
     )
     profiler.log('recordProjectNotificationTimestamp')
   }

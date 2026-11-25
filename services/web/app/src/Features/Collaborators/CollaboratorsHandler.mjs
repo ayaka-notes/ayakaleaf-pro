@@ -14,8 +14,19 @@ import TpdsUpdateSender from '../ThirdPartyDataStore/TpdsUpdateSender.mjs'
 import EditorRealTimeController from '../Editor/EditorRealTimeController.mjs'
 import ProjectAuditLogHandler from '../Project/ProjectAuditLogHandler.mjs'
 import AsyncLocalStorage from '../../infrastructure/AsyncLocalStorage.mjs'
+import Modules from '../../infrastructure/Modules.mjs'
 
 const { ObjectId } = mongodb
+
+// Fire a collaboration event for the notification module. Best-effort:
+// a scheduling failure must never break the membership change itself.
+async function _fireNotificationHook(name, args) {
+  try {
+    await Modules.promises.hooks.fire(name, args)
+  } catch (err) {
+    logger.warn({ err, name }, 'failed to fire collaboration notification hook')
+  }
+}
 
 export default {
   userIsTokenMember: callbackify(userIsTokenMember),
@@ -62,6 +73,12 @@ async function removeUserFromProject(projectId, userId) {
       userId,
     })
   }
+
+  // Notify the removed member (best-effort).
+  await _fireNotificationHook('memberRemoved', {
+    projectId: String(projectId),
+    targetUserId: String(userId),
+  })
 }
 
 async function removeUserFromAllProjects(userId) {
@@ -191,6 +208,13 @@ async function addUserIdToProject(
       { err, projectId, userId },
       'error flushing to TPDS after adding collaborator'
     )
+  })
+
+  // Notify the newly added member (best-effort).
+  await _fireNotificationHook('memberAdded', {
+    projectId: String(projectId),
+    actorId: addingUserId ? String(addingUserId) : null,
+    targetUserId: String(userId),
   })
 }
 
@@ -411,6 +435,13 @@ async function setCollaboratorPrivilegeLevel(
       update.$set.track_changes
     )
   }
+
+  // Notify the affected member that their role changed (best-effort).
+  await _fireNotificationHook('permissionsChanged', {
+    projectId: String(projectId),
+    actorId: auditInfo?.initiatorId ? String(auditInfo.initiatorId) : null,
+    targetUserId: String(userId),
+  })
 }
 
 // Records a viewer (invited or token-share) or reviewer asking the owner for

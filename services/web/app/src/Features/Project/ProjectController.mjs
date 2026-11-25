@@ -501,7 +501,17 @@ const _ProjectController = {
     })
     const projectId = params.Project_id
     const newName = body.newProjectName
+    const userId = SessionManager.getLoggedInUserId(req.session)
     await EditorController.promises.renameProject(projectId, newName)
+    // Notify members that the project was renamed (best-effort).
+    try {
+      await Modules.promises.hooks.fire('projectRenamed', {
+        projectId: String(projectId),
+        actorId: userId ? String(userId) : null,
+      })
+    } catch (err) {
+      logger.warn({ err, projectId }, 'failed to fire projectRenamed hook')
+    }
     res.sendStatus(200)
   },
 

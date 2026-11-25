@@ -1,0 +1,12 @@
+{
+  "name": "@overleaf/notification-preferences",
+  "version": "0.1.0",
+  "description": "Shared contract for Overleaf notification preferences (project-level 12-key schema + global mute) used by the web module and the chat service",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint --cache --cache-location ../../.cache/eslint/ --ext .cjs,.js,.jsx,.mjs,.ts --max-warnings 0 --format unix .",
+    "types:check": "echo no-types"
+  },
+  "license": "AGPL-3.0-only"
+}

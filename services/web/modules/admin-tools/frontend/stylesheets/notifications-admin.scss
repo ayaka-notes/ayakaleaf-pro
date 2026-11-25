@@ -1,0 +1,243 @@
+// admin/notifications page chrome — same "settings page" look as the other
+// dedicated admin pages (container + numbered section cards).
+.na-notifications-admin {
+  max-width: 860px;
+  margin: 0 auto;
+  padding-bottom: 4rem;
+}
+
+.na-header {
+  margin-bottom: 2rem;
+
+  &-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+
+    .material-symbols {
+      font-size: 1.5rem;
+      color: var(--content-secondary, #475569);
+    }
+  }
+
+  &-desc {
+    color: var(--content-secondary, #475569);
+    margin: 0;
+  }
+}
+
+.na-status {
+  margin-bottom: 1.25rem;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+
+  &-ok {
+    background-color: var(--bg-success-01, #d1e7dd);
+    color: var(--content-success, #0f5132);
+  }
+
+  &-err {
+    background-color: var(--bg-error-01, #f8d7da);
+    color: var(--content-error, #842029);
+  }
+}
+
+.na-section {
+  padding: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-secondary, #dfe5ec);
+  background-color: var(--bg-body-01, #fff);
+  margin-bottom: 1.25rem;
+
+  &-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.25rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+
+  &-main {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  &-desc {
+    color: var(--content-secondary, #475569);
+    font-size: 0.875rem;
+    margin-bottom: 1.25rem;
+
+    code {
+      background-color: var(--bg-neutral-01, #eef2f6);
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+  }
+
+  &-body {
+    border: 1px solid var(--border-secondary, #dfe5ec);
+    border-radius: 6px;
+    padding: 1rem;
+    display: grid;
+    gap: 1rem;
+  }
+}
+
+.na-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background-color: var(--bg-accent-01, #28518f);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.na-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--content-secondary, #475569);
+}
+
+.na-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+// role=checkbox toggle (react-bootstrap Form.Check double-activates on
+// label click in Chromium, so the page uses buttons instead)
+.na-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  background: none;
+  border: none;
+  padding: 0.25rem 0;
+  cursor: pointer;
+  font-size: 0.9375rem;
+  color: var(--content-primary, #333);
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
+.na-toggle-track {
+  display: inline-block;
+  width: 2.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  background-color: var(--border-secondary, #cbd5e1);
+  position: relative;
+  transition: background-color 0.15s ease;
+}
+
+.na-toggle-thumb {
+  position: absolute;
+  top: 0.1875rem;
+  left: 0.1875rem;
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.na-toggle-checked {
+  .na-toggle-track {
+    background-color: var(--bg-accent-01, #28518f);
+  }
+
+  .na-toggle-thumb {
+    left: calc(100% - 1.0625rem);
+  }
+}
+
+.na-test-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+
+  .na-test-fields {
+    flex: 1 1 320px;
+    display: grid;
+    gap: 0.5rem;
+  }
+}
+
+.na-recipients {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.na-recipient {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr) auto;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+  padding: 0.5rem 0.25rem;
+  border-bottom: 1px solid var(--border-tertiary, #eef2f6);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  @media (max-width: 767.98px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.na-recipient-email {
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.na-recipient-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.na-queue-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.na-recent {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.na-recent-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.875rem;
+  color: var(--content-secondary, #475569);
+}
+
+.na-recent-project {
+  word-break: break-word;
+}
+
+.na-recent-status {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+}

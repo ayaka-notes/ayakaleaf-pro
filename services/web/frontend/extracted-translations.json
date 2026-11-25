@@ -2733,5 +2733,15 @@
   "zotero_sync_success_plural": "",
   "zotero_sync_up_to_date": "",
   "zotero_upgrade_prompt_content": "",
-  "zotero_upgrade_prompt_title": ""
+  "zotero_upgrade_prompt_title": "",
+  "notifications_on_project_activity": "Notifications on project activity",
+  "notifications_on_project_activity_description": "Notifications for project activity such as comments, replies, and track changes",
+  "notifications_delay_minutes_label": "Delay before project change notifications (minutes)",
+  "notifications_delay_description": "Minimum wait after a project change before you receive a notification email. Leave empty to use the server default.",
+  "notifications_delay_server_default": "Server default:",
+  "note_still_receives_important_emails": "Please note: you will still receive important emails, such as project invites and security notifications (password resets, account linking, etc).",
+  "notification_channel_label": "Notification channel",
+  "notification_channel_description": "Where project-activity notifications are delivered. Any Apprise URL works: mailto://, tg:// (Telegram), discord://, slack://, ntfy://…",
+  "notification_channel_default": "Leave empty to use your account email:",
+  "send_test_notification": "Send test notification"
 }

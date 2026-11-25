@@ -205,7 +205,8 @@ const UpdateManager = {
         const timestamp = update.meta?.ts || Date.now()
         await RedisManager.promises.recordProjectNotificationTimestamp(
           projectId,
-          timestamp
+          timestamp,
+          update.meta?.user_id
         )
         profile.log('recordProjectNotificationTimestamp')
       }
