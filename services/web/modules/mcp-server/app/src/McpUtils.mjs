@@ -1,87 +1,48 @@
-import { setTimeout } from 'timers/promises'
-import { z, zz } from '../../../../app/src/infrastructure/Validation.mjs'
+import { zz } from '../../../../app/src/infrastructure/Validation.mjs'
 import { RateLimiter } from '../../../../app/src/infrastructure/RateLimiter.mjs'
-import RedisWrapper from '../../../../app/src/infrastructure/RedisWrapper.mjs'
-import AuthorizationManager from '../../../../app/src/Features/Authorization/AuthorizationManager.mjs'
-import DocumentUpdaterHandler from '../../../../app/src/Features/DocumentUpdater/DocumentUpdaterHandler.mjs'
 
 export const filePath = zz
   .filepath()
   .describe('Path of the file in the project, e.g. "sections/intro.tex".')
 
-export const version = z
-  .number()
-  .int()
-  .min(0)
-  .describe(
-    'A version of the project history: fromVersion or toVersion of ' +
-      'list_changes.'
+export function text(value) {
+  // overleaf-lab (safety audit 2026-11-05): bounded output for every tool
+  return {
+    content: [
+      {
+        type: 'text',
+        text: limited(value, 'output', MAX_TOOL_OUTPUT_CHARS),
+      },
+    ],
+  }
+}
+// overleaf-lab (2026-11-05, MCP plan): truncate long tool outputs so an MCP
+// client never chokes on a megabyte diff/history; signal the cut.
+export const MAX_TEXT_CHARS = 20000
+// overleaf-lab (safety audit 2026-11-05): universal ceiling for EVERY tool
+// output. Even tools that use plain text() cannot make a client choke: no
+// legitimate tool call needs more than 200k characters for an agent to act
+// on (bigger reads belong in a git clone, as get_clone_info tells the agent).
+export const MAX_TOOL_OUTPUT_CHARS = 200000
+export function limited(value, label = 'output', limit = MAX_TEXT_CHARS) {
+  const str = typeof value === 'string' ? value : JSON.stringify(value, null, 2)
+  if (str.length <= limit) return str
+  return (
+    str.slice(0, limit) +
+    `\n\n[${label} truncated at ${limit} characters; ${str.length - limit} more. ` +
+    'Narrow the request — fewer files or versions, a smaller limit — to see the rest.]'
   )
-
-// Edits show live in Overleaf; the clone catches up with one pull per series
-export const pullHint = projectId =>
-  `If you cloned the project, git pull in ./${projectId}/ once this series ` +
-  'of edits is done.'
-
-// Who wrote, changed or resolved: name and email, as the editor shows them
+}
+// overleaf-lab (2026-11-05, MCP plan): author line for chat messages and
+// change lists, as the review panel shows them: "Name <email>" or email.
 export function person(user) {
   if (!user?.email) return null
   const name = [user.first_name, user.last_name].filter(Boolean).join(' ')
   return name ? `${name} <${user.email}>` : user.email
 }
 
-export function text(value) {
-  return {
-    content: [
-      {
-        type: 'text',
-        text: typeof value === 'string' ? value : JSON.stringify(value, null, 2),
-      },
-    ],
-  }
-}
-
 export async function checkAccess(canUser, userId, projectId, message) {
   if (!(await canUser(userId, projectId))) throw new Error(message)
-}
-
-// History, comments, tracked changes and chat are closed to the viewers who
-// joined by link, as the editor routes block them
-export async function checkNotRestricted(userId, projectId, message) {
-  if (
-    await AuthorizationManager.promises.isRestrictedUserForProject(
-      userId,
-      projectId
-    )
-  ) {
-    throw new Error(message)
-  }
-}
-
-// The queues of the document updater, as real-time's DocumentUpdaterManager
-// fills them with the edits of the editor
-const rclient = RedisWrapper.client('documentupdater')
-
-// An op the editor sends through real-time: queue it for the document
-// updater the way real-time does (DocumentUpdaterManager.queueChange), at the
-// version it is from, so it moves with the edits made since. Done once
-// done(ranges) holds for the doc.
-export async function queueDocUpdate(projectId, update, done, failure) {
-  await rclient.rpush(
-    `PendingProjectUpdates:{${projectId}}`,
-    JSON.stringify(update)
-  )
-  await rclient.rpush('pending-updates-list', projectId)
-  for (let attempt = 0; attempt < 50; attempt++) {
-    const { ranges } = await DocumentUpdaterHandler.promises.getDocument(
-      projectId,
-      update.doc,
-      -1
-    )
-    if (done(ranges)) return
-    await setTimeout(100)
-  }
-  throw new Error(failure)
 }
 
 // One per tool, as the editor routes have one per operation, by project and
@@ -157,68 +118,76 @@ export const rateLimiters = {
     points: 30,
     duration: 60,
   }),
+  // overleaf-lab (2026-11-05, MCP plan): batch-1 tools (issue #126)
+  listChat: new RateLimiter('mcp-list-chat', {
+    points: 60,
+    duration: 60,
+  }),
+  sendChatMessage: new RateLimiter('mcp-send-chat-message', {
+    points: 30,
+    duration: 60,
+  }),
+  editChatMessage: new RateLimiter('mcp-edit-chat-message', {
+    points: 30,
+    duration: 60,
+  }),
+  deleteChatMessage: new RateLimiter('mcp-delete-chat-message', {
+    points: 30,
+    duration: 60,
+  }),
   addComment: new RateLimiter('mcp-add-comment', {
     points: 30,
     duration: 60,
   }),
-  editCommentMessage: new RateLimiter('mcp-edit-comment-message', {
+  editComment: new RateLimiter('mcp-edit-comment', {
     points: 30,
     duration: 60,
   }),
-  deleteCommentMessage: new RateLimiter('mcp-delete-comment-message', {
+  deleteComment: new RateLimiter('mcp-delete-comment', {
     points: 30,
     duration: 60,
   }),
-  listTrackedChanges: new RateLimiter('mcp-list-tracked-changes', {
+  listHistory: new RateLimiter('mcp-list-history', {
     points: 60,
     duration: 60,
   }),
-  acceptTrackedChanges: new RateLimiter('mcp-accept-tracked-changes', {
+  getDiff: new RateLimiter('mcp-get-diff', {
     points: 30,
     duration: 60,
   }),
-  rejectTrackedChanges: new RateLimiter('mcp-reject-tracked-changes', {
-    points: 30,
+  createVersion: new RateLimiter('mcp-create-version', {
+    points: 10,
+    duration: 60,
+  }),
+  deleteVersionLabel: new RateLimiter('mcp-delete-version-label', {
+    points: 10,
+    duration: 60,
+  }),
+  restoreProject: new RateLimiter('mcp-restore-project', {
+    points: 5,
+    duration: 60,
+  }),
+  restoreFileVersion: new RateLimiter('mcp-restore-file-version', {
+    points: 5,
     duration: 60,
   }),
   listChanges: new RateLimiter('mcp-list-changes', {
     points: 60,
     duration: 60,
   }),
-  diff: new RateLimiter('mcp-diff', {
-    points: 60,
-    duration: 60,
-  }),
-  createVersion: new RateLimiter('mcp-create-version', {
+  acceptChanges: new RateLimiter('mcp-accept-changes', {
     points: 30,
     duration: 60,
   }),
-  deleteVersion: new RateLimiter('mcp-delete-version', {
-    points: 30,
-    duration: 60,
-  }),
-  restoreFile: new RateLimiter('mcp-restore-file', {
-    points: 30,
-    duration: 60,
-  }),
-  restoreProject: new RateLimiter('mcp-restore-project', {
+  setTrackedChanges: new RateLimiter('mcp-set-tracked-changes', {
     points: 10,
     duration: 60,
   }),
-  listChatMessages: new RateLimiter('mcp-list-chat-messages', {
-    points: 60,
-    duration: 60,
-  }),
-  // as the editor's send-chat-message
-  sendChatMessage: new RateLimiter('mcp-send-chat-message', {
-    points: 100,
-    duration: 60,
-  }),
-  moveFile: new RateLimiter('mcp-move-file', {
+  renameFile: new RateLimiter('mcp-rename-file', {
     points: 30,
     duration: 60,
   }),
-  createFolder: new RateLimiter('mcp-create-folder', {
+  moveFile: new RateLimiter('mcp-move-file', {
     points: 30,
     duration: 60,
   }),

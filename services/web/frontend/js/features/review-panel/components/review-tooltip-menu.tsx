@@ -33,6 +33,7 @@ import { useModalsContext } from '@/features/ide-react/context/modals-context'
 import { numberOfChangesInSelection } from '../utils/changes-in-selection'
 import { useEditorPropertiesContext } from '@/features/ide-react/context/editor-properties-context'
 import classNames from 'classnames'
+import getMeta from '@/utils/meta'
 import useEventListener from '@/shared/hooks/use-event-listener'
 import useReviewPanelLayout from '../hooks/use-review-panel-layout'
 import { usePermissionsContext } from '@/features/ide-react/context/permissions-context'
@@ -133,6 +134,11 @@ const ReviewTooltipMenu: FC = () => {
 const ReviewTooltipMenuContent = memo<{ onAddComment: () => void }>(
   function ReviewTooltipMenuContent({ onAddComment }) {
     const { t } = useTranslation()
+    // LLM module (modules/llm): selection-based "Ask AI" in the review tooltip
+    // menu, hidden unless the deployment enables LLM and the admin has not
+    // disabled chat at runtime (flag is set by the editor source component).
+    const llmEnabled = !!(getMeta('ol-ExposedSettings') as any)?.llmEnabled
+    const llmChatEnabled = (window as any).__llmChatEnabled !== false
     const view = useCodeMirrorViewContext()
     const state = useCodeMirrorStateContext()
     const { reviewPanelOpen } = useLayoutContext()
@@ -269,6 +275,29 @@ const ReviewTooltipMenuContent = memo<{ onAddComment: () => void }>(
           <MaterialIcon type="chat" />
           {t('add_comment')}
         </button>
+        {llmEnabled && llmChatEnabled && (
+          <>
+            <div className="review-tooltip-menu-divider" />
+            <button
+              className="review-tooltip-menu-button"
+              onClick={() => {
+                const selectedText = view.state.sliceDoc(
+                  state.selection.main.from,
+                  state.selection.main.to,
+                )
+                document.dispatchEvent(
+                  new CustomEvent('llm-ask-ai-selection', {
+                    detail: { text: selectedText },
+                  }),
+                )
+              }}
+              aria-label={t('ask_ai', 'Ask AI')}
+            >
+              <MaterialIcon type="smart_toy" />
+              {t('ask_ai', 'Ask AI')}
+            </button>
+          </>
+        )}
         {showChangesButtons && (
           <>
             <div className="review-tooltip-menu-divider" />

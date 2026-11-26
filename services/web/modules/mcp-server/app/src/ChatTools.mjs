@@ -1,94 +1,135 @@
-import { z } from '../../../../app/src/infrastructure/Validation.mjs'
-import Features from '../../../../app/src/infrastructure/Features.mjs'
-import Modules from '../../../../app/src/infrastructure/Modules.mjs'
+import { z, zz } from '../../../../app/src/infrastructure/Validation.mjs'
+import AuthorizationManager from '../../../../app/src/Features/Authorization/AuthorizationManager.mjs'
 import ChatApiHandler from '../../../../app/src/Features/Chat/ChatApiHandler.mjs'
-import ChatManager from '../../../../app/src/Features/Chat/ChatManager.mjs'
-import EditorRealTimeController from '../../../../app/src/Features/Editor/EditorRealTimeController.mjs'
-import UserInfoController from '../../../../app/src/Features/User/UserInfoController.mjs'
-import UserInfoManager from '../../../../app/src/Features/User/UserInfoManager.mjs'
-import { checkNotRestricted, person, rateLimiters, text } from './McpUtils.mjs'
-
-// The project chat, as its panel reads and sends it (ChatController)
-
-// as the chat panel loads it
-const PAGE_SIZE = 50
-
+import { checkAccess, person, rateLimiters, text } from './McpUtils.mjs'
+// The project chat (the chat bubble in the editor). Same data as the browser:
+// /project/:id/messages via ChatApiHandler (the chat service). The browser
+// gates these routes with blockRestrictedUserFromProject +
+// ensureUserCanReadProject (+ author checks for edit/delete), so the tools
+// use exactly those permission checks.
+const messageId = zz.objectId().describe('The messageId from list_chat.')
 export function buildChatTools({ userId, projectId }) {
-  // the editor has no chat routes without the feature
-  if (!Features.hasFeature('chat')) return {}
-
-  const checkCanChat = () =>
-    checkNotRestricted(
+  const blockLinkViewers = () =>
+    checkAccess(
+      async (userId, projectId) =>
+        !(await AuthorizationManager.promises.isRestrictedUserForProject(
+          userId,
+          projectId
+        )),
       userId,
       projectId,
-      'You cannot use the chat of this project'
+      'You can\'t see the chat of this project (you joined by link)'
     )
-
+  const canRead = () =>
+    checkAccess(
+      (userId, projectId) =>
+        AuthorizationManager.promises.canUserReadProject(userId, projectId),
+      userId,
+      projectId,
+      'You can\'t read this project'
+    )
+  const ownMessage = async id => {
+    const message = await ChatApiHandler.promises.getGlobalMessage(
+      projectId,
+      String(id)
+    )
+    if (String(message?.user_id) !== String(userId)) {
+      throw new Error('Only the author can edit or delete this message')
+    }
+  }
   return {
-    list_chat_messages: {
-      rateLimiter: rateLimiters.listChatMessages,
+    list_chat: {
+      rateLimiter: rateLimiters.listChat,
       description:
-        'Read the project chat, newest first, 50 messages at a time; pass ' +
-        'before from the previous answer for older ones.',
+        'Read the project chat (the chat bubble in Overleaf), newest last: ' +
+        'each message with its author, text and time.',
       inputSchema: {
-        before: z
+        limit: z
           .number()
           .int()
-          .optional()
-          .describe('before returned by the previous call, for older messages.'),
+          .min(1)
+          .max(100)
+          .default(30)
+          .describe('At most this many messages (oldest dropped first).'),
       },
-      handler: async ({ before }) => {
-        await checkCanChat()
+      handler: async ({ limit }) => {
+        await blockLinkViewers()
+        await canRead()
         const messages = await ChatApiHandler.promises.getGlobalMessages(
           projectId,
-          PAGE_SIZE,
-          before
+          limit,
+          null
         )
-        await ChatManager.promises.injectUserInfoIntoThreads({
-          global: { messages },
-        })
-        return text({
-          messages: messages.map(message => ({
-            author: person(message.user),
+        return text(
+          messages.map(message => ({
+            messageId: String(message._id),
+            author: person(message.user) || message.user_id,
             content: message.content,
             timestamp: new Date(message.timestamp).toISOString(),
-          })),
-          before:
-            messages.length === PAGE_SIZE ? messages.at(-1).timestamp : null,
-        })
+            ...(message.edited != null && { edited: true }),
+          }))
+        )
       },
     },
-
     send_chat_message: {
       rateLimiter: rateLimiters.sendChatMessage,
       description:
-        'Send a message to the project chat; it shows live in Overleaf, ' +
-        "under the user's name.",
+        'Send a message to the project chat (the chat bubble in Overleaf), ' +
+        "under the user's name; it shows live for the collaborators.",
       inputSchema: {
         content: z.string().min(1).describe('The message.'),
       },
       handler: async ({ content }) => {
-        await checkCanChat()
+        await blockLinkViewers()
+        await canRead()
         const message = await ChatApiHandler.promises.sendGlobalMessage(
           projectId,
           userId,
           content
         )
-        const user = await UserInfoManager.promises.getPersonalInfo(
-          message.user_id
+        return text(
+          `Sent (message ${String(message.id ?? message._id)}). The chat ` +
+            'shows it live in Overleaf.'
         )
-        message.user = UserInfoController.formatPersonalInfo(user)
-        EditorRealTimeController.emitToRoom(
+      },
+    },
+    edit_chat_message: {
+      rateLimiter: rateLimiters.editChatMessage,
+      description:
+        'Edit one project-chat message; only its author (the user) can ' +
+        'edit it, like in Overleaf.',
+      inputSchema: {
+        messageId,
+        content: z.string().min(1).describe('The new message.'),
+      },
+      handler: async ({ messageId, content }) => {
+        await blockLinkViewers()
+        await canRead()
+        await ownMessage(messageId)
+        await ChatApiHandler.promises.editGlobalMessage(
           projectId,
-          'new-chat-message',
-          message
-        )
-        await Modules.promises.hooks.fire('chatMessageSent', {
-          projectId,
+          String(messageId),
           userId,
-          messageId: message.id,
-        })
-        return text('Sent.')
+          content
+        )
+        return text('Message edited.')
+      },
+    },
+    delete_chat_message: {
+      rateLimiter: rateLimiters.deleteChatMessage,
+      description:
+        'Delete one project-chat message; only its author (the user) can ' +
+        'delete it, like in Overleaf.',
+      inputSchema: { messageId },
+      handler: async ({ messageId }) => {
+        await blockLinkViewers()
+        await canRead()
+        await ownMessage(messageId)
+        await ChatApiHandler.promises.deleteGlobalMessage(
+          projectId,
+          String(messageId)
+        )
+        return text('Message deleted.')
       },
     },
   }

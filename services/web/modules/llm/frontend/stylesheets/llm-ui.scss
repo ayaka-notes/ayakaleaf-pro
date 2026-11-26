@@ -1,0 +1,614 @@
+// overleaf-lab: shared "upstream AI" design tokens for the LLM module restyle.
+//
+// The upstream AI surfaces (context menu, AI assistant workbench, generator
+// card) share one visual language: an off-white card on light themes
+// ("almost-white"), a deep navy-slate panel on dark themes, soft slate
+// borders, rounded-lg corners, a single navy accent for primary actions, and
+// icon + label rows with rounded hover fills. We do NOT have access to the
+// upstream design-system bundle, so this file defines the same values locally
+// (palette reconstructed from the confirmed "almost-white" = #fafafa token,
+// the brand navy scale, and the upstream dark surfaces); consumers reference
+// the --wf-* variables only.
+//
+// Theme switching follows the app's own mechanism: Bootstrap's
+// [data-bs-theme="dark"] on <html> (core flips --content-primary-themed & co.
+// under the same attribute, so these fixed values stay in sync with the IDE).
+:root {
+    // surface
+    --wf-panel-bg: #fafafa;
+    --wf-panel-text: #1e293b;
+    --wf-panel-border: #e3e8ef;
+    --wf-panel-shadow: 0 10px 30px rgba(2, 8, 20, 0.1);
+    --wf-row-hi: #ffffff;
+    --wf-row-hover: #eef1f5;
+    --wf-border-in: #dfe5ec;
+    --wf-muted: #475569;
+    --wf-code-bg: #f1f4f8;
+    // accent (brand navy)
+    --wf-accent: #28518f;
+    --wf-accent-hi: #214475;
+    --wf-accent-soft: rgba(40, 81, 143, 0.08);
+}
+
+[data-bs-theme='dark'] {
+    --wf-panel-bg: #1b222c;
+    --wf-panel-text: #e2e8f0;
+    --wf-panel-border: #2f3a4d;
+    --wf-panel-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+    --wf-row-hi: #212a36;
+    --wf-row-hover: #26303d;
+    --wf-border-in: #2f3a4d;
+    --wf-muted: #94a3b8;
+    --wf-code-bg: #141a22;
+    --wf-accent: #6597e0;
+    --wf-accent-hi: #7dabec;
+    --wf-accent-soft: rgba(101, 151, 224, 0.14);
+}
+
+// Generator-modal result surface (upstream result-panel language: a raised,
+// bordered code-style surface for the generated text, readable in both themes)
+.llm-gen-result {
+    background-color: var(--wf-code-bg, #f1f4f8);
+    color: var(--wf-panel-text, #1e293b);
+    border: 1px solid var(--wf-border-in, #dfe5ec);
+    border-radius: 8px;
+    font-family: inherit;
+    line-height: 1.5;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// "Select LLM Model" dialog list (upstream option-row language: rounded rows,
+// hover fill, accent when selected)
+.llm-model-hint {
+    color: var(--wf-muted, #475569);
+    margin: 0 0 10px;
+}
+
+// overleaf-lab (owner request 2026-08-25): "Model: <choice>" picker button used
+// in the chat + review headers (replaces the per-pane <select>); opens the
+// shared "Select LLM Model" dialog.
+.llm-model-picker {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    min-width: 0;
+    padding: 6px 10px;
+    border: 1px solid var(--wf-border-in, #dfe5ec);
+    border-radius: 8px;
+    background: var(--wf-row-hi, #fff);
+    color: var(--wf-panel-text, #1e293b);
+    cursor: pointer;
+    font: inherit;
+    font-size: 13px;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+
+    &:hover {
+        border-color: var(--wf-accent, #28518f);
+        background: var(--wf-row-hover, #eef1f5);
+    }
+
+    .llm-model-picker-label {
+        font-weight: 600;
+        color: var(--wf-muted, #475569);
+        white-space: nowrap;
+    }
+
+    .llm-model-picker-value {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 220px;
+    }
+
+    .llm-model-picker-caret {
+        font-size: 16px;
+        flex-shrink: 0;
+        color: var(--wf-muted, #475569);
+    }
+}
+
+// overleaf-lab (2026-11): per-task picker row in the Select LLM Model dialog.
+.llm-model-task-picker {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+
+    label {
+        font-weight: 600;
+        font-size: 0.9em;
+        white-space: nowrap;
+        color: var(--wf-panel-text, #1e293b);
+    }
+
+    select {
+        flex: 1;
+        max-width: 340px;
+        padding: 7px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--wf-border-in, #dfe5ec);
+        background: var(--wf-row-hi, #fff);
+        color: var(--wf-panel-text, #1e293b);
+        font-size: 0.95em;
+    }
+}
+
+.llm-model-hint-override {
+    font-size: 0.85em;
+    opacity: 0.85;
+}
+
+.llm-model-option-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: min(50vh, 420px);
+    overflow-y: auto;
+    background: var(--wf-row-hi, #fff);
+    border: 1px solid var(--wf-border-in, #dfe5ec);
+    border-radius: 10px;
+    padding: 6px;
+}
+
+.llm-model-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--wf-panel-text, #1e293b);
+
+    &:hover {
+        background: var(--wf-row-hover, #eef1f5);
+    }
+
+    input[type='radio'] {
+        margin: 0;
+        accent-color: var(--wf-accent, #28518f);
+        flex-shrink: 0;
+    }
+
+    .llm-model-option-body {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        flex: 1;
+    }
+
+    .llm-model-option-label {
+        font-weight: 500;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .llm-model-option-row {
+        font-size: 0.85em;
+        color: var(--wf-muted, #475569);
+    }
+
+    &.selected {
+        background: var(--wf-accent-soft, rgba(40, 81, 143, 0.08));
+        box-shadow: inset 0 0 0 1px var(--wf-accent, #28518f);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// owner request (2026-08-25): the CHAT AI window follows the EDITOR theme
+// ("The code editor color scheme" from IDE → Appearance → Editor theme).
+// A tiny runtime bridge (utils/llm-editor-theme.ts) reads the live editor's
+// computed colors and writes --wf-editor-bg/--wf-editor-fg on the scoped
+// element below (.llm-wf-editor-scoped — the rail panel and the selection
+// toolbar overlay). Everything then derives from the editor theme instead of
+// the fixed upstream palette. The accent stays brand navy (legible on every
+// shipped editor theme).
+.llm-wf-editor-scoped {
+    // Fallback order: if --wf-editor-bg/-fg are set (editor theme bridge ran)
+    // everything derives from the editor's own colors; otherwise the fixed
+    // upstream palette from :root applies. color-mix lines are dropped whole
+    // on browsers without support, where the plain :root values still win.
+    --wf-panel-bg: var(--wf-editor-bg, #fafafa);
+    --wf-panel-text: var(--wf-editor-fg, #1e293b);
+    --wf-row-hi: var(--wf-editor-bg, #fff);
+    --wf-row-hover: color-mix(in srgb, var(--wf-panel-text) 9%, var(--wf-panel-bg));
+    --wf-border-in: color-mix(in srgb, var(--wf-panel-text) 22%, var(--wf-panel-bg));
+    --wf-panel-border: color-mix(in srgb, var(--wf-panel-text) 16%, var(--wf-panel-bg));
+    --wf-code-bg: color-mix(in srgb, var(--wf-panel-text) 12%, var(--wf-panel-bg));
+    --wf-accent: #28518f;
+    --wf-accent-hi: #214475;
+    --wf-accent-soft: rgba(40, 81, 143, 0.10);
+
+    /* overleaf-lab (2026-11): SCOPE = EDITOR OVERLAY ONLY (ask-AI selection
+       toolbar, position:absolute inset:0 pointer-events:none). It must NEVER
+       paint a root background: this class is shared with the full-editor
+       overlay, and a single background-color here once covered main.tex /,
+       sample.bib with a white sheet (owner: "content gone" — data was intact,
+       it was painted over). The overlay's visible cards set their OWN
+       backgrounds (inline card styles). The rail chat panel is a separate
+       app-themed surface (llm-chat.scss --llm-chat-* chain). */
+}
+
+/* overleaf-lab (2026-11): the 2026-11 "self-contained surface" pins for the
+   RAIL PANEL are intentionally REMOVED. Policy decision (owner complaints
+   2026-11: "chat stuck light, ignoring dark theme"): the rail panel is an
+   APP-THEME surface — it uses the app's own --llm-chat-* chain (light values
+   at :root, dark values under [data-bs-theme='dark']), exactly like the other
+   rail panels. Pinning it to editor-derived colors is what made it ignore the
+   app theme. The editor overlay keeps the editor theme (its cards, the
+   2026-08-25 request). The .llm-action-buttons z-index pin below is kept —
+   it fixes pointer-event interception by the resizable-panel separator, not
+   theming. */
+.llm-wf-editor-scoped .llm-action-buttons {
+    position: relative;
+    z-index: 5;
+}
+
+/* overleaf-lab (2026-11): double-class pins for the rail panel removed with
+   the other panel pins (see policy note above). */
+
+[data-bs-theme='dark'] .llm-wf-editor-scoped {
+    --wf-accent: #6597e0;
+    --wf-accent-hi: #7dabec;
+    --wf-accent-soft: rgba(101, 151, 224, 0.16);
+}
+// ── AI Error Assist — log entry suggested fix ───────────────────────
+// Rendered INSIDE a compile log entry (pdfLogEntryComponents).
+//
+// THEMING RULE (learned the hard way): the log pane text is theme-adaptive,
+// so ALL card text INHERITS the pane's text color — never pin an explicit
+// text color here (explicit tokens have already produced unreadable text
+// under user themes twice). Only tinted backgrounds / semantic del-ins
+// colors are set, and they use the same *-themed tokens the core log
+// headers use (content-danger / content-positive themed are what the log
+// error/success text is drawn with).
+.llm-cfx {
+  margin-top: 10px;
+  color: inherit;
+}
+.llm-cfx-running,
+.llm-cfx-error,
+.llm-cfx-applied {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+.llm-cfx-running {
+  border: 1px solid var(--border-primary-themed, #d9dfe7);
+  background: var(--bg-secondary-themed, #f7f9fb);
+}
+.llm-cfx-applied {
+  border: 1px solid var(--content-positive-themed, #15803d);
+  background: rgba(22, 163, 74, 0.09);
+  color: var(--content-positive-themed, #15803d);
+}
+.llm-cfx-error {
+  border: 1px solid var(--border-danger-themed, rgba(220, 38, 38, 0.35));
+  background: rgba(220, 38, 38, 0.06);
+}
+.llm-cfx-spinner {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-tertiary-themed, #eef1f5);
+  border-top-color: var(--link-ui-themed, #28518f);
+  animation: llm-cfx-spin 0.8s linear infinite;
+}
+@keyframes llm-cfx-spin {
+  to { transform: rotate(360deg); }
+}
+.llm-cfx-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.llm-cfx-heading .material-symbols {
+  color: var(--link-ui-themed, #28518f);
+  font-size: 18px;
+}
+.llm-cfx-explanation {
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 0 10px;
+  color: inherit;
+  p { margin: 0 0 6px; }
+  p:last-child { margin-bottom: 0; }
+  code {
+    background: var(--bg-tertiary-themed, #f1f4f8);
+    padding: 1px 4px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+}
+// The explanation renders model markdown through the shared `.llm-result-html`
+// class, whose rules carry a fixed light theme color (#1e293b) and win the
+// cascade against plain `.llm-cfx-explanation` selectors. Re-assert the
+// inherited (log-pane themed) color with higher specificity so the text is
+// readable in ANY app theme — including dark.
+.llm-cfx-explanation.llm-result-html,
+.llm-cfx-explanation.llm-result-html p,
+.llm-cfx-explanation.llm-result-html li,
+.llm-cfx-explanation.llm-result-html h1,
+.llm-cfx-explanation.llm-result-html h2,
+.llm-cfx-explanation.llm-result-html h3,
+.llm-cfx-explanation.llm-result-html h4 {
+  color: inherit;
+}
+.llm-cfx-explanation.llm-result-html pre {
+  color: inherit;
+  background: var(--bg-tertiary-themed, #f1f4f8);
+}
+.llm-cfx-explanation.llm-result-html code {
+  background: var(--bg-tertiary-themed, #f1f4f8);
+}
+.llm-cfx-code {
+  border: 1px solid var(--border-primary-themed, #d9dfe7);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-secondary-themed, #fff);
+  margin-bottom: 10px;
+}
+.llm-cfx-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-divider-themed, var(--border-primary-themed, #d9dfe7));
+  font-size: 13px;
+  font-weight: 600;
+}
+.llm-cfx-copy,
+.llm-cfx-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border-primary-themed, #d9dfe7);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 13px;
+}
+.llm-cfx-copy {
+  padding: 4px 10px;
+  font-size: 12px;
+  .material-symbols { font-size: 16px; }
+}
+.llm-cfx-btn {
+  padding: 7px 12px;
+  .material-symbols { font-size: 16px; }
+}
+.llm-cfx-apply {
+  color: var(--content-positive-themed, #15803d);
+}
+.llm-cfx-apply:hover {
+  background: rgba(22, 163, 74, 0.08);
+}
+.llm-cfx-from,
+.llm-cfx-to {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.llm-cfx-from {
+  background: rgba(220, 38, 38, 0.07);
+}
+.llm-cfx-to {
+  background: rgba(22, 163, 74, 0.09);
+}
+.llm-cfx-diff-icon {
+  font-size: 16px;
+  margin-top: 2px;
+  flex: 0 0 auto;
+}
+.llm-cfx-from .llm-cfx-diff-icon { color: var(--content-danger-themed, #dc2626); }
+.llm-cfx-to .llm-cfx-diff-icon { color: var(--content-positive-themed, #15803d); }
+.llm-cfx-linenum {
+  min-width: 26px;
+  text-align: right;
+  font-size: 11px;
+  font-family: Consolas, 'SFMono-Regular', Menlo, monospace;
+  user-select: none;
+  padding-top: 1px;
+  flex: 0 0 auto;
+  opacity: 0.65;
+}
+.llm-cfx-code-text {
+  flex: 1;
+  font-family: Consolas, 'SFMono-Regular', Menlo, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.llm-cfx-code-text del {
+  color: var(--content-danger-themed, #dc2626);
+  text-decoration: line-through;
+  background: rgba(220, 38, 38, 0.14);
+  border-radius: 3px;
+  padding: 0 1px;
+}
+.llm-cfx-code-text ins {
+  color: var(--content-positive-themed, #15803d);
+  text-decoration: none;
+  font-weight: 600;
+  background: rgba(22, 163, 74, 0.16);
+  border-radius: 3px;
+  padding: 0 1px;
+}
+.llm-cfx-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.llm-cfx-apply-status {
+  font-size: 12.5px;
+  opacity: 0.85;
+}
+.llm-cfx-apply-status-ok {
+  color: var(--content-positive-themed, #15803d);
+}
+.llm-cfx-footer {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+// ── AI Generate menu entry (Insert menu) — icon + label alignment ───
+.llm-menu-ai-title {
+  display: inline-flex;
+  align-items: center;
+  .material-symbols {
+    color: var(--link-ui-themed, #28518f);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// overleaf-lab (usage meter, 2026-08-28): shared "Usage" card for the admin
+// page and /user/llm-settings. Same upstream design language: panel surface,
+// navy accent for the bars, muted secondary text, rounded corners.
+.llm-usage {
+    display: flex;
+    gap: 18px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: 14px 16px;
+    background-color: var(--wf-panel-bg, #fafafa);
+    color: var(--wf-panel-text, #1e293b);
+    border: 1px solid var(--wf-panel-border, #e3e8ef);
+    border-radius: 10px;
+
+    &-muted {
+        color: var(--wf-muted, #475569);
+        font-size: 14px;
+    }
+
+    &-stats {
+        display: flex;
+        gap: 22px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    &-stat {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.25;
+
+        &-value {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        &-label {
+            font-size: 12px;
+            color: var(--wf-muted, #475569);
+            white-space: nowrap;
+        }
+    }
+
+    &-chart {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 180px;
+        flex: 1 1 220px;
+
+        &-caption {
+            font-size: 12px;
+            color: var(--wf-muted, #475569);
+        }
+    }
+
+    &-bars {
+        display: flex;
+        align-items: flex-end;
+        gap: 3px;
+        height: 72px;
+        padding: 4px 2px 2px;
+        border-bottom: 1px solid var(--wf-border-in, #dfe5ec);
+    }
+
+    &-bar {
+        flex: 1 1 0;
+        min-width: 3px;
+        max-width: 14px;
+        background-color: var(--wf-accent, #28518f);
+        opacity: 0.75;
+        border-radius: 2px 2px 0 0;
+        height: 2px;
+    }
+
+    &-bd {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 210px;
+
+        &-title {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--wf-muted, #475569);
+            margin-bottom: 2px;
+        }
+
+        &-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            font-size: 13px;
+
+            &+.llm-usage-bd-row {
+                margin-top: 0;
+            }
+        }
+
+        &-name {
+            color: var(--wf-panel-text, #1e293b);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+
+            &-model {
+                font-family: monospace;
+                font-size: 12px;
+            }
+        }
+
+        &-val {
+            color: var(--wf-muted, #475569);
+            white-space: nowrap;
+        }
+    }
+}
+
+// overleaf-lab (2026-11, owner request): the review pane's chat + its history
+// menu. The rail panel container has overflow:hidden, so the menu (anchored at
+// the right-hand header button, dropdown-menu-end) stays inside the panel —
+// no clipping, no overflow into the editor.
+.review-history-menu {
+  max-width: min(320px, 88vw);
+}
+.review-history-menu .dropdown-item {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+[data-review-chat] textarea {
+  flex: 1;
+  resize: none;
+  font-size: 0.9em;
+}

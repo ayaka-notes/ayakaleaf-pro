@@ -1,0 +1,19 @@
+// overleaf-lab (2026-11, merge phase 2): assistant panel chrome fixes.
+//
+// The rail-panel header is not positioned, so the history dropdown (an
+// absolutely-positioned bootstrap menu at z-index 1000) competes at the
+// panel-group level with the editor panel — which paints later and covered
+// the menu (owner report 2026-11-04). Giving THIS panel's header its own
+// stacking context above the editor fixes the z-order without touching core
+// rail CSS other panels depend on.
+[data-assistant-panel] {
+  .rail-panel-header {
+    position: relative;
+    z-index: 1060;
+  }
+
+  // Keep the long conversation titles from breaking the header row.
+  .rail-panel-header-actions {
+    flex-shrink: 0;
+  }
+}

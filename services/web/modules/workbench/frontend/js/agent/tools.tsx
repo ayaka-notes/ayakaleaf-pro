@@ -10,6 +10,7 @@ import type { ProjectActions } from '../hooks/use-project-actions'
 import EditProposal, { type EditPart } from '../chat/edit-proposal'
 import type { Link } from '../chat/source-links'
 import { boxed } from '../chat/themed'
+import { getJSON } from '@/infrastructure/fetch-json'
 
 export type ToolOutput =
   | { tool: string; toolCallId: string; output: unknown }
@@ -23,6 +24,9 @@ export type ToolRun = {
   openPath: string
   actions: ProjectActions
   signal: AbortSignal
+  // overleaf-lab (2026-11): text-extraction mode — render_pdf_page returns
+  // page text instead of a page image (for text-only lane models).
+  textExtract?: boolean
 }
 
 export type ToolSpec = {
@@ -126,16 +130,54 @@ export const TOOLS: Record<string, ToolSpec> = {
 
   render_pdf_page: {
     label: ({ page }) => `Look at PDF page ${page}`,
-    run: ({ page }, { actions, signal }) => actions.renderPage(page, signal),
-    body: part =>
-      part.state === 'output-available' && (
-        <img
-          className="d-block mx-auto my-2 rounded shadow-sm"
-          style={{ ...boxed, maxWidth: '100%', maxHeight: 400 }}
-          alt={`PDF page ${part.input.page}`}
-          src={`data:image/png;base64,${part.output}`}
-        />
-      ),
+    // overleaf-lab (2026-11-05, build33 fix): the page-load access cache can
+    // go stale when the chat lane switches to a text-only model AFTER the
+    // panel mounted (e.g. per-task model override). A rendered image would
+    // then be rejected by the provider. When the context says "images ok",
+    // force-refresh the (cheap, 1h server-cached) access payload before
+    // rendering so the tool always matches the CURRENT lane.
+    run: async ({ page }, { actions, signal, textExtract }) => {
+      let textMode = textExtract === true
+      if (!textMode) {
+        try {
+          const data = await getJSON<{ textOnly?: boolean; textExtract?: boolean }>('/workbench/access')
+          // textOnly: lane is text-only (server probe, 1h cache)
+          // textExtract: true when user opted in OR lane text-only
+          if (data?.textOnly === true || data?.textExtract === true) textMode = true
+        } catch {
+          // keep context value (fail to the legacy image render)
+        }
+      }
+      return actions.renderPage(page, signal, { textMode })
+    },
+    body: part => {
+      if (part.state !== 'output-available') return null
+      const out = part.output
+      // overleaf-lab (2026-11-05): text-extraction mode (user setting OR a
+      // text-only lane) returns page TEXT — render it as text; the classic
+      // image render (base64 PNG always starts with 'iVBOR') as before.
+      if (typeof out === 'string' && out.startsWith('iVBOR')) {
+        return (
+          <img
+            className="d-block mx-auto my-2 rounded shadow-sm"
+            style={{ ...boxed, maxWidth: '100%', maxHeight: 400 }}
+            alt={`PDF page ${part.input?.page ?? ''}`}
+            src={`data:image/png;base64,${out}`}
+          />
+        )
+      }
+      return (
+        <details className="my-2" open>
+          <summary className="small fw-semibold">PDF page {String(part.input?.page ?? '')} — text (vision not available on this model)</summary>
+          <pre
+            className="small mb-0 mt-1 p-2 rounded bg-subtle text-break"
+            style={{ whiteSpace: 'pre-wrap', maxHeight: 400, overflow: 'auto' }}
+          >
+            {typeof out === 'string' ? out : JSON.stringify(out ?? '')}
+          </pre>
+        </details>
+      )
+    },
   },
 
   get_pdf_outline: {

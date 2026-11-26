@@ -1,26 +1,20 @@
-import Path from 'path'
 import { z } from '../../../../app/src/infrastructure/Validation.mjs'
 import AuthorizationManager from '../../../../app/src/Features/Authorization/AuthorizationManager.mjs'
 import EditorController from '../../../../app/src/Features/Editor/EditorController.mjs'
 import ProjectEntityHandler from '../../../../app/src/Features/Project/ProjectEntityHandler.mjs'
-import ProjectGetter from '../../../../app/src/Features/Project/ProjectGetter.mjs'
 import ProjectLocator from '../../../../app/src/Features/Project/ProjectLocator.mjs'
 import DocumentUpdaterHandler from '../../../../app/src/Features/DocumentUpdater/DocumentUpdaterHandler.mjs'
 import Errors from '../../../../app/src/Features/Errors/Errors.js'
-import { projectOwnerHasFeature } from '../../../instance-features/app/src/UserFeatures.mjs'
-import {
-  checkAccess,
-  filePath,
-  pullHint,
-  rateLimiters,
-  text,
-  version,
-} from './McpUtils.mjs'
-import { readFileAtVersion } from './HistoryTools.mjs'
+import { checkAccess, filePath, rateLimiters, text } from './McpUtils.mjs'
 
 // Writes are sent like git-bridge pushes, so open editors apply them
 // without the "updated externally" warning
 const EDIT_SOURCE = 'git-bridge'
+
+// Edits show live in Overleaf; the clone catches up with one pull per series
+const pullHint = projectId =>
+  `If you cloned the project, git pull in ./${projectId}/ once this series ` +
+  'of edits is done.'
 
 const checkCanEdit = (userId, projectId) =>
   checkAccess(
@@ -30,41 +24,6 @@ const checkCanEdit = (userId, projectId) =>
     'You cannot edit this project'
   )
 
-const trackChangesArg = z
-  .boolean()
-  .optional()
-  .describe(
-    'Make the change a tracked change for the user to review, when they ask ' +
-      'for it. Without it the change follows the track changes setting of ' +
-      'the project.'
-  )
-
-// Without trackChanges a write follows the project's track changes setting,
-// as core's upsert does. With it, an existing doc takes the write as a tracked
-// change of the token's user, as when track changes is on for them.
-async function writeDoc(projectId, userId, path, docId, lines, trackChanges) {
-  if (!trackChanges || !docId) {
-    return await EditorController.promises.upsertDocWithPath(
-      projectId,
-      `/${path}`,
-      lines,
-      EDIT_SOURCE,
-      userId
-    )
-  }
-  if (!(await projectOwnerHasFeature(projectId, 'trackChanges'))) {
-    throw new Error('Track changes is off for this project')
-  }
-  await DocumentUpdaterHandler.promises.setDocument(
-    projectId,
-    docId,
-    userId,
-    lines,
-    EDIT_SOURCE,
-    true
-  )
-}
-
 async function findEntity(projectId, path) {
   return await ProjectLocator.promises.findElementByPath({
     project_id: projectId,
@@ -72,29 +31,9 @@ async function findEntity(projectId, path) {
     exactCaseMatch: true,
   })
 }
-
-async function findEntityOrNull(projectId, path) {
-  return await findEntity(projectId, path).catch(err => {
-    if (err instanceof Errors.NotFoundError) return null
-    throw err
-  })
-}
-
-// The folder of a path, created as needed like write_file does
-async function folderId(projectId, userId, folder) {
-  if (folder === '.') {
-    const project = await ProjectGetter.promises.getProject(projectId, {
-      rootFolder: 1,
-    })
-    return project.rootFolder[0]._id
-  }
-  const { lastFolder } = await EditorController.promises.mkdirp(
-    projectId,
-    `/${folder}`,
-    userId
-  )
-  return lastFolder._id
-}
+// overleaf-lab (2026-11-05, MCP plan): shared with the history / tracked-
+// change tools (path → entity resolution, with the same error shape).
+export { findEntity }
 
 // The latest content of a doc, with the edits not saved yet
 export async function readDoc(projectId, path) {
@@ -103,12 +42,12 @@ export async function readDoc(projectId, path) {
     throw err
   })
   if (type !== 'doc') throw new Error(`${path} is not a text file`)
-  const { lines, version } = await DocumentUpdaterHandler.promises.getDocument(
+  const { lines } = await DocumentUpdaterHandler.promises.getDocument(
     projectId,
     element._id,
     -1
   )
-  return { doc: element, content: lines.join('\n'), version }
+  return { doc: element, content: lines.join('\n') }
 }
 
 export function buildFileTools({ userId, projectId }) {
@@ -131,22 +70,9 @@ export function buildFileTools({ userId, projectId }) {
       rateLimiter: rateLimiters.readFile,
       description:
         'Read the latest content of a text file, including the edits of ' +
-        'collaborators, or its content at a version of the history.',
-      inputSchema: {
-        path: filePath,
-        version: version
-          .optional()
-          .describe(
-            'Read the file as it was at this version (toVersion of ' +
-              'list_changes); without it, the latest content.'
-          ),
-      },
-      handler: async ({ path, version: v }) =>
-        text(
-          v == null
-            ? (await readDoc(projectId, path)).content
-            : await readFileAtVersion(projectId, userId, path, v)
-        ),
+        'collaborators.',
+      inputSchema: { path: filePath },
+      handler: async ({ path }) => text((await readDoc(projectId, path)).content),
     },
 
     edit_file: {
@@ -158,13 +84,13 @@ export function buildFileTools({ userId, projectId }) {
         'may have changed it, and add context when it appears more than once.',
       inputSchema: {
         path: filePath,
-        oldString: z.string().min(1).describe('Exact text to replace.'),
-        newString: z.string().describe('Replacement text.'),
-        trackChanges: trackChangesArg,
+        // overleaf-lab (safety audit 2026-11-05): bounded replace payloads
+        oldString: z.string().min(1).max(200_000).describe('Exact text to replace (max 200k chars).'),
+        newString: z.string().max(1_000_000).describe('Replacement text (max 1 MB).'),
       },
-      handler: async ({ path, oldString, newString, trackChanges }) => {
+      handler: async ({ path, oldString, newString }) => {
         await checkCanEdit(userId, projectId)
-        const { doc, content } = await readDoc(projectId, path)
+        const { content } = await readDoc(projectId, path)
         const matches = content.split(oldString).length - 1
         if (matches === 0) {
           throw new Error(`oldString not found in ${path}, read_file again`)
@@ -174,13 +100,12 @@ export function buildFileTools({ userId, projectId }) {
             `oldString appears ${matches} times in ${path}, add context`
           )
         }
-        await writeDoc(
+        await EditorController.promises.upsertDocWithPath(
           projectId,
-          userId,
-          path,
-          doc._id,
+          `/${path}`,
           content.replace(oldString, () => newString).split('\n'),
-          trackChanges
+          EDIT_SOURCE,
+          userId
         )
         return text(`Edited ${path}. ${pullHint(projectId)}`)
       },
@@ -190,27 +115,29 @@ export function buildFileTools({ userId, projectId }) {
       rateLimiter: rateLimiters.writeFile,
       description:
         'Create a text file, or replace all its content; folders are ' +
-        'created as needed. Prefer edit_file to change part of a file. A new ' +
-        'file is never a tracked change.',
+        'created as needed. Prefer edit_file to change part of a file.',
       inputSchema: {
         path: filePath,
-        content: z.string().describe('The whole content of the file.'),
-        trackChanges: trackChangesArg,
+        // overleaf-lab (safety audit 2026-11-05): 1MB per write — bigger
+        // content belongs in a git push; caps docstore bloat per call.
+        content: z.string().max(1_000_000).describe('The whole content of the file (max 1 MB; use git for bigger).'),
       },
-      handler: async ({ path, content, trackChanges }) => {
+      handler: async ({ path, content }) => {
         await checkCanEdit(userId, projectId)
         // binary files stay binary, as git-bridge keeps them on push
-        const existing = await findEntityOrNull(projectId, path)
+        const existing = await findEntity(projectId, path).catch(err => {
+          if (err instanceof Errors.NotFoundError) return null
+          throw err
+        })
         if (existing?.type === 'file') {
           throw new Error(`${path} is a binary file, it cannot be written as text`)
         }
-        await writeDoc(
+        await EditorController.promises.upsertDocWithPath(
           projectId,
-          userId,
-          path,
-          existing?.type === 'doc' ? existing.element._id : null,
+          `/${path}`,
           content.split('\n'),
-          trackChanges
+          EDIT_SOURCE,
+          userId
         )
         return text(`Wrote ${path}. ${pullHint(projectId)}`)
       },
@@ -232,91 +159,81 @@ export function buildFileTools({ userId, projectId }) {
       },
     },
 
+    // overleaf-lab (2026-11-05, MCP plan): rename and move, the panel's
+    // file actions — the same EditorController operations the panel's
+    // rename/move routes run, with the same write-project permission.
+    rename_file: {
+      rateLimiter: rateLimiters.renameFile,
+      description:
+        'Rename a file or folder (its name only, same folder). To move it '
+        +
+        'to another folder use move_file.',
+      inputSchema: {
+        path: filePath.describe('The current path.'),
+        name: z
+          .string()
+          .min(1)
+          .max(255)
+          .describe('The new name (no slashes).'),
+      },
+      handler: async ({ path, name }) => {
+        await checkCanEdit(userId, projectId)
+        if (name.includes('/')) throw new Error('name must not contain slashes')
+        const { element, type } = await findEntity(projectId, path).catch(err => {
+          if (err instanceof Errors.NotFoundError) throw new Error(`${path} not found`)
+          throw err
+        })
+        await EditorController.promises.renameEntity(
+          projectId,
+          element._id,
+          type,
+          name,
+          userId,
+          EDIT_SOURCE
+        )
+        return text(`Renamed ${path} to ${name}. ${pullHint(projectId)}`)
+      },
+    },
     move_file: {
       rateLimiter: rateLimiters.moveFile,
       description:
-        'Move or rename a file or folder, as in the file tree; folders are ' +
-        'created as needed. The change shows live in Overleaf.',
+        'Move a file or folder into another folder. The target folder '
+        +
+        'must exist (write_file can create one).',
       inputSchema: {
-        path: filePath,
-        newPath: filePath.describe(
-          'The new path, e.g. "chapters/intro.tex" to move and rename.'
+        path: filePath.describe('The current path.'),
+        targetFolder: filePath.describe(
+          'The target folder, e.g. sections.'
         ),
       },
-      handler: async ({ path, newPath }) => {
+      handler: async ({ path, targetFolder }) => {
         await checkCanEdit(userId, projectId)
-        const entity = await findEntityOrNull(projectId, path)
-        if (!entity) throw new Error(`${path} not found`)
-        if (await findEntityOrNull(projectId, newPath)) {
-          throw new Error(`${newPath} already exists`)
-        }
-        const { element, type } = entity
-        const from = Path.posix.dirname(path)
-        const to = Path.posix.dirname(newPath)
-        const name = Path.posix.basename(newPath)
-        const rename = async () => {
-          if (name === element.name) return
-          await EditorController.promises.renameEntity(
-            projectId,
-            element._id,
-            type,
-            name,
-            userId,
-            EDIT_SOURCE
-          )
-        }
-        const move = async () => {
-          if (to === from) return
-          await EditorController.promises.moveEntity(
-            projectId,
-            element._id,
-            await folderId(projectId, userId, to),
-            type,
-            userId,
-            EDIT_SOURCE
-          )
-        }
-        // core checks a name in the folder the entity is in at that moment:
-        // rename first, unless the old folder has the new name already
-        const renamedInPlace = Path.posix.join(from, name)
-        if (
-          name !== element.name &&
-          to !== from &&
-          (await findEntityOrNull(projectId, renamedInPlace))
-        ) {
-          const movedAsIs = Path.posix.join(to, element.name)
-          if (await findEntityOrNull(projectId, movedAsIs)) {
+        const { element, type } = await findEntity(projectId, path).catch(err => {
+          if (err instanceof Errors.NotFoundError) throw new Error(`${path} not found`)
+          throw err
+        })
+        const folder = await findEntity(projectId, targetFolder).catch(err => {
+          if (err instanceof Errors.NotFoundError) {
             throw new Error(
-              `${renamedInPlace} and ${movedAsIs} exist, move ${path} in ` +
-                'two steps through a free name'
+              `Target folder ${targetFolder} not found. Use list_files to see the folders, ` +
+                'or create the file directly at the target path with write_file.'
             )
           }
-          await move()
-          await rename()
-        } else {
-          await rename()
-          await move()
+          throw err
+        })
+        if (folder.type !== 'folder') {
+          throw new Error(`${targetFolder} is not a folder`)
         }
-        return text(`Moved ${path} to ${newPath}. ${pullHint(projectId)}`)
-      },
-    },
-
-    create_folder: {
-      rateLimiter: rateLimiters.createFolder,
-      description:
-        'Create a folder, and the folders above it as needed. write_file ' +
-        'and move_file create the folders of their path themselves.',
-      inputSchema: { path: filePath },
-      handler: async ({ path }) => {
-        await checkCanEdit(userId, projectId)
-        const existing = await findEntityOrNull(projectId, path)
-        if (existing) {
-          throw new Error(
-            `${path} already exists${existing.type === 'folder' ? '' : ' as a file'}`
-          )
-        }
-        await folderId(projectId, userId, path)
-        return text(`Created ${path}. ${pullHint(projectId)}`)
+        // moveEntity(projectId, entityId, folderId, entityType, userId, source)
+        await EditorController.promises.moveEntity(
+          projectId,
+          element._id,
+          folder.element._id,
+          type,
+          userId,
+          EDIT_SOURCE
+        )
+        return text(`Moved ${path} into ${targetFolder}/. ${pullHint(projectId)}`)
       },
     },
   }

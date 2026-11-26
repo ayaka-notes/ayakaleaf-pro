@@ -4,15 +4,30 @@ import SessionManager from '../../../../app/src/Features/Authentication/SessionM
 import WorkbenchController from './WorkbenchController.mjs'
 import PermissionsMiddleware, { getAiAccess } from './PermissionsMiddleware.mjs'
 import { isConfigured } from './WorkbenchAiClient.mjs'
+import { resolveWorkbenchLane } from './LlmBridge.mjs'
 
 export default {
   apply(webRouter) {
-    webRouter.use('/project', (req, res, next) => {
-      res.locals.ExposedSettings.aiAvailable = isConfigured()
-      next()
-    })
-    // No tab in the rail for a user without AI. The editor's routes, as in
-    // core's router, which comes after the modules
+    // overleaf-lab (2026-11, BYO phase 1): aiAvailable is now PER-USER — the
+    // assistant shows when the operator gateway is configured OR the logged-in
+    // user can resolve an LLM lane (BYO row / site provider). Anonymous/
+    // unprivileged visitors keep seeing no assistant, exactly as before.
+    webRouter.use(
+      '/project',
+      expressify(async (req, res, next) => {
+        let aiAvailable = isConfigured()
+        if (!aiAvailable) {
+          const userId = SessionManager.getLoggedInUserId(req.session)
+          if (userId) {
+            aiAvailable = Boolean(await resolveWorkbenchLane(userId))
+          }
+        }
+        res.locals.ExposedSettings.aiAvailable = aiAvailable
+        next()
+      })
+    )
+    // No tab in the rail for a user without AI chat access. The editor's
+    // routes, as in core's router, which comes after the modules
     for (const route of [
       '/Project/:Project_id',
       '/Project/:Project_id/:detachRole(detacher|detached)',

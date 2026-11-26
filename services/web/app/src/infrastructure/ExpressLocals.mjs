@@ -426,6 +426,8 @@ export default async function (webRouter, privateApiRouter, publicApiRouter) {
       enablePandocConversions: Settings.enablePandocConversions,
       mixpanelLabsToken:
         Settings.labs?.enable && Settings.analytics?.mixpanel?.labsToken,
+      llmAllowUserSettings: Settings.llm?.allowUserSettings ?? false,
+      llmEnabled: Settings.llm?.enabled ?? false,
     }
     next()
   })

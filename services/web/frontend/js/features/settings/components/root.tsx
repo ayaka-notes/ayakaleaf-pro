@@ -9,6 +9,7 @@ import PasswordSection from './password-section'
 import LinkingSection from './linking-section'
 import BetaProgramSection from './beta-program-section'
 import LabsProgramSection from './labs-program-section'
+import LLMUserSection from './llm-user-section'
 import SessionsSection from './sessions-section'
 import NewsletterSection from './newsletter-section'
 import LeaveSection from './leave-section'
@@ -45,7 +46,7 @@ function SettingsPageRoot() {
 
 function SettingsPageContent() {
   const { t } = useTranslation()
-  const { isOverleaf, labsEnabled } = getMeta('ol-ExposedSettings')
+  const { isOverleaf, labsEnabled, llmAllowUserSettings } = getMeta('ol-ExposedSettings')
   const inNotificationsSplitTest = isSplitTestEnabled('email-notifications')
   return (
     <UserProvider>
@@ -79,6 +80,12 @@ function SettingsPageContent() {
           {labsEnabled ? (
             <>
               <LabsProgramSection />
+            </>
+          ) : null}
+          {llmAllowUserSettings ? (
+            <>
+              <hr />
+              <LLMUserSection />
             </>
           ) : null}
           <SessionsSection />

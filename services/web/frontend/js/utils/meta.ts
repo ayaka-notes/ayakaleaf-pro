@@ -138,6 +138,27 @@ export interface Meta {
   'ol-galleryTagName': string
   'ol-gitBridgeEnabled': boolean
   'ol-gitBridgePublicBaseUrl': string
+
+  // LLM module (modules/llm)
+  'ol-allowedModels': string
+  'ol-askAiActionPrompts': Record<string, string>
+  'ol-askAiSystemPrompt': string
+  'ol-chatEnabled': boolean
+  'ol-completionEnabled': boolean
+  'ol-errorPrompt': string
+  'ol-hasLlmApiKey': string
+  'ol-knownModels': string
+  'ol-llmApiType': string
+  'ol-llmApiTypeFromEnv': string
+  'ol-llmApiUrl': string
+  'ol-llmApiUrlFromEnv': string
+  'ol-llmDisabledByAdmin': string
+  'ol-maxContextTokens': string
+  'ol-promptDefaults': Record<string, string>
+  'ol-reviewEnabled': boolean
+  'ol-reviewMaxTokens': string
+  'ol-reviewSystemPrompt': string
+  'ol-systemPrompt': string
   'ol-github': { enabled: boolean; error: boolean; expired?: boolean }
   'ol-groupAuditLogs': []
   'ol-groupDomains': []

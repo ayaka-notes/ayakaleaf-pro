@@ -1,0 +1,870 @@
+.llm-settings {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.llm-settings-header {
+  margin-bottom: 2rem;
+
+  &-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  &-desc {
+    color: var(--content-secondary, #475569);
+    margin: 0;
+  }
+}
+
+.llm-settings-section {
+  padding: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--wf-border-in, #dfe5ec);
+  background-color: var(--wf-row-hi, #fff);
+  margin-bottom: 1.25rem;
+
+  &-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+
+    .llm-settings-section-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.5rem;
+      height: 1.5rem;
+      border-radius: 50%;
+      background-color: var(--wf-accent, var(--bg-accent-01, #28518f));
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+  }
+
+  &-desc {
+    color: var(--content-secondary, #475569);
+    font-size: 0.875rem;
+    margin-bottom: 1.25rem;
+  }
+
+  // overleaf-lab (2026-11-05): small note line inside section bodies (MCP section)
+  &-note {
+    color: var(--content-secondary, #666);
+    font-size: 0.85em;
+    margin: 6px 8px 0;
+  }
+
+  &-body {
+    border: 1px solid var(--wf-border-in, #dfe5ec);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .dropdown {
+    width: 100%;
+  }
+  .dropdown-toggle {
+    width: 100%;
+    font-size: var(--font-size-03);
+    font-weight: 100;
+    border: 1px solid var(--border-primary);
+    border-radius: var(--bs-border-radius);
+    padding: 0.4rem 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+
+    &::after {
+      margin-left: auto;
+    }
+  }
+  .dropdown-menu {
+    width: 100%;
+    .dropdown-item {
+      font-size: var(--font-size-03);
+    }
+  }
+  &-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+
+    &-success {
+      color: var(--green-60, #198754);
+    }
+
+    &-error {
+      color: var(--red-60, #dc3545);
+    }
+  }
+
+  &-status-icon {
+    font-size: 1rem;
+  }
+}
+
+/* overleaf-lab: BYO provider table (Account settings) */
+.llm-buo {
+  &-table-wrap {
+    overflow-x: auto;
+    margin-bottom: 1.25rem;
+  }
+
+  &-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+
+    th,
+    td {
+      text-align: left;
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid var(--wf-border-in, #dfe5ec);
+      vertical-align: middle;
+    }
+
+    th {
+      font-weight: 600;
+      white-space: nowrap;
+    }
+  }
+
+  &-actions-col {
+    width: 14rem;
+  }
+
+  &-actions {
+    display: flex;
+    gap: 0.35rem;
+    justify-content: flex-end;
+  }
+
+  &-name {
+    font-weight: 600;
+  }
+
+  &-sub {
+    font-size: 0.8rem;
+    color: var(--content-secondary, #475569);
+  }
+
+  &-models {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    align-items: center;
+  }
+
+  &-more {
+    font-size: 0.8rem;
+    color: var(--content-secondary, #475569);
+  }
+
+  &-empty {
+    padding: 1rem 0 1.25rem;
+    color: var(--content-secondary, #475569);
+  }
+
+  &-required {
+    color: var(--text-error, #dc3545);
+    margin-left: 0.15rem;
+  }
+
+  &-keytoggle {
+    margin-top: 0.35rem;
+    font-size: 0.9rem;
+  }
+
+  &-model-editor {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  &-model-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.5rem;
+  }
+
+  &-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    background-color: var(--bg-light-secondary, #f8f9fa);
+    border: 1px solid var(--wf-border-in, #dfe5ec);
+    font-size: 0.85rem;
+  }
+
+  &-chip-x {
+    all: unset;
+    cursor: pointer;
+    line-height: 1;
+    color: var(--content-secondary, #475569);
+    font-size: 1rem;
+
+    &:hover {
+      color: var(--text-error, #dc3545);
+    }
+  }
+
+  &-enabled {
+    margin: 1rem 0;
+    font-size: 0.95rem;
+  }
+
+  &-editor {
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid var(--wf-border-in, #dfe5ec);
+    background-color: var(--wf-row-hi, #fff);
+    margin-top: 1rem;
+
+    &-title {
+      margin-top: 0;
+      font-size: 1.1rem;
+    }
+
+    &-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+    }
+  }
+}
+
+/* overleaf-lab: admin LLM settings page — styles extracted from inline
+   styles (F13). Rules are scoped under the page container for specificity
+   over the OL/bootstrap component base classes they override. */
+.ol-llm-admin-settings {
+  // overleaf-lab (owner request 2026-08-26): admin/user-style console layout —
+  // full-width grid: sticky left sidebar + content column. (Overrides the
+  // centered 800px column of the .llm-settings base used by the user pages.)
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+  max-width: none;
+
+  .llm-settings-header {
+    grid-column: 1 / -1;
+    margin-bottom: 0;
+  }
+
+  .llm-admin-content {
+    min-width: 0;
+  }
+
+  // Hide every section except the active one (data-active is set on the
+  // container, data-sec on each section).
+  [data-sec] {
+    display: none;
+  }
+  
+  &[data-active='features'] [data-sec='features'],
+  &[data-active='connection'] [data-sec='connection'],
+  &[data-active='models'] [data-sec='models'],
+  &[data-active='prompt'] [data-sec='prompt'],
+  &[data-active='prompts'] [data-sec='prompts'],
+  &[data-active='availability'] [data-sec='availability'],
+  &[data-active='mcp'] [data-sec='mcp'], // overleaf-lab (2026-11-05): MCP service tab
+  &[data-active='usage'] [data-sec='usage'] {
+    display: block;
+  }
+
+  // overleaf-lab: the Usage section is a direct grid child (outside the form,
+  // read-only meter) — pin it to the content column so it renders below the
+  // form instead of auto-flowing under the sidebar.
+  .llm-settings-section[data-sec='usage'] {
+    grid-column: 2;
+  }
+
+  // overleaf-lab: sidebar navigation — console-style list, active highlight.
+  .llm-admin-sidebar {
+    position: sticky;
+    top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0.5rem;
+    border: 1px solid var(--wf-border-in, #dfe5ec);
+    border-radius: 10px;
+    background-color: var(--wf-row-hi, #fff);
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+
+    .llm-admin-nav-item {
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+      width: 100%;
+      padding: 0.5rem 0.625rem;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      color: var(--content-primary, #1b222c);
+      font-size: 0.875rem;
+      font-weight: 500;
+      text-align: left;
+      cursor: pointer;
+
+      .llm-admin-nav-icon {
+        font-size: 18px;
+        color: var(--content-secondary, #475569);
+        flex-shrink: 0;
+      }
+
+      &:hover {
+        background-color: rgba(40, 81, 143, 0.06);
+      }
+
+      &.active {
+        background-color: rgba(40, 81, 143, 0.1);
+        color: var(--wf-accent, #28518f);
+        font-weight: 600;
+
+        .llm-admin-nav-icon {
+          color: var(--wf-accent, #28518f);
+        }
+      }
+    }
+  }
+
+  .llm-settings-section {
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  }
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+
+    .llm-admin-sidebar {
+      position: static;
+      flex-direction: row;
+      flex-wrap: wrap;
+      max-height: none;
+
+      .llm-admin-nav-item {
+        width: auto;
+      }
+    }
+  }
+
+  /* ── toggle switch (Features section) ── */
+  .ol-llm-admin-settings__switch {
+    position: relative;
+    width: 42px;
+    height: 24px;
+    flex-shrink: 0;
+    border-radius: 999px;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    transition: background-color 0.15s;
+    background-color: var(--border-color-02, #adb5bd);
+
+    &.is-on {
+      background-color: var(--wf-accent, #28518f);
+
+      .ol-llm-admin-settings__switch-knob {
+        left: 21px;
+      }
+    }
+  }
+
+  .ol-llm-admin-settings__switch-knob {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background-color: var(--wf-row-hi, #fff);
+    transition: left 0.15s;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+
+  /* ── shared text helpers ── */
+  .ol-llm-admin-settings__icon-sm {
+    font-size: 0.875rem;
+  }
+
+  .ol-llm-admin-settings__icon-base {
+    font-size: 1rem;
+  }
+
+  .ol-llm-admin-settings__icon-lg {
+    font-size: 1.125rem;
+  }
+
+  .ol-llm-admin-settings__icon-green {
+    color: var(--green-60, #198754);
+  }
+
+  .ol-llm-admin-settings__mono {
+    font-family: monospace;
+    font-size: 0.8125rem;
+  }
+
+  .ol-llm-admin-settings__muted {
+    color: var(--content-secondary, #475569);
+  }
+
+  .ol-llm-admin-settings__small {
+    font-size: 0.8125rem;
+    color: var(--content-secondary, #475569);
+  }
+
+  .ol-llm-admin-settings__model-count {
+    margin-left: auto;
+    font-size: 0.8125rem;
+    color: var(--content-secondary, #475569);
+  }
+
+  .ol-llm-admin-settings__connected-badge {
+    margin-left: auto;
+    font-size: 0.75rem;
+  }
+
+  .ol-llm-admin-settings__link-btn {
+    padding: 0;
+    font-size: 0.8125rem;
+  }
+
+  .ol-llm-admin-settings__link-btn-lg {
+    padding: 0;
+    font-size: 0.875rem;
+  }
+
+  .ol-llm-admin-settings__no-margin {
+    margin: 0;
+  }
+
+  .ol-llm-admin-settings__help-before {
+    margin-top: 0;
+    margin-bottom: 0.75rem;
+  }
+
+  .ol-llm-admin-settings__no-rubrics {
+    color: var(--content-secondary, #475569);
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+  }
+
+  /* ── layout rows ── */
+  .ol-llm-admin-settings__row-between {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .ol-llm-admin-settings__row-inline {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .ol-llm-admin-settings__row-end {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .ol-llm-admin-settings__feature-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .ol-llm-admin-settings__feature-row + .ol-llm-admin-settings__feature-row {
+    border-top: 1px solid var(--wf-border-in, #dfe5ec);
+  }
+
+  /* overleaf-lab (owner request 2026-11-05): per-service MCP on/off rows
+     with an info (i) affordance that expands the "what it does" detail. */
+  .ol-llm-admin-settings__mcp-service {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--wf-border-in, #dfe5ec);
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+  }
+
+  .ol-llm-admin-settings__mcp-service-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .ol-llm-admin-settings__mcp-info-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--wf-border-in, #dfe5ec);
+    border-radius: 50%;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    cursor: pointer;
+    color: var(--wf-primary-btn-bg, #4788ff);
+  }
+
+  .ol-llm-admin-settings__mcp-info-btn:hover,
+  .ol-llm-admin-settings__mcp-info-btn[aria-expanded='true'] {
+    background: var(--wf-primary-btn-bg, #4788ff);
+    color: #fff;
+  }
+
+  .ol-llm-admin-settings__mcp-info {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-left: 3px solid var(--wf-primary-btn-bg, #4788ff);
+    background: var(--wf-background-05, #f6f8fa);
+    font-size: 0.875rem;
+  }
+
+  .ol-llm-admin-settings__mcp-info ul {
+    margin: 0.5rem 0 0;
+    padding-left: 1.1rem;
+  }
+
+  .ol-llm-admin-settings__mcp-info li {
+    margin: 0.15rem 0;
+  }
+
+  .ol-llm-admin-settings__feature-title {
+    font-weight: 500;
+  }
+
+  .ol-llm-admin-settings__model-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 1rem;
+    cursor: pointer;
+    margin: 0;
+    transition: background-color 0.15s;
+  }
+
+  .ol-llm-admin-settings__model-row + .ol-llm-admin-settings__model-row {
+    border-top: 1px solid var(--wf-border-in, #dfe5ec);
+  }
+
+  .ol-llm-admin-settings__model-checkbox {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--wf-accent, #28518f);
+  }
+
+  .ol-llm-admin-settings__models-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+
+  .ol-llm-admin-settings__rubric-card {
+    border: 1px solid var(--wf-border-in, #dfe5ec);
+    border-radius: 6px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .ol-llm-admin-settings__save-btn {
+    min-width: 160px;
+  }
+
+  /* ── text + state colors ── */
+  .ol-llm-admin-settings__ok-green {
+    color: var(--green-60, #198754);
+    font-size: 0.875rem;
+  }
+
+  .ol-llm-admin-settings__muted-md {
+    color: var(--content-secondary, #475569);
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+  }
+
+  .ol-llm-admin-settings__mono-lg {
+    font-family: monospace;
+    font-size: 0.875rem;
+  }
+
+  .ol-llm-admin-settings__small-md {
+    font-size: 0.875rem;
+    padding: 0;
+  }
+
+  .ol-llm-admin-settings__model-list {
+    border: 1px solid var(--wf-border-in, #dfe5ec);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  /* ── margin utilities (this page only) ── */
+  .ol-llm-admin-settings__mb-xs {
+    margin-bottom: 0.25rem;
+  }
+
+  .ol-llm-admin-settings__mb-sm {
+    margin-bottom: 0.5rem;
+  }
+
+  .ol-llm-admin-settings__mb-lg {
+    margin-bottom: 1rem;
+  }
+
+  .ol-llm-admin-settings__mb-xl {
+    margin-bottom: 1.25rem;
+  }
+
+  .ol-llm-admin-settings__mt-sm {
+    margin-top: 0.5rem;
+  }
+
+  .ol-llm-admin-settings__mt-md {
+    margin-top: 0.75rem;
+  }
+
+  .ol-llm-admin-settings__mt-lg {
+    margin-top: 1rem;
+  }
+
+  .ol-llm-admin-settings__mt-xl {
+    margin-top: 1.25rem;
+  }
+
+  .ol-llm-admin-settings__mt-lg-mb-0 {
+    margin-top: 1rem;
+    margin-bottom: 0;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   BYO provider page (user settings)
+   ───────────────────────────────────────────────────────────────────── */
+
+.llm-buo {
+  &-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--wf-border-in, #dfe5ec);
+    border-radius: 8px;
+    background-color: var(--wf-row-hi, #fff);
+  }
+
+  &-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 560px;
+    font-size: 0.9375rem;
+
+    thead th {
+      text-align: left;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--content-secondary, #475569);
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--wf-border-in, #dfe5ec);
+      white-space: nowrap;
+    }
+
+    tbody td {
+      padding: 0.875rem 1rem;
+      vertical-align: middle;
+      border-bottom: 1px solid var(--border-color-02, #eef0f2);
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    tbody tr {
+      transition: background-color 0.12s ease;
+
+      &:hover {
+        background-color: var(--bg-light-secondary, #f7f8fa);
+      }
+    }
+
+    .llm-buo-actions-col {
+      text-align: right;
+    }
+
+    .llm-buo-name {
+      font-weight: 500;
+      margin-bottom: 0.125rem;
+    }
+
+    .llm-buo-sub {
+      font-size: 0.8125rem;
+      color: var(--content-secondary, #475569);
+    }
+
+    .llm-buo-models {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.375rem;
+      align-items: center;
+    }
+
+    .llm-buo-more {
+      font-size: 0.8125rem;
+      color: var(--content-secondary, #475569);
+    }
+
+    .llm-buo-actions {
+      text-align: right;
+      white-space: nowrap;
+
+      .btn {
+        margin-left: 0.5rem;
+
+        &:first-child {
+          margin-left: 0;
+        }
+      }
+    }
+  }
+
+  &-empty {
+    padding: 2rem 1.5rem;
+    text-align: center;
+    color: var(--content-secondary, #475569);
+    border: 1px dashed var(--border-color-02, #dee2e6);
+    border-radius: 8px;
+    background-color: var(--wf-row-hi, #fff);
+  }
+
+  &-editor {
+    max-width: 640px;
+    padding: 1.5rem;
+    border: 1px solid var(--wf-border-in, #dfe5ec);
+    border-radius: 8px;
+    background-color: var(--wf-row-hi, #fff);
+    margin-top: 1rem;
+
+    .form-group {
+      margin-bottom: 1rem;
+    }
+  }
+
+  &-editor-title {
+    margin-bottom: 1rem;
+    font-size: 1.125rem;
+  }
+
+  &-required {
+    color: #c0392b;
+    margin-left: 2px;
+  }
+
+  &-keytoggle {
+    margin-top: 0.375rem;
+    font-size: 0.875rem;
+    color: var(--content-secondary, #475569);
+
+    input {
+      margin-right: 0.375rem;
+    }
+  }
+
+  &-model-editor {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+
+    .form-control {
+      flex: 1;
+    }
+  }
+
+  &-model-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin-top: 0.5rem;
+  }
+
+  &-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.8125rem;
+    border: 1px solid var(--wf-border-in, #dfe5ec);
+    border-radius: 999px;
+    background-color: var(--bg-light-secondary, #f7f8fa);
+
+    &-x {
+      border: none;
+      background: none;
+      padding: 0;
+      font-size: 1rem;
+      line-height: 1;
+      cursor: pointer;
+      color: var(--content-secondary, #475569);
+
+      &:hover {
+        color: #c0392b;
+      }
+    }
+  }
+
+  &-enabled {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color-02, #eef0f2);
+    font-size: 0.9375rem;
+
+    input {
+      margin-right: 0.5rem;
+    }
+  }
+
+  &-editor-actions {
+    display: flex;
+    gap: 0.625rem;
+    margin-top: 1.5rem;
+  }
+}
+
+// overleaf-lab (2026-11): the Editor section of the user LLM settings
+// (inline-completion toggle row + hint).
+.llm-editor-settings {
+    padding: 6px 0 2px;
+
+    .llm-editor-settings-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 500;
+
+        input[type='checkbox'] {
+            width: 18px;
+            height: 18px;
+            margin: 0;
+            cursor: pointer;
+        }
+    }
+
+    .llm-editor-settings-hint {
+        color: var(--wf-muted, #475569);
+        font-size: 0.85rem;
+        margin: 6px 0 0 28px;
+    }
+}

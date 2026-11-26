@@ -1,492 +1,356 @@
 import Settings from '@overleaf/settings'
-import { fetchJson, fetchNothing, RequestFailedError } from '@overleaf/fetch-utils'
-import { z } from '../../../../app/src/infrastructure/Validation.mjs'
+import { fetchJson } from '@overleaf/fetch-utils'
+import { z, zz } from '../../../../app/src/infrastructure/Validation.mjs'
 import AuthorizationManager from '../../../../app/src/Features/Authorization/AuthorizationManager.mjs'
-import AdminAuthorizationHelper from '../../../../app/src/Features/Helpers/AdminAuthorizationHelper.mjs'
 import HistoryManager from '../../../../app/src/Features/History/HistoryManager.mjs'
-import RestoreManager from '../../../../app/src/Features/History/RestoreManager.mjs'
-import ProjectAuditLogHandler from '../../../../app/src/Features/Project/ProjectAuditLogHandler.mjs'
 import ProjectGetter from '../../../../app/src/Features/Project/ProjectGetter.mjs'
-import UserGetter from '../../../../app/src/Features/User/UserGetter.mjs'
-import {
-  checkAccess,
-  checkNotRestricted,
-  filePath,
-  person,
-  pullHint,
-  rateLimiters,
-  text,
-  version,
-} from './McpUtils.mjs'
-
-// The history panel's reads and writes: project-history for the changes,
-// diffs and versions (labels), RestoreManager for restores. The diffs process
-// the queued edits first, like the changes list, so they include the latest.
-
-const HISTORY_URL = Settings.apis.project_history.url
-const DAY = 24 * 60 * 60 * 1000
-
-const iso = timestamp => new Date(timestamp).toISOString()
-
-// One batch of the history panel: at least 10 changes, older than before
-async function getUpdates(projectId, userId, before) {
-  const url = new URL(`${HISTORY_URL}/project/${projectId}/updates`)
-  url.searchParams.set('min_count', '10')
-  if (before != null) url.searchParams.set('before', before.toString())
-  return await fetchJson(url, { headers: { 'X-User-Id': userId } })
-}
-
-// Without the owner's full project history (versioning), the history panel
-// shows the changes of the last 24 hours, at least one, unless the user is an
-// admin (history-context.tsx). Returns the oldest version it lets them see,
-// or null when they see all.
-async function oldestVisibleVersion(projectId, userId) {
-  const { owner_ref: ownerId } = await ProjectGetter.promises.getProject(
-    projectId,
-    { owner_ref: 1 }
-  )
-  const [owner, user] = await Promise.all([
-    UserGetter.promises.getUser(ownerId, { features: 1 }),
-    UserGetter.promises.getUser(userId, { isAdmin: 1 }),
-  ])
-  if (
-    owner?.features?.versioning ||
-    AdminAuthorizationHelper.hasAdminAccess(user)
-  ) {
-    return null
-  }
-  const dayAgo = Date.now() - DAY
-  let before
-  let newer = null
-  do {
-    const { updates, nextBeforeTimestamp } = await getUpdates(
-      projectId,
-      userId,
-      before
-    )
-    for (const update of updates) {
-      // the panel fades the first older change and shows the one before it,
-      // or this one when all are older
-      if (update.meta.end_ts < dayAgo) return (newer ?? update).fromV
-      newer = update
-    }
-    before = nextBeforeTimestamp
-  } while (before != null)
-  return null
-}
-
-// The latest version, once the queued edits are processed
-async function latestVersion(projectId) {
-  const { version } = await fetchJson(`${HISTORY_URL}/project/${projectId}/version`)
-  return version
-}
-
-// Versions the history panel lets the user pick: project-history fails on
-// the ones that do not exist yet
-async function checkVersionsVisible(projectId, userId, ...versions) {
-  const latest = await latestVersion(projectId)
-  const missing = versions.find(v => v > latest)
-  if (missing != null) {
-    throw new Error(`Version ${missing} not found, the latest is ${latest}`)
-  }
-  const oldest = await oldestVisibleVersion(projectId, userId)
-  if (oldest != null && versions.some(v => v < oldest)) {
-    throw new Error(
-      `Versions before ${oldest} are not available: the project owner does ` +
-        'not have full project history'
-    )
-  }
-}
-
-async function getDocDiff(projectId, path, from, to) {
-  const url = new URL(`${HISTORY_URL}/project/${projectId}/diff`)
-  url.searchParams.set('pathname', path)
-  url.searchParams.set('from', from.toString())
-  url.searchParams.set('to', to.toString())
-  try {
-    return (await fetchJson(url)).diff
-  } catch (err) {
-    if (err instanceof RequestFailedError && err.response.status === 404) {
-      throw new Error(`${path} not found at version ${from}`)
-    }
-    throw err
-  }
-}
-
-// read_file of a version: a diff of the version with itself, unchanged text
-export async function readFileAtVersion(projectId, userId, path, v) {
-  await checkNotRestricted(
+import RestoreManager from '../../../../app/src/Features/History/RestoreManager.mjs'
+import { checkAccess, filePath, limited, person, rateLimiters, text } from './McpUtils.mjs'
+// The project history: the same backend the history panel uses. The panel
+// reads the project-history service through the web routes
+// (/project/:id/updates, /project/:id/diff, the label endpoints) with the
+// user's id (X-User-Id header, exactly as
+// HistoryController.proxyToHistoryApi does) and injects the users' names
+// through HistoryManager.promises.injectUserDetails; restore goes through
+// RestoreManager (revertProject / restoreFileFromV2) with the
+// write-project permission of the panel's restore routes. The tools below
+// use the same backends with the same permission checks, so nothing is
+// possible through MCP that the editor would not allow.
+//
+// Service endpoints used (services/project-history/app/js/Router.js):
+//   GET    /project/:id/updates?min_count=N                summarized updates
+//   GET    /project/:id/diff?pathname=&from=&to=           one-file diff
+//   GET    /project/:id/filetree/diff?from=&to=            whole-project diff
+//   GET    /project/:id/version                             latest version
+//   GET    /project/:id/version/:version/:pathname          file content
+//   GET    /project/:id/labels                              named versions
+//   POST   /project/:id/labels                              create a label
+//   DELETE /project/:id/labels/:label_id                    delete (owner)
+//   DELETE /project/:id/user/:user_id/labels/:label_id      delete (other)
+const historyUrl = path => `${Settings.apis.project_history.url}${path}`
+const blockLinkViewers = (userId, projectId) =>
+  checkAccess(
+    async (userId, projectId) =>
+      !(await AuthorizationManager.promises.isRestrictedUserForProject(userId, projectId)),
     userId,
     projectId,
-    'You cannot see the history of this project'
+    'You can\'t see the history of this project (you joined by link)'
   )
-  await checkVersionsVisible(projectId, userId, v)
-  const diff = await getDocDiff(projectId, path, v, v)
-  if (diff.binary) throw new Error(`${path} is a binary file`)
-  return diff.map(part => part.u ?? part.i ?? '').join('')
-}
-
-// A unified diff, like git diff, from the parts of project-history's diff:
-// unchanged (u), inserted (i) and deleted (d) text. A line is { text, eol },
-// eol telling whether a line break ends it, so that adding or removing the
-// last line break shows, with git's "\ No newline at end of file".
-export function unifiedDiff(path, parts, context = 3) {
-  const lines = [] // { type: ' ' | '-' | '+', text, eol }
-  // the old and new line being read, and whether a change touched them
-  let oldLine = ''
-  let newLine = ''
-  let oldTouched = false
-  let newTouched = false
-  // changed lines, shown as removed then added before the next unchanged one
-  let removed = []
-  let added = []
-  const sameLine = (a, b) => a.text === b.text && a.eol === b.eol
-  const flush = () => {
-    // the same lines at both ends did not change, e.g. a line break inserted
-    // at the end of a line
-    let start = 0
-    while (
-      start < Math.min(removed.length, added.length) &&
-      sameLine(removed[start], added[start])
-    ) {
-      start++
-    }
-    let end = 0
-    while (
-      end < Math.min(removed.length, added.length) - start &&
-      sameLine(removed.at(-1 - end), added.at(-1 - end))
-    ) {
-      end++
-    }
-    const as = type => line => ({ type, ...line })
-    lines.push(
-      ...removed.slice(0, start).map(as(' ')),
-      ...removed.slice(start, removed.length - end).map(as('-')),
-      ...added.slice(start, added.length - end).map(as('+')),
-      ...removed.slice(removed.length - end).map(as(' '))
-    )
-    removed = []
-    added = []
-  }
-  // both lines end, with a line break, or at the end of the file
-  const endBoth = eol => {
-    const hasOld = eol || oldLine !== ''
-    const hasNew = eol || newLine !== ''
-    if (hasOld && hasNew && !oldTouched && !newTouched && oldLine === newLine) {
-      flush()
-      lines.push({ type: ' ', text: oldLine, eol })
-    } else {
-      if (hasOld) removed.push({ text: oldLine, eol })
-      if (hasNew) added.push({ text: newLine, eol })
-    }
-    oldLine = newLine = ''
-    oldTouched = newTouched = false
-  }
-  for (const part of parts) {
-    const segments = (part.u ?? part.i ?? part.d).split('\n')
-    segments.forEach((segment, index) => {
-      const ends = index < segments.length - 1
-      if (part.u != null) {
-        oldLine += segment
-        newLine += segment
-        if (ends) endBoth(true)
-      } else if (part.d != null) {
-        oldLine += segment
-        if (segment) oldTouched = true
-        if (ends) {
-          // a deleted line break: the new line goes on with what came before
-          removed.push({ text: oldLine, eol: true })
-          if (newLine) newTouched = true
-          oldLine = ''
-          oldTouched = false
-        }
-      } else {
-        newLine += segment
-        if (segment) newTouched = true
-        if (ends) {
-          added.push({ text: newLine, eol: true })
-          if (oldLine) oldTouched = true
-          newLine = ''
-          newTouched = false
-        }
-      }
-    })
-  }
-  endBoth(false)
-  flush()
-
-  // hunks: the changed lines with up to `context` lines around them
-  const keep = lines.map(() => false)
-  lines.forEach(({ type }, index) => {
-    if (type === ' ') return
-    for (
-      let k = Math.max(0, index - context);
-      k <= Math.min(lines.length - 1, index + context);
-      k++
-    ) {
-      keep[k] = true
-    }
+const canRead = (userId, projectId) =>
+  checkAccess(
+    (userId, projectId) =>
+      AuthorizationManager.promises.canUserReadProject(userId, projectId),
+    userId,
+    projectId,
+    'You can\'t read this project'
+  )
+const canWrite = (userId, projectId) =>
+  checkAccess(
+    (userId, projectId) =>
+      AuthorizationManager.promises.canUserWriteProjectContent(userId, projectId),
+    userId,
+    projectId,
+    'You can\'t change the files of this project'
+  )
+const asPath = p => p.replace(/^\/+/, '') // history pathnames are bare ("src/intro.tex")
+async function latestVersion(projectId, userId) {
+  const body = await fetchJson(historyUrl(`/project/${projectId}/version`), {
+    headers: { 'X-User-Id': userId },
   })
-  const out = []
-  let oldNumber = 1
-  let newNumber = 1
-  let index = 0
-  while (index < lines.length) {
-    if (!keep[index]) {
-      if (lines[index].type !== '+') oldNumber++
-      if (lines[index].type !== '-') newNumber++
-      index++
-      continue
-    }
-    const start = index
-    const [oldStart, newStart] = [oldNumber, newNumber]
-    const hunk = []
-    while (index < lines.length && keep[index]) {
-      const { type, text, eol } = lines[index]
-      hunk.push(type + text)
-      if (!eol) hunk.push('\\ No newline at end of file')
-      if (type !== '+') oldNumber++
-      if (type !== '-') newNumber++
-      index++
-    }
-    const oldCount = lines.slice(start, index).filter(l => l.type !== '+').length
-    const newCount = lines.slice(start, index).filter(l => l.type !== '-').length
-    out.push(`@@ -${oldStart},${oldCount} +${newStart},${newCount} @@`, ...hunk)
-  }
-  return out.length ? [`--- a/${path}`, `+++ b/${path}`, ...out].join('\n') : ''
+  return body.version
 }
-
-export function buildHistoryTools({ userId, projectId, ip }) {
-  const checkCanSee = () =>
-    checkNotRestricted(
-      userId,
-      projectId,
-      'You cannot see the history of this project'
-    )
-  // as the history panel's routes
-  const checkCanLabel = () =>
-    checkAccess(
-      AuthorizationManager.promises.canUserWriteOrReviewProjectContent,
-      userId,
-      projectId,
-      'You cannot save versions of this project'
-    )
-  const checkCanRestore = () =>
-    checkAccess(
-      AuthorizationManager.promises.canUserWriteProjectContent,
-      userId,
-      projectId,
-      'You cannot edit this project'
-    )
-
+export function buildHistoryTools({ userId, projectId, client }) {
   return {
-    list_changes: {
-      rateLimiter: rateLimiters.listChanges,
+    list_history: {
+      rateLimiter: rateLimiters.listHistory,
       description:
-        'List the changes of the project, newest first, as the history ' +
-        'panel: who changed which files and when, with the versions before ' +
-        'and after (fromVersion, toVersion) for diff, read_file and the ' +
-        'restore tools. Returns a batch; pass its before to get older ones.',
+        'List the project history, newest first: each update with its ' +
+        'version number, who made it, when, the comment, and which files ' +
+        'it touched. Viewers who joined by link do not see the history, ' +
+        'like in Overleaf.',
       inputSchema: {
-        before: z
+        limit: z
           .number()
           .int()
-          .optional()
-          .describe('before returned by the previous call, for older changes.'),
+          .min(1)
+          .max(100)
+          .default(20)
+          .describe('At most this many history entries.'),
       },
-      handler: async ({ before }) => {
-        await checkCanSee()
-        const oldest = await oldestVisibleVersion(projectId, userId)
-        const { updates, nextBeforeTimestamp } =
-          await HistoryManager.promises.injectUserDetails(
-            await getUpdates(projectId, userId, before)
-          )
-        const visible = updates.filter(
-          update => oldest == null || update.fromV >= oldest
+      handler: async ({ limit }) => {
+        await blockLinkViewers(userId, projectId)
+        await canRead(userId, projectId)
+        const body = await fetchJson(
+          historyUrl(`/project/${projectId}/updates?min_count=${limit}`),
+          { headers: { 'X-User-Id': userId } }
         )
-        const hidden = visible.length < updates.length
-        return text({
-          changes: visible.map(update => ({
-            fromVersion: update.fromV,
-            toVersion: update.toV,
-            start: iso(update.meta.start_ts),
-            end: iso(update.meta.end_ts),
-            authors: update.meta.users.map(person),
-            files: update.pathnames,
-            fileOperations: update.project_ops.map(({ add, remove, rename }) =>
-              add
-                ? { added: add.pathname }
-                : remove
-                  ? { removed: remove.pathname }
-                  : { renamed: rename.pathname, to: rename.newPathname }
-            ),
-          })),
-          before: hidden ? null : (nextBeforeTimestamp ?? null),
-          ...(hidden && {
-            note:
-              'Older changes are hidden: the project owner does not have ' +
-              'full project history.',
-          }),
-        })
-      },
-    },
-
-    diff: {
-      rateLimiter: rateLimiters.diff,
-      description:
-        'Compare two versions of the project (fromVersion and toVersion of ' +
-        'list_changes): with a path, the changes of that file as a unified ' +
-        'diff; without, the files that were added, removed, edited or renamed.',
-      inputSchema: {
-        fromVersion: version,
-        toVersion: version,
-        path: filePath.optional(),
-      },
-      handler: async ({ fromVersion, toVersion, path }) => {
-        await checkCanSee()
-        if (fromVersion > toVersion) {
-          throw new Error('fromVersion must not be after toVersion')
-        }
-        await checkVersionsVisible(projectId, userId, fromVersion, toVersion)
-        if (path == null) {
-          const url = new URL(`${HISTORY_URL}/project/${projectId}/filetree/diff`)
-          url.searchParams.set('from', fromVersion.toString())
-          url.searchParams.set('to', toVersion.toString())
-          const { diff } = await fetchJson(url)
-          return text(
-            diff
-              .filter(({ operation }) => operation)
-              .map(({ pathname, newPathname, operation }) => ({
-                path: pathname,
-                change: operation,
-                ...(newPathname && { newPath: newPathname }),
-              }))
-          )
-        }
-        const diff = await getDocDiff(projectId, path, fromVersion, toVersion)
-        if (diff.binary) throw new Error(`${path} is a binary file`)
+        const data = await HistoryManager.promises.injectUserDetails(body)
+        const updates = data.updates || (Array.isArray(data) ? data : [])
         return text(
-          unifiedDiff(path, diff) ||
-            `${path} did not change from version ${fromVersion} to ${toVersion}.`
+          updates.map(entry => ({
+            // summarized updates span a version range (fromV..toV); a single
+            // edit is fromV+1..toV, i.e. "version toV"
+            version:
+              entry.toV != null
+                ? entry.fromV == null || entry.fromV + 1 === entry.toV
+                  ? entry.toV
+                  : `${entry.fromV + 1}…${entry.toV}`
+                : entry.version,
+            users: (entry.meta?.users || [])
+              .map(u => person(u))
+              .filter(Boolean),
+            date: new Date(entry.meta?.end_ts || entry.meta?.start_ts || 0)
+              .toISOString(),
+            comment: entry.labels?.[0]?.comment || entry.comment || '',
+            labels: (entry.labels || []).map(l => l.comment).filter(Boolean),
+            files: Array.from(entry.pathnames || []).map(p => p.slice(1)),
+          }))
         )
       },
     },
-
+    get_diff: {
+      rateLimiter: rateLimiters.getDiff,
+      description:
+        'The diff between two versions. Without a file: which files were '
+        +
+        'added/changed/removed in that span + per-file details. With a file: '
+        +
+        'the unified content diff of that file. Truncated to a readable '
+        +
+        'size. versionA older, versionB newer; omit both for the whole '
+        +
+        'content so far.',
+      inputSchema: {
+        file: filePath.optional().describe(
+          'One file, e.g. sections/intro.tex; without it the file list + per-file summary.'
+        ),
+        versionA: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe('Older version (0 = empty), default 0.'),
+        versionB: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe('Newer version, default the current state.'),
+      },
+      handler: async ({ file, versionA, versionB }) => {
+        await blockLinkViewers(userId, projectId)
+        await canRead(userId, projectId)
+        const to =
+          versionB ??
+          (await latestVersion(projectId, userId).catch(() => null)) ??
+          0
+        const from = versionA ?? 0
+        const url = file
+          ? historyUrl(
+              `/project/${projectId}/diff?pathname=${encodeURIComponent(
+                asPath(file)
+              )}&from=${from}&to=${to}`
+            )
+          : historyUrl(
+              `/project/${projectId}/filetree/diff?from=${from}&to=${to}`
+            )
+        const body = await fetchJson(url, {
+          headers: { 'X-User-Id': userId },
+        })
+        const data = await HistoryManager.promises.injectUserDetails(body).catch(
+          () => body
+        )
+        const out =
+          typeof data === 'string' ? data : JSON.stringify(data, null, 2)
+        return text(limited(out, 'diff'))
+      },
+    },
+    read_version_file: {
+      rateLimiter: rateLimiters.getDiff,
+      description:
+        'Read ONE project file as it was at a given version (the ' +
+        '"view this version" content): the whole file text at that ' +
+        'version.',
+      inputSchema: {
+        file: filePath.describe('The file, e.g. sections/intro.tex.'),
+        version: z
+          .number()
+          .int()
+          .min(0)
+          .describe('The version to read (list_history gives them).'),
+      },
+      handler: async ({ file, version }) => {
+        await blockLinkViewers(userId, projectId)
+        await canRead(userId, projectId)
+        const url = historyUrl(
+          `/project/${projectId}/version/${version}/${asPath(file).split('/').map(encodeURIComponent).join('/')}`
+        )
+        const res = await fetch(url, { headers: { 'X-User-Id': userId } })
+        if (!res.ok) {
+          throw new Error(
+            `Version ${version} of ${file} is not available (${res.status}). ` +
+              'Try another version, list_history shows the available ones.'
+          )
+        }
+        const body = await res.text()
+        return text(limited(body, `file ${file} @ version ${version}`))
+      },
+    },
     create_version: {
       rateLimiter: rateLimiters.createVersion,
       description:
-        'Save a version in the project history with a comment, as "Label ' +
-        'this version" in the history panel: the latest version, or the ' +
-        'given one.',
+        'Create a named version at the current state (the "create version" '
+        + 'of the history panel), with a comment; then visible to the user '
+        + 'in the panel and in list_versions here. Versions created through '
+        + 'MCP are marked "via MCP" in their comment, so the owner can tell '
+        + 'agent-created versions apart.',
       inputSchema: {
-        comment: z
-          .string()
-          .min(1)
-          .describe('What the version is, e.g. "Submitted draft".'),
-        version: version.optional(),
+        comment: z.string().min(1).max(200).describe('The label/comment.'),
       },
-      handler: async ({ comment, version: v }) => {
-        await checkCanLabel()
-        v ??= await latestVersion(projectId)
-        await checkVersionsVisible(projectId, userId, v)
+      handler: async ({ comment }) => {
+        // as POST /project/:id/labels (write-or-review, like the panel)
+        await checkAccess(
+          (userId, projectId) =>
+            AuthorizationManager.promises.canUserWriteOrReviewProjectContent(userId, projectId),
+          userId,
+          projectId,
+          'You can\'t create named versions of this project'
+        )
+        const version = await latestVersion(projectId, userId)
+        // overleaf-lab (issue #126, plan step 7 — AI identity layer): the
+        // version's author is the PAT owner; the marker makes it visible to
+        // humans reviewing the history that THIS version came from an agent
+        // (and which one, when the harness sends X-MCP-Client).
+        const source = client && client !== 'mcp' ? ` via MCP ${client}` : ' via MCP'
+        const labeled = [comment.trim(), source].filter(Boolean).join('').slice(0, 240)
         const label = await fetchJson(
-          `${HISTORY_URL}/project/${projectId}/labels`,
+          historyUrl(`/project/${projectId}/labels`),
           {
             method: 'POST',
-            json: { comment, version: v, user_id: userId },
+            headers: { 'X-User-Id': userId },
+            json: { comment: labeled, version, user_id: userId },
           }
         )
-        return text({ id: label.id, version: label.version, comment: label.comment })
-      },
-    },
-
-    delete_version: {
-      rateLimiter: rateLimiters.deleteVersion,
-      description:
-        'Delete a version saved in the project history (id of ' +
-        'list_versions); its changes stay. Only the owner deletes the ' +
-        'versions others saved.',
-      inputSchema: {
-        id: z.string().describe('id returned by list_versions.'),
-      },
-      handler: async ({ id }) => {
-        await checkCanLabel()
-        const [labels, project] = await Promise.all([
-          fetchJson(`${HISTORY_URL}/project/${projectId}/labels`),
-          ProjectGetter.promises.getProject(projectId, { owner_ref: 1 }),
-        ])
-        const label = labels.find(label => label.id === id)
-        if (!label) throw new Error(`Version ${id} not found, list_versions again`)
-        // as the history panel: the owner deletes any, others their own
-        const isOwner = project.owner_ref.equals(userId)
-        if (!isOwner && label.user_id !== userId) {
-          throw new Error('You can only delete the versions you saved')
-        }
-        await fetchNothing(
-          isOwner
-            ? `${HISTORY_URL}/project/${projectId}/labels/${id}`
-            : `${HISTORY_URL}/project/${projectId}/user/${userId}/labels/${id}`,
-          { method: 'DELETE' }
-        )
-        return text('Deleted the version.')
-      },
-    },
-
-    restore_file: {
-      rateLimiter: rateLimiters.restoreFile,
-      description:
-        'Restore a file as it was at a version, as "Restore this version" ' +
-        'in the history panel; the restore is a new change, so it can be ' +
-        'undone the same way. Use it when the user asks.',
-      inputSchema: { path: filePath, version },
-      handler: async ({ path, version: v }) => {
-        await checkCanRestore()
-        await checkVersionsVisible(projectId, userId, v)
-        const entity = await RestoreManager.promises.revertFile(
-          userId,
-          projectId,
-          v,
-          path,
-          {}
-        )
-        ProjectAuditLogHandler.addEntryIfManagedInBackground(
-          projectId,
-          'project-history-version-restored',
-          userId,
-          ip,
-          { version: v, scope: 'file', pathname: path, restoredEntityId: entity._id }
-        )
         return text(
-          `Restored ${path} as it was at version ${v}. ${pullHint(projectId)}`
+          `Version ${version} is now labeled \u201c${labeled}\u201d (id ${label.id}).`
         )
       },
     },
-
-    restore_project: {
+    delete_version_label: {
+      rateLimiter: rateLimiters.deleteVersionLabel,
+      description:
+        'Delete a named version (a label); the version itself stays in ' +
+        'the history, only the name is removed. list_versions (the ' +
+        'current tool) shows the labels and their ids. You can only ' +
+        'delete your own labels, unless you own the project — like in ' +
+        'Overleaf.',
+      inputSchema: {
+        labelId: zz.objectId().describe('The label id from list_versions.'),
+      },
+      handler: async ({ labelId }) => {
+        await checkAccess(
+          (userId, projectId) =>
+            AuthorizationManager.promises.canUserWriteOrReviewProjectContent(userId, projectId),
+          userId,
+          projectId,
+          'You can\'t delete named versions of this project'
+        )
+        // the web controller deletes owner labels through the shared
+        // endpoint and everybody else's through the user-specific one
+        const project = await ProjectGetter.promises.getProject(projectId, {
+          owner_ref: true,
+        })
+        const url = project.owner_ref.equals(userId) || String(project.owner_ref) === String(userId)
+          ? historyUrl(`/project/${projectId}/labels/${labelId}`)
+          : historyUrl(
+              `/project/${projectId}/user/${userId}/labels/${labelId}`
+            )
+        // the DELETE responds 204 with an empty body — not JSON
+        const res = await fetch(url, {
+          method: 'DELETE',
+          headers: { 'X-User-Id': userId },
+        })
+        if (!res.ok && res.status !== 204) {
+          const body = await res.text().catch(() => '')
+          if (res.status === 404) {
+            throw new Error(
+              'Label not found or it is not yours — list the labels with list_versions.'
+            )
+          }
+          throw new Error(
+            `Deleting the label failed: ${res.status} ${body}`.slice(0, 300)
+          )
+        }
+        return text('Label deleted.')
+      },
+    },
+    restore_project_version: {
       rateLimiter: rateLimiters.restoreProject,
       description:
-        'Restore the whole project as it was at a version, as "Restore ' +
-        'project to this version" in the history panel: every file changes ' +
-        'back. The restore is a new change, so it can be undone the same ' +
-        'way. Use it only when the user asks for the whole project.',
-      inputSchema: { version },
-      handler: async ({ version: v }) => {
-        await checkCanRestore()
-        await checkVersionsVisible(projectId, userId, v)
-        const reverted = await RestoreManager.promises.revertProject(
-          userId,
-          projectId,
-          v
+        'Restore the WHOLE project to an older version (the history ' +
+        'panel restore). DESTRUCTIVE: every file goes back to that ' +
+        'version. A new version is created, so the previous content ' +
+        'stays reachable in the history. Before restoring, show the user ' +
+        'what changes with get_diff (version: the old one, vs now) — or ' +
+        'create_version first as a safety label.',
+      inputSchema: {
+        version: z
+          .number()
+          .int()
+          .min(0)
+          .describe('The version to restore (list_history).'),
+        confirm: z
+          .boolean()
+          .describe('Must be true; this replaces every file.'),
+      },
+      handler: async ({ version, confirm }) => {
+        if (!confirm) {
+          throw new Error(
+            'confirm=true is required: restoring replaces every file.'
+          )
+        }
+        await canWrite(userId, projectId)
+        await RestoreManager.promises.revertProject(userId, projectId, version)
+        return text(
+          `Restored the project to version ${version}. A new version now ` +
+            'exists, so the previous content is still in the history.'
         )
-        ProjectAuditLogHandler.addEntryIfManagedInBackground(
-          projectId,
-          'project-history-version-restored',
+      },
+    },
+    restore_file_version: {
+      rateLimiter: rateLimiters.restoreFileVersion,
+      description:
+        'Restore ONE file to an older version (the history panel file ' +
+        'restore). DESTRUCTIVE for that file: its current content goes ' +
+        'back to that version. A new version is created, so the previous ' +
+        'content stays reachable in the history.',
+      inputSchema: {
+        file: filePath.describe('The file, e.g. sections/intro.tex.'),
+        version: z
+          .number()
+          .int()
+          .min(0)
+          .describe('The version to restore (list_history).'),
+        confirm: z
+          .boolean()
+          .describe('Must be true; this replaces the current content.'),
+      },
+      handler: async ({ file, version, confirm }) => {
+        if (!confirm) {
+          throw new Error(
+            'confirm=true is required: restoring replaces the current content.'
+          )
+        }
+        await canWrite(userId, projectId)
+        await RestoreManager.promises.restoreFileFromV2(
           userId,
-          ip,
-          { version: v, scope: 'project', restoredEntities: reverted }
+          projectId,
+          version,
+          asPath(file).replace(/^\/+/, '')
         )
         return text(
-          `Restored the project as it was at version ${v}. ` + pullHint(projectId)
+          `Restored ${file} to version ${version}. The previous content ` +
+            'is still in the project history.'
         )
       },
     },

@@ -1,0 +1,42 @@
+extends ../../../../app/views/layout-react
+
+block entrypointVar
+    - entrypoint = 'modules/llm/pages/admin/llm-admin-settings'
+
+block vars
+    - isWebsiteRedesign = true
+
+block append meta
+    meta(name='ol-systemPrompt' data-type='string' content=systemPrompt)
+    meta(name='ol-llmApiUrl' data-type='string' content=llmApiUrl)
+    meta(name='ol-llmApiType' data-type='string' content=llmApiType)
+    meta(name='ol-hasLlmApiKey' data-type='string' content=hasLlmApiKey ? 'true' : 'false')
+    meta(name='ol-allowedModels' data-type='string' content=(allowedModels || []).join(','))
+    //- overleaf-lab (grammar port): global force-off + LanguageTool service
+    meta(name='ol-llmDisabledByAdmin' data-type='string' content=llmDisabledByAdmin ? 'true' : 'false')
+    // overleaf-lab (2026-11-05): MCP service switch (default on)
+    meta(name='ol-mcpEnabled' data-type='string' content=mcpEnabled ? 'true' : 'false')
+    meta(name='ol-knownModels' data-type='string' content=(knownModels || []).join(','))
+    meta(name='ol-completionModel' data-type='string' content=completionModel)
+    meta(name='ol-llmApiUrlFromEnv' data-type='string' content=llmApiUrlFromEnv ? 'true' : 'false')
+    meta(name='ol-llmApiTypeFromEnv' data-type='string' content=llmApiTypeFromEnv ? 'true' : 'false')
+    meta(name='ol-complianceRubrics' data-type='json' content=JSON.stringify(complianceRubrics || []))
+    meta(name='ol-reviewModel' data-type='string' content=reviewModel)
+    meta(name='ol-maxContextTokens' data-type='string' content=String(maxContextTokens))
+    meta(name='ol-reviewMaxTokens' data-type='string' content=String(reviewMaxTokens))
+    //- overleaf-lab: per-feature enable/disable toggles (default true)
+    meta(name='ol-chatEnabled' data-type='json' content=JSON.stringify(chatEnabled))
+    meta(name='ol-completionEnabled' data-type='json' content=JSON.stringify(completionEnabled))
+    meta(name='ol-reviewEnabled' data-type='json' content=JSON.stringify(reviewEnabled))
+    //- overleaf-lab: editable AI prompts and their built-in defaults for reset buttons
+    meta(name='ol-askAiSystemPrompt' data-type='string' content=askAiSystemPrompt)
+    meta(name='ol-errorPrompt' data-type='string' content=errorPrompt)
+    meta(name='ol-reviewSystemPrompt' data-type='string' content=reviewSystemPrompt)
+    //- overleaf-lab (merge phase 4): unified AI assistant (workbench) prompt
+    meta(name='ol-workbenchSystemPrompt' data-type='string' content=workbenchSystemPrompt)
+    meta(name='ol-askAiActionPrompts' data-type='json' content=JSON.stringify(askAiActionPrompts || {}))
+    meta(name='ol-promptDefaults' data-type='json' content=JSON.stringify(promptDefaults || {}))
+
+block content
+    main#main-content.content.content-alt
+        #llm-admin-settings-root

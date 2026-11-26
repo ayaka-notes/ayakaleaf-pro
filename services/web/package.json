@@ -79,6 +79,7 @@
     "safari >= 15"
   ],
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.72",
     "@ai-sdk/google-vertex": "^4.0.113",
     "@ai-sdk/mcp": "patch:@ai-sdk/mcp@npm%3A1.0.37#~/.yarn/patches/@ai-sdk-mcp-npm-1.0.37-8cd89b8972.patch",
     "@ai-sdk/openai": "^3.0.54",

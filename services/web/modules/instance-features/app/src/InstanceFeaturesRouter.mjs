@@ -5,6 +5,7 @@ import AuthenticationController from '../../../../app/src/Features/Authenticatio
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
 import UserGetter from '../../../../app/src/Features/User/UserGetter.mjs'
 import { isConfigured } from '../../../workbench/app/src/WorkbenchAiClient.mjs'
+import { resolveWorkbenchLane } from '../../../workbench/app/src/LlmBridge.mjs'
 import { isFeatureOn } from './UserFeatures.mjs'
 
 // Reports which features this user can use: those the instance has, unless an
@@ -31,12 +32,24 @@ export default {
       '/system/features',
       AuthenticationController.requireLogin(),
       expressify(async (req, res) => {
-        const user = await UserGetter.promises.getUser(
-          SessionManager.getLoggedInUserId(req.session),
-          { features: 1 }
-        )
+        const userId = SessionManager.getLoggedInUserId(req.session)
+        const user = await UserGetter.promises.getUser(userId, { features: 1 })
+        // overleaf-lab (2026-11, BYO phase 1): `ai` is USER-SCOPED — true when
+        // the operator gateway is configured OR this user can resolve an LLM
+        // lane (BYO row / site provider). The workbench UI gates its composer
+        // on this flag (useInstanceFeatures -> useAiAccess), so without this
+        // change BYO users get an inert (disabled) composer even though
+        // /workbench/chat itself works.
+        let ai = isConfigured()
+        if (!ai && userId) {
+          try {
+            ai = Boolean(await resolveWorkbenchLane(userId))
+          } catch {
+            ai = false
+          }
+        }
         res.json({
-          ai: isConfigured(),
+          ai,
           githubSync:
             Features.hasFeature('github-sync') && isFeatureOn(user, 'github'),
           gitlabSync:

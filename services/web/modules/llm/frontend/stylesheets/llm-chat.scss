@@ -1,0 +1,933 @@
+// LLM Chat styling matching the regular chat theme
+// overleaf-lab: theme-aware LLM chat palette. The original code forced a dark
+// palette (var(--bg-dark-primary), var(--white), ...) even on the light theme,
+// so the chat looked dark on a light IDE. We now use the theme-adaptive tokens
+// (--content-primary, --border-primary) and a transparent background that simply
+// inherits the already-themed rail panel, plus translucent grey bubbles/code that
+// read well on both light and dark. Fallbacks keep it safe if a token is missing:
+// none of them forces a dark background.
+:root {
+    // overleaf-lab: upstream-AI (writefull-style) restyle — values from the
+    // shared token layer (frontend/stylesheets/llm-ui.scss, --wf-*).
+    // Fallbacks keep the previous themed behavior if a token is missing.
+    --wf-panel-bg: #fafafa;
+    --wf-panel-text: #1e293b;
+    --wf-panel-border: #e3e8ef;
+    --wf-panel-shadow: 0 10px 30px rgba(2, 8, 20, 0.1);
+    --wf-row-hi: #ffffff;
+    --wf-row-hover: #eef1f5;
+    --wf-border-in: #dfe5ec;
+    --wf-muted: #475569;
+    --wf-code-bg: #f1f4f8;
+    --wf-accent: #28518f;
+    --wf-accent-hi: #214475;
+    --wf-accent-soft: rgba(40, 81, 143, 0.08);
+
+    --llm-chat-bg: var(--wf-panel-bg, var(--bg-primary, transparent));
+    --llm-chat-color: var(--wf-panel-text, var(--content-primary-themed, inherit));
+    --llm-chat-text-color: var(--wf-panel-text, var(--content-primary-themed, inherit));
+    --llm-chat-instructions-color: var(--wf-muted, var(--content-secondary, #6c757d));
+    --llm-chat-new-message-bg: transparent;
+    --llm-chat-new-message-textarea-color: var(--wf-panel-text, var(--content-primary-themed, inherit));
+    --llm-chat-new-message-textarea-bg: var(--wf-row-hi, var(--bg-primary, transparent));
+    --llm-chat-new-message-textarea-border: var(--wf-border-in, var(--border-primary, rgba(125, 125, 125, 0.35)));
+    --llm-chat-new-message-border: var(--wf-panel-border, var(--border-primary, rgba(125, 125, 125, 0.2)));
+    /* user chip = brand accent (upstream navy), assistant bubble = raised card */
+    --llm-chat-message-user-bg: var(--wf-accent, var(--green-70, #2b8a5f));
+    --llm-chat-message-user-text: var(--white, #fff);
+    --llm-chat-message-assistant-bg: var(--wf-row-hi, rgba(125, 125, 125, 0.14));
+    --llm-chat-message-assistant-text: var(--wf-panel-text, var(--content-primary-themed, inherit));
+    --llm-chat-code-bg: var(--wf-code-bg, rgba(125, 125, 125, 0.18));
+    --llm-chat-code-text: var(--wf-panel-text, var(--content-primary-themed, inherit));
+
+    /* LLM-specific fallbacks for suggestion items and selector */
+    --llm-chat-suggestions-bg: var(--wf-row-hi, rgba(125, 125, 125, 0.1));
+    --llm-chat-suggestions-color: var(--wf-panel-text, var(--content-primary-themed, inherit));
+    --llm-chat-suggestions-title-color: var(--wf-muted, var(--content-primary-themed, inherit));
+    --llm-chat-suggestion-item-bg: var(--wf-row-hi, var(--bg-primary, transparent));
+    --llm-chat-suggestion-item-color: var(--wf-panel-text, var(--content-primary-themed, inherit));
+    --llm-model-selector-label-color: var(--wf-muted, var(--content-primary-themed, inherit));
+    --llm-model-selector-select-color: var(--wf-panel-text, var(--content-primary-themed, inherit));
+    /* Max width used by suggestions and model selector */
+    --llm-suggestions-max-width: 350px;
+}
+
+// overleaf-lab (2026-11, owner report "chat stuck light, dark broken"): the
+// 2026-08-25 re-resolution of --llm-chat-* on .llm-wf-editor-scoped is
+// REMOVED for the rail panel — that is exactly what forced the panel to the
+// EDITOR's light colors inside a DARK app theme. Policy: the rail panel is an
+// app-theme surface; its --llm-chat-* chain now resolves against the :root
+// (light) and [data-bs-theme='dark'] (dark) token values directly, so the
+// panel follows the app theme like every other IDE chrome. The editor
+// overlay keeps the editor theme via its own scoped tokens (llm-ui.scss).
+
+// overleaf-lab: dark-theme values for the --wf-* tokens. Top-level
+// [data-bs-theme=dark] (attribute on <html>, the same selector shape the app
+// itself uses) so the variables flip in place and everything below inherits.
+[data-bs-theme='dark'] {
+    --wf-panel-bg: #1b222c;
+    --wf-panel-text: #e2e8f0;
+    --wf-panel-border: #2f3a4d;
+    --wf-panel-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+    --wf-row-hi: #212a36;
+    --wf-row-hover: #26303d;
+    --wf-border-in: #2f3a4d;
+    --wf-muted: #94a3b8;
+    --wf-code-bg: #141a22;
+    --wf-accent: #6597e0;
+    --wf-accent-hi: #7dabec;
+    --wf-accent-soft: rgba(101, 151, 224, 0.14);
+}
+
+.llm-rail-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+
+    .chat {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+}
+
+.llm-chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    flex: 1;
+    overflow: hidden;
+    background-color: var(--llm-chat-bg);
+    color: var(--llm-chat-color);
+
+    /* collaborator-style wrapper used when embedding MessageInput in AI pane */
+    .llm-chat-collab-wrapper {
+        margin-top: var(--spacing-03);
+
+        textarea {
+            width: 100%;
+            box-sizing: border-box;
+            max-width: 100%;
+            overflow: auto;
+            resize: none;
+        }
+    }
+
+    /* Ensure direct children don't overflow the container */
+    >* {
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    /* overleaf-lab: stretch children to the full panel width so the input box and
+       messages grow as the panel widens (was center, which pinned them to their
+       content width and left the input small). */
+    align-items: stretch;
+    padding: var(--spacing-03) var(--spacing-04) var(--spacing-03) var(--spacing-02);
+    /* overleaf-lab: the upstream restyle makes the pane a card surface —
+       --llm-chat-bg (--wf-panel-bg) must win over the old transparent input-bar
+       value that overrode it here. */
+    background-color: var(--llm-chat-bg);
+    border-bottom: 1px solid var(--llm-chat-new-message-border);
+    gap: var(--spacing-03);
+}
+
+/* Header for LLM chat: model selector on the left, action buttons to the right */
+.llm-chat-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-03);
+    width: 100%;
+}
+
+// overleaf-lab (issue #119): header title + chat-history dropdown.
+.llm-chat-header-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+
+    .llm-chat-header-label {
+        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: var(--wf-panel-text, #1e293b);
+    }
+}
+
+.llm-history-wrap {
+    position: relative;
+    display: inline-flex;
+}
+
+.llm-history-badge {
+    margin-left: 5px;
+    padding: 0 5px;
+    border-radius: 8px;
+    background: var(--wf-row-hi, #e2e8f0);
+    color: var(--wf-muted, #475569);
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 15px;
+}
+
+.llm-action-button-active {
+    background: var(--wf-row-hi, #e2e8f0);
+}
+
+.llm-history-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 40;
+    width: 290px;
+    max-height: 340px;
+    overflow-y: auto;
+    background: var(--wf-panel-bg, #fff);
+    border: 1px solid var(--wf-border-in, #dfe5ec);
+    border-radius: 10px;
+    box-shadow: 0 8px 28px rgba(15, 23, 42, 0.18);
+    padding: 6px;
+    color: var(--wf-panel-text, #1e293b);
+
+    .llm-history-empty {
+        padding: 12px 10px;
+        font-size: 0.85rem;
+        color: var(--wf-muted, #475569);
+    }
+
+    .llm-history-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    .llm-history-row {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        border-radius: 8px;
+
+        .llm-history-row-main {
+            flex: 1 1 auto;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 2px;
+            padding: 7px 8px;
+            border: 0;
+            background: transparent;
+            cursor: pointer;
+            text-align: left;
+            color: inherit;
+
+            &:hover,
+            &:focus-visible {
+                background: var(--wf-row-hi, #f1f5f9);
+                outline: none;
+            }
+        }
+
+        .llm-history-row-title {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 0.86rem;
+            font-weight: 500;
+        }
+
+        .llm-history-row-meta {
+            font-size: 0.72rem;
+            color: var(--wf-muted, #64748b);
+        }
+
+        .llm-history-row-delete {
+            flex: 0 0 auto;
+            padding: 6px;
+            border: 0;
+            background: transparent;
+            color: var(--wf-muted, #64748b);
+            cursor: pointer;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+
+            &:hover,
+            &:focus-visible {
+                background: var(--wf-row-hi, #f1f5f9);
+                color: #b3261e;
+                outline: none;
+            }
+        }
+
+        &.llm-history-row-active .llm-history-row-title::before {
+            /* overleaf-lab (2026-11): pure-CSS dot. dart-sass 1.77 emits a
+               leading BOM whenever the output contains any non-ASCII
+               (content: '●'); webpack then splices that BOM into the MIDDLE
+               of the bundled CSS, and Chromium stops parsing the rest of the
+               module -- which silently killed this file's :root palette and
+               dark-theme rules ("dark theme broken / chat stuck light").
+               No non-ASCII anywhere in the compiled output. */
+            content: '';
+            display: inline-block;
+            width: 0.55em;
+            height: 0.55em;
+            margin-right: 0.45em;
+            border-radius: 999px;
+            background: var(--wf-btn-primary, #4f8df9);
+            vertical-align: baseline;
+        }
+
+        &.llm-history-row-active .llm-history-row-delete {
+            display: none; // active conversation: delete via "New chat"
+        }
+    }
+
+    .llm-history-footer {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 8px 4px 2px;
+        border-top: 1px solid var(--wf-border-in, #e6ebf1);
+
+        .llm-history-footer-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 9px;
+            border: 1px solid var(--wf-border-in, #dfe5ec);
+            border-radius: 7px;
+            background: transparent;
+            color: var(--wf-panel-text, #1e293b);
+            font-size: 0.8rem;
+            cursor: pointer;
+
+            &:hover,
+            &:focus-visible {
+                background: var(--wf-row-hi, #f1f5f9);
+                outline: none;
+            }
+        }
+
+        .llm-history-footer-btn-armed {
+            border-color: #b3261e;
+            color: #b3261e;
+        }
+    }
+
+    .llm-history-note {
+        margin: 8px 4px 2px;
+        font-size: 0.72rem;
+        color: var(--wf-muted, #64748b);
+        line-height: 1.35;
+    }
+}
+
+.llm-model-selector {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-03);
+    /* Keep selector left-aligned and constrain width */
+    flex: 0 1 auto;
+    max-width: var(--llm-suggestions-max-width);
+    min-width: 0;
+    /* allow shrinking in narrow containers */
+
+    label {
+        font-size: var(--font-size-02);
+        font-weight: 600;
+        color: var(--wf-muted, var(--content-primary-themed));
+        margin: 0 0 var(--spacing-00) var(--spacing-02);
+        white-space: nowrap;
+    }
+
+    /* Styles for the select control inside the model selector */
+    select {
+        padding: var(--spacing-02) var(--spacing-03);
+        padding-right: calc(var(--spacing-03) + 18px);
+        /* room for caret */
+        border: 1px solid var(--llm-chat-new-message-textarea-border);
+        border-radius: var(--border-radius-base);
+        background-color: var(--llm-chat-new-message-textarea-bg, #fff);
+        /* overleaf-lab: use the ADAPTIVE themed token so the CLOSED select (the
+           selected model name) is legible on light AND dark. Plain --content-primary
+           did not flip on dark; --content-primary-themed does (the "Model" label
+           already uses it). The option popup is themed separately below. */
+        color: var(--wf-panel-text, var(--content-primary-themed));
+        font-size: var(--font-size-02);
+        outline: none;
+        border-color: var(--border-primary);
+        min-width: 0;
+        width: 200px;
+        flex: 0 1 auto;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+        background-position: calc(100% - 12px) calc(1em + 2px), calc(100% - 7px) calc(1em + 2px);
+        background-size: 6px 6px, 6px 6px;
+        background-repeat: no-repeat;
+
+        /* overleaf-lab: theme the native dropdown popup. Field/FieldText are a
+           matched CSS system-color pair, so the option list stays readable in both
+           light and dark, independent of how the app signals its theme (this fixes
+           the white-background / light-grey-text popup on the dark theme). */
+        option {
+            background-color: Field;
+            color: FieldText;
+        }
+
+        &:focus {
+            border-color: var(--border-primary);
+        }
+
+        &:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        @media (max-width: 480px) {
+            width: 100%;
+            min-width: 0;
+        }
+    }
+}
+
+// Action buttons container
+.llm-action-buttons {
+    display: flex;
+    gap: var(--spacing-02);
+    align-items: center;
+    margin-left: auto;
+    /* push actions to the far right */
+}
+
+.llm-action-button {
+    background-color: var(--llm-action-button-bg, transparent);
+    border: 1px solid var(--llm-chat-new-message-textarea-border);
+    padding: var(--spacing-02);
+    cursor: pointer;
+    border-radius: var(--border-radius-base);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--content-primary-themed);
+    /* ensure high-contrast icon color */
+    opacity: 1;
+    transition: all 0.2s ease;
+
+    &:hover {
+        background-color: var(--bg-light-tertiary);
+        color: var(--content-primary-themed);
+        border-color: var(--border-secondary);
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--border-primary);
+        outline-offset: 2px;
+    }
+
+    &:active {
+        transform: scale(0.95);
+    }
+
+    .material-symbols {
+        font-size: 18px;
+        color: inherit;
+        /* inherit high-contrast color */
+    }
+}
+
+/* overleaf-lab (owner bug report): the two-step "Clear conversation" first
+   click was INVISIBLE (only the hover title changed), so the second click
+   was never noticed and clearing seemed broken. Make the armed state
+   unmistakable. */
+.llm-action-button-armed {
+    background-color: #b32f2f;
+    border-color: #b32f2f;
+    color: #fff;
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: var(--spacing-02) 10px;
+
+    &:hover {
+        background-color: #d32f2f;
+        color: #fff;
+        border-color: #d32f2f;
+    }
+}
+
+.llm-action-button-text {
+    white-space: nowrap;
+}
+
+.llm-chat-welcome {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    text-align: center;
+    /* Use flex so the welcome panel shares space and doesn't push the input offscreen */
+    flex: 1;
+    min-height: 0;
+    /* overleaf-lab (2026-11): when the host caps the panel height (IDE rail /
+       workspace part inline heights), the welcome content must stay INSIDE the
+       granted box — otherwise it underflows and shows through behind the
+       (transparent) input bar below it. */
+    overflow-y: auto;
+    overflow-x: hidden;
+
+    .llm-welcome-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background-color: var(--wf-row-hi, var(--bg-secondary-themed));
+        box-shadow: 0 0 0 1px var(--wf-panel-border, rgba(125, 125, 125, 0.2));
+        color: var(--wf-accent, var(--content-primary-themed));
+        font-size: 36px;
+        margin-bottom: 20px;
+        animation: float 3s ease-in-out infinite;
+    }
+
+    .llm-welcome-icon.material-symbols {
+        font-size: 36px;
+        line-height: 1;
+    }
+
+    h3 {
+        font-size: var(--font-size-02);
+        font-weight: 600;
+        color: var(--content-primary);
+        margin-bottom: 10px;
+    }
+
+    >p {
+        font-size: var(--font-size-02);
+        color: var(--content-primary-themed);
+        margin-bottom: 30px;
+        max-width: 300px;
+        line-height: var(--line-height-02);
+    }
+
+    .llm-suggestions {
+        background-color: var(--llm-chat-suggestions-bg);
+        border-radius: var(--border-radius-large);
+        padding: 20px;
+        margin-bottom: 30px;
+        max-width: var(--llm-suggestions-max-width);
+        width: 100%;
+
+        .llm-suggestions-title {
+            font-weight: 600;
+            color: var(--content-primary-themed);
+            margin-bottom: 12px;
+            font-size: var(--font-size-02);
+            text-align: left;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            text-align: left;
+
+            li {
+                padding: var(--spacing-03) var(--spacing-04);
+                margin-bottom: var(--spacing-02);
+                background-color: var(--llm-chat-suggestion-item-bg);
+                border-radius: var(--border-radius-base);
+                border: 1px solid var(--llm-chat-new-message-textarea-border);
+                font-size: var(--font-size-02);
+                line-height: var(--line-height-02);
+                color: var(--content-primary-themed);
+                transition: all 0.2s ease;
+                cursor: default;
+                word-break: break-word;
+
+                /* keep hover a no-op so suggestions don't change color on hover */
+                &:hover {
+                    background-color: var(--llm-chat-suggestion-item-bg);
+                }
+
+                &:last-child {
+                    margin-bottom: 0;
+                }
+            }
+        }
+    }
+
+    .llm-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--spacing-03);
+        padding: var(--spacing-03) var(--spacing-05);
+        background-color: var(--bg-warning-light);
+        border: 1px solid var(--border-warning);
+        border-radius: 20px;
+        color: var(--content-warning);
+        font-size: var(--font-size-02);
+        font-weight: 500;
+
+        .material-symbols {
+            font-size: 18px;
+        }
+    }
+}
+
+// Chat messages container
+.llm-chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background-color: var(--llm-chat-bg);
+    padding: calc(var(--line-height-03) / 2);
+
+    .llm-message {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-01);
+        margin-bottom: var(--line-height-03);
+
+        .message-container {
+            display: flex;
+            max-width: 100%;
+            flex-wrap: wrap;
+            /* allow content and metadata to wrap rather than overflow */
+
+            .message-content {
+                background-color: var(--llm-chat-message-assistant-bg);
+                border-radius: var(--border-radius-large);
+                padding: var(--spacing-04) var(--spacing-05);
+                width: 100%;
+                max-width: 100%;
+                box-sizing: border-box;
+                overflow-x: hidden;
+                /* hide overflow; pre will scroll internally */
+                word-break: break-word;
+
+                /* prevent long words from overflowing */
+                p {
+                    margin-bottom: calc(var(--line-height-03) / 2);
+                    white-space: pre-wrap;
+                    /* wrap long paragraphs inside the message content */
+
+                    &:last-child {
+                        margin-bottom: 0;
+                    }
+                }
+
+                h1,
+                h2,
+                h3,
+                h4,
+                h5,
+                h6 {
+                    font-weight: 600;
+                    margin-top: var(--spacing-04);
+                    margin-bottom: var(--spacing-02);
+                    color: var(--llm-chat-message-assistant-text);
+                }
+
+                h3 {
+                    font-size: var(--font-size-03);
+                }
+
+                ul,
+                ol {
+                    margin-left: var(--spacing-05);
+                    margin-bottom: calc(var(--line-height-03) / 2);
+
+                    li {
+                        margin-bottom: var(--spacing-01);
+                    }
+                }
+
+                code {
+                    background-color: var(--llm-chat-code-bg);
+                    padding: 2px 6px;
+                    border-radius: var(--border-radius-base-sm);
+                    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+                    font-size: 0.9em;
+                    color: var(--llm-chat-code-text);
+                }
+
+                pre {
+                    background-color: var(--neutral-90);
+                    border-radius: var(--border-radius-base);
+                    padding: var(--spacing-04);
+                    margin: var(--spacing-03) 0;
+                    overflow-x: auto;
+                    max-width: 100%;
+
+                    code {
+                        background: none;
+                        padding: 0;
+                        color: var(--white);
+                        display: block;
+                        white-space: pre;
+                        /* preserve whitespace but allow scrolling */
+                        overflow-x: auto;
+                        word-break: normal;
+                    }
+                }
+
+                hr {
+                    border: none;
+                    border-top: 1px solid var(--border-secondary);
+                    margin: var(--spacing-04) 0;
+                }
+
+                strong {
+                    font-weight: 600;
+                }
+
+                em {
+                    font-style: italic;
+                }
+
+                a {
+                    color: var(--link-primary);
+                    text-decoration: underline;
+
+                    &:hover {
+                        color: var(--link-primary-hover);
+                    }
+                }
+
+                blockquote {
+                    border-left: 3px solid var(--border-primary);
+                    padding-left: var(--spacing-04);
+                    margin: var(--spacing-03) 0;
+                    color: var(--content-secondary);
+                    font-style: italic;
+                }
+
+                table {
+                    border-collapse: collapse;
+                    margin: var(--spacing-03) 0;
+                    width: 100%;
+
+                    th,
+                    td {
+                        border: 1px solid var(--border-secondary);
+                        padding: var(--spacing-02) var(--spacing-03);
+                        text-align: left;
+                    }
+
+                    th {
+                        background-color: var(--bg-light-tertiary);
+                        font-weight: 600;
+                    }
+                }
+            }
+        }
+
+        &.llm-message-user .message-container {
+            align-self: flex-end;
+            justify-content: flex-end;
+
+            .message-content {
+                background-color: var(--llm-chat-message-user-bg);
+                color: var(--llm-chat-message-user-text);
+
+                h1,
+                h2,
+                h3,
+                h4,
+                h5,
+                h6 {
+                    color: var(--llm-chat-message-user-text);
+                }
+
+                code {
+                    background-color: rgba(0, 0, 0, 0.3);
+                    color: var(--white);
+                }
+
+                pre {
+                    background-color: rgba(0, 0, 0, 0.4);
+
+                    code {
+                        background: none;
+                        color: var(--white);
+                    }
+                }
+            }
+        }
+
+        &.llm-message-assistant .message-container {
+            align-self: flex-start;
+            justify-content: flex-start;
+        }
+
+        // Loading indicator with stop button
+        .llm-message-loading {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-03);
+            padding: var(--spacing-03) var(--spacing-05);
+            background-color: var(--llm-chat-message-assistant-bg);
+            border-radius: var(--border-radius-large);
+            font-style: italic;
+            color: var(--llm-chat-message-assistant-text);
+
+            .loading-icon {
+                animation: spin 2s linear infinite;
+                color: var(--llm-chat-message-assistant-text);
+            }
+
+            span {
+                flex: 1;
+                color: var(--llm-chat-message-assistant-text);
+            }
+        }
+    }
+}
+
+// Stop button styling
+.llm-stop-button {
+    background-color: var(--alert-danger-bg);
+    border: 1px solid var(--alert-danger-border);
+    color: var(--alert-danger);
+    padding: var(--spacing-02) var(--spacing-04);
+    border-radius: var(--border-radius-base);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-02);
+    font-size: var(--font-size-01);
+    font-weight: 600;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+
+    &:hover {
+        background-color: var(--alert-danger);
+        color: var(--white);
+    }
+
+    &:active {
+        transform: scale(0.95);
+    }
+
+    .material-symbols {
+        font-size: 16px;
+    }
+}
+
+// Input form
+.llm-chat-input-form {
+    $new-message-height: 80px;
+
+    height: $new-message-height;
+    background-color: var(--llm-chat-new-message-bg);
+    padding: calc(var(--line-height-03) / 4);
+    border-top: 1px solid var(--llm-chat-new-message-border);
+    display: flex;
+    gap: var(--spacing-03);
+    align-items: center;
+    /* overleaf-lab (2026-11): opaque base + paint order above the welcome block,
+       so text can never show *through* the input area when both are cramped. */
+    position: relative;
+    z-index: 1;
+    background-color: var(--llm-chat-bg, var(--wf-panel-bg, #fff));
+
+    .llm-chat-textarea {
+        flex: 1;
+        overflow: auto;
+        resize: none;
+        border-radius: var(--border-radius-base);
+        border: 1px solid var(--llm-chat-new-message-textarea-border);
+        height: 100%;
+        color: var(--llm-chat-new-message-textarea-color);
+        font-size: var(--font-size-02);
+        padding: calc(var(--line-height-03) / 4);
+        background-color: var(--llm-chat-new-message-textarea-bg);
+        font-family: inherit;
+
+        &:focus {
+            outline: none;
+            border-color: var(--border-primary);
+        }
+
+        &:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+    }
+
+    .llm-chat-send-button {
+        padding: var(--spacing-03) var(--spacing-05);
+        background-color: var(--wf-accent, var(--bg-accent-01));
+        color: var(--white);
+        border: none;
+        border-radius: var(--border-radius-base);
+        cursor: pointer;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 60px;
+        transition: background-color 0.2s ease;
+
+        &:hover:not(:disabled) {
+            background-color: var(--wf-accent-hi, var(--bg-accent-02));
+        }
+
+        &:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .material-symbols {
+            font-size: 20px;
+        }
+    }
+}
+
+@keyframes float {
+
+    0%,
+    100% {
+        transform: translateY(0px);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+// Spin animation for loading icon
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}

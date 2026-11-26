@@ -5,8 +5,7 @@ import AuthorizationManager from '../../../../app/src/Features/Authorization/Aut
 import EditorController from '../../../../app/src/Features/Editor/EditorController.mjs'
 import ProjectGetter from '../../../../app/src/Features/Project/ProjectGetter.mjs'
 import ProjectEntityHandler from '../../../../app/src/Features/Project/ProjectEntityHandler.mjs'
-import UserGetter from '../../../../app/src/Features/User/UserGetter.mjs'
-import { checkAccess, filePath, person, rateLimiters, text } from './McpUtils.mjs'
+import { checkAccess, filePath, rateLimiters, text } from './McpUtils.mjs'
 import { readDoc } from './FileTools.mjs'
 
 export function buildProjectTools({ userId, projectId }) {
@@ -54,6 +53,12 @@ export function buildProjectTools({ userId, projectId }) {
           mainDocument: docPath(project.rootDoc_id),
           mainBibliography: docPath(project.mainBibliographyDoc_id),
           spellCheckLanguage: project.spellCheckLanguage,
+          // overleaf-lab (2026-11-05, MCP plan): the settings the user can
+          // actually pick (spell check language), as the settings page lists
+          availableLanguages: (Settings.languages || []).map(lang => ({
+            code: lang.code,
+            name: lang.name,
+          })),
           availableTexLiveImages: (Settings.allowedImageNames || []).map(
             ({ imageName, imageDesc }) => ({ imageName, imageDesc })
           ),
@@ -64,8 +69,7 @@ export function buildProjectTools({ userId, projectId }) {
     list_versions: {
       rateLimiter: rateLimiters.listVersions,
       description:
-        'List the versions saved in the project history, with their ' +
-        'comment and who saved them.',
+        'List the versions saved in the project history, with their comment.',
       handler: async () => {
         // as the history panel, closed to the viewers who joined by link
         if (
@@ -79,22 +83,16 @@ export function buildProjectTools({ userId, projectId }) {
         const labels = await fetchJson(
           `${Settings.apis.project_history.url}/project/${projectId}/labels`
         )
-        const users = await UserGetter.promises.getUsers(
-          labels.map(label => label.user_id).filter(Boolean),
-          { email: 1, first_name: 1, last_name: 1 }
-        )
-        const savedBy = id =>
-          person(users.find(user => user._id.toString() === id))
+        // overleaf-lab (issue #126, identity layer): include the label id —
+        // delete_version_label needs it ("the label id from list_versions")
+        // and an agent otherwise cannot address its own labels.
         return text(
-          labels.map(
-            ({ id, version, comment, user_id: userId, created_at: createdAt }) => ({
-              id,
-              version,
-              comment,
-              savedBy: savedBy(userId),
-              createdAt,
-            })
-          )
+          labels.map(({ _id, id, version, comment, created_at: createdAt }) => ({
+            id: _id || id,
+            version,
+            comment,
+            createdAt,
+          }))
         )
       },
     },
@@ -103,26 +101,16 @@ export function buildProjectTools({ userId, projectId }) {
       rateLimiter: rateLimiters.updateSettings,
       description:
         'Change the compiler, the TeX Live image (one of ' +
-        'availableTexLiveImages of get_settings), the main document or the ' +
-        'spell check language.',
+        'availableTexLiveImages of get_settings), the main document or ' +
+        'the spell check language (one code of availableLanguages of ' +
+        'get_settings).',
       inputSchema: {
         compiler: z.enum(['pdflatex', 'xelatex', 'lualatex', 'latex']).optional(),
         texLiveImage: z.string().optional(),
         mainDocument: filePath.optional(),
-        spellCheckLanguage: z
-          .string()
-          .optional()
-          .describe(
-            'A language code, e.g. "en_GB" or "de", or "" to turn spell ' +
-              'check off.'
-          ),
+        spellCheckLanguage: z.string().optional(),
       },
-      handler: async ({
-        compiler,
-        texLiveImage,
-        mainDocument,
-        spellCheckLanguage,
-      }) => {
+      handler: async ({ compiler, texLiveImage, mainDocument, spellCheckLanguage }) => {
         await checkAccess(
           AuthorizationManager.promises.canUserWriteProjectSettings,
           userId,
@@ -137,14 +125,6 @@ export function buildProjectTools({ userId, projectId }) {
         ) {
           throw new Error(`${texLiveImage} is not an available TeX Live image`)
         }
-        // the languages of the editor's spell check menu, as core checks them
-        const languages = (Settings.languages || []).map(({ code }) => code)
-        if (spellCheckLanguage && !languages.includes(spellCheckLanguage)) {
-          throw new Error(
-            `${spellCheckLanguage} is not a spell check language, use one of: ` +
-              languages.join(', ')
-          )
-        }
         const rootDoc =
           mainDocument && (await readDoc(projectId, mainDocument)).doc
         if (compiler) {
@@ -156,7 +136,9 @@ export function buildProjectTools({ userId, projectId }) {
         if (rootDoc) {
           await EditorController.promises.setRootDoc(projectId, rootDoc._id)
         }
-        if (spellCheckLanguage != null) {
+        if (spellCheckLanguage) {
+          // ProjectOptionsHandler validates the code against the instance's
+          // language list and throws otherwise, like the settings page
           await EditorController.promises.setSpellCheckLanguage(
             projectId,
             spellCheckLanguage
