@@ -168,23 +168,61 @@ const apiMock = vi.hoisted(() => ({
   exchangeMendeleyCode: vi.fn(async () => ({ accessToken: 'a', refreshToken: 'r', expiresAt: 1 })),
   storeMendeleyCredentials: vi.fn(async () => {}),
 }))
+const auditMock = vi.hoisted(() => ({
+  addEntry: vi.fn(async () => {}),
+}))
 vi.mock('@overleaf/logger', () => ({
   default: { info() {}, warn() {}, error() {}, debug() {} },
 }))
-vi.mock('@overleaf/o-error', () => ({
-  default: {
-    getFullStack: (e) => String(e),
-    getFullInfo: (e) => ({ status: e && e.status }),
-  },
-}))
-vi.mock('../../../../../../../app/src/Features/Authentication/AuthenticationController.mjs', () => ({
+vi.mock('@overleaf/o-error', () => {
+  // Faithful to libraries/o-error: default export is a class, with
+  // info-bearing errors and the static helpers the controller reads.
+  class OError extends Error {
+    constructor(message, info, cause) {
+      super(message)
+      this.name = this.constructor.name
+      if (info) this.info = info
+      if (cause) this.cause = cause
+    }
+    withCause(cause) {
+      this.cause = cause
+      return this
+    }
+    withInfo(info) {
+      this.info = info
+      return this
+    }
+    static getFullInfo(error) {
+      const info = {}
+      if (!error) return info
+      if (error.cause) Object.assign(info, OError.getFullInfo(error.cause))
+      if (typeof error.info === 'object') Object.assign(info, error.info)
+      return info
+    }
+    static getFullStack(error) {
+      if (!error) return ''
+      return error.stack || error.message || '(no stack)'
+    }
+  }
+  return { default: OError }
+})
+vi.mock('../../../../../app/src/Features/Authentication/AuthenticationController.mjs', () => ({
   default: { requireLogin: () => (req, res, next) => next() },
 }))
-vi.mock('../../../../../../../app/src/Features/Authentication/SessionManager.mjs', () => ({
+vi.mock('../../../../../app/src/Features/Authentication/SessionManager.mjs', () => ({
   default: { getLoggedInUserId: () => 'user-123' },
 }))
-vi.mock('../../../../../../../app/src/Features/Errors/HttpErrorHandler.mjs', () => ({
+vi.mock('../../../../../app/src/Features/Errors/HttpErrorHandler.mjs', () => ({
   default: { badRequest() {}, forbidden() {} },
+}))
+vi.mock('../../../../../app/src/Features/User/UserAuditLogHandler.mjs', () => ({
+  default: { promises: { addEntry: auditMock.addEntry } },
+}))
+vi.mock('../../../../instance-features/app/src/UserFeatures.mjs', () => ({
+  isFeatureOn: () => true,
+  userHasFeature: vi.fn(async () => true),
+  projectOwnerHasFeature: vi.fn(async () => true),
+  requireUserFeature: () => (req, res, next) => next(),
 }))
 vi.mock('../../../app/src/MendeleyApiClient.mjs', () => apiMock)
 
@@ -238,23 +276,53 @@ describe('mendeley router + oauth callback', () => {
     expect(keys).toContain('GET /user/mendeley/picker/bibtex')
   })
 
-  it('oauth (full-page) stores state + returnTo taken from the page referer', async () => {
+  it('oauth (full-page) stores state + returnTo as a same-origin relative path', async () => {
     const req = {
       session: {},
       query: {},
+      protocol: 'https',
+      get: (name) => (name === 'host' ? 'ps.example' : ''),
       headers: { referer: 'https://ps.example/library' },
     }
     const res = { redirectTo: null, redirect(u) { this.redirectTo = u } }
     await callHandler('/user/mendeley/oauth', req, res)
     expect(res.redirectTo).toContain('api.mendeley.com/oauth/authorize')
     expect(req.session.mendeleyOAuth.isPopup).toBe(false)
-    expect(req.session.mendeleyOAuth.returnTo).toBe('https://ps.example/library')
+    expect(req.session.mendeleyOAuth.returnTo).toBe('/library')
+  })
+
+  it('oauth ignores a cross-origin referer (open-redirect guard)', async () => {
+    const req = {
+      session: {},
+      query: {},
+      protocol: 'https',
+      get: (name) => (name === 'host' ? 'ps.example' : ''),
+      headers: { referer: 'https://evil.example/phish' },
+    }
+    const res = { redirectTo: null, redirect(u) { this.redirectTo = u } }
+    await callHandler('/user/mendeley/oauth', req, res)
+    expect(req.session.mendeleyOAuth.returnTo).toBe('')
+  })
+
+  it('oauth ignores a protocol-mismatched referer (proxy/https edge)', async () => {
+    const req = {
+      session: {},
+      query: {},
+      protocol: 'https',
+      get: (name) => (name === 'host' ? 'ps.example' : ''),
+      headers: { referer: 'http://ps.example/library' },
+    }
+    const res = { redirectTo: null, redirect(u) { this.redirectTo = u } }
+    await callHandler('/user/mendeley/oauth', req, res)
+    expect(req.session.mendeleyOAuth.returnTo).toBe('')
   })
 
   it('oauth (popup) does not adopt a returnTo', async () => {
     const req = {
       session: {},
       query: { popup: '1' },
+      protocol: 'https',
+      get: (name) => (name === 'host' ? 'ps.example' : ''),
       headers: { referer: 'https://ps.example/library' },
     }
     const res = { redirectTo: null, redirect(u) { this.redirectTo = u } }
@@ -269,7 +337,7 @@ describe('mendeley router + oauth callback', () => {
         mendeleyOAuth: {
           state: 's1',
           isPopup: false,
-          returnTo: 'https://ps.example/library',
+          returnTo: '/library',
         },
       },
       query: { code: 'c1', state: 's1' },
@@ -286,7 +354,14 @@ describe('mendeley router + oauth callback', () => {
       'user-123',
       expect.anything(),
     )
-    expect(res.html).toContain("location.href = 'https://ps.example/library'")
+    expect(auditMock.addEntry).toHaveBeenCalledWith(
+      'user-123',
+      'integration-account-linked',
+      'user-123',
+      undefined,
+      { integration: 'mendeley' },
+    )
+    expect(res.html).toContain("location.href = '/library'")
     expect(res.html).toContain("BroadcastChannel('mendeley')")
   })
 
@@ -296,7 +371,7 @@ describe('mendeley router + oauth callback', () => {
         mendeleyOAuth: {
           state: 's1',
           isPopup: false,
-          returnTo: 'https://ps.example/user/settings',
+          returnTo: '/user/settings',
         },
       },
       query: { code: 'c1', state: 's1' },

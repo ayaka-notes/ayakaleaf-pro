@@ -25,8 +25,10 @@ import { isFeatureOn } from './UserFeatures.mjs'
 //    "Reference managers" section, editor Integrations card, picker menu
 //    entries) is hidden whenever its OAuth client id and/or secret is not
 //    configured — with credentials missing the Link button can never work.
-//    The credentials are therefore THE switch for both providers, keeping
-//    this flag consistent with the bib-editor module's /bib/services gate.
+//    Credentials therefore gate both providers, read from the seeded
+//    Settings (the modules seed them at boot from the env vars, keeping any
+//    pre-seeded site_settings value) so this flag stays consistent with the
+//    modules' route gates and the bib-editor module's /bib/services gate.
 
 export function referenceManagerFeatureFlags({ zoteroCredentials, mendeleyCredentials }) {
   return {
@@ -36,10 +38,14 @@ export function referenceManagerFeatureFlags({ zoteroCredentials, mendeleyCreden
 }
 
 function referenceManagerCredentials(id) {
-  const clientId =
-    process.env[`${id.toUpperCase()}_CLIENT_ID`] ||
-    process.env[`${id.toUpperCase()}_CLIENT_KEY`]
-  return Boolean(clientId && process.env[`${id.toUpperCase()}_CLIENT_SECRET`])
+  const s = Settings[id]
+  if (!s) return false
+  if (id === 'mendeley') {
+    return (
+      s.enabled !== false && !!(s.clientID || s.clientId) && !!s.clientSecret
+    )
+  }
+  return !!(s.clientKey || s.clientID) && !!s.clientSecret
 }
 // AI is per user through its own /workbench/access.
 

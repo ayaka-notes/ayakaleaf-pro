@@ -314,7 +314,7 @@ async function getItemsForPicker(userId, scope, collectionKey, limit, start) {
       ? `/groups/${scope.id}`
       : `/users/${credentials.zoteroUserId}`
   const itemsPath = collectionKey
-    ? `${basePath}/_collections/${collectionKey}/items`
+    ? `${basePath}/collections/${collectionKey}/items`
     : `${basePath}/items`
   const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 100, 1), 500)
   const safeStart = Math.max(parseInt(start, 10) || 0, 0)

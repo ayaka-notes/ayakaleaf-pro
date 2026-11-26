@@ -18,13 +18,22 @@ async function oauth(req, res) {
     // Where to land after a full-page (non-popup) flow: the page the user
     // started from (settings widgets, picker pages, ...). Absent or failed
     // flows fall back to the settings page, which the base widgets expect.
-    const referer = String(req.headers.referer || '')
-    const returnTo =
-      !isPopup &&
-      referer.startsWith('http') &&
-      !referer.includes('/user/mendeley/')
-        ? referer
-        : ''
+    // Open-redirect safety: only a same-origin referer is honored, and it
+    // is reduced to a relative path — the callback never redirects to an
+    // absolute URL.
+    let returnTo = ''
+    if (!isPopup) {
+      const referer = String(req.headers.referer || '')
+      try {
+        const url = new URL(referer)
+        const host = req.get('host')
+        if (host && url.origin === `${req.protocol}://${host}`) {
+          returnTo = url.pathname + url.search + url.hash
+        }
+      } catch {
+        // Malformed or non-absolute referer: fall back to the settings page.
+      }
+    }
     req.session.mendeleyOAuth = { state, isPopup, returnTo }
     res.redirect(Api.getMendeleyAuthorizeUrl(state))
   } catch (err) {
