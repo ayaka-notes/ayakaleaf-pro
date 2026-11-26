@@ -1264,6 +1264,34 @@ describe('AuthenticationController', function () {
       })
     })
 
+    describe('with a service worker path that has a query string', function () {
+      beforeEach(function (ctx) {
+        ctx.req = { session: {} }
+      })
+
+      it('should not set the redirect (a query string must not let an asset past the check)', function (ctx) {
+        ctx.AuthenticationController.setRedirectInSession(
+          ctx.req,
+          '/sw.js?v=1'
+        )
+        expect(ctx.req.session.postLoginRedirect).to.equal(undefined)
+      })
+    })
+
+    describe('with a real page path that has a dotted query value', function () {
+      beforeEach(function (ctx) {
+        ctx.req = { session: {} }
+      })
+
+      it('should set the redirect', function (ctx) {
+        ctx.AuthenticationController.setRedirectInSession(
+          ctx.req,
+          '/project?v=file.png'
+        )
+        expect(ctx.req.session.postLoginRedirect).to.equal('/project?v=file.png')
+      })
+    })
+
     describe('with a real page path', function () {
       beforeEach(function (ctx) {
         ctx.req = { session: {} }

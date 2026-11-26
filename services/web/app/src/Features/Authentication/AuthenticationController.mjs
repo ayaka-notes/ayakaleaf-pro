@@ -564,10 +564,15 @@ const AuthenticationController = {
           ? `${req.path}?${querystring.stringify(query)}`
           : `${req.path}`
     }
+    // The asset checks run against the pathname only: both patterns are
+    // end-anchored, so a query string (e.g. a versioned /sw.js?v=1) must not
+    // let an asset slip past them, while a dotted query value (e.g.
+    // /project?v=file.png) must not disqualify a real page.
+    const pathname = String(value).split(/[?#]/)[0]
     if (
       req.session != null &&
-      !POST_LOGIN_REDIRECT_ASSET_PATH.test(value) &&
-      !POST_LOGIN_REDIRECT_ASSET_EXT.test(value)
+      !POST_LOGIN_REDIRECT_ASSET_PATH.test(pathname) &&
+      !POST_LOGIN_REDIRECT_ASSET_EXT.test(pathname)
     ) {
       const safePath = UrlHelper.getSafeRedirectPath(value)
       return (req.session.postLoginRedirect = safePath)
