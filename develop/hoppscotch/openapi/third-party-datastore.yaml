@@ -1,0 +1,229 @@
+openapi: 3.0.3
+info:
+  title: third-party-datastore
+  version: '6.3'
+  description: >-
+    Syncs projects with Dropbox: it keeps one Redis job queue per user and a
+    worker that sends Overleaf changes to Dropbox and polls Dropbox for
+    changes. Only web calls it, to enqueue jobs and read queue sizes.
+servers:
+  - url: http://third-party-datastore:3002
+    description: Inside the Docker network, through the Hoppscotch proxy
+# The servers are Docker addresses that a docs reader cannot reach
+x-hideTryItPanel: true
+security: []
+tags:
+  - name: Queue
+    x-page-icon: list-check
+    description: The per-user job queue.
+  - name: Monitoring
+    x-page-icon: heart-pulse
+    description: Status, health checks and metrics.
+paths:
+  /enqueue/web_to_tpds_http_requests:
+    post:
+      tags: [Queue]
+      operationId: enqueue
+      summary: Add a job to a user's queue
+      description: >-
+        Pushes the job onto the Redis list `web_to_tpds_http_requests:{<group>}`.
+        A poll job (`job.uri` path `/user/poll`) is dropped when one is already
+        queued for the user (a 10 minute marker). The worker runs each user's
+        jobs in order; `job.uri` is never requested over HTTP but matched by
+        `app/js/JobProcessor.mjs` against these job routes:
+        `POST /user/:userId/entity/:path` (add or update a file),
+        `DELETE /user/:userId/entity/:path` (delete),
+        `PUT /user/:userId/entity` (move or rename, body `{startPath, endPath}`),
+        `POST /user/:userId/project/new/:name` (create the project folder) and
+        `POST /user/poll` (pull changes from Dropbox for `json.user_ids`).
+        `:path` is the URL-encoded `<project name>/<path in project>`. Callers:
+        `services/web/app/src/Features/ThirdPartyDataStore/TpdsUpdateSender.mjs`
+        (`enqueue`) and `services/web/modules/dropbox/app/src/DropboxHandler.mjs`
+        (`queuePoll`, from the Dropbox webhook).
+      requestBody:
+        required: true
+        description: JSON, at most 1 MB.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnqueueBody'
+            examples:
+              addFile:
+                summary: Add or update a file
+                value:
+                  group: 6ab3f6d0040b00ac810bca0b
+                  method: pipeStreamFrom
+                  job:
+                    method: post
+                    uri: http://third-party-datastore:3002/user/6ab3f6d0040b00ac810bca0b/entity/Thesis%2Fmain.tex
+                    title: addFile
+                    headers:
+                      x-entity-id: 6aec98777287243198a05336
+                      x-entity-rev: '1'
+                      x-entity-type: doc
+                      x-folder-id: 6aec98777287243198a05333
+                      x-project-id: 6aec98777287243198a05332
+                    streamOrigin: http://docstore:3016/project/6aec98777287243198a05332/doc/6aec98777287243198a05336/raw
+              moveEntity:
+                summary: Move or rename
+                value:
+                  group: 6ab3f6d0040b00ac810bca0b
+                  method: standardHttpRequest
+                  job:
+                    method: put
+                    uri: http://third-party-datastore:3002/user/6ab3f6d0040b00ac810bca0b/entity
+                    title: moveEntity
+                    headers:
+                      x-project-id: 6aec98777287243198a05332
+                    json:
+                      user_id: 6ab3f6d0040b00ac810bca0b
+                      startPath: /Thesis/old.tex
+                      endPath: /Thesis/new.tex
+              poll:
+                summary: Poll Dropbox
+                value:
+                  group: 6ab3f6d0040b00ac810bca0b
+                  method: standardHttpRequest
+                  job:
+                    method: post
+                    uri: http://third-party-datastore:3002/user/poll
+                    json:
+                      user_ids: [6ab3f6d0040b00ac810bca0b]
+      responses:
+        '204':
+          description: Queued, or dropped as a duplicate poll.
+        '400':
+          description: '`group` or `job.uri` is missing.'
+        '500':
+          description: >-
+            Any error, for example a `job.uri` that is not an absolute URL. Body
+            `Internal Server Error`.
+  /queues/{userId}:
+    get:
+      tags: [Queue]
+      operationId: getQueues
+      summary: Get the queue sizes of a user
+      description: >-
+        Shown as the sync status in the editor. `userId` is not validated; an
+        unknown id returns zeros. Caller:
+        `services/web/app/src/Features/ThirdPartyDataStore/TpdsQueueManager.mjs`
+        (`getQueues`).
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: 6ab3f6d0040b00ac810bca0b
+      responses:
+        '200':
+          description: Queue sizes.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  queueName:
+                    type: string
+                    description: The user id.
+                  tpdsToWeb:
+                    type: integer
+                    enum: [0, 1]
+                    description: 1 when a Dropbox poll is queued.
+                  webToTpds:
+                    type: integer
+                    description: Jobs waiting or running for the user.
+        '500':
+          description: Redis error.
+  /status:
+    get:
+      tags: [Monitoring]
+      operationId: getStatus
+      summary: Check that the service is up
+      responses:
+        '200':
+          description: Up.
+          content:
+            text/html:
+              schema:
+                type: string
+                example: third-party-datastore is alive
+  /health_check:
+    get:
+      tags: [Monitoring]
+      operationId: healthCheck
+      summary: Answer OK
+      responses:
+        '200':
+          description: OK.
+  /metrics:
+    get:
+      tags: [Monitoring]
+      operationId: getMetrics
+      summary: Get Prometheus metrics
+      description: Added by `@overleaf/metrics` (`injectMetricsRoute`).
+      responses:
+        '200':
+          description: Metrics in Prometheus text format.
+          content:
+            text/plain:
+              schema:
+                type: string
+components:
+  schemas:
+    EnqueueBody:
+      type: object
+      required: [group, job]
+      properties:
+        group:
+          type: string
+          description: User id; one queue per user.
+        method:
+          type: string
+          enum: [pipeStreamFrom, standardHttpRequest]
+          description: Stored with the job; the worker dispatches on `job.method` and `job.uri`.
+        job:
+          $ref: '#/components/schemas/Job'
+    Job:
+      type: object
+      required: [uri]
+      properties:
+        method:
+          type: string
+          enum: [post, put, delete]
+        uri:
+          type: string
+          format: uri
+          description: Absolute URL; only its path is used, see the job routes above.
+        title:
+          type: string
+          example: addFile
+        headers:
+          type: object
+          description: Entity details. Values are strings.
+          properties:
+            x-project-id:
+              type: string
+            x-entity-id:
+              type: string
+            x-entity-type:
+              type: string
+              enum: [doc, file, folder]
+            x-entity-rev:
+              type: string
+            x-folder-id:
+              type: string
+        streamOrigin:
+          type: string
+          description: >-
+            Add jobs only: URL the worker downloads the content from (docstore's
+            raw doc, or project-history's `/project/:history_id/blob/:hash`).
+        streamFallback:
+          type: string
+          description: Second URL tried when `streamOrigin` answers 404.
+        json:
+          type: object
+          description: >-
+            Move jobs: `{user_id, startPath, endPath}`. Delete jobs:
+            `{subtreeEntityIds}`. Poll jobs: `{user_ids}`.
+          additionalProperties: true

@@ -1,0 +1,731 @@
+openapi: 3.0.3
+info:
+  title: chat
+  version: '6.3'
+  description: >-
+    Stores the project chat and the comment threads (their messages and resolved
+    state) in the Mongo `rooms` and `messages` collections. Called by web
+    through `ChatApiHandler`.
+security: []
+servers:
+  - url: http://chat:3010
+    description: Inside the Docker network, through the Hoppscotch proxy
+# The servers are Docker addresses that a docs reader cannot reach
+x-hideTryItPanel: true
+tags:
+  - name: Status
+    x-page-icon: heart-pulse
+    description: Liveness and metrics.
+  - name: Global messages
+    x-page-icon: comments
+    description: >-
+      The project chat. It is stored as the project's room without a
+      `thread_id`.
+  - name: Threads
+    x-page-icon: comment-dots
+    description: >-
+      Comment threads. The thread id is the comment id in the doc ranges (see
+      document-updater and docstore).
+  - name: Project
+    x-page-icon: folder-open
+    description: All rooms of a project.
+paths:
+  /status:
+    get:
+      operationId: getStatus
+      summary: Check that the service is running
+      description: Returns a fixed text. Express also answers HEAD on this route.
+      tags: [Status]
+      responses:
+        '200':
+          description: The service is running.
+          content:
+            text/html:
+              schema:
+                type: string
+                example: chat is alive
+  /metrics:
+    get:
+      operationId: getMetrics
+      summary: Get Prometheus metrics
+      description: >-
+        Prometheus metrics of this process, added by `injectMetricsRoute` from
+        `@overleaf/metrics`.
+      tags: [Status]
+      responses:
+        '200':
+          description: Metrics in the Prometheus text format.
+          content:
+            text/plain:
+              schema:
+                type: string
+  /project/{projectId}/messages:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+    get:
+      operationId: getGlobalMessages
+      summary: Get chat messages
+      description: >-
+        Returns the newest chat messages, newest first. Not read only: creates
+        the project's chat room if it does not exist yet. Caller: web
+        `ChatApiHandler.getGlobalMessages` (ChatController).
+      tags: [Global messages]
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of messages.
+          schema:
+            type: integer
+            default: 50
+        - name: before
+          in: query
+          description: Only messages with a timestamp before this, in milliseconds.
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: The messages.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Message'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      operationId: sendGlobalMessage
+      summary: Send a chat message
+      description: >-
+        Stores a new chat message, creating the chat room if needed. Caller: web
+        `ChatApiHandler.sendGlobalMessage` (ChatController).
+      tags: [Global messages]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageBody'
+      responses:
+        '201':
+          $ref: '#/components/responses/SentMessage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{projectId}/messages/{messageId}:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+      - $ref: '#/components/parameters/messageId'
+    get:
+      operationId: getGlobalMessage
+      summary: Get one chat message
+      description: >-
+        Returns one message of the project chat. 404 when the chat room or the
+        message does not exist. Read only. Caller: web
+        `ChatApiHandler.getGlobalMessage` (AuthorizationMiddleware, to check
+        who wrote a message).
+      tags: [Global messages]
+      responses:
+        '200':
+          description: The message.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      operationId: deleteGlobalMessage
+      summary: Delete a chat message
+      description: >-
+        Deletes the message, creating the chat room first if it does not exist.
+        Returns 204 also when there was no such message. Caller: web
+        `ChatApiHandler.deleteGlobalMessage` (ChatController).
+      tags: [Global messages]
+      responses:
+        '204':
+          description: Deleted, or nothing to delete.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{projectId}/messages/{messageId}/edit:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+      - $ref: '#/components/parameters/messageId'
+    post:
+      operationId: editGlobalMessage
+      summary: Edit a chat message
+      description: >-
+        Replaces the content and sets `edited_at`. With `userId`, only a message
+        by that user is changed. 404 when no message matched. Creates the chat
+        room first if it does not exist. Caller: web
+        `ChatApiHandler.editGlobalMessage` (ChatController).
+      tags: [Global messages]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditMessageBody'
+      responses:
+        '204':
+          description: Edited.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{projectId}/thread/{threadId}:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+      - $ref: '#/components/parameters/threadId'
+    get:
+      operationId: getThread
+      summary: Get a comment thread
+      description: >-
+        Returns the thread's messages, oldest first, and its resolved state. 404
+        when the thread does not exist or has no messages. Read only. Caller:
+        web `ChatApiHandler.getThread` (AuthorizationManager).
+      tags: [Threads]
+      responses:
+        '200':
+          description: The thread.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Thread'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      operationId: deleteThread
+      summary: Delete a comment thread
+      description: >-
+        Deletes the thread's room and all its messages. The comment range in the
+        doc is removed separately through document-updater. Caller: web
+        `ChatApiHandler.deleteThread` (track-changes module).
+      tags: [Threads]
+      responses:
+        '204':
+          description: Deleted.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{projectId}/thread/{threadId}/messages:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+      - $ref: '#/components/parameters/threadId'
+    post:
+      operationId: sendMessage
+      summary: Add a message to a comment thread
+      description: >-
+        Stores a new message, creating the thread if needed. Caller: web
+        `ChatApiHandler.sendComment` (track-changes and mcp-server modules).
+      tags: [Threads]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageBody'
+      responses:
+        '201':
+          $ref: '#/components/responses/SentMessage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{projectId}/thread/{threadId}/messages/{messageId}:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+      - $ref: '#/components/parameters/threadId'
+      - $ref: '#/components/parameters/messageId'
+    get:
+      operationId: getThreadMessage
+      summary: Get one message of a comment thread
+      description: >-
+        404 when the thread or the message does not exist. Read only. Caller:
+        web `ChatApiHandler.getThreadMessage` (track-changes module).
+      tags: [Threads]
+      responses:
+        '200':
+          description: The message.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      operationId: deleteMessage
+      summary: Delete a message of a comment thread
+      description: >-
+        Deletes the message, creating the thread first if it does not exist.
+        Returns 204 also when there was no such message. Caller: web
+        `ChatApiHandler.deleteMessage` (track-changes module).
+      tags: [Threads]
+      responses:
+        '204':
+          description: Deleted, or nothing to delete.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{projectId}/thread/{threadId}/messages/{messageId}/edit:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+      - $ref: '#/components/parameters/threadId'
+      - $ref: '#/components/parameters/messageId'
+    post:
+      operationId: editMessage
+      summary: Edit a message of a comment thread
+      description: >-
+        Replaces the content and sets `edited_at`. With `userId`, only a message
+        by that user is changed. 404 when no message matched. Creates the thread
+        first if it does not exist. Caller: web `ChatApiHandler.editMessage`
+        (track-changes module).
+      tags: [Threads]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditMessageBody'
+      responses:
+        '204':
+          description: Edited.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{projectId}/thread/{threadId}/user/{userId}/messages/{messageId}:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+      - $ref: '#/components/parameters/threadId'
+      - name: userId
+        in: path
+        required: true
+        description: Author of the message (Mongo ObjectId).
+        schema:
+          type: string
+          pattern: '^[0-9a-f]{24}$'
+          example: 64b7f1a2c3d4e5f60123456a
+      - $ref: '#/components/parameters/messageId'
+    delete:
+      operationId: deleteUserMessage
+      summary: Delete a user's message in a comment thread
+      description: >-
+        Deletes the message only if that user wrote it, creating the thread first
+        if it does not exist. Returns 204 also when nothing matched. Wrapped by
+        web `ChatApiHandler.deleteUserMessage`, which has no caller in this
+        repository.
+      tags: [Threads]
+      responses:
+        '204':
+          description: Deleted, or nothing to delete.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{projectId}/thread/{threadId}/resolve:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+      - $ref: '#/components/parameters/threadId'
+    post:
+      operationId: resolveThread
+      summary: Mark a comment thread as resolved
+      description: >-
+        Stores who resolved the thread and when. Does nothing if the thread does
+        not exist. Caller: web `ChatApiHandler.resolveThread` (track-changes and
+        mcp-server modules, RestoreManager).
+      tags: [Threads]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [user_id]
+              properties:
+                user_id:
+                  $ref: '#/components/schemas/ObjectId'
+      responses:
+        '204':
+          description: Resolved.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{projectId}/thread/{threadId}/reopen:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+      - $ref: '#/components/parameters/threadId'
+    post:
+      operationId: reopenThread
+      summary: Reopen a resolved comment thread
+      description: >-
+        Removes the resolved state. Does nothing if the thread does not exist.
+        Caller: web `ChatApiHandler.reopenThread` (track-changes and mcp-server
+        modules, RestoreManager).
+      tags: [Threads]
+      responses:
+        '204':
+          description: Reopened.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{projectId}/threads:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+    get:
+      operationId: getThreads
+      summary: Get all comment threads of a project
+      description: >-
+        Returns every thread that has at least one message, keyed by thread id.
+        The project chat is not included. Read only. Caller: web
+        `ChatApiHandler.getThreads` (track-changes and mcp-server modules).
+      tags: [Threads]
+      responses:
+        '200':
+          description: Threads by thread id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreadMap'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{projectId}/resolved-thread-ids:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+    get:
+      operationId: getResolvedThreadIds
+      summary: List the resolved comment threads
+      description: >-
+        Read only. Caller: web `ChatApiHandler.getResolvedThreadIds`
+        (DocumentController, which passes them to document-updater when a doc
+        is loaded).
+      tags: [Threads]
+      responses:
+        '200':
+          description: Ids of resolved threads.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  resolvedThreadIds:
+                    type: array
+                    items:
+                      type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{projectId}/generate-thread-data:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+    post:
+      operationId: generateThreadData
+      summary: Get the given comment threads
+      description: >-
+        Like getThreads, but only for the listed thread ids. Read only despite
+        the POST. Caller: web `ChatApiHandler.generateThreadData`
+        (RestoreManager).
+      tags: [Threads]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ThreadsBody'
+      responses:
+        '200':
+          description: Threads by thread id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreadMap'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{projectId}/duplicate-comment-threads:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+    post:
+      operationId: duplicateCommentThreads
+      summary: Copy comment threads within a project
+      description: >-
+        For each listed thread, creates a new thread with a new id in the same
+        project (keeping the resolved state) and copies its messages. Returns the
+        new id per old id, or an error for threads that do not exist. Caller: web
+        `ChatApiHandler.duplicateCommentThreads` (RestoreManager, when restoring
+        a file from history).
+      tags: [Threads]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ThreadsBody'
+      responses:
+        '200':
+          description: The result per old thread id.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  newThreads:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        duplicateId:
+                          type: string
+                        error:
+                          type: string
+                          enum: [not found, unknown]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{projectId}/clone-comment-threads:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+    post:
+      operationId: cloneCommentThreads
+      summary: Copy all comment threads to another project
+      description: >-
+        Copies every thread room of the project, with the same thread ids, to
+        the target project and copies their messages. The project chat is not
+        copied. Caller: web `ChatApiHandler.cloneCommentThreads`
+        (ProjectDuplicator).
+      tags: [Project]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [targetProjectId]
+              properties:
+                targetProjectId:
+                  $ref: '#/components/schemas/ObjectId'
+      responses:
+        '204':
+          description: Copied.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{projectId}:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+    delete:
+      operationId: destroyProject
+      summary: Delete all chat data of a project
+      description: >-
+        Deletes all rooms of the project (chat and comment threads) and their
+        messages. Cannot be undone. Caller: web `ChatApiHandler.destroyProject`
+        (ProjectDeleter, when a deleted project expires).
+      tags: [Project]
+      responses:
+        '204':
+          description: Deleted.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+components:
+  parameters:
+    projectId:
+      name: projectId
+      in: path
+      required: true
+      description: Project id (Mongo ObjectId).
+      schema:
+        $ref: '#/components/schemas/ObjectId'
+    threadId:
+      name: threadId
+      in: path
+      required: true
+      description: Comment thread id (Mongo ObjectId), the same as the comment id.
+      schema:
+        type: string
+        pattern: '^[0-9a-f]{24}$'
+        example: 64b7f1a2c3d4e5f601234569
+    messageId:
+      name: messageId
+      in: path
+      required: true
+      description: Message id (Mongo ObjectId).
+      schema:
+        type: string
+        pattern: '^[0-9a-f]{24}$'
+        example: 64b7f1a2c3d4e5f60123456c
+  schemas:
+    ObjectId:
+      type: string
+      pattern: '^[0-9a-f]{24}$'
+      example: 64b7f1a2c3d4e5f601234567
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+        content:
+          type: string
+        timestamp:
+          type: integer
+          description: Milliseconds since the epoch.
+        user_id:
+          type: string
+        edited_at:
+          type: integer
+          description: Milliseconds since the epoch. Only set on edited messages.
+    Thread:
+      type: object
+      properties:
+        messages:
+          type: array
+          description: Oldest first.
+          items:
+            $ref: '#/components/schemas/Message'
+        resolved:
+          type: boolean
+          description: Only set on resolved threads.
+        resolved_at:
+          type: string
+          format: date-time
+        resolved_by_user_id:
+          type: string
+    ThreadMap:
+      type: object
+      description: Threads by thread id.
+      additionalProperties:
+        $ref: '#/components/schemas/Thread'
+    SendMessageBody:
+      type: object
+      additionalProperties: false
+      required: [user_id, content]
+      properties:
+        user_id:
+          $ref: '#/components/schemas/ObjectId'
+        content:
+          type: string
+          minLength: 1
+          maxLength: 10240
+          description: At most 10 KB.
+    EditMessageBody:
+      type: object
+      additionalProperties: false
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 10240
+        userId:
+          $ref: '#/components/schemas/ObjectId'
+    ThreadsBody:
+      type: object
+      additionalProperties: false
+      required: [threads]
+      properties:
+        threads:
+          type: array
+          items:
+            $ref: '#/components/schemas/ObjectId'
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+        statusCode:
+          type: integer
+  responses:
+    SentMessage:
+      description: The new message.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              id:
+                type: string
+              content:
+                type: string
+              timestamp:
+                type: integer
+              user_id:
+                type: string
+              room_id:
+                type: string
+                description: The project id.
+    BadRequest:
+      description: Invalid query or body. Always checked in this service.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+    NotFound:
+      description: >-
+        Not found (plain text `Not Found`), or a path parameter is not a valid id
+        (JSON `{error, statusCode}`). Unknown routes return JSON `{message}`.
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: Not Found
+        application/json:
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/ValidationError'
+              - type: object
+                properties:
+                  message:
+                    type: string
+                    example: Not found
+    ServerError:
+      description: Unexpected error.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: 'Internal error: ...'
