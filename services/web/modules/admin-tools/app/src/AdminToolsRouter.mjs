@@ -149,13 +149,9 @@ export default {
       AdminProjectController.purgeDeletedProject
     )
 
-    webRouter.get('/admin/active-projects',
-      AuthorizationMiddleware.ensureUserIsSiteAdmin,
-      ActiveProjectsController.activeProjectsPage,
-    )
-    webRouter.post('/admin/active-projects/list',
-      AuthorizationMiddleware.ensureUserIsSiteAdmin,
-      ActiveProjectsController.listActiveProjects,
-    )
+    // the active projects live list (login check first, like the other
+    // routes: the polling client gets a 401, not the /restricted redirect)
+    webRouter.get('/admin/active-projects', admin, ActiveProjectsController.activeProjectsPage)
+    webRouter.post('/admin/active-projects/list', admin, ActiveProjectsController.listActiveProjects)
   },
 }

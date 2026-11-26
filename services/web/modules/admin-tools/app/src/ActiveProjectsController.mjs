@@ -50,6 +50,8 @@ export async function getActiveProjectsFromRealTime() {
 
   logger.debug({ projectCount: projectMap.size }, 'Got active projects from real-time')
 
+  // One stale or deleted project must not break the whole list: skip it
+  // with a warning and keep the rest.
   const enrichedProjects = await Promise.all(
     [...projectMap.entries()].map(async ([projectId, clients]) => {
       try {
@@ -59,7 +61,8 @@ export async function getActiveProjectsFromRealTime() {
         })
 
         if (!project) {
-          throw new OError('Project not found in database', { projectId })
+          logger.warn({ projectId }, 'active project not found in database; skipping')
+          return null
         }
 
         return {
@@ -72,7 +75,8 @@ export async function getActiveProjectsFromRealTime() {
           connectionCount: clients.length,
         }
       } catch (err) {
-        throw new OError('Error enriching project data', { projectId }, err)
+        logger.warn({ err, projectId }, 'failed to enrich active project; skipping')
+        return null
       }
     })
   )
