@@ -1,4 +1,5 @@
 import Settings from '@overleaf/settings'
+import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import nodeFetch from 'node-fetch'
@@ -52,11 +53,14 @@ function _getProxyFetch() {
   return _proxyFetch
 }
 
-/** Lazily build (and cache) the OpenAI-compatible provider.
+/** Lazily build (and cache) the provider per gateway.
  * overleaf-lab (2026-11, BYO phase 1): a per-gateway cache — the workbench
  * chat may run against the operator gateway OR a user BYO/site lane resolved
  * per request (LlmBridge.mjs); each (baseURL, apiKey) pair gets its own
- * provider instance, the operator defaults remain for calls without a cfg. */
+ * provider instance, the operator defaults remain for calls without a cfg.
+ * The gateway's API follows AI_API_MODE: Chat Completions, or the OpenAI
+ * Responses API with aiMode: 'responses'.
+ */
 const _providers = new Map()
 
 export function getProvider(cfg = null) {
@@ -64,17 +68,31 @@ export function getProvider(cfg = null) {
   const apiKey = cfg?.apiKey ?? Settings.workbenchAi?.apiKey
   const key = createHash('sha256').update(String(baseURL) + '|' + String(apiKey)).digest('hex')
   if (!_providers.has(key)) {
-    const config = {
-      name: 'workbench',
-      baseURL,
-      apiKey,
-      includeUsage: true,
-    }
+    const config = { baseURL, apiKey }
     const proxyFetch = _getProxyFetch()
     if (proxyFetch) {
       config.fetch = proxyFetch
     }
-    _providers.set(key, createOpenAICompatible(config))
+    // Responses keep OpenAI's default store: true, so the later steps of a
+    // tool call refer to the stored reasoning and call items (item_reference).
+    // With store: false, @ai-sdk/openai sends the reasoning back encrypted only
+    // for the models it knows (o-series, gpt-5), and the tool calls of newer
+    // reasoning models such as gpt-6.x would lose their reasoning items.
+    // The operator gateway's API mode is AI_API_MODE (Settings.workbenchAi
+    // .apiMode); a BYO/site lane opts in per-lane via cfg.aiMode.
+    const useResponses =
+      cfg?.aiMode === 'responses' ||
+      (cfg == null && Settings.workbenchAi?.apiMode === 'responses')
+    _providers.set(
+      key,
+      useResponses
+        ? createOpenAI(config).responses
+        : createOpenAICompatible({
+            ...config,
+            name: 'workbench',
+            includeUsage: true,
+          })
+    )
   }
   return _providers.get(key)
 }
@@ -107,15 +125,19 @@ export function hasImage(messages = []) {
  * imageModel overrides apply to the operator gateway only.
  */
 export function resolveModel(messages = [], lane = null) {
+  // overleaf-lab (2026-11, BYO phase 1): a resolved user lane (BYO row or
+  // site provider) defines its own model and capabilities for the whole
+  // conversation; the operator pdfModel/imageModel overrides apply to the
+  // operator gateway only.
   if (lane?.model) {
     return lane.model
   }
-  // overleaf-lab (ayakaleaf #122 follow-up, upstream comment 2026-10-28): a PDF
-  // anywhere in the retained history routes the WHOLE conversation to the PDF
-  // route BEFORE the image route is considered — a vision model need not
-  // support PDF file parts (e.g. Qwen-VL on vLLM reads images but refuses
-  // 'file' parts). Previously, with AI_PDF_MODEL unset, a PDF+image history
-  // claimed the image route and landed PDFs on image-only models.
+  // Follow-up requests retain earlier attachments, so route the entire conversation.
+  // A PDF goes to the PDF model, or to the chat model without one, even with
+  // images: the image model may not read PDF file parts (a vision model may
+  // read images but refuse 'file' parts), and a PDF+image history with
+  // AI_PDF_MODEL unset must not land on the image model.
+
   if (hasPdf(messages)) {
     return Settings.workbenchAi?.pdfModel || Settings.workbenchAi?.model
   }

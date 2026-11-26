@@ -34,6 +34,7 @@ import {
   getRemainingTokens,
   secondsUntilReset,
   recordTokenUsage,
+  logQuotaBreach,
 } from './TokenQuota.mjs'
 // overleaf-lab (2026-11, merge phases 3+4): ONE governance plane and ONE usage
 // ledger shared with every llm-module surface — the admin feature flags (the
@@ -234,6 +235,7 @@ async function chat(req, res) {
         'Token-RateLimit-Remaining': '0',
         'Token-RateLimit-Reset': reset,
       })
+      logQuotaBreach(userId, req, 'workbench')
       return res.status(429).json({ error: 'ai_token_quota_exceeded' })
     }
   }

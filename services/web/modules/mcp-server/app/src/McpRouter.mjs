@@ -2,7 +2,7 @@ import logger from '@overleaf/logger'
 import AuthenticationController from '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
 import AuthorizationManager from '../../../../app/src/Features/Authorization/AuthorizationManager.mjs'
 import RateLimiterMiddleware from '../../../../app/src/Features/Security/RateLimiterMiddleware.mjs'
-import { requireProjectAccess } from '../../../git-bridge/app/src/GitBridgeRouter.mjs'
+import { requireGitBridge, requireProjectAccess } from '../../../git-bridge/app/src/GitBridgeRouter.mjs'
 import McpController, { MCP_SERVICE_GROUPS } from './McpController.mjs'
 import { rateLimiters } from './McpUtils.mjs'
 import { readAdminSettings } from '../../../llm/app/src/LLMAdminController.mjs' // overleaf-lab (2026-11-05): MCP service switch
@@ -71,6 +71,7 @@ export default {
     publicApiRouter.post(
       '/project/:project_id/mcp',
       AuthenticationController.requireOauth('git_bridge'),
+      requireGitBridge,
       mcpServiceGate, // overleaf-lab (2026-11-05): site switch + per-user override
       requireProjectAccess(AuthorizationManager.promises.canUserReadProject),
       McpController.handleRequest

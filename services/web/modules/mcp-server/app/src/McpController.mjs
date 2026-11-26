@@ -10,13 +10,14 @@ import AuthorizationManager from '../../../../app/src/Features/Authorization/Aut
 import ClsiManager from '../../../../app/src/Features/Compile/ClsiManager.mjs'
 import Errors from '../../../../app/src/Features/Errors/Errors.js'
 import UserGetter from '../../../../app/src/Features/User/UserGetter.mjs'
+import { isFeatureOn } from '../../../instance-features/app/src/UserFeatures.mjs'
 import {
   DOWNLOAD_AUDIENCE,
   buildCompileTools,
   compileUserId,
 } from './CompileTools.mjs'
-import { buildCommentTools } from './CommentTools.mjs'
 import { buildChatTools } from './ChatTools.mjs'
+import { buildCommentTools } from './CommentTools.mjs'
 import { buildFileTools } from './FileTools.mjs'
 import { buildHistoryTools } from './HistoryTools.mjs'
 import { buildProjectTools } from './ProjectTools.mjs'
@@ -142,7 +143,7 @@ export function listMcpServices() {
   return out
 }
 
-function createServer(userId, projectId, client, disabledServices = []) {
+function createServer(userId, projectId, client, disabledServices = [], ip = null) {
   const server = new McpServer(
     { name: 'overleaf', version: '1.0.0' },
     {
@@ -150,12 +151,13 @@ function createServer(userId, projectId, client, disabledServices = []) {
         'This server works on one Overleaf project. Change it the way the ' +
         'user asks; otherwise prefer:\n' +
         '- edit_file and write_file for text edits, e.g. paragraphs, typos ' +
-        'or answers to comments, above all while collaborators are online: ' +
-        'the edits show live and merge with theirs. Then git pull the clone ' +
-        'once the series of edits is done.\n' +
+        'or answers to comments, and move_file for a file or folder, above ' +
+        'all while collaborators are online: the changes show live and ' +
+        'merge with theirs. Then git pull the clone once the series of ' +
+        'edits is done.\n' +
         '- git in the clone to compile or run scripts locally, add figures ' +
-        'or other binary files, change many files at once, move or rename ' +
-        'files: commit the batch and push once.\n' +
+        'or other binary files, change or move many files at once: commit ' +
+        'the batch and push once.\n' +
         'Push before switching from git to edit_file, and pull before ' +
         'switching back. Compile on Overleaf, then download the PDF. Keep ' +
         `the working directory organized as:\n` +
@@ -169,7 +171,7 @@ function createServer(userId, projectId, client, disabledServices = []) {
     }
   )
 
-  const context = { userId, projectId, client: client || 'mcp', disabledServices }
+  const context = { userId, projectId, client: client || 'mcp', ip, disabledServices }
   // overleaf-lab (2026-11-05, owner request): services disabled via the
   // admin settings (mcpServices) are NOT registered at all — tools/list
   // therefore never shows them, and calls to them fail as unknown tools.
@@ -201,7 +203,8 @@ async function handleRequest(req, res) {
     req.oauth_user._id.toString(),
     req.params.project_id,
     clientIdentity(req),
-    disabledServices
+    disabledServices,
+    req.ip
   )
   // Stateless: a new server and transport for every request
   const transport = new StreamableHTTPServerTransport({
@@ -236,8 +239,8 @@ async function downloadOutputFile(req, res) {
     return res.sendStatus(404)
   }
   // the user may have lost access since the link was made
-  const user = await UserGetter.promises.getUser(userId, { suspended: 1 })
-  if (!user || user.suspended || !(await AuthorizationManager.promises.canUserReadProject(userId, projectId))) {
+  const user = await UserGetter.promises.getUser(userId, { suspended: 1, features: 1 })
+  if (!user || user.suspended || !isFeatureOn(user, 'gitBridge') || !(await AuthorizationManager.promises.canUserReadProject(userId, projectId))) {
     return res.sendStatus(404)
   }
 
