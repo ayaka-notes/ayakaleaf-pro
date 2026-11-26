@@ -40,6 +40,17 @@ const zipUrlQuerySchema = z.object({
   query: z.object({ zipUrl: z.string().optional() }),
 })
 
+// Paths that are static assets / non-page resources must never be stored as
+// the post-login redirect target. Browsers fetch these in the background
+// (e.g. a service worker update check for /sw.js, favicons, fonts, JS/CSS)
+// and those requests are not pages the user is trying to reach; letting one
+// of them win the "last request" race would send the user to a dead asset URL
+// after login instead of the real page (e.g. /project).
+const POST_LOGIN_REDIRECT_ASSET_PATH =
+  /^\/(socket\.io|js|stylesheets|img|fonts|static)\/.*$/
+const POST_LOGIN_REDIRECT_ASSET_EXT =
+  /^.*\.(png|jpe?g|svg|gif|webp|ico|avif|js|mjs|css|woff2?|ttf|otf|eot|map|webmanifest|mp4|webm|mp3)$/i
+
 function send401WithChallenge(res) {
   res.setHeader('WWW-Authenticate', 'OverleafLogin')
   res.sendStatus(401)
@@ -553,10 +564,15 @@ const AuthenticationController = {
           ? `${req.path}?${querystring.stringify(query)}`
           : `${req.path}`
     }
+    // The asset checks run against the pathname only: both patterns are
+    // end-anchored, so a query string (e.g. a versioned /sw.js?v=1) must not
+    // let an asset slip past them, while a dotted query value (e.g.
+    // /project?v=file.png) must not disqualify a real page.
+    const pathname = String(value).split(/[?#]/)[0]
     if (
       req.session != null &&
-      !/^\/(socket.io|js|stylesheets|img)\/.*$/.test(value) &&
-      !/^.*\.(png|jpeg|svg)$/.test(value)
+      !POST_LOGIN_REDIRECT_ASSET_PATH.test(pathname) &&
+      !POST_LOGIN_REDIRECT_ASSET_EXT.test(pathname)
     ) {
       const safePath = UrlHelper.getSafeRedirectPath(value)
       return (req.session.postLoginRedirect = safePath)
