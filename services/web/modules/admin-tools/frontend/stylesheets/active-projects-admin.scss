@@ -1,0 +1,178 @@
+// admin/active-projects page chrome — same "settings page" look as the
+// admin settings pages (container + numbered section cards).
+.ap-active-projects {
+  max-width: 800px;
+  margin: 0 auto;
+  padding-bottom: 4rem;
+}
+
+.ap-active-projects-header {
+  margin-bottom: 2rem;
+
+  &-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+
+    .material-symbols {
+      font-size: 1.5rem;
+      color: var(--content-secondary, #475569);
+    }
+  }
+
+  &-desc {
+    color: var(--content-secondary, #475569);
+    margin: 0;
+  }
+}
+
+.ap-status {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 1.25rem;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+
+  &-error {
+    background-color: var(--bg-error-01, #f8d7da);
+    color: var(--content-error, #842029);
+  }
+}
+
+.ap-settings-section {
+  padding: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-secondary, #dfe5ec);
+  background-color: var(--bg-body-01, #fff);
+  margin-bottom: 1.25rem;
+
+  &-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+
+  &-header-actions {
+    justify-content: space-between;
+    flex-wrap: wrap;
+    row-gap: 0.75rem;
+
+    .ap-settings-section-header-main {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      min-width: 0;
+    }
+  }
+
+  &-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    background-color: var(--bg-accent-01, #28518f);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  &-desc {
+    color: var(--content-secondary, #475569);
+    font-size: 0.875rem;
+    margin-bottom: 1.25rem;
+  }
+
+  &-body {
+    border: 1px solid var(--border-secondary, #dfe5ec);
+    border-radius: 6px;
+    padding: 1rem;
+  }
+}
+
+.ap-section-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--content-secondary, #475569);
+}
+
+.ap-projects-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.ap-project-row {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
+  align-items: start;
+  gap: 0.5rem 1rem;
+  border: 1px solid var(--border-secondary, #dfe5ec);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  background-color: var(--bg-body-01, #fff);
+
+  @media (max-width: 767.98px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ap-project-main {
+  min-width: 0;
+}
+
+.ap-project-name {
+  font-weight: 600;
+  word-break: break-word;
+
+  a {
+    color: var(--content-primary, #333);
+    text-decoration: underline;
+
+    &:hover {
+      color: var(--bg-accent-01, #28518f);
+    }
+  }
+}
+
+.ap-project-meta {
+  font-size: 0.8125rem;
+  margin-top: 0.25rem;
+}
+
+.ap-project-users {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.9375rem;
+
+  a {
+    color: var(--content-primary, #333);
+    text-decoration: underline;
+
+    &:hover {
+      color: var(--bg-accent-01, #28518f);
+    }
+  }
+
+  em {
+    color: var(--content-secondary, #475569);
+  }
+}
+
+.ap-empty {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 0.25rem;
+  color: var(--content-secondary, #475569);
+
+  .ap-empty-icon {
+    color: #1d7d34;
+  }
+}
