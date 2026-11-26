@@ -58,7 +58,7 @@ Ayakaleaf Pro 是 Overleaf 的增强版本，具备几乎全部功能与能力�
 - Mendeley 集成（支持 Mendeley OAuth）
 - 高级参考文献搜索（搜索你的全部 Bib 条目）
 - Git-Bridge 支持（使用 Git 克隆、拉取和推送）
-- 管理面板（全局用户/项目管理）
+- 完整的管理面板（用户、项目和模板，支持搜索、批量操作、会话和审计日志）
 - 通过 LDAP、SAML 或 OAuth 2.0 实现 SSO
 - 不限编译时长（可在管理面板中调整）
 - 自助注册（可选，可按邮箱域名限制）
@@ -102,6 +102,7 @@ Ayakaleaf Pro 是 Overleaf 的增强版本，具备几乎全部功能与能力�
 
 ## 博客
 我们撰写有关 Overleaf 内部机制、编译性能和自托管 LaTeX 基础设施的文章。在我们的博客上阅读更多：
+- [2026.11 Meet the New Admin Panel in Ayakaleaf Pro](https://ayakaleaf-pro.ayaka.space/blog/2026/new-admin-panel)
 - [2026.08 Overleaf Server Pro Price and Open-Source Alternative](https://ayakaleaf-pro.ayaka.space/blog/2026/overleaf-server-pro-price-and-open-source-alternative)
 - [2026.08 Overleaf Benchmark: A Deep Research of Concurrent LaTeX Compilation in Overleaf](https://ayakaleaf-pro.ayaka.space/blog/2026/overleaf-benchmark)
 

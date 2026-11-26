@@ -8,7 +8,15 @@ import {
 } from '../../../../app/src/Features/Errors/Errors.js'
 import LinkedFilesHandler from '../../../../app/src/Features/LinkedFiles/LinkedFilesHandler.mjs'
 import LinkedFilesErrors from '../../../../app/src/Features/LinkedFiles/LinkedFilesErrors.mjs'
+import { userHasFeature } from '../../../instance-features/app/src/UserFeatures.mjs'
 import ZoteroApiClient from './ZoteroApiClient.mjs'
+
+// Core's linked file routes run the agent for whoever can write to the project
+async function assertFeatureOn(userId) {
+  if (!(await userHasFeature(userId, 'zotero'))) {
+    throw new LinkedFilesErrors.AccessDeniedError('Zotero is turned off for this user')
+  }
+}
 
 /**
  * Create a linked .bib file from Zotero (either My Library or a Group Library).
@@ -37,6 +45,7 @@ async function createLinkedFile(
   parentFolderId,
   userId
 ) {
+  await assertFeatureOn(userId)
 
   linkedFileData.importer_id = userId
   linkedFileData.importer_name = await _getUserName(userId) || 'Unknown'
@@ -59,6 +68,8 @@ async function refreshLinkedFile(
   parentFolderId,
   userId
 ) {
+  await assertFeatureOn(userId)
+
   logger.debug(
     { projectId, userId, linkedFileData },
     'refreshing Zotero linked file'

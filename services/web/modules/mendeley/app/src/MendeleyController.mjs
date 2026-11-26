@@ -2,6 +2,7 @@ import logger from '@overleaf/logger'
 import OError from '@overleaf/o-error'
 import crypto from 'node:crypto'
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
+import UserAuditLogHandler from '../../../../app/src/Features/User/UserAuditLogHandler.mjs'
 import HttpErrorHandler from '../../../../app/src/Features/Errors/HttpErrorHandler.mjs'
 import * as Api from './MendeleyApiClient.mjs'
 
@@ -54,6 +55,13 @@ async function oauthCallback(req, res) {
   try {
     const creds = await Api.exchangeMendeleyCode(code)
     await Api.storeMendeleyCredentials(userId, creds)
+    await UserAuditLogHandler.promises.addEntry(
+      userId,
+      'integration-account-linked',
+      userId,
+      req.ip,
+      { integration: 'mendeley' }
+    )
   } catch (err) {
     logger.error(OError.getFullStack(err))
     logger.error({ info: OError.getFullInfo(err) }, 'Failed to exchange Mendeley code')
@@ -110,6 +118,13 @@ async function unlink(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
   try {
     await Api.unlinkMendeley(userId)
+    await UserAuditLogHandler.promises.addEntry(
+      userId,
+      'integration-account-unlinked',
+      userId,
+      req.ip,
+      { integration: 'mendeley' }
+    )
     res.sendStatus(200)
   } catch (err) {
     const info = OError.getFullInfo(err)

@@ -4,6 +4,8 @@ import OError from '@overleaf/o-error'
 import HttpErrorHandler from '../../../../app/src/Features/Errors/HttpErrorHandler.mjs'
 import { FileTooLargeError } from '../../../../app/src/Features/Errors/Errors.js'
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
+import UserAuditLogHandler from '../../../../app/src/Features/User/UserAuditLogHandler.mjs'
+import ProjectAuditLogHandler from '../../../../app/src/Features/Project/ProjectAuditLogHandler.mjs'
 import Csrf from '../../../../app/src/infrastructure/Csrf.mjs'
 import GitHubSyncHandler from './GitHubSyncHandler.mjs'
 import TokenManager from './TokenManager.mjs'
@@ -89,6 +91,13 @@ async function importRepo(req, res) {
 
   try {
     const projectId = await GitHubSyncHandler.importRepo(userId, name, fullName, defaultBranchName)
+    ProjectAuditLogHandler.addEntryInBackground(
+      projectId,
+      'integration-repo-linked',
+      userId,
+      req.ip,
+      { integration: 'github', repo: fullName }
+    )
     res.json({ projectId })
   } catch (error) {
     logger.error({ error, userId }, 'Failed to import git repository from server')
@@ -143,6 +152,7 @@ async function oauth2Callback(req, res) {
     HttpErrorHandler.handleErrorByStatusCode(req, res, err, errStatus)
     return
   }
+  await UserAuditLogHandler.promises.addEntry(userId, 'link-github', userId, req.ip)
 
   // Save success message in session to display on redirect
   req.session.projectSyncSuccessMessage =
@@ -162,6 +172,7 @@ async function unlink(req, res) {
     logger.error({ info, userId }, 'Error removing user credentials')
     return res.status(errStatus).json({ message: err.message })
   }
+  await UserAuditLogHandler.promises.addEntry(userId, 'unlink-github', userId, req.ip)
   res.sendStatus(200)
 }
 
@@ -187,6 +198,13 @@ async function exportProject(req, res) {
     const key = 'github_validation_check'
     return res.status(errStatus).json({ key, message: err.message })
   }
+  ProjectAuditLogHandler.addEntryInBackground(
+    projectId,
+    'integration-repo-linked',
+    userId,
+    req.ip,
+    { integration: 'github', repo: req.body.name, owner: req.body.org }
+  )
   res.sendStatus(200)
 }
 
@@ -223,6 +241,13 @@ async function unlinkRepo(req, res) {
     logger.error({ info, projectId }, 'Error unlinking repo from project')
     return res.status(errStatus).json({ message: err.message })
   }
+  ProjectAuditLogHandler.addEntryInBackground(
+    projectId,
+    'integration-repo-unlinked',
+    userId,
+    req.ip,
+    { integration: 'github' }
+  )
   res.sendStatus(200)
 }
 export default {

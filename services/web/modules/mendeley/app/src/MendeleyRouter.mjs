@@ -1,6 +1,7 @@
 import logger from '@overleaf/logger'
 import Settings from '@overleaf/settings'
 import AuthenticationController from '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
+import { requireUserFeature } from '../../../instance-features/app/src/UserFeatures.mjs'
 import MendeleyController from './MendeleyController.mjs'
 
 // Gating: like the vendored zotero router, enablement is the env-secret gate
@@ -17,12 +18,17 @@ function ensureMendeleyEnabled(req, res, next) {
   return res.status(403).send('Mendeley is disabled on this site')
 }
 
+// Per-user switch (admin panel): a user with Mendeley turned off gets 403.
+// Unlinking stays open: a user can always let go of the account.
+const requireMendeley = requireUserFeature('mendeley')
+
 export default {
   apply(webRouter) {
     // Get Mendeley groups for the create-file modal (2026-11-05, Go-spec bodies)
     webRouter.get(
       '/mendeley/groups',
       AuthenticationController.requireLogin(),
+      requireMendeley,
       MendeleyController.getGroups
     )
     // Link status + unlink
@@ -51,11 +57,13 @@ export default {
       '/user/mendeley/oauth',
       AuthenticationController.requireLogin(),
       ensureMendeleyEnabled,
+      requireMendeley,
       MendeleyController.oauth
     )
     webRouter.get(
       '/user/mendeley/oauth/callback',
       AuthenticationController.requireLogin(),
+      requireMendeley,
       MendeleyController.oauthCallback
     )
 
@@ -64,18 +72,21 @@ export default {
       '/user/mendeley/picker/libraries',
       AuthenticationController.requireLogin(),
       ensureMendeleyEnabled,
+      requireMendeley,
       MendeleyController.getPickerLibraries
     )
     webRouter.get(
       '/user/mendeley/picker/documents',
       AuthenticationController.requireLogin(),
       ensureMendeleyEnabled,
+      requireMendeley,
       MendeleyController.getPickerDocuments
     )
     webRouter.get(
       '/user/mendeley/picker/bibtex',
       AuthenticationController.requireLogin(),
       ensureMendeleyEnabled,
+      requireMendeley,
       MendeleyController.getPickerBibtex
     )
   },

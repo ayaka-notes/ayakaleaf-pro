@@ -2,6 +2,7 @@ import logger from '@overleaf/logger'
 import OError from '@overleaf/o-error'
 import crypto from 'crypto'
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
+import UserAuditLogHandler from '../../../../app/src/Features/User/UserAuditLogHandler.mjs'
 import HttpErrorHandler from '../../../../app/src/Features/Errors/HttpErrorHandler.mjs'
 import ZoteroApiClient from './ZoteroApiClient.mjs'
 import ZoteroOAuth from './ZoteroOAuth.mjs'
@@ -55,6 +56,13 @@ async function oauthCallback(req, res) {
       oauthVerifier,
     )
     await TokenManager.storeCredentials(userId, accessToken, zoteroUserId)
+    await UserAuditLogHandler.promises.addEntry(
+      userId,
+      'integration-account-linked',
+      userId,
+      req.ip,
+      { integration: 'zotero' }
+    )
 
   } catch (err) {
     logger.error(OError.getFullStack(err))
@@ -166,6 +174,13 @@ async function unlink(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
   try {
     await ZoteroApiClient.unlinkAccount(userId)
+    await UserAuditLogHandler.promises.addEntry(
+      userId,
+      'integration-account-unlinked',
+      userId,
+      req.ip,
+      { integration: 'zotero' }
+    )
     res.sendStatus(200)
   } catch (err) {
     const info = OError.getFullInfo(err)

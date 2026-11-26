@@ -1,5 +1,10 @@
 import AuthenticationController from '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
+import { requireUserFeature } from '../../../instance-features/app/src/UserFeatures.mjs'
 import ZoteroController from './ZoteroController.mjs'
+
+// Per-user switch (admin panel): a user with Zotero turned off gets 403.
+// Unlinking stays open: a user can always let go of the account.
+const requireZotero = requireUserFeature('zotero')
 
 export default {
   apply(webRouter) {
@@ -7,6 +12,7 @@ export default {
     webRouter.get(
       '/user/zotero/groups',
       AuthenticationController.requireLogin(),
+      requireZotero,
       ZoteroController.getGroups
     )
 
@@ -14,12 +20,14 @@ export default {
     webRouter.get(
       '/zotero/groups',
       AuthenticationController.requireLogin(),
+      requireZotero,
       ZoteroController.getGroups
     )
 
     webRouter.get(
       '/user/zotero/collections',
       AuthenticationController.requireLogin(),
+      requireZotero,
       ZoteroController.getCollections
     )
 
@@ -38,12 +46,14 @@ export default {
     webRouter.get(
       '/user/zotero/oauth',
       AuthenticationController.requireLogin(),
+      requireZotero,
       ZoteroController.oauth
     )
     // callback for Zotero OAuth flow
     webRouter.get(
       '/user/zotero/oauth/callback',
       AuthenticationController.requireLogin(),
+      requireZotero,
       ZoteroController.oauthCallback
     )
 
@@ -51,21 +61,25 @@ export default {
     webRouter.get(
       '/user/zotero/picker/libraries',
       AuthenticationController.requireLogin(),
+      requireZotero,
       ZoteroController.getPickerLibraries
     )
     webRouter.get(
       '/user/zotero/picker/collections',
       AuthenticationController.requireLogin(),
+      requireZotero,
       ZoteroController.getPickerCollections
     )
     webRouter.get(
       '/user/zotero/picker/items',
       AuthenticationController.requireLogin(),
+      requireZotero,
       ZoteroController.getPickerItems
     )
     webRouter.get(
       '/user/zotero/picker/bibtex',
       AuthenticationController.requireLogin(),
+      requireZotero,
       ZoteroController.getPickerBibtex
     )
 

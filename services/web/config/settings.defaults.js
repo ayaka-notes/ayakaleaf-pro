@@ -1364,6 +1364,7 @@ module.exports = {
     'instance-features',
     'open-in-overleaf',
     'bib-editor', // visual .bib editor + user Library (pages/routes/API + vendored ORCID/Zotero pickers)
+    'user-emails',
   ],
   viewIncludes: {},
 

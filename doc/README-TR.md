@@ -58,7 +58,7 @@ Ayakaleaf Pro, neredeyse tüm özellik ve yeteneklere sahip, Overleaf'in gelişt
 - Mendeley entegrasyonu (Mendeley OAuth desteğiyle)
 - Gelişmiş kaynakça araması (tüm Bib kayıtlarınızda arama yapın)
 - Git-Bridge desteği (Git ile clone, pull ve push)
-- Yönetim paneli (genel kullanıcı/proje yönetimi)
+- Eksiksiz yönetim paneli (kullanıcılar, projeler ve şablonlar; arama, toplu işlemler, oturumlar ve denetim günlükleri)
 - LDAP ve SAML veya OAuth 2.0 ile SSO
 - Sınırsız derleme süresi (yönetim panelinden ayarlanabilir)
 - Kendi kendine kayıt (isteğe bağlı, e-posta alan adına göre sınırlandırılabilir)
@@ -102,6 +102,7 @@ Overleaf'in geliştirilmesine katkıda bulunma hakkında bilgi için lütfen [CO
 
 ## Blog
 Overleaf'in iç yapısı, derleme performansı ve kendi sunucunuzda barındırılan LaTeX altyapısı hakkında yazıyoruz. Daha fazlasını blogumuzda okuyun:
+- [2026.11 Meet the New Admin Panel in Ayakaleaf Pro](https://ayakaleaf-pro.ayaka.space/blog/2026/new-admin-panel)
 - [2026.08 Overleaf Server Pro Price and Open-Source Alternative](https://ayakaleaf-pro.ayaka.space/blog/2026/overleaf-server-pro-price-and-open-source-alternative)
 - [2026.08 Overleaf Benchmark: A Deep Research of Concurrent LaTeX Compilation in Overleaf](https://ayakaleaf-pro.ayaka.space/blog/2026/overleaf-benchmark)
 
