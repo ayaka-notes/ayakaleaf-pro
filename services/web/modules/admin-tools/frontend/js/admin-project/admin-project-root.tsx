@@ -43,7 +43,12 @@ function AdminProjectPage() {
   const ownerName =
     [owner?.firstName, owner?.lastName].filter(Boolean).join(' ') ||
     owner?.email ||
-    ownerKey
+    // expired or purged, as the review panel names it
+    t('deleted_user')
+  // a purged owner has no page left: back to the projects then
+  const back = owner?.email
+    ? `/admin/user/${ownerKey}#projects`
+    : '/admin/project'
   const deleted = project.status === 'deleted'
 
   const changeOwner = changeOwnerAction(t, project.id, ownerKey)
@@ -83,7 +88,7 @@ function AdminProjectPage() {
   // after a purge the page is gone: back to the owner's deleted projects
   const done = (action: Action) => {
     if (action.key === 'project-purge') {
-      window.location.assign(`/admin/user/${ownerKey}#projects`)
+      window.location.assign(back)
     } else {
       window.location.reload()
     }
@@ -111,7 +116,7 @@ function AdminProjectPage() {
   return (
     <>
       {/* core's back link, as on the template pages */}
-      <a className="previous-page-link admin-panel-back" href={`/admin/user/${ownerKey}#projects`}>
+      <a className="previous-page-link admin-panel-back" href={back}>
         <i className="material-symbols material-symbols-rounded" aria-hidden="true">
           arrow_left_alt
         </i>

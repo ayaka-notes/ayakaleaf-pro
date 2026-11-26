@@ -67,6 +67,10 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY_IMAGE }}
+          # The release branch, not the server-pro ref the workflow runs on
+          labels: |
+            org.opencontainers.image.version=${{ env.version }}
+            org.opencontainers.image.revision=${{ env.MONOREPO_REVISION }}
 
       - name: Login to GHCR
         uses: docker/login-action@v4
@@ -95,7 +99,6 @@ jobs:
             jq -s '.[0] * .[1]' "services/web/locales/$lang" "$f" > "$f.tmp"
             mv "$f.tmp" "services/web/locales/$lang"
           done
-          docker run --rm -v "$(pwd)/services/web/":/overleaf/services/web -w /overleaf/services/web ghcr.io/ayaka-notes/overleaf-pro/dev:webpack yarn run extract-translations
           cd ./server-ce/
           cp .dockerignore ../
       
@@ -263,6 +266,10 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY_IMAGE }}/git-bridge
+          # The release branch, not the server-pro ref the workflow runs on
+          labels: |
+            org.opencontainers.image.version=${{ env.version }}
+            org.opencontainers.image.revision=${{ env.MONOREPO_REVISION }}
 
       - name: Login to GHCR
         uses: docker/login-action@v4

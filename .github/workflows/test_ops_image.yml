@@ -60,7 +60,7 @@ jobs:
           - group: LDAP and SAML
             suites: authentication/ldap authentication/saml
           - group: Accounts
-            suites: login-register launchpad instance-features
+            suites: login-register user-emails launchpad instance-features
           - group: Git Sync
             suites: github-sync gitlab-sync gitea-sync
           - group: Git and Tokens

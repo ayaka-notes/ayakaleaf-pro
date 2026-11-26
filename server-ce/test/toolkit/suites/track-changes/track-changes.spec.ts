@@ -458,6 +458,39 @@ describe('permissions', function () {
     expectStatus(204, 'POST', reopen(reviewerThread))
   })
 
+  it('rejects malformed review route IDs before changing the thread', function () {
+    asUser(editor)
+    const invalidId = 'not-an-object-id'
+    const threadsUrl = `/project/${projectId}/threads`
+    const content = { content: 'This must not be saved' }
+
+    cy.request(threadsUrl).then(({ body: threads }) => {
+      const thread = threads[ownerThread]
+      const messageId = thread.messages[0].id
+      const messagePaths = [
+        `/thread/${invalidId}/messages/${messageId}`,
+        `/thread/${ownerThread}/messages/${invalidId}`,
+      ]
+      const invalidDocThread = `/doc/${invalidId}/thread/${ownerThread}`
+
+      expectStatus(404, 'POST', `/thread/${invalidId}/messages`, content)
+      for (const path of messagePaths) {
+        expectStatus(404, 'POST', `${path}/edit`, content)
+        expectStatus(404, 'DELETE', path)
+      }
+      expectStatus(404, 'POST', `/doc/${invalidId}/changes/accept`, {
+        change_ids: [],
+      })
+      expectStatus(404, 'POST', `${invalidDocThread}/resolve`)
+      expectStatus(404, 'POST', `${invalidDocThread}/reopen`)
+      expectStatus(404, 'DELETE', invalidDocThread)
+
+      cy.request(threadsUrl)
+        .its('body')
+        .should('deep.equal', threads)
+    })
+  })
+
   it('lets a reviewer comment and resolve only their own threads', function () {
     asUser(reviewer)
     canRead(200)
