@@ -41,6 +41,20 @@ export function setUserFeatures(
   })
 }
 
+// The user's features as the database holds them: the admin's page of the
+// account reads them without defaults. Expects to be logged in as admin.
+export function storedFeatures(
+  email: string
+): Cypress.Chainable<Record<string, unknown>> {
+  return adminUserInfo(email).then(user => {
+    cy.visit(`/admin/user/${user.id}`)
+    return cy
+      .get('meta[name="ol-adminUser"]')
+      .invoke('attr', 'content')
+      .then(content => JSON.parse(content as string).user.features)
+  })
+}
+
 // Visits the page and waits until it knows what the user can use, so that
 // checking for missing UI cannot pass before the UI could have appeared
 export function visitWithFeatures(url: string) {

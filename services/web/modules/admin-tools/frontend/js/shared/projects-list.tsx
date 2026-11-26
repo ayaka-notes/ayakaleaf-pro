@@ -267,11 +267,14 @@ function ProjectsList({
                   </td>
                   {!ownerId && (
                     <td className="d-none d-md-table-cell">
-                      {project.owner?.id && (
+                      {project.owner?.email ? (
                         <a className="admin-panel-plain-link" href={`/admin/user/${project.owner.id}`}>
-                          {project.owner.name || project.owner.email || project.owner.id}
+                          {project.owner.name || project.owner.email}
                         </a>
-                      )}
+                      ) : project.owner?.id ? (
+                        // expired or purged, as the review panel names it
+                        <span className="admin-panel-muted">{t('deleted_user')}</span>
+                      ) : null}
                       {!project.owner?.name && project.owner?.matchedEmails?.length ? (
                         <> <PrimaryBadge /></>
                       ) : null}
