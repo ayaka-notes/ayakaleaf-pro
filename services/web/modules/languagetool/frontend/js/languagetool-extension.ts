@@ -482,7 +482,14 @@ export const extension = (options: Record<string, any>): Extension => {
           signal: ac.signal,
         })
 
-        if (!response.ok) return
+        if (!response.ok) {
+          // Clear any previous diagnostics — stale underlines after a
+          // server error or timeout are misleading.
+          if (!ac.signal.aborted) {
+            view.dispatch({ effects: setLTDiagnosticsEffect.of([]) })
+          }
+          return
+        }
 
         const result: { matches: LTMatch[] } = await response.json()
 
@@ -513,7 +520,12 @@ export const extension = (options: Record<string, any>): Extension => {
           view.dispatch({ effects: setLTDiagnosticsEffect.of(diagnostics) })
         }
       } catch {
-        // AbortError or network failure — silently ignore.
+        // AbortError — silently ignore.
+        if (!ac.signal.aborted) {
+          // Network failure (not an abort): drop stale diagnostics so the
+          // editor does not keep showing underlines from an earlier check.
+          view.dispatch({ effects: setLTDiagnosticsEffect.of([]) })
+        }
       }
     }
 

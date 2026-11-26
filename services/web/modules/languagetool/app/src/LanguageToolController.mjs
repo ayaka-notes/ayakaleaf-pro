@@ -4,6 +4,106 @@ import fetch from 'node-fetch'
 
 const MAX_TEXT_SIZE = 100_000 // 100 KB limit for safety
 
+/**
+ * Truncate an annotated `data` payload so its serialized text stays within
+ * MAX_TEXT_SIZE. Offsets are computed over the text LT will actually receive,
+ * so we must never hand LT a truncated JSON envelope (it would reject the
+ * request and offsets could no longer map to the client document).
+ *
+ * Returns:
+ *  - { ok: true, value }     — safe value (string or { annotation: [...] })
+ *  - { ok: false, code }     — payload cannot be represented within the limit;
+ *                              caller should answer with the given status
+ */
+function truncateData(data) {
+  const envelopeSize = ann => JSON.stringify({ annotation: ann }).length
+
+  // Largest prefix of `first.value` whose serialized envelope fits within
+  // MAX_TEXT_SIZE. Bisection needed because JSON escaping (quotes, backslashes)
+  // can make the serialized text larger than the raw value.
+  function truncateFirstItem(first) {
+    const fits = v =>
+      JSON.stringify({ annotation: [{ ...first, value: v }] }).length <= MAX_TEXT_SIZE
+    if (fits(first.value)) return { ...first, value: first.value }
+    let lo = 0
+    let hi = first.value.length
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1
+      if (fits(first.value.slice(0, mid))) lo = mid
+      else hi = mid
+    }
+    if (lo === 0) return null
+    return { ...first, value: first.value.slice(0, lo) }
+  }
+
+  let ann = null
+  if (typeof data === 'string') {
+    try {
+      const parsed = JSON.parse(data)
+      if (parsed && Array.isArray(parsed.annotation)) ann = parsed.annotation
+    } catch {
+      // Plain text — truncate as text
+      return { ok: true, value: data.slice(0, MAX_TEXT_SIZE) }
+    }
+  } else if (data && Array.isArray(data.annotation)) {
+    ann = data.annotation
+  } else {
+    return { ok: true, value: JSON.stringify(data).slice(0, MAX_TEXT_SIZE) }
+  }
+
+  if (!ann || ann.length === 0) {
+    return { ok: false, code: 413 }
+  }
+
+  if (envelopeSize(ann) <= MAX_TEXT_SIZE) {
+    return { ok: true, value: { annotation: ann } }
+  }
+
+  // Per-item serialized overhead (envelope, braces, escaping) for the
+  // early-break heuristic; the final size is verified exactly below.
+  const emptyEnvelope = JSON.stringify({ annotation: [] }).length
+  const itemSize = item => JSON.stringify({ annotation: [item] }).length - emptyEnvelope
+
+  const out = []
+  let used = 0
+  for (const item of ann) {
+    const size = itemSize(item)
+    if (used + size >= MAX_TEXT_SIZE - emptyEnvelope) break
+    used += size
+    out.push(item)
+  }
+
+  if (out.length === 0) {
+    // Even the first annotation is over budget: truncate its text so the
+    // payload is still a valid JSON envelope and the sent text remains a
+    // true prefix of the client document (offsets stay valid).
+    const first = ann[0]
+    if (first && typeof first === 'object' && typeof first.value === 'string') {
+      const item = truncateFirstItem(first)
+      if (item) return { ok: true, value: { annotation: [item] } }
+    }
+    return { ok: false, code: 413 }
+  }
+
+  // Exact final check (commas/escaping between items can add bytes):
+  // pop trailing items until the envelope fits. Dropping trailing
+  // annotations shifts nothing — LT offsets are computed over the
+  // reconstructed text and the kept prefix is unchanged.
+  while (envelopeSize(out) > MAX_TEXT_SIZE) {
+    out.pop()
+    if (out.length === 0) {
+      // Fall through to single-item truncation of the first annotation
+      const first = ann[0]
+      if (first && typeof first === 'object' && typeof first.value === 'string') {
+        const item = truncateFirstItem(first)
+        if (item) return { ok: true, value: { annotation: [item] } }
+      }
+      return { ok: false, code: 413 }
+    }
+  }
+  return { ok: true, value: { annotation: out } }
+}
+
 // Levels understood by the LanguageTool fork we deploy
 // (erikvl87/languagetool supports: default and picky).
 const ALLOWED_LEVELS = new Set([
@@ -63,21 +163,6 @@ const LanguageToolController = {
       return res.status(400).json({ error: `unknown level: ${level}` })
     }
 
-    // Sanitize: reject oversized requests
-    const contentStr =
-      typeof data === 'string'
-        ? data
-        : typeof data === 'object'
-          ? JSON.stringify(data)
-          : text || ''
-
-    if (contentStr.length > MAX_TEXT_SIZE) {
-      logger.warn(
-        { size: contentStr.length },
-        'LanguageTool request exceeds size limit, truncating'
-      )
-    }
-
     try {
       const params = new URLSearchParams()
       params.set('language', language)
@@ -87,9 +172,14 @@ const LanguageToolController = {
       }
 
       if (data) {
-        const dataStr =
-          typeof data === 'string' ? data : JSON.stringify(data)
-        params.set('data', dataStr.slice(0, MAX_TEXT_SIZE))
+        const truncated = truncateData(data)
+        if (!truncated.ok) {
+          return res.status(truncated.code).json({
+            error: 'document is too large to check',
+          })
+        }
+        const value = truncated.value
+        params.set('data', typeof value === 'string' ? value : JSON.stringify(value))
       } else {
         params.set('text', (text || '').slice(0, MAX_TEXT_SIZE))
       }
