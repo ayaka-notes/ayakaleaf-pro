@@ -4,6 +4,10 @@ import logger from '@overleaf/logger'
 import GitLabSyncController from './GitLabSyncController.mjs'
 import AuthenticationController from '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
 import AuthorizationMiddleware from '../../../../app/src/Features/Authorization/AuthorizationMiddleware.mjs'
+import { requireUserFeature } from '../../../instance-features/app/src/UserFeatures.mjs'
+
+// Unlinking stays open: a user can always let go of an account or a repository
+const requireGitLab = requireUserFeature('gitlab')
 
 export default {
   apply(webRouter) {
@@ -18,6 +22,7 @@ export default {
     webRouter.get(
       '/user/gitlab-sync/oauth2',
       AuthenticationController.requireLogin(),
+      requireGitLab,
       GitLabSyncController.oauth2
     )
 
@@ -25,6 +30,7 @@ export default {
     webRouter.get(
       '/user/gitlab-sync/oauth2/callback',
       AuthenticationController.requireLogin(),
+      requireGitLab,
       GitLabSyncController.oauth2Callback
     )
 
@@ -39,6 +45,7 @@ export default {
     webRouter.get(
       '/user/gitlab-sync/status',
       AuthenticationController.requireLogin(),
+      requireGitLab,
       GitLabSyncController.getConnectionStatus
     )
 
@@ -46,6 +53,7 @@ export default {
     webRouter.get(
       '/user/gitlab-sync/orgs',
       AuthenticationController.requireLogin(),
+      requireGitLab,
       GitLabSyncController.getUserAndOrgs
     )
 
@@ -53,6 +61,7 @@ export default {
     webRouter.get(
       '/user/gitlab-sync/repos',
       AuthenticationController.requireLogin(),
+      requireGitLab,
       GitLabSyncController.listUserRepos
     )
 
@@ -60,6 +69,7 @@ export default {
     webRouter.post(
       '/project/new/gitlab-sync',
       AuthenticationController.requireLogin(),
+      requireGitLab,
       GitLabSyncController.importRepo
     )
 
@@ -68,6 +78,7 @@ export default {
       '/project/:project_id/gitlab-sync/export',
       AuthenticationController.requireLogin(),
       AuthorizationMiddleware.ensureUserCanWriteProjectContent,
+      requireGitLab,
       GitLabSyncController.exportProject
     )
 
@@ -76,6 +87,7 @@ export default {
       '/project/:project_id/gitlab-sync/state',
       AuthenticationController.requireLogin(),
       AuthorizationMiddleware.ensureUserCanWriteProjectContent,
+      requireGitLab,
       GitLabSyncController.getProjectState
     )
 
@@ -85,6 +97,7 @@ export default {
       '/project/:project_id/gitlab-sync/merge/overview',
       AuthenticationController.requireLogin(),
       AuthorizationMiddleware.ensureUserCanWriteProjectContent,
+      requireGitLab,
       GitLabSyncController.getMergeOverview
     )
 
@@ -93,6 +106,7 @@ export default {
       '/project/:project_id/gitlab-sync/merge',
       AuthenticationController.requireLogin(),
       AuthorizationMiddleware.ensureUserCanWriteProjectContent,
+      requireGitLab,
       GitLabSyncController.gitMerge
     )
 

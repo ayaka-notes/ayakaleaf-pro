@@ -126,6 +126,8 @@ export const UserSchema = new Schema(
       },
       dropbox: { type: Boolean, default: Settings.defaultFeatures.dropbox },
       github: { type: Boolean, default: Settings.defaultFeatures.github },
+      gitlab: { type: Boolean, default: Settings.defaultFeatures.gitlab },
+      gitea: { type: Boolean, default: Settings.defaultFeatures.gitea },
       gitBridge: { type: Boolean, default: Settings.defaultFeatures.gitBridge },
       compileTimeout: {
         type: Number,
@@ -176,6 +178,8 @@ export const UserSchema = new Schema(
           versioning: { type: Boolean },
           dropbox: { type: Boolean },
           github: { type: Boolean },
+          gitlab: { type: Boolean },
+          gitea: { type: Boolean },
           gitBridge: { type: Boolean },
           compileTimeout: { type: Number },
           compileGroup: { type: String },
