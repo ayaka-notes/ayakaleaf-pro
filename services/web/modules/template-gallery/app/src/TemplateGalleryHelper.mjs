@@ -46,7 +46,25 @@ function _createZipStreamForProjectAsync(projectId) {
   })
 }
 
-export function validateTemplateInput({ name, descriptionMD, authorMD, license }) {
+// What the publish and edit forms send, all text. The rest of a template (its
+// owner, version, source project and build) comes from publishing only.
+export const TEMPLATE_FORM_FIELDS = [
+  'name',
+  'category',
+  'language',
+  'license',
+  'authorMD',
+  'descriptionMD',
+]
+
+export function validateTemplateInput(fields) {
+  // anything but text fails later in mongoose or the markdown renderer, a 500
+  for (const key of TEMPLATE_FORM_FIELDS) {
+    if (fields[key] !== undefined && typeof fields[key] !== 'string') {
+      throw new Errors.InvalidNameError(`Invalid template ${key}.`)
+    }
+  }
+  const { name, descriptionMD, authorMD, license } = fields
   if (name?.length > MAX_PROJECT_NAME_LENGTH) {
     throw new Errors.InvalidNameError(`Template title exceeds the maximum length of ${MAX_PROJECT_NAME_LENGTH} characters.`)
   }

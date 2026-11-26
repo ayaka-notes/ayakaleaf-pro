@@ -1,7 +1,7 @@
 // Sends a request like the page's own scripts do, using the CSRF token of the
 // current page.
 export function requestWithCsrf(
-  method: 'POST' | 'DELETE',
+  method: 'POST' | 'PUT' | 'DELETE',
   url: string,
   body: Record<string, unknown> = {}
 ) {

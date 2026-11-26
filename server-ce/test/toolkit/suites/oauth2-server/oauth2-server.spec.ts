@@ -1,6 +1,12 @@
 import { v4 as uuid } from 'uuid'
-import { adminUserInfo, setSuspended } from '../../../helpers/adminTools'
+import {
+  adminUserInfo,
+  setSuspended,
+  setUserFeatures,
+  visitWithFeatures,
+} from '../../../helpers/adminTools'
 import { login } from '../../../helpers/login'
+import { expectOwnAuditEntry } from '../../../helpers/auditLog'
 import { postWithCsrf, requestWithCsrf } from '../../../helpers/request'
 import { ADMIN_EMAIL, ensureUserExists } from '../../../helpers/users'
 
@@ -103,6 +109,14 @@ describe('git authentication tokens in the account settings', function () {
     cy.findByRole('button', { name: 'Add another token' }).should('not.exist')
     // No table without tokens
     cy.findByText('Created at').should('not.exist')
+  })
+
+  it('tells about a created and a deleted token on the audit log', function () {
+    createToken()
+    deleteAllTokens()
+    login(ADMIN_EMAIL)
+    expectOwnAuditEntry(owner, 'create-git-token')
+    expectOwnAuditEntry(owner, 'delete-git-token')
   })
 
   it('shows a new token once, then only its start with its dates', function () {
@@ -416,5 +430,35 @@ describe('tokens of disabled and deleted accounts', function () {
       cy.clearAllCookies()
       tokenInfo(`Bearer ${token}`).its('status').should('equal', 401)
     })
+  })
+})
+
+describe('tokens with git access turned off', function () {
+  it('hides them and makes no new ones, and still deletes the old, until it is on again', function () {
+    const email = `git-off-${uuid()}@example.com`
+    ensureUserExists(email)
+    login(email)
+    visitSettings()
+    createToken()
+
+    login(ADMIN_EMAIL)
+    setUserFeatures(email, { gitBridge: false })
+
+    login(email)
+    visitWithFeatures('/user/settings')
+    cy.findByRole('heading', { name: 'Change password' }).should('exist')
+    cy.findByRole('heading', { name: 'Git integration' }).should('not.exist')
+    postWithCsrf('/oauth/personal-access-tokens', {})
+      .its('status')
+      .should('equal', 403)
+    deleteAllTokens()
+    listTokens().should('have.length', 0)
+
+    login(ADMIN_EMAIL)
+    setUserFeatures(email, { gitBridge: true })
+
+    login(email)
+    visitSettings()
+    createToken()
   })
 })
