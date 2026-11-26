@@ -6,9 +6,13 @@ const MAX_TEXT_SIZE = 100_000 // 100 KB limit for safety
 
 /**
  * Truncate an annotated `data` payload so its serialized text stays within
- * MAX_TEXT_SIZE. Offsets are computed over the text LT will actually receive,
- * so we must never hand LT a truncated JSON envelope (it would reject the
- * request and offsets could no longer map to the client document).
+ * MAX_TEXT_SIZE. Offsets are computed over the text LT will actually receive
+ * (annotations reconstructed as `a.text ?? a.markup`, joined), so we must
+ * never hand LT a truncated JSON envelope (it would reject the request and
+ * offsets could no longer map to the client document).
+ *
+ * Annotation item shape (see LTAnnotation in the frontend):
+ *   { text?: string, markup?: string }   (text and markup are exclusive)
  *
  * Returns:
  *  - { ok: true, value }     — safe value (string or { annotation: [...] })
@@ -18,22 +22,24 @@ const MAX_TEXT_SIZE = 100_000 // 100 KB limit for safety
 function truncateData(data) {
   const envelopeSize = ann => JSON.stringify({ annotation: ann }).length
 
-  // Largest prefix of `first.value` whose serialized envelope fits within
-  // MAX_TEXT_SIZE. Bisection needed because JSON escaping (quotes, backslashes)
-  // can make the serialized text larger than the raw value.
+  // Truncate the first item's text (or markup) in place until the serialized
+  // envelope fits. Bisection needed because JSON escaping (quotes, backslashes)
+  // can make the serialized text larger than the raw string.
   function truncateFirstItem(first) {
-    const fits = v =>
-      JSON.stringify({ annotation: [{ ...first, value: v }] }).length <= MAX_TEXT_SIZE
-    if (fits(first.value)) return { ...first, value: first.value }
+    if (!first || typeof first !== 'object') return null
+    const field = typeof first.text === 'string' ? 'text' : typeof first.markup === 'string' ? 'markup' : null
+    if (!field) return null
+    const fits = v => JSON.stringify({ annotation: [{ ...first, [field]: v }] }).length <= MAX_TEXT_SIZE
+    if (fits(first[field])) return { ...first, [field]: first[field] }
     let lo = 0
-    let hi = first.value.length
+    let hi = first[field].length
     while (hi - lo > 1) {
       const mid = (lo + hi) >> 1
-      if (fits(first.value.slice(0, mid))) lo = mid
+      if (fits(first[field].slice(0, mid))) lo = mid
       else hi = mid
     }
     if (lo === 0) return null
-    return { ...first, value: first.value.slice(0, lo) }
+    return { ...first, [field]: first[field].slice(0, lo) }
   }
 
   let ann = null
@@ -74,14 +80,11 @@ function truncateData(data) {
   }
 
   if (out.length === 0) {
-    // Even the first annotation is over budget: truncate its text so the
-    // payload is still a valid JSON envelope and the sent text remains a
+    // Even the first annotation is over budget: truncate its text/markup so
+    // the payload is still a valid JSON envelope and the sent text remains a
     // true prefix of the client document (offsets stay valid).
-    const first = ann[0]
-    if (first && typeof first === 'object' && typeof first.value === 'string') {
-      const item = truncateFirstItem(first)
-      if (item) return { ok: true, value: { annotation: [item] } }
-    }
+    const item = truncateFirstItem(ann[0])
+    if (item) return { ok: true, value: { annotation: [item] } }
     return { ok: false, code: 413 }
   }
 
@@ -93,11 +96,8 @@ function truncateData(data) {
     out.pop()
     if (out.length === 0) {
       // Fall through to single-item truncation of the first annotation
-      const first = ann[0]
-      if (first && typeof first === 'object' && typeof first.value === 'string') {
-        const item = truncateFirstItem(first)
-        if (item) return { ok: true, value: { annotation: [item] } }
-      }
+      const item = truncateFirstItem(ann[0])
+      if (item) return { ok: true, value: { annotation: [item] } }
       return { ok: false, code: 413 }
     }
   }
