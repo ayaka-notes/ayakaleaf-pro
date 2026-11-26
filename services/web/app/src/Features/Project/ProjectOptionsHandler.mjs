@@ -128,6 +128,29 @@ const ProjectOptionsHandler = {
     const update = { referenceFormat: newReferenceFormat }
     return Project.updateOne(conditions, update, {})
   },
+
+  // ─────────────────────────────────────────────────────────────────
+  // LanguageTool settings (project-wide; shared across collaborators).
+  // Unset values mean the client defaults: enabled=true, picky=true,
+  // language='auto' — i.e. picky level is the default selection.
+  // ─────────────────────────────────────────────────────────────────
+  async setLanguageToolEnabled(projectId, enabled) {
+    const conditions = { _id: projectId }
+    const update = { languageToolEnabled: Boolean(enabled) }
+    return Project.updateOne(conditions, update, {})
+  },
+
+  async setLanguageToolPicky(projectId, picky) {
+    const conditions = { _id: projectId }
+    const update = { languageToolPicky: Boolean(picky) }
+    return Project.updateOne(conditions, update, {})
+  },
+
+  async setLanguageToolLanguage(projectId, language) {
+    const conditions = { _id: projectId }
+    const update = { languageToolLanguage: language || 'auto' }
+    return Project.updateOne(conditions, update, {})
+  },
 }
 
 export default {
@@ -145,5 +168,14 @@ export default {
     ProjectOptionsHandler.setHistoryRangesSupport
   ),
   setReferenceFormat: callbackify(ProjectOptionsHandler.setReferenceFormat),
+  setLanguageToolEnabled: callbackify(
+    ProjectOptionsHandler.setLanguageToolEnabled
+  ),
+  setLanguageToolPicky: callbackify(
+    ProjectOptionsHandler.setLanguageToolPicky
+  ),
+  setLanguageToolLanguage: callbackify(
+    ProjectOptionsHandler.setLanguageToolLanguage
+  ),
   promises: ProjectOptionsHandler,
 }
