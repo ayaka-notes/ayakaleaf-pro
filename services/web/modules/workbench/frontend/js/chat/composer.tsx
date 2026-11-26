@@ -11,6 +11,7 @@ import OLTooltip from '@/shared/components/ol/ol-tooltip'
 import MaterialIcon from '@/shared/components/material-icon'
 import { boxed, flatGhost, plain, surface } from './themed'
 import ImagePreview from './image-preview'
+import ModelPicker, { type ModelSelection } from './model-picker'
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024
 const MAX_ROWS = 8
@@ -32,12 +33,13 @@ const Composer = forwardRef<
   HTMLTextAreaElement,
   {
     working: boolean
+    onModelChange: (selection: ModelSelection) => void
     selectionNote?: string
     onSend: (draft: Draft) => void
     onStop: () => void
     onProblem: (message: string | false) => void
   }
->(function Composer({ working, selectionNote, onSend, onStop, onProblem }, ref) {
+>(function Composer({ working, onModelChange, selectionNote, onSend, onStop, onProblem }, ref) {
   const { t } = useTranslation()
   const [text, setText] = useState('')
   const [focused, setFocused] = useState(false)
@@ -180,6 +182,7 @@ const Composer = forwardRef<
             onClick={() => picker.current?.click()}
           />
         </OLTooltip>
+        <ModelPicker disabled={working} onChange={onModelChange} />
         <span className="flex-grow-1" />
         {working ? (
           <OLIconButton icon="stop_circle" variant="ghost" style={{ ...flatGhost, ...plain }} accessibilityLabel={t('stop')} onClick={onStop} />

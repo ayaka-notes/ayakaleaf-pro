@@ -1,6 +1,7 @@
 import logger from '@overleaf/logger'
 import { expressify } from '@overleaf/promise-utils'
 import { getAiAccess } from './PermissionsMiddleware.mjs'
+import { getModelCatalog } from './ModelCatalog.mjs'
 import {
   APICallError,
   consumeStream,
@@ -87,6 +88,15 @@ async function chat(req, res) {
   if (!hasValidAttachments(messages)) {
     return res.status(400).json({ error: 'invalid_attachments' })
   }
+  const { modelSelection, reasoningEffort } = req.body
+  let selected
+  if (modelSelection !== undefined) {
+    selected = (await getModelCatalog()).find(model => model.id === modelSelection)
+    if (!selected) return res.status(400).json({ error: 'ai_model_unavailable' })
+  }
+  if (reasoningEffort !== undefined && !selected?.levels.includes(reasoningEffort)) {
+    return res.status(400).json({ error: 'unsupported_reasoning_effort' })
+  }
   const toolCallLimit = createToolCallLimit(messages, getMaxSteps())
   if (toolCallLimit.exhausted()) {
     return res.status(409).json({ error: 'ai_tool_call_limit_exceeded' })
@@ -170,12 +180,15 @@ async function chat(req, res) {
     system += `\n\nThe earlier part of this conversation was summarized:\n\n${historySummary}`
   }
 
-  const resolvedModel = resolveModel(history)
+  const resolvedModel = selected?.id ?? resolveModel(history)
+  const effort = reasoningEffort ?? selected?.defaultLevel
 
   try {
+    const languageModel = getProvider()(resolvedModel)
     const result = streamText({
+      providerOptions: effort ? { [languageModel.provider.split('.')[0]]: { reasoningEffort: effort } } : undefined,
       model: wrapLanguageModel({
-        model: getProvider()(resolvedModel),
+        model: languageModel,
         middleware: toolCallLimit.middleware,
       }),
       system,

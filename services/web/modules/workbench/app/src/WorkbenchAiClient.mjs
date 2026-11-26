@@ -32,7 +32,7 @@ export function isConfigured() {
  * as a WHATWG Response, keeping the AI SDK's streaming (getReader/pipeThrough)
  * working. No proxy configured -> undefined -> the SDK uses global fetch.
  */
-function _getProxyFetch() {
+export function _getProxyFetch() {
   const proxyUrl = Settings.workbenchAi?.proxyUrl
   if (!proxyUrl) {
     return undefined

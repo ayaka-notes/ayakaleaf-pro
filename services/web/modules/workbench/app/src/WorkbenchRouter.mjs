@@ -4,6 +4,7 @@ import SessionManager from '../../../../app/src/Features/Authentication/SessionM
 import WorkbenchController from './WorkbenchController.mjs'
 import PermissionsMiddleware, { getAiAccess } from './PermissionsMiddleware.mjs'
 import { isConfigured } from './WorkbenchAiClient.mjs'
+import { getModelCatalog } from './ModelCatalog.mjs'
 
 export default {
   apply(webRouter) {
@@ -33,6 +34,10 @@ export default {
       AuthenticationController.requireLogin(),
       WorkbenchController.getAccess
     )
+    webRouter.get('/workbench/models', AuthenticationController.requireLogin(),
+      PermissionsMiddleware.requireAiAccess, expressify(async (req, res) => {
+        res.set('Cache-Control', 'private, no-store').json(await getModelCatalog())
+      }))
     // Workbench AI chat (Vercel AI SDK useChat endpoint). The global JSON body
     // parser (12 MB by default) handles the UI-message history payload.
     webRouter.post(

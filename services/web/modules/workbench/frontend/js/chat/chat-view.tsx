@@ -27,6 +27,7 @@ import { TOOLS, type Respond } from '../agent/tools'
 import { AiUnavailableError, QuotaExceededError, ToolBudgetError, ToolRefusal } from '../errors'
 import MessageView, { CONTEXT_OPEN } from './message-view'
 import Composer, { type Draft } from './composer'
+import type { ModelSelection } from './model-picker'
 import StarterPrompts from './starter-prompts'
 import ConsentCard from './consent-card'
 import { AiOffNotice, ChatFailedNotice, ChatNotice, QuotaNotice } from './notices'
@@ -137,6 +138,10 @@ export default function ChatView({ chatId, view }: { chatId: string; view: Edito
   const readQuotaRef = useRef(readQuotaHeaders)
   readQuotaRef.current = readQuotaHeaders
 
+  const modelSelectionRef = useRef<ModelSelection>({})
+  const onModelChange = useCallback((choice: ModelSelection) => {
+    modelSelectionRef.current = choice
+  }, [])
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
@@ -154,6 +159,7 @@ export default function ChatView({ chatId, view }: { chatId: string; view: Edito
               messages: messages.slice(from),
               summary: kept?.summary,
               enabledTools: SERVER_TOOLS,
+              ...modelSelectionRef.current,
             },
           }
         },
@@ -361,6 +367,7 @@ export default function ChatView({ chatId, view }: { chatId: string; view: Edito
           typeof problem === 'string' ? <ChatNotice type="error" text={problem} /> : <ChatFailedNotice />
         )}
         <Composer
+          onModelChange={onModelChange}
           working={status === 'submitted' || status === 'streaming' || toolsRunning > 0}
           selectionNote={selectionNote}
           onSend={send}
