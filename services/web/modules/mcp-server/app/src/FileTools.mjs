@@ -224,8 +224,10 @@ export function buildFileTools({ userId, projectId }) {
         if (folder.type !== 'folder') {
           throw new Error(`${targetFolder} is not a folder`)
         }
+        // moveEntity(projectId, entityId, folderId, entityType, userId, source)
         await EditorController.promises.moveEntity(
           projectId,
+          element._id,
           folder.element._id,
           type,
           userId,

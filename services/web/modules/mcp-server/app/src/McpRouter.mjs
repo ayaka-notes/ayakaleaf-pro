@@ -29,7 +29,11 @@ async function mcpServiceGate(req, res, next) {
     } catch {
       req.mcpDisabledServices = []
     }
-    const userId = req.auth && req.auth.userId
+    // The OAuth principal is on req.oauth_user (requireOauth sets it); req.auth
+    // is not populated on the public MCP route, so reading it left the
+    // per-user override unevaluated (admin deny was bypassed). Prefer
+    // req.oauth_user, fall back to req.auth for any web-router path.
+    const userId = req.oauth_user?._id ?? req.auth?.userId
     let override = null
     if (userId) {
       const doc = await User.findOne({ _id: userId }).select('llmMcpEnabled')

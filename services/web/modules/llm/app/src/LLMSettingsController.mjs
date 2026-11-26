@@ -264,8 +264,11 @@ async function updateProvider(req, res) {
     if (req.body?.clearApiKey) apiKey = ''
     else if (req.body?.apiKey && req.body.apiKey.trim() !== '') apiKey = encryptSecret(req.body.apiKey)
 
+    // Replace only the row being edited. (Do NOT also rewrite the legacy
+    // "Imported settings" row: it is a distinct saved connection, and reusing
+    // `parsed.data` for it would clobber its own config/key and duplicate ids.)
     const rows = (Array.isArray(user?.llmProviders) ? user.llmProviders : (await loadProviders(userId))).map(r =>
-        (r.id === rowId || r.id === 'legacy') ? { ...parsed.data, id: rowId === 'legacy' ? makeRowId() : rowId, apiKey, createdAt: new Date().toISOString() } : r
+        r.id === rowId ? { ...parsed.data, id: rowId === 'legacy' ? makeRowId() : rowId, apiKey, createdAt: new Date().toISOString() } : r
     )
     await User.updateOne({ _id: userId }, { $set: { llmProviders: rows } })
     logger.info({ userId, rowId }, '[LLM] updateProvider: row updated')
