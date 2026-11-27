@@ -4,6 +4,10 @@ import logger from '@overleaf/logger'
 import GitHubSyncController from './GitHubSyncController.mjs'
 import AuthenticationController from '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
 import AuthorizationMiddleware from '../../../../app/src/Features/Authorization/AuthorizationMiddleware.mjs'
+import { requireUserFeature } from '../../../instance-features/app/src/UserFeatures.mjs'
+
+// Unlinking stays open: a user can always let go of an account or a repository
+const requireGitHub = requireUserFeature('github')
 
 export default {
   apply(webRouter) {
@@ -18,6 +22,7 @@ export default {
     webRouter.get(
       '/user/github-sync/oauth2',
       AuthenticationController.requireLogin(),
+      requireGitHub,
       GitHubSyncController.oauth2
     )
 
@@ -25,6 +30,7 @@ export default {
     webRouter.get(
       '/user/github-sync/oauth2/callback',
       AuthenticationController.requireLogin(),
+      requireGitHub,
       GitHubSyncController.oauth2Callback
     )
 
@@ -39,6 +45,7 @@ export default {
     webRouter.get(
       '/user/github-sync/status',
       AuthenticationController.requireLogin(),
+      requireGitHub,
       GitHubSyncController.getConnectionStatus
     )
 
@@ -46,6 +53,7 @@ export default {
     webRouter.get(
       '/user/github-sync/orgs',
       AuthenticationController.requireLogin(),
+      requireGitHub,
       GitHubSyncController.getUserAndOrgs
     )
 
@@ -53,6 +61,7 @@ export default {
     webRouter.get(
       '/user/github-sync/repos',
       AuthenticationController.requireLogin(),
+      requireGitHub,
       GitHubSyncController.listUserRepos
     )
 
@@ -60,6 +69,7 @@ export default {
     webRouter.post(
       '/project/new/github-sync',
       AuthenticationController.requireLogin(),
+      requireGitHub,
       GitHubSyncController.importRepo
     )
 
@@ -68,6 +78,7 @@ export default {
       '/project/:project_id/github-sync/export',
       AuthenticationController.requireLogin(),
       AuthorizationMiddleware.ensureUserCanWriteProjectContent,
+      requireGitHub,
       GitHubSyncController.exportProject
     )
 
@@ -76,6 +87,7 @@ export default {
       '/project/:project_id/github-sync/state',
       AuthenticationController.requireLogin(),
       AuthorizationMiddleware.ensureUserCanWriteProjectContent,
+      requireGitHub,
       GitHubSyncController.getProjectState
     )
 
@@ -85,6 +97,7 @@ export default {
       '/project/:project_id/github-sync/merge/overview',
       AuthenticationController.requireLogin(),
       AuthorizationMiddleware.ensureUserCanWriteProjectContent,
+      requireGitHub,
       GitHubSyncController.getMergeOverview
     )
 
@@ -93,6 +106,7 @@ export default {
       '/project/:project_id/github-sync/merge',
       AuthenticationController.requireLogin(),
       AuthorizationMiddleware.ensureUserCanWriteProjectContent,
+      requireGitHub,
       GitHubSyncController.gitMerge
     )
 

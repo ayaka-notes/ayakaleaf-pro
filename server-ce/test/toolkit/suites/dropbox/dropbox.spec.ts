@@ -1,4 +1,9 @@
-import { setSuspended } from '../../../helpers/adminTools'
+import {
+  expectRoutesAnswer,
+  setSuspended,
+  setUserFeatures,
+  visitWithFeatures,
+} from '../../../helpers/adminTools'
 import { login } from '../../../helpers/login'
 import { expectOwnAuditEntry } from '../../../helpers/auditLog'
 import {
@@ -1430,6 +1435,55 @@ describe('a disabled account', function () {
     setSuspended(email, false)
     login(email)
     connectionStatus().should('equal', false)
+  })
+})
+
+describe('a user Dropbox is turned off for', function () {
+  it('unlinks the account, hides it and refuses its routes until it is on again', function () {
+    const email = newUser('dropbox-off')
+    createProject(projectName('Off')).then(projectId => {
+      linkDropboxAccount()
+
+      login(ADMIN_EMAIL)
+      setUserFeatures(email, { dropbox: false })
+      waitForRevoked()
+
+      login(email)
+      visitWithFeatures('/user/settings')
+      cy.findByRole('heading', { name: 'Change password' }).should('exist')
+      dropboxWidget().should('not.exist')
+
+      cy.intercept('GET', '/system/features').as('features')
+      openProject(projectId)
+      cy.wait('@features')
+      openRailTab('Integrations')
+      cy.findByRole('button', { name: /Dropbox/ }).should('not.exist')
+
+      cy.visit('/project')
+      expectRoutesAnswer(403, [
+        ['GET', '/user/dropbox/oauth'],
+        ['GET', '/user/dropbox/oauth/callback?code=code&state=state'],
+        ['GET', '/user/dropbox/status'],
+        ['GET', `/project/${projectId}/dropbox`],
+        ['POST', `/project/${projectId}/dropbox/sync-now`],
+      ])
+
+      // Nothing is left to sync: a new file reaches no Dropbox folder
+      addDoc(projectId, 'while-off.tex')
+      waitForSynced()
+      dropboxFiles().then(({ files }) => {
+        expect(Object.keys(files).join()).not.to.contain('while-off.tex')
+      })
+
+      login(ADMIN_EMAIL)
+      setUserFeatures(email, { dropbox: true })
+
+      // On again, the user links it anew
+      login(email)
+      connectionStatus().should('equal', false)
+      linkDropboxAccount()
+      connectionStatus().should('equal', true)
+    })
   })
 })
 

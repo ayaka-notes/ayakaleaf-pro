@@ -11,8 +11,10 @@ import {
   dialog,
   everyRow,
   expectLogged,
+  findUser,
   headerAction,
   interceptSearch,
+  makeAdmin,
   openTab,
   pickOwner,
   row,
@@ -261,9 +263,13 @@ describe('editing the account', function () {
 
 describe('features', function () {
   const address = email('features')
+  const refreshAddress = email('refresh')
+  const limitOwner = email('collaborator-limit')
 
   before(function () {
     createUser(address)
+    createUser(refreshAddress)
+    createUser(limitOwner)
   })
 
   beforeEach(function () {
@@ -291,6 +297,20 @@ describe('features', function () {
     detail('Symbol palette').find('.material-symbols').should('contain.text', 'remove')
     detail('Track changes').find('.material-symbols').should('contain.text', 'remove')
     detail('Full project history').find('.material-symbols').should('contain.text', 'check')
+  })
+
+  it('turns GitLab and Gitea off, which stay after a reload', function () {
+    for (const label of ['GitHub', 'GitLab', 'Gitea']) {
+      detail(label).find('.material-symbols').should('contain.text', 'check')
+    }
+    edit()
+    cy.get('#admin-user-feature-gitlab').uncheck()
+    cy.get('#admin-user-feature-gitea').uncheck()
+    save()
+    cy.reload()
+    detail('GitLab').find('.material-symbols').should('contain.text', 'remove')
+    detail('Gitea').find('.material-symbols').should('contain.text', 'remove')
+    detail('GitHub').find('.material-symbols').should('contain.text', 'check')
   })
 
   it('refuses limits out of range', function () {
@@ -327,6 +347,73 @@ describe('features', function () {
       postWithCsrf(`/admin/user/${id}/update`, { lastName: 'n'.repeat(255) })
         .its('status')
         .should('equal', 200)
+    })
+  })
+
+  it('keeps what the admin set when a change of email refreshes the features', function () {
+    userId(refreshAddress).then(id => {
+      const update = (body: Record<string, unknown>) =>
+        postWithCsrf(`/admin/user/${id}/update`, body)
+          .its('status')
+          .should('equal', 200)
+      update({
+        features: {
+          trackChanges: false,
+          versioning: false,
+          dropbox: false,
+          gitlab: false,
+          gitea: false,
+          collaborators: 3,
+          compileTimeout: 240,
+        },
+      })
+      update({ email: email('refresh-1') })
+      // A later change of a switch joins the earlier ones
+      update({ features: { versioning: true, compileTimeout: 120 } })
+      update({ email: email('refresh-2') })
+      visitUser(id, 'features')
+      detail('Collaborators per project').should('contain.text', '3')
+      detail('Compile timeout').should('contain.text', '120s')
+      detail('Track changes').find('.material-symbols').should('contain.text', 'remove')
+      detail('Dropbox').find('.material-symbols').should('contain.text', 'remove')
+      detail('GitLab').find('.material-symbols').should('contain.text', 'remove')
+      detail('Gitea').find('.material-symbols').should('contain.text', 'remove')
+      detail('Full project history').find('.material-symbols').should('contain.text', 'check')
+    })
+  })
+
+  it('stops editors over the collaborator limit, and not viewers, until it is raised', function () {
+    userId(limitOwner).then(id => {
+      postWithCsrf(`/admin/user/${id}/update`, {
+        features: { collaborators: 1 },
+      })
+        .its('status')
+        .should('equal', 200)
+    })
+    login(limitOwner)
+    createProject(projectName('Limit')).then(projectId => {
+      cy.visit('/project')
+      const invite = (name: string, privileges: string) =>
+        postWithCsrf(`/project/${projectId}/invite`, {
+          email: email(name),
+          privileges,
+        }).then(response => response.body.invite)
+      invite('limit-editor-1', 'readAndWrite').should('not.equal', null)
+      invite('limit-editor-2', 'readAndWrite').should('equal', null)
+      invite('limit-viewer', 'readOnly').should('not.equal', null)
+
+      login(ADMIN_EMAIL)
+      userId(limitOwner).then(id => {
+        visitUser(id, 'features')
+        postWithCsrf(`/admin/user/${id}/update`, {
+          features: { collaborators: -1 },
+        })
+          .its('status')
+          .should('equal', 200)
+      })
+      login(limitOwner)
+      cy.visit('/project')
+      invite('limit-editor-2', 'readAndWrite').should('not.equal', null)
     })
   })
 
@@ -491,6 +578,50 @@ describe('audit log', function () {
       expectLogged(`/admin/user/${adminId}`, 'purge-deleted-user')
         .its('info.email')
         .should('equal', address)
+    })
+  })
+
+  it('names the admin who acted and who deleted the account once that admin is deleted too', function () {
+    const goneAdmin = email('gone-admin')
+    const address = email('deleted-by-gone')
+    createUser(goneAdmin)
+    createUser(address)
+    login(ADMIN_EMAIL)
+    makeAdmin(goneAdmin)
+    userId(address).then(id => {
+      const page = `/admin/user/${id}`
+      login(goneAdmin)
+      cy.visit('/admin/user')
+      postWithCsrf(`${page}/update`, { firstName: 'Changed' })
+        .its('status')
+        .should('equal', 200)
+      postWithCsrf(`${page}/delete`, { sendEmail: false })
+        .its('status')
+        .should('equal', 200)
+      login(ADMIN_EMAIL)
+      userId(goneAdmin).then(adminId => {
+        cy.visit('/admin/user')
+        postWithCsrf(`/admin/user/${adminId}/delete`, { sendEmail: false })
+          .its('status')
+          .should('equal', 200)
+      })
+      // deletedUsers keeps the admin's email, as the lists show it
+      expectLogged(page, 'change-name', goneAdmin)
+      expectLogged(page, 'delete-account', goneAdmin)
+      visitUser(id)
+      detail('Deleted By email').should('contain.text', goneAdmin)
+
+      // a purge leaves no email: "Deleted user", as the review panel says
+      findUser(goneAdmin, 'deleted').then(gone => {
+        requestWithCsrf('DELETE', `/admin/user/${gone!.id}`)
+          .its('status')
+          .should('equal', 200)
+      })
+      // the same address only changes the hash: load the page again
+      cy.reload()
+      detail('Deleted By email').should('have.text', 'Deleted user')
+      visitUser(id, 'audit-logs')
+      row('Change name').should('contain.text', 'Deleted user')
     })
   })
 

@@ -24,6 +24,22 @@ export function stubRecaptcha(token = 'e2e-pass') {
       }
     `,
   })
+  // The settings page uses react-google-recaptcha with the enterprise script,
+  // which it does not load when window.grecaptcha is already there
+  cy.on('window:before:load', win => {
+    let callback: (token: string) => void
+    const widget = {
+      render(el: unknown, options: { callback: typeof callback }) {
+        callback = options.callback
+        return 0
+      },
+      execute() {
+        setTimeout(() => callback(token))
+      },
+      reset() {},
+    }
+    Object.assign(win, { grecaptcha: { ...widget, enterprise: widget } })
+  })
 }
 
 export function resetRecaptchaMock() {

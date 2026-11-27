@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid'
+import { setUserFeatures } from '../../../helpers/adminTools'
 import { login } from '../../../helpers/login'
-import { ensureUserExists } from '../../../helpers/users'
+import { ADMIN_EMAIL, ensureUserExists } from '../../../helpers/users'
 import {
   openNewProject,
   pdfPreview,
@@ -163,6 +164,24 @@ describe('sandboxed compiles', function () {
     pdfPreview()
       .should('contain.text', 'disabled loop')
       .should('not.contain.text', 'A previous compile is still running')
+  })
+
+  it("ends a compile at the compile timeout of the project's owner", function () {
+    const member = `compile-limit-${uuid()}@example.com`
+    ensureUserExists(member)
+    login(ADMIN_EMAIL)
+    setUserFeatures(member, { compileTimeout: 5 })
+    login(member)
+
+    const { waitForCompileRateLimitCoolOff } = openNewProject()
+    // An infinite loop keeps the compile running until the timeout ends it
+    typeAfterMaketitle('\\def\\loop{{}\\let\\next\\loop\\next}\\loop')
+    waitForCompileRateLimitCoolOff()
+    cy.intercept('POST', '/project/*/compile*').as('compile')
+    cy.findByRole('button', { name: 'Recompile' }).click()
+    cy.wait('@compile', { timeout: 60_000 })
+      .its('response.body.status')
+      .should('equal', 'timedout')
   })
 
   describe('SyncTeX', function () {

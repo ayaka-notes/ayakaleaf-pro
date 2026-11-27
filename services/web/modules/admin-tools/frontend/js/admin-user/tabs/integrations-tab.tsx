@@ -13,54 +13,56 @@ function IntegrationsTab() {
   return (
     <>
       <h3 className="admin-panel-section-title">{t('git_integration')}</h3>
-      <TableContainer bordered>
-        <OLTable container={false} className="admin-panel-table">
-          <thead>
-            <tr>
-              <th scope="col">{t('token')}</th>
-              <th scope="col">{t('created_at')}</th>
-              <th scope="col">{t('last_used')}</th>
-              <th scope="col">{t('expires')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {gitTokens.map(token => (
-              <tr key={token.id}>
-                <td>
-                  <code>{token.prefix}************</code>
-                </td>
-                <td>
-                  <ShortDate date={token.createdAt} />
-                </td>
-                <td>
-                  {token.lastUsedAt ? (
-                    <ShortDate date={token.lastUsedAt} />
-                  ) : (
-                    <span className="admin-panel-muted">—</span>
-                  )}
-                </td>
-                <td>
-                  <ShortDate date={token.expiresAt} />
-                </td>
-              </tr>
-            ))}
-            {gitTokens.length === 0 && (
+      <div className="admin-panel-details-wrapper">
+        <TableContainer bordered>
+          <OLTable container={false} className="admin-panel-table">
+            <thead>
               <tr>
-                <td colSpan={4} className="admin-panel-empty">
-                  —
-                </td>
+                <th scope="col">{t('token')}</th>
+                <th scope="col">{t('created_at')}</th>
+                <th scope="col">{t('last_used')}</th>
+                <th scope="col">{t('expires')}</th>
               </tr>
-            )}
-          </tbody>
-        </OLTable>
-      </TableContainer>
+            </thead>
+            <tbody>
+              {gitTokens.map(token => (
+                <tr key={token.id}>
+                  <td>
+                    <code>{token.prefix}************</code>
+                  </td>
+                  <td>
+                    <ShortDate date={token.createdAt} />
+                  </td>
+                  <td>
+                    {token.lastUsedAt ? (
+                      <ShortDate date={token.lastUsedAt} />
+                    ) : (
+                      <span className="admin-panel-muted">—</span>
+                    )}
+                  </td>
+                  <td>
+                    <ShortDate date={token.expiresAt} />
+                  </td>
+                </tr>
+              ))}
+              {gitTokens.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="admin-panel-empty">
+                    —
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </OLTable>
+        </TableContainer>
+      </div>
 
       <h3 className="admin-panel-section-title">{t('linked_accounts')}</h3>
       <DetailsTable
         rows={[
-          ['GitHub', <BoolIcon key="github" value={linked.github} label="GitHub" />],
-          ['GitLab', <BoolIcon key="gitlab" value={linked.gitlab} label="GitLab" />],
-          ['Gitea', <BoolIcon key="gitea" value={linked.gitea} label="Gitea" />],
+          [t('github'), <BoolIcon key="github" value={linked.github} label={t('github')} />],
+          [t('gitlab'), <BoolIcon key="gitlab" value={linked.gitlab} label={t('gitlab')} />],
+          [t('gitea'), <BoolIcon key="gitea" value={linked.gitea} label={t('gitea')} />],
           [t('dropbox'), <BoolIcon key="dropbox" value={linked.dropbox} label={t('dropbox')} />],
           [t('zotero'), <BoolIcon key="zotero" value={linked.zotero} label={t('zotero')} />],
           [t('mendeley'), <BoolIcon key="mendeley" value={linked.mendeley} label={t('mendeley')} />],

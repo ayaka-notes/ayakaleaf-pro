@@ -1,0 +1,386 @@
+openapi: 3.0.3
+info:
+  title: filestore
+  version: '6.3'
+  description: >-
+    Serves files from object storage: template files (zip, pdf and their
+    preview images) and, read-only, the project and global blobs that
+    history-v1 writes. Called by web (template-gallery module, compile file
+    URLs) and by clsi, which downloads binary project files from it.
+servers:
+  - url: http://filestore:3009
+    description: Inside the Docker network, through the Hoppscotch proxy
+# The servers are Docker addresses that a docs reader cannot reach
+x-hideTryItPanel: true
+security: []
+tags:
+  - name: Templates
+    x-page-icon: shapes
+    description: >-
+      Files of the template gallery. These routes exist only when
+      `TEMPLATE_FILES_BUCKET_NAME` (or the fs fallback) sets the template
+      store.
+  - name: History blobs
+    x-page-icon: cubes
+    description: Read-only access to history-v1's blob buckets.
+  - name: Buckets
+    x-page-icon: bucket
+    description: Any object in a named bucket.
+  - name: Monitoring
+    x-page-icon: heart-pulse
+    description: Status, health checks and metrics.
+paths:
+  /template/{template_id}/v/{version}/{format}:
+    head:
+      tags: [Templates]
+      operationId: getFileHead
+      summary: Get the size of a template file
+      description: Sets `Content-Length` to the stored file size. No caller in this repository.
+      parameters:
+        - $ref: '#/components/parameters/TemplateId'
+        - $ref: '#/components/parameters/TemplateVersion'
+        - $ref: '#/components/parameters/TemplateFormat'
+      responses:
+        '200':
+          description: The file exists.
+          headers:
+            Content-Length:
+              schema:
+                type: integer
+        '404':
+          description: Not found.
+        '500':
+          $ref: '#/components/responses/ServerError'
+    get:
+      tags: [Templates]
+      operationId: getTemplateFile
+      summary: Download a template file
+      description: >-
+        Streams the template's `zip` or `pdf`. With `style=thumbnail` or
+        `style=preview` (or `format=png`) the file is converted to PNG and the
+        result is stored next to it under `<key>-converted-cache/`, so the
+        first such call writes to storage. Handler: `FileController.getFile`.
+        Callers: `services/web/modules/template-gallery/app/src/TemplatesManager.mjs`
+        and `TemplateGalleryManager.mjs` (zip, and pdf with a style).
+      parameters:
+        - $ref: '#/components/parameters/TemplateId'
+        - $ref: '#/components/parameters/TemplateVersion'
+        - $ref: '#/components/parameters/TemplateFormat'
+        - $ref: '#/components/parameters/ConvertFormat'
+        - $ref: '#/components/parameters/ConvertStyle'
+        - $ref: '#/components/parameters/CacheWarm'
+        - $ref: '#/components/parameters/Range'
+      responses:
+        '200':
+          $ref: '#/components/responses/File'
+        '302':
+          $ref: '#/components/responses/Redirect'
+        '404':
+          description: Not found.
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags: [Templates]
+      operationId: insertFile
+      summary: Upload a template file
+      description: >-
+        Stores the request body as the template's `format` file. `format` must
+        be lowercase letters and digits. Callers:
+        `services/web/modules/template-gallery/app/src/TemplateGalleryHelper.mjs`
+        (uploads `zip` and `pdf` when a template is published).
+      parameters:
+        - $ref: '#/components/parameters/TemplateId'
+        - $ref: '#/components/parameters/TemplateVersion'
+        - $ref: '#/components/parameters/TemplateFormat'
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+          application/pdf:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Stored.
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      tags: [Templates]
+      operationId: deleteFile
+      summary: Delete a template file
+      description: >-
+        Deletes the file and, with `ENABLE_CONVERSIONS=true`, its
+        `-converted-cache/` folder. `format` must be lowercase letters. Caller:
+        `services/web/modules/template-gallery/app/src/TemplateGalleryHelper.mjs`
+        (`deleteTemplateAssets`).
+      parameters:
+        - $ref: '#/components/parameters/TemplateId'
+        - $ref: '#/components/parameters/TemplateVersion'
+        - $ref: '#/components/parameters/TemplateFormat'
+      responses:
+        '204':
+          description: Deleted.
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /template/{template_id}/v/{version}/{format}/{sub_type}:
+    get:
+      tags: [Templates]
+      operationId: getTemplateFileSubType
+      summary: Download a template file stored under a sub type
+      description: >-
+        Same as the route without `sub_type`, for the key
+        `<template_id>/v/<version>/<format>/<sub_type>`. Handler:
+        `FileController.getFile`. No caller in this repository.
+      parameters:
+        - $ref: '#/components/parameters/TemplateId'
+        - $ref: '#/components/parameters/TemplateVersion'
+        - $ref: '#/components/parameters/TemplateFormat'
+        - name: sub_type
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/ConvertFormat'
+        - $ref: '#/components/parameters/ConvertStyle'
+        - $ref: '#/components/parameters/CacheWarm'
+        - $ref: '#/components/parameters/Range'
+      responses:
+        '200':
+          $ref: '#/components/responses/File'
+        '302':
+          $ref: '#/components/responses/Redirect'
+        '404':
+          description: Not found.
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /bucket/{bucket}/key/{key}:
+    get:
+      tags: [Buckets]
+      operationId: getBucketFile
+      summary: Download any object of a bucket
+      description: >-
+        Streams `key` from `bucket` as given; the bucket is not limited to the
+        configured stores. Handler: `FileController.getFile`. No caller in this
+        repository.
+      parameters:
+        - name: bucket
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-z0-9-]+$'
+            example: overleaf-project-blobs
+        - name: key
+          in: path
+          required: true
+          description: >-
+            Object key, which may contain `/` (the route matches the rest of the
+            path). Relative, without `..` segments.
+          schema:
+            type: string
+        - $ref: '#/components/parameters/ConvertFormat'
+        - $ref: '#/components/parameters/ConvertStyle'
+        - $ref: '#/components/parameters/CacheWarm'
+        - $ref: '#/components/parameters/Range'
+      responses:
+        '200':
+          $ref: '#/components/responses/File'
+        '302':
+          $ref: '#/components/responses/Redirect'
+        '404':
+          description: Not found.
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /history/global/hash/{hash}:
+    get:
+      tags: [History blobs]
+      operationId: getGlobalBlob
+      summary: Download a global blob
+      description: >-
+        Reads `<hash[0:2]>/<hash[2:4]>/<hash[4:]>` from
+        `OVERLEAF_EDITOR_BLOBS_BUCKET`. Handler: `FileController.getFile`.
+        Callers: `services/web/app/src/Features/History/HistoryManager.mjs`
+        (`getFilestoreBlobURL`, URLs given to clsi by ClsiManager) and
+        `services/clsi/app/js/HistoryResourceWriter.js` (`getBlobURL`).
+      parameters:
+        - $ref: '#/components/parameters/BlobHash'
+        - $ref: '#/components/parameters/ConvertFormat'
+        - $ref: '#/components/parameters/ConvertStyle'
+        - $ref: '#/components/parameters/CacheWarm'
+        - $ref: '#/components/parameters/Range'
+      responses:
+        '200':
+          $ref: '#/components/responses/File'
+        '302':
+          $ref: '#/components/responses/Redirect'
+        '404':
+          description: Not found.
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /history/project/{historyId}/hash/{hash}:
+    get:
+      tags: [History blobs]
+      operationId: getProjectBlob
+      summary: Download a project blob
+      description: >-
+        Reads the blob from `OVERLEAF_EDITOR_PROJECT_BLOBS_BUCKET` at
+        `<reversed, padded history id split 3/3/rest>/<hash[0:2]>/<hash[2:]>`.
+        Handler: `FileController.getFile`. Callers: same as the global blob
+        route.
+      parameters:
+        - name: historyId
+          in: path
+          required: true
+          description: History id (`project.overleaf.history.id`), an ObjectId or a legacy number.
+          schema:
+            type: string
+            example: 6aec98777287243198a05332
+        - $ref: '#/components/parameters/BlobHash'
+        - $ref: '#/components/parameters/ConvertFormat'
+        - $ref: '#/components/parameters/ConvertStyle'
+        - $ref: '#/components/parameters/CacheWarm'
+        - $ref: '#/components/parameters/Range'
+      responses:
+        '200':
+          $ref: '#/components/responses/File'
+        '302':
+          $ref: '#/components/responses/Redirect'
+        '404':
+          description: Not found.
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /status:
+    get:
+      tags: [Monitoring]
+      operationId: getStatus
+      summary: Check that the service is up
+      responses:
+        '200':
+          description: Up.
+          content:
+            text/html:
+              schema:
+                type: string
+                example: filestore is up
+        '503':
+          description: The service is shutting down.
+  /health_check:
+    get:
+      tags: [Monitoring]
+      operationId: healthCheck
+      summary: Answer OK
+      responses:
+        '200':
+          description: OK.
+  /metrics:
+    get:
+      tags: [Monitoring]
+      operationId: getMetrics
+      summary: Get Prometheus metrics
+      description: Added by `@overleaf/metrics` (`injectMetricsRoute`).
+      responses:
+        '200':
+          description: Metrics in Prometheus text format.
+          content:
+            text/plain:
+              schema:
+                type: string
+components:
+  parameters:
+    TemplateId:
+      name: template_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[0-9a-f]{24}$'
+        example: 6aed4c865cff46bd20a60c06
+    TemplateVersion:
+      name: version
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 0
+        example: 1
+    TemplateFormat:
+      name: format
+      in: path
+      required: true
+      description: Name of the stored file, `zip` or `pdf` for the template gallery.
+      schema:
+        type: string
+        example: pdf
+    ConvertFormat:
+      name: format
+      in: query
+      required: false
+      description: >-
+        Convert to this format before sending; only `png` is accepted. Needs
+        `ENABLE_CONVERSIONS=true` unless a cached result exists; the result is
+        cached in storage.
+      schema:
+        type: string
+        enum: [png]
+    ConvertStyle:
+      name: style
+      in: query
+      required: false
+      description: >-
+        Render a PNG `thumbnail` or `preview`. Needs `ENABLE_CONVERSIONS=true`
+        unless a cached result exists; the result is cached in storage.
+      schema:
+        type: string
+        enum: [thumbnail, preview]
+    CacheWarm:
+      name: cacheWarm
+      in: query
+      required: false
+      description: Open the file (and convert it if asked), then answer 200 `OK` instead of the file.
+      schema:
+        type: boolean
+    Range:
+      name: Range
+      in: header
+      required: false
+      description: One byte range; ignored when it cannot be parsed.
+      schema:
+        type: string
+        example: bytes=0-1023
+    BlobHash:
+      name: hash
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[0-9a-f]{40}$'
+        example: 5b889ef3cf71c83a4c027c4e4dc3d1a106b27809
+  responses:
+    File:
+      description: >-
+        File content. The service sets no `Content-Type`; Hoppscotch's Caddy may
+        add a sniffed one. A `Range` request still answers 200 with only the
+        requested bytes.
+      content:
+        application/octet-stream:
+          schema:
+            type: string
+            format: binary
+    Redirect:
+      description: >-
+        Signed URL of the object. Only with `ALLOW_REDIRECTS=true`, for a
+        configured store, and without `Range`, `format` or `style`.
+      headers:
+        Location:
+          schema:
+            type: string
+    ServerError:
+      description: Any other error, including a failed conversion or an invalid key; the body is the error message.
+      content:
+        text/html:
+          schema:
+            type: string

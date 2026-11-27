@@ -1,5 +1,6 @@
 import logger from '@overleaf/logger'
 import AuthenticationController from '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
+import { requireUserFeature } from '../../../instance-features/app/src/UserFeatures.mjs'
 import OAuthPersonalAccessTokenController from './OAuthPersonalAccessTokenController.mjs'
 
 
@@ -18,8 +19,10 @@ export default {
             OAuthPersonalAccessTokenController.getUserPersonalAccessTokens
         )
 
+        // A user without git access makes no new tokens, and can still delete theirs
         webRouter.post('/oauth/personal-access-tokens',
             AuthenticationController.requireLogin(),
+            requireUserFeature('gitBridge'),
             OAuthPersonalAccessTokenController.createPersonalAccessToken
         )
 
