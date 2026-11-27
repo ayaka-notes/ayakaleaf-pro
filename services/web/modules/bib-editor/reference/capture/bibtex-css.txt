@@ -1,0 +1,241 @@
+:root--bibtex-card-hover-bg:var(--neutral-85);--bibtex-card-selected-bg:var(--green-70);--bibtex-card-selected-border:var(--green-60);--bibtex-card-selected-hover-bg:var(--green-65);--bibtex-card-secondary-text:var(--neutral-40);--bibtex-card-previewing-bg:var(--green-70);--bibtex-card-previewing-border:var(--green-60);--bibtex-card-previewing-accent:var(--green-30) {  }
+
+[data-theme=light]--bibtex-card-hover-bg:var(--neutral-05);--bibtex-card-selected-bg:var(--bg-accent-03);--bibtex-card-selected-border:var(--green-20);--bibtex-card-selected-hover-bg:var(--green-15);--bibtex-card-secondary-text:var(--content-secondary-themed);--bibtex-card-previewing-bg:var(--bg-accent-03);--bibtex-card-previewing-border:var(--green-20);--bibtex-card-previewing-accent:var(--green-50) {  }
+
+.bibtex-entry-list-bodyposition:relative {  }
+
+.bibtex-entry-card-row:has(.bibtex-entry-card-previewing),.bibtex-entry-card-row:has(.bibtex-entry-card-selected),.bibtex-entry-card-row:hoverz-index:1 {  }
+
+.bibtex-entry-card-row:has(.dropdown-menu.show)z-index:2 {  }
+
+.bibtex-entry-cardbackground-color:var(--bg-primary-themed);border:1px solid var(--border-divider-themed);border-radius:var(--border-radius-medium);color:var(--content-secondary-themed);display:flex;gap:var(--spacing-05);padding:var(--spacing-05);position:relative {  }
+
+.bibtex-entry-card:focus-visiblebox-shadow:0 0 0 2px var(--border-active-dark);outline:none {  }
+
+.bibtex-entry-card:hoverbackground-color:var(--bibtex-card-hover-bg) {  }
+
+.bibtex-entry-card.bibtex-entry-card-selectedbackground-color:var(--bibtex-card-selected-bg);border-color:var(--bibtex-card-selected-border) {  }
+
+.bibtex-entry-card.bibtex-entry-card-selected:hoverbackground-color:var(--bibtex-card-selected-hover-bg) {  }
+
+.bibtex-entry-card.bibtex-entry-card-previewingbackground-color:var(--bibtex-card-previewing-bg);border-color:var(--bibtex-card-previewing-border) {  }
+
+.bibtex-entry-card.bibtex-entry-card-previewing:beforebackground-color:var(--bibtex-card-previewing-accent);border-radius:var(--border-radius-medium) 0 0 var(--border-radius-medium);bottom:0;content:"";left:0;position:absolute;top:0;width:6px {  }
+
+.bibtex-entry-card.bibtex-entry-card-clickablecursor:pointer {  }
+
+.bibtex-entry-card-compactborder:0;border-bottom:1px solid var(--border-divider-themed);border-radius:0;gap:var(--spacing-04);padding:var(--spacing-04) {  }
+
+.bibtex-entry-card-compact.bibtex-entry-card-previewing:beforeborder-radius:0 {  }
+
+.bibtex-entry-card-compact .bibtex-entry-card-contentgap:var(--spacing-01);justify-content:center {  }
+
+.bibtex-entry-card-compact .bibtex-entry-card-checkboxpadding-left:var(--spacing-03);padding-right:var(--spacing-03) {  }
+
+.bibtex-entry-card-compact .bibtex-entry-card-titledisplay:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden {  }
+
+.bibtex-entry-card-checkboxpadding:var(--spacing-02) {  }
+
+.bibtex-entry-card-contentdisplay:flex;flex:1;flex-direction:column;gap:var(--spacing-02);min-width:0 {  }
+
+.bibtex-entry-card-headeralign-items:center;display:flex;gap:var(--spacing-04);padding-bottom:var(--spacing-02) {  }
+
+.bibtex-entry-card-keybackground-color:var(--bg-tertiary-themed);border-radius:var(--border-radius-base);color:var(--content-primary-themed);font-family:DM Mono,monospace;font-feature-settings:"ss05";font-size:var(--font-size-02);line-height:var(--line-height-02);min-width:0;overflow-wrap:break-word;padding:var(--spacing-01) var(--spacing-02) {  }
+
+.bibtex-entry-card-key markpadding:0 {  }
+
+.bibtex-entry-card-actionsline-height:1;margin-left:auto {  }
+
+.bibtex-entry-card-detailsdisplay:flex;flex-direction:column;font-size:var(--font-size-02);gap:var(--spacing-02);line-height:var(--line-height-02);min-width:0;overflow-wrap:break-word {  }
+
+.bibtex-entry-card-details markpadding:0 {  }
+
+.bibtex-entry-card-metadisplay:flex;gap:var(--spacing-02) var(--spacing-06);min-width:0 {  }
+
+.bibtex-entry-card-titlecolor:var(--content-primary-themed);font-weight:600 {  }
+
+.bibtex-entry-card-author,.bibtex-entry-card-yearcolor:var(--bibtex-card-secondary-text) {  }
+
+.bibtex-entry-card-authormin-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap {  }
+
+.bibtex-entry-card-yearflex-shrink:0 {  }
+
+.bibtex-entry-card-updated-atcolor:var(--bibtex-card-secondary-text);font-size:var(--font-size-01);line-height:var(--line-height-01) {  }
+
+.bibtex-entry-error-iconalign-items:center;-webkit-appearance:none;-moz-appearance:none;appearance:none;background:transparent;border:0;color:var(--red-50);cursor:pointer;display:inline-flex;height:var(--line-height-03);padding:0 {  }
+
+.bibtex-entry-error-icon-staticcolor:var(--content-warning-themed);cursor:default {  }
+
+.bibtex-tooltip-errorsdisplay:flex;flex-direction:column;gap:var(--spacing-04);text-align:left {  }
+
+.bibtex-tooltip-errors ulmargin-bottom:0 {  }
+
+.bibtex-tooltip-errors blockquotemargin-left:var(--spacing-06);white-space:pre-wrap {  }
+
+.bibtex-collapsible-headingalign-items:center;background:transparent;border:none;cursor:pointer;display:flex;gap:var(--spacing-02);margin-bottom:var(--spacing-04);padding:var(--spacing-02) 0;text-decoration:none;width:auto {  }
+
+.bibtex-collapsible-heading:hoveropacity:.8 {  }
+
+.bibtex-collapsible-heading:focusoutline:2px solid var(--border-active-themed);outline-offset:2px {  }
+
+.bibtex-collapsible-heading-iconalign-items:center;color:var(--content-secondary-themed);display:inline-flex;flex-shrink:0;margin-left:var(--spacing-01) {  }
+
+.btn.btn-ghost.bibtex-add-field-button--btn-ghost-color:var(--content-secondary-themed) {  }
+
+.bibtex-entry-form .form-label,.bibtex-entry-form .form-textcolor:var(--content-secondary-themed) {  }
+
+:root--bibtex-preview-input-border:var(--neutral-70) {  }
+
+[data-theme=light]--bibtex-preview-input-border:var(--neutral-30) {  }
+
+.bibtex-entry-preview-drawer.offcanvas-bottom--bs-offcanvas-bg:var(--bg-primary-themed);--bs-offcanvas-color:var(--content-primary-themed);border-top-left-radius:24px;border-top-right-radius:24px;height:90% {  }
+
+.bibtex-entry-preview-drawer>.focus-trap-containerdisplay:contents {  }
+
+.bibtex-entry-preview-panelbackground-color:var(--bg-primary-themed);border-left:1px solid var(--border-divider-themed);bottom:0;color:var(--content-primary-themed);display:flex;flex-direction:column;max-width:100%;position:fixed;right:0;top:0;transform:translateX(100%);transition:transform .3s ease;width:30rem;z-index:20 {  }
+
+.bibtex-entry-preview-panel.bibtex-entry-preview-panel-opentransform:none {  }
+
+.bibtex-entry-preview-panel.bibtex-entry-preview-panel-containedposition:absolute;width:30rem {  }
+
+.bibtex-entry-preview-panel.bibtex-entry-preview-panel-overlayborder-left:none;border-radius:var(--border-radius-large,16px) var(--border-radius-large,16px) 0 0;border-top:1px solid var(--border-divider-themed);box-shadow:0 0 5px 3px rgba(30,37,48,.06);inset:20% 0 0;transform:translateY(100%);width:auto {  }
+
+.bibtex-entry-preview-panel.bibtex-entry-preview-panel-overlay.bibtex-entry-preview-panel-opentransform:none {  }
+
+.bibtex-entry-preview-headerdisplay:flex;justify-content:space-between;padding:var(--spacing-05) {  }
+
+.bibtex-entry-preview-header-navdisplay:flex {  }
+
+.bibtex-entry-preview-summaryalign-items:flex-start;display:flex;gap:var(--spacing-05);padding:0 var(--spacing-08) var(--spacing-04) {  }
+
+:root .bibtex-entry-preview-header .btn.btn-ghost,:root .bibtex-entry-preview-summary .btn.btn-ghost--btn-ghost-background:var(--bg-primary-themed);--btn-ghost-hover-background:var(--bg-secondary-themed);--bs-btn-disabled-color:var(--content-disabled-themed);--bs-btn-disabled-bg:var(--bg-disabled-themed) {  }
+
+.bibtex-entry-preview-summary-actionsmargin-right:calc(var(--spacing-05) - var(--spacing-08)) {  }
+
+.bibtex-entry-preview-summary-actions .dropdown-toggle:aftercontent:none!important {  }
+
+.bibtex-entry-preview-summary-contentdisplay:flex;flex:1;flex-direction:column;gap:var(--spacing-02);min-width:0 {  }
+
+.bibtex-entry-preview-summary-keyalign-self:flex-start;background-color:var(--bg-tertiary-themed);border-radius:var(--border-radius-base);color:var(--content-primary-themed);font-family:DM Mono,monospace;font-feature-settings:"ss05";font-size:var(--font-size-02);line-height:var(--line-height-02);padding:var(--spacing-01) var(--spacing-02) {  }
+
+.bibtex-entry-preview-summary-titlecolor:var(--content-primary-themed);font-weight:600 {  }
+
+.bibtex-entry-preview-summary-metacolor:var(--content-secondary-themed);display:flex;font-size:var(--font-size-02);gap:var(--spacing-06);line-height:var(--line-height-02) {  }
+
+.bibtex-entry-preview-tabsbackground-color:var(--bg-primary-themed);border-bottom:1px solid var(--border-divider-themed);display:flex;gap:var(--spacing-04);margin-bottom:var(--spacing-06);position:sticky;top:0;z-index:1 {  }
+
+.bibtex-entry-preview-tab-webkit-appearance:none;-moz-appearance:none;appearance:none;background:transparent;border:0;border-bottom:3px solid transparent;color:var(--content-secondary-themed);cursor:pointer;font-size:var(--font-size-02);line-height:var(--line-height-02);padding:0;padding:var(--spacing-04) {  }
+
+.bibtex-entry-preview-tab.bibtex-entry-preview-tab-activeborder-bottom-color:var(--green-50);color:var(--content-primary-themed) {  }
+
+.bibtex-entry-preview-tab:focus-visiblebox-shadow:0 0 0 2px var(--border-active-dark);outline:none {  }
+
+.bibtex-entry-preview-tab:disabledcursor:default;opacity:.5 {  }
+
+.bibtex-entry-preview-bodyflex:1;min-height:0;overflow-y:auto;padding:0 var(--spacing-08) var(--spacing-08) {  }
+
+.bibtex-entry-preview-body .form-groupscroll-margin-top:4rem {  }
+
+.bibtex-entry-preview-body .form-control,.bibtex-entry-preview-body input.form-control[type=text]border-color:var(--bibtex-preview-input-border) {  }
+
+.bibtex-entry-preview-body .form-label,.bibtex-entry-preview-body .form-textcolor:var(--content-secondary-themed) {  }
+
+.bibtex-entry-preview-body-abstractdisplay:flex;flex-direction:column {  }
+
+.bibtex-abstract-form-group,.bibtex-entry-preview-body-abstract #bibtex-entry-form,.bibtex-entry-preview-body-abstract #bibtex-entry-preview-panel-abstractdisplay:flex;flex:1;flex-direction:column;min-height:0 {  }
+
+.bibtex-abstract-textareaflex:1;min-height:0;resize:none {  }
+
+.bibtex-import-textareafont-family:DM Mono,monospace;font-feature-settings:"ss05" {  }
+
+.bibtex-import-form .form-label,.bibtex-import-form .form-textcolor:var(--content-secondary-themed) {  }
+
+:root--bibtex-already-in-library-color:var(--yellow-50);--bibtex-already-in-library-bg-color:var(--yellow-10) {  }
+
+[data-theme=default] .modal-themed--bibtex-already-in-library-color:var(--yellow-20);--bibtex-already-in-library-bg-color:var(--yellow-70) {  }
+
+.bibtex-import-preview-card-checkpadding-top:var(--spacing-05) {  }
+
+.bibtex-import-preview-cardborder:1px solid var(--border-divider-themed);border-radius:var(--border-radius-large);display:flex;gap:var(--spacing-06);padding:var(--spacing-04) var(--spacing-06) {  }
+
+.bibtex-import-preview-card-contentdisplay:flex;flex:1;flex-direction:column {  }
+
+.bibtex-import-preview-card-detailsdisplay:flex;flex-direction:column;gap:var(--spacing-03);padding-top:var(--spacing-04) {  }
+
+.bibtex-import-preview-card-headingfont-weight:600 {  }
+
+.bibtex-import-preview-card-fieldcolor:var(--bibtex-card-secondary-text) {  }
+
+.bibtex-import-preview-card-tagsdisplay:flex;gap:var(--spacing-06);padding:var(--spacing-04) 0 {  }
+
+.bibtex-import-preview-card-keybackground-color:var(--bg-tertiary-themed);border-radius:var(--border-radius-base);color:var(--content-primary-themed);font-family:DM Mono,monospace;font-feature-settings:"ss05";font-size:var(--spacing-05);font-weight:500;margin-top:var(--spacing-04);padding:var(--spacing-01) var(--spacing-02);width:-moz-fit-content;width:fit-content {  }
+
+.bibtex-already-in-library .badge-tag-contentbackground-color:var(--bibtex-already-in-library-bg-color);color:var(--bibtex-already-in-library-color);max-width:none {  }
+
+.bibtex-import-preview-countfont-weight:600;margin-bottom:var(--spacing-04);padding:var(--spacing-04) 0 {  }
+
+.bibtex-import-preview-listdisplay:flex;flex-direction:column;gap:var(--spacing-04) {  }
+
+.bibtex-import-preview-check-allpadding:var(--spacing-05) var(--spacing-06) var(--spacing-04) {  }
+
+.bibtex-import-preview-footerdisplay:flex;flex-direction:column;justify-content:space-between;width:100% {  }
+
+.bibtex-import-preview-footer-buttonsdisplay:flex;gap:var(--spacing-04) {  }
+
+.bibtex-import-preview-footer-countfont-weight:600 {  }
+
+.bibtex-import-preview-footer-warningalign-items:center;color:var(--content-danger-themed);display:flex;justify-content:flex-start;padding-bottom:var(--spacing-04) {  }
+
+.bibtex-import-preview-footer-warning spanmargin-bottom:var(--spacing-02);margin-left:var(--spacing-02) {  }
+
+.bibtex-import-preview-footer-actionsdisplay:flex;justify-content:space-between;width:100% {  }
+
+.bibtex-import-preview-emptycolor:var(--content-secondary-themed);padding:var(--spacing-10) var(--spacing-09);text-align:center {  }
+
+.bibtex-import-preview-headerdisplay:flex {  }
+
+.bibtex-add-buttonmargin-left:auto {  }
+
+.bibtex-bulk-actions-baralign-items:center;background-color:var(--bg-secondary-themed);border:2px solid transparent;border-bottom-color:var(--border-divider-themed);border-radius:0;box-sizing:border-box;display:flex;margin-bottom:var(--spacing-05);margin-top:var(--spacing-05);padding:var(--spacing-04) var(--spacing-05);position:sticky;top:0;z-index:3 {  }
+
+.bibtex-bulk-actions-bar.bibtex-bulk-actions-bar-selectedbackground-color:var(--bibtex-card-selected-bg);border-color:var(--bibtex-card-selected-border);border-radius:var(--border-radius-medium) {  }
+
+.bibtex-bulk-actions-bar.bibtex-bulk-actions-bar-compact .bibtex-bulk-actions-btn-labeldisplay:none {  }
+
+.bibtex-bulk-actions-bar.bibtex-bulk-actions-bar-compact.bibtex-bulk-actions-bar-selectedborder-radius:0 {  }
+
+.bibtex-bulk-actions-bar .btn-ghost--bs-btn-bg:transparent {  }
+
+.bibtex-bulk-actions-select-allmargin-right:var(--spacing-05);padding:var(--spacing-02) {  }
+
+.bibtex-bulk-actions-countcolor:var(--content-primary-themed);font-family:var(--font-sans);font-size:var(--font-size-02);font-style:normal;font-weight:600;line-height:var(--line-height-05);margin-right:var(--spacing-04);overflow:hidden;text-overflow:ellipsis;white-space:nowrap {  }
+
+.bibtex-bulk-actions-closemargin-left:auto {  }
+
+.bibtex-toolbar,.ol-toolbar-layout-leftalign-items:center;display:flex {  }
+
+.bibtex-toolbarbox-shadow:inset 0 -1px 0 var(--border-divider-themed);height:32px;padding:0 5px {  }
+
+.bibtex-visual-editorbackground-color:var(--bg-primary-themed);display:flex;flex-direction:column;font-size:14px;inset:0;position:absolute {  }
+
+.bibtex-visual-editor .bibtex-list-and-previewdisplay:flex;flex:1;flex-direction:column;min-height:0;position:relative {  }
+
+.bibtex-visual-editor .bibtex-entry-listflex-grow:1;overflow:hidden scroll {  }
+
+.bibtex-visual-editor .bibtex-searchwidth:320px {  }
+
+.bibtex-visual-editor:has(.bibtex-entry-preview-panel-contained.bibtex-entry-preview-panel-open) .bibtex-entry-listmargin-right:30rem;transition:margin-right .3s ease {  }
+
+.bibtex-visual-editor:has(.bibtex-entry-preview-panel-overlay.bibtex-entry-preview-panel-open) .bibtex-entry-listmargin-right:0 {  }
+
+.bibtex-visual-editor .bibtex-bulk-actions-bar.bibtex-bulk-actions-bar-selectedborder-left-color:transparent;border-radius:0;border-right-color:transparent {  }
+
+.bibtex-visual-editor .bibtex-bulk-actions-barborder-width:1px;border-left:none;border-right:none;margin-bottom:0;margin-top:0;padding-left:var(--spacing-04);padding-right:var(--spacing-04) {  }
+
+.bibtex-visual-editor .bibtex-bulk-actions-bar .bibtex-bulk-actions-select-allpadding-left:var(--spacing-03);padding-right:var(--spacing-03) {  }
+
+.bibtex-visual-editor .bibtex-bulk-actions-bar:not(.bibtex-bulk-actions-bar-selected)background-color:var(--bg-primary-themed);border-bottom-color:var(--border-divider-themed);border-top-color:var(--border-divider-themed) {  }
+
+.bibtex-loadingalign-items:center;display:flex;flex:1;justify-content:center {  }
+
+.bibtex-entry-list-panelalign-items:center;display:flex;gap:var(--spacing-04);padding:var(--spacing-04) var(--spacing-04) var(--spacing-05) {  }

@@ -1,0 +1,17 @@
+extends ../../../../../app/views/layout-react
+
+block entrypointVar
+	- entrypoint = 'modules/bib-editor/pages/library'
+
+block vars
+	- const suppressFooter = true
+
+block append meta
+	meta(name="ol-libraryView" content=libraryView)
+	meta(name="ol-libraryEnabled" data-type="boolean" content="true")
+	if userSettings
+		meta(name="ol-userSettings" data-type="json" content=userSettings)
+	meta(name="ol-overallThemes" data-type="json" content=overallThemes)
+
+block content
+	#library-root

@@ -20,9 +20,33 @@ import { isFeatureOn } from './UserFeatures.mjs'
 //    dropbox: whether Dropbox sync is enabled (env var DROPBOX_ENABLED;
 //    the dropbox module sets Settings.dropbox only when enabled)
 //    gitBridge: whether git-bridge is enabled (env var GIT_BRIDGE_ENABLED)
-// 2. zotero / mendeley: whether each reference-manager integration is enabled
-//    (env var ENABLED_LINKED_FILE_TYPES includes the provider name; no Features
-//    case exists for them, so we read the setting directly)
+// 2. zotero / mendeley: whether each reference-manager integration is usable
+//    on this instance. Site requirement: a provider's UI (settings
+//    "Reference managers" section, editor Integrations card, picker menu
+//    entries) is hidden whenever its OAuth client id and/or secret is not
+//    configured — with credentials missing the Link button can never work.
+//    Credentials therefore gate both providers, read from the seeded
+//    Settings (the modules seed them at boot from the env vars, keeping any
+//    pre-seeded site_settings value) so this flag stays consistent with the
+//    modules' route gates and the bib-editor module's /bib/services gate.
+
+export function referenceManagerFeatureFlags({ zoteroCredentials, mendeleyCredentials }) {
+  return {
+    zotero: Boolean(zoteroCredentials),
+    mendeley: Boolean(mendeleyCredentials),
+  }
+}
+
+function referenceManagerCredentials(id) {
+  const s = Settings[id]
+  if (!s) return false
+  if (id === 'mendeley') {
+    return (
+      s.enabled !== false && !!(s.clientID || s.clientId) && !!s.clientSecret
+    )
+  }
+  return !!(s.clientKey || s.clientID) && !!s.clientSecret
+}
 // AI is per user through its own /workbench/access.
 
 export default {
@@ -43,12 +67,14 @@ export default {
             Boolean(Settings.gitlabSync) && isFeatureOn(user, 'gitlab'),
           giteaSync: Boolean(Settings.giteaSync) && isFeatureOn(user, 'gitea'),
           dropbox: Boolean(Settings.dropbox) && isFeatureOn(user, 'dropbox'),
-          zotero:
-            Boolean(Settings.enabledLinkedFileTypes?.includes('zotero')) &&
-            isFeatureOn(user, 'zotero'),
-          mendeley:
-            Boolean(Settings.enabledLinkedFileTypes?.includes('mendeley')) &&
-            isFeatureOn(user, 'mendeley'),
+          ...referenceManagerFeatureFlags({
+            zoteroCredentials:
+              referenceManagerCredentials('zotero') &&
+              isFeatureOn(user, 'zotero'),
+            mendeleyCredentials:
+              referenceManagerCredentials('mendeley') &&
+              isFeatureOn(user, 'mendeley'),
+          }),
           gitBridge:
             Features.hasFeature('git-bridge') && isFeatureOn(user, 'gitBridge'),
         })

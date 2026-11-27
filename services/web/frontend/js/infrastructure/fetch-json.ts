@@ -22,6 +22,10 @@ export function postJSON<T = any>(path: FetchPath, options?: FetchConfig) {
   return fetchJSON<T>(path, { ...options, method: 'POST' })
 }
 
+export function patchJSON<T = any>(path: FetchPath, options?: FetchConfig) {
+  return fetchJSON<T>(path, { ...options, method: 'PATCH' })
+}
+
 export function putJSON<T = any>(path: FetchPath, options?: FetchConfig) {
   return fetchJSON<T>(path, { ...options, method: 'PUT' })
 }

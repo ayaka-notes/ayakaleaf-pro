@@ -6,6 +6,9 @@ import { SSOLinkingWidget } from './linking/sso-widget'
 import getMeta from '../../../utils/meta'
 import { useBroadcastUser } from '@/shared/hooks/user-channel/use-broadcast-user'
 import Notification from '@/shared/components/notification'
+// @ts-ignore — the module is webpack-resolved via overleafModuleImports in
+// the settings page bundle on this deployment.
+import useInstanceFeatures from '../../../../../modules/instance-features/frontend/js/use-instance-features'
 
 const availableIntegrationLinkingWidgets = importOverleafModules(
   'integrationLinkingWidgets'
@@ -21,6 +24,10 @@ function LinkingSection() {
   useBroadcastUser()
   const { t } = useTranslation()
   const { subscriptions } = useSSOContext()
+  // Reference managers (zotero/mendeley widgets + settings section) are only
+  // offered when actually configured on this instance — hidden otherwise.
+  const { zotero: zoteroEnabled, mendeley: mendeleyEnabled } =
+    useInstanceFeatures()
   const ssoErrorMessage = getMeta('ol-ssoErrorMessage')
   const cannotUseAi = getMeta('ol-cannot-use-ai')
   const projectSyncSuccessMessage = getMeta('ol-projectSyncSuccessMessage')
@@ -57,7 +64,8 @@ function LinkingSection() {
     langFeedbackLinkingWidgets.length && !cannotUseAi
   const hasIntegrationLinkingSection =
     renderSyncSection && allIntegrationLinkingWidgets.length
-  const hasReferencesLinkingSection = referenceLinkingWidgets.length
+  const hasReferencesLinkingSection =
+    referenceLinkingWidgets.length && (zoteroEnabled || mendeleyEnabled)
 
   // Filter out SSO providers that are not allowed to be linked by
   // managed users. Allow unlinking them if they are already linked.

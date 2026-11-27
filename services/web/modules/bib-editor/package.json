@@ -1,0 +1,9 @@
+{
+  "name": "@overleaf/module-bib-editor",
+  "private": true,
+  "description": "Module-local dev deps for standalone test runs (see README). Installed deps are gitignored.",
+  "devDependencies": {
+    "jsdom": "^27.0.0",
+    "vitest": "^4.0.17"
+  }
+}

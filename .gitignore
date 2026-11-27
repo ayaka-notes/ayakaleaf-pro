@@ -1,6 +1,7 @@
 # docker image build
 .dockerignore
-
-# user defined files
-.env
-docker-compose.override.yml
+# yarn cache (repo commits only .yarn/patches)
+/.yarn/cache/
+/.yarn/install-state.gz
+/.yarn/unplugged/
+.pi/
