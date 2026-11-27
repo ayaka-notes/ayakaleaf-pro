@@ -637,6 +637,15 @@ function normalizeApiError(err, operation) {
     }).withCause(err)
   }
 
+  // Policy errors (SSRF guard, rejected redirects, unresolvable hosts)
+  // are OErrors that already carry an explicit status — pass them
+  // through instead of downgrading to a generic 500. RequestFailedError
+  // extends OError too, but it keeps its own status mapping below.
+  if (err instanceof OError && !(err instanceof RequestFailedError)) {
+    const info = OError.getFullInfo(err)
+    if (info?.status) throw err
+  }
+
   if (!(err instanceof RequestFailedError)) {
     throw new OError('Something wrong with WakaTime request', {
       operation,
