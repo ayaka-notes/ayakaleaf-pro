@@ -15,6 +15,7 @@ import { useProjectContext } from '@/shared/context/project-context'
 import { useEditorOpenDocContext } from '@/features/ide-react/context/editor-open-doc-context'
 import { useFileTreeOpenContext } from './file-tree-open-context'
 import { useEditorAnalytics } from '@/shared/hooks/use-editor-analytics'
+import type { CommentOutlineEntry } from '@/features/source-editor/extensions/comment-outline'
 
 export type PartialFlatOutline = {
   level: number
@@ -33,6 +34,8 @@ const OutlineContext = createContext<
   | {
       flatOutline: FlatOutlineState
       setFlatOutline: Dispatch<SetStateAction<FlatOutlineState>>
+      commentHighlights: CommentOutlineEntry[]
+      setCommentHighlights: Dispatch<SetStateAction<CommentOutlineEntry[]>>
       highlightedLine: number
       jumpToLine: (lineNumber: number, syncToPdf: boolean) => void
       canShowOutline: boolean
@@ -46,6 +49,9 @@ const OutlineContext = createContext<
 
 export const OutlineProvider: FC<React.PropsWithChildren> = ({ children }) => {
   const [flatOutline, setFlatOutline] = useState<FlatOutlineState>(undefined)
+  const [commentHighlights, setCommentHighlights] = useState<
+    CommentOutlineEntry[]
+  >([])
   const [currentlyHighlightedLine, setCurrentlyHighlightedLine] =
     useState<number>(-1)
   const [binaryFileOpened, setBinaryFileOpened] = useState<boolean>(false)
@@ -169,6 +175,8 @@ export const OutlineProvider: FC<React.PropsWithChildren> = ({ children }) => {
     () => ({
       flatOutline,
       setFlatOutline,
+      commentHighlights,
+      setCommentHighlights,
       highlightedLine,
       jumpToLine,
       canShowOutline,
@@ -179,6 +187,7 @@ export const OutlineProvider: FC<React.PropsWithChildren> = ({ children }) => {
     }),
     [
       flatOutline,
+      commentHighlights,
       highlightedLine,
       jumpToLine,
       canShowOutline,

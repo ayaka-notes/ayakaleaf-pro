@@ -1,0 +1,52 @@
+// Styles for the user "Highlight" page (/user/highlight), where the user
+// manages the comment tags highlighted in the source editor.
+.highlight-page {
+  .highlight-form {
+    margin-top: var(--spacing-05);
+  }
+
+  .highlight-tag-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-03);
+  }
+
+  .highlight-tag-row {
+    gap: var(--spacing-03);
+
+    .form-control {
+      flex: 1 1 auto;
+      max-width: 260px;
+    }
+  }
+
+  .highlight-color-input {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 34px;
+    padding: 2px;
+    border: 1px solid var(--border-divider-themed);
+    border-radius: var(--border-radius-base);
+    background-color: var(--bg-primary-themed);
+    cursor: pointer;
+  }
+
+  .highlight-tag-preview {
+    flex: 0 0 auto;
+    padding: 2px var(--spacing-02);
+    border-radius: var(--border-radius-base);
+    font-family: var(--font-family-mono, monospace);
+    font-size: var(--font-size-02);
+    white-space: nowrap;
+    color: var(--content-primary-themed);
+  }
+
+  .highlight-add-row {
+    margin-top: var(--spacing-05);
+    gap: var(--spacing-03);
+
+    .form-control {
+      max-width: 260px;
+    }
+  }
+}

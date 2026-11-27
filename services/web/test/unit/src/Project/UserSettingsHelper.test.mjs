@@ -95,4 +95,73 @@ describe('UserSettingsHelper', function () {
       expect(settings.zotero).toBeUndefined()
     })
   })
+
+  describe('comment highlight setting', function () {
+    it('should return the stored tags', async function (ctx) {
+      const user = {
+        ace: {
+          highlight: [
+            { tag: 'TODO', color: '#ff8c00' },
+            { tag: 'NOTE', color: '#00ff00' },
+          ],
+        },
+        signUpDate: new Date('2022-01-01'),
+      }
+
+      const settings = await ctx.UserSettingsHelper.buildUserSettings(
+        ctx.req,
+        ctx.res,
+        user
+      )
+
+      expect(settings.highlight).toEqual([
+        { tag: 'TODO', color: '#ff8c00' },
+        { tag: 'NOTE', color: '#00ff00' },
+      ])
+    })
+
+    it('should fall back to the defaults when unset', async function (ctx) {
+      const user = { ace: {}, signUpDate: new Date('2022-01-01') }
+
+      const settings = await ctx.UserSettingsHelper.buildUserSettings(
+        ctx.req,
+        ctx.res,
+        user
+      )
+
+      expect(settings.highlight).toEqual(ctx.UserSettingsHelper.DEFAULT_HIGHLIGHT_TAGS)
+    })
+
+    it('should fall back to the defaults when the array is empty', async function (ctx) {
+      const user = {
+        ace: { highlight: [] },
+        signUpDate: new Date('2022-01-01'),
+      }
+
+      const settings = await ctx.UserSettingsHelper.buildUserSettings(
+        ctx.req,
+        ctx.res,
+        user
+      )
+
+      expect(settings.highlight).toEqual(ctx.UserSettingsHelper.DEFAULT_HIGHLIGHT_TAGS)
+    })
+
+    it('should migrate the legacy single-object shape', async function (ctx) {
+      const user = {
+        ace: {
+          highlight: { tag: 'BUG' },
+        },
+        signUpDate: new Date('2022-01-01'),
+      }
+
+      const settings = await ctx.UserSettingsHelper.buildUserSettings(
+        ctx.req,
+        ctx.res,
+        user
+      )
+
+      expect(settings.highlight).toEqual([{ tag: 'BUG', color: '#ff8c00' }])
+    })
+  })
 })
