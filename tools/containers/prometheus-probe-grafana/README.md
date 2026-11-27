@@ -170,33 +170,36 @@ The Overleaf web app ships an admin-only **Instance status** page
 (`/admin/status`, link in the navbar's Admin dropdown) that shows this
 stack's overview dashboard in a full-screen iframe. Site admins see the
 monitoring without any Grafana login; regular users never see the menu
-item. Two embed modes, in order of preference (the app picks the first
-configured):
+item. Two embed modes (the app prefers isolated mode when
+`public_base_url` is configured):
 
-### Isolated embed (recommended)
+### Isolated embed (recommended on internal networks — explicit opt-in)
 
-The status page frames **Grafana's own origin** (e.g.
-`https://grafana.<internal-domain>/d/overleaf-overview`), where this stack
-enables anonymous read-only (Viewer) access (`GRAFANA_ANONYMOUS_ENABLED`).
+**Off by default.** Opt in by setting `GRAFANA_ANONYMOUS_ENABLED=true`
+here **and** the app's `GRAFANA_PUBLIC_BASE_URL` (the app prefers
+`public_base_url` over the proxy, so set both sides together — with
+`public_base_url` set but anonymous access off, the iframe would just
+show a Grafana login page).
 
 - **Trust model:** the iframe is a *separate origin*. The Overleaf admin
   session never enters it, so a Grafana-side compromise (XSS, plugin
   exploit) cannot touch Overleaf at all — the isolated origin is the trust
   boundary.
-- **Trade-off:** anyone who can reach the Grafana origin can read the
-  dashboards (read-only; the admin API still needs the admin login).
-  Keep the origin on the internal network / behind your VPN — do not put
-  it on the public internet.
+- **Trade-off (why it is opt-in):** anyone who can reach the Grafana
+  origin can read the dashboards (read-only; the admin API still needs the
+  admin login) — and this container is bound to `0.0.0.0` by default
+  (`GRAFANA_HOST_BIND`). Enable only on an internal network / behind your
+  VPN; do not put it on the public internet.
 - **Wiring (web app env):** `GRAFANA_PUBLIC_BASE_URL=https://grafana.<host>`
   (the browser-reachable Grafana origin). Nothing else needed; the Grafana
   port just has to be reachable from admins' browsers.
 
-### Same-origin proxy (fallback)
+### Same-origin proxy (default)
 
-Use when the Grafana origin must **not** be reachable without a session
-(e.g. only the app's domain may be exposed). The dashboard is served
+The safe default (nothing extra to enable): the dashboard is served
 through the app under `/admin/status/grafana/**`, session-gated to site
-admins, with server-side Basic auth.
+admins, with server-side Basic auth. Dashboards are exposed only to site
+admins — but the embed is same-origin, which is the trade-off (see below).
 
 - **Trust model:** same-origin by necessity (the proxy's admin gate needs
   the session cookie, which only a same-origin iframe can send). A
