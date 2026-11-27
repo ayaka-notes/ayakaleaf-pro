@@ -25,7 +25,7 @@ make build      # just compile the binary (logo-generator)
 make clean      # remove the binary
 ```
 
-The generator creates (in `tools/logo/`):
+The generator creates (in `tools/logo-changer/`):
 
 - PNG icons: Android (192/512), Apple Touch (180), favicons (16/32),
   Open Graph logo, wide logo
@@ -35,7 +35,7 @@ The generator creates (in `tools/logo/`):
 - Colour variants: black / white / grey / dark, plus `logo_sw.svg`
 - Wide and standard brand logos under `img/ol-brand/`
 
-The generated files under `tools/logo/` (PNG/SVG/ICO/`img/`) are
+The generated files under `tools/logo-changer/` (PNG/SVG/ICO/`img/`) are
 **committed** in this repo — the docker images bake them in via `public/`.
 
 ## Install Assets

@@ -85,7 +85,8 @@ PARITY_SH := set -eu; \
 	/build/logo/logo-generator; \
 	fail=0; \
 	for f in $(PARITY_FILES); do \
-	  if [ ! -f "/build/logo/$$f" ]; then echo "missing-base $$f"; continue; fi; \
+	  if [ ! -f "/build/logo/$$f" ]; then echo "missing-base $$f"; fail=1; continue; fi; \
+	  if [ ! -f "/tmp/logo-gen/$$f" ]; then echo "missing-gen  $$f"; fail=1; continue; fi; \
 	  if cmp -s "/tmp/logo-gen/$$f" "/build/logo/$$f"; then \
 	    echo "identical    $$f"; \
 	  else \
