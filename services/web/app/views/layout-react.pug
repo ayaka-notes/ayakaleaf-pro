@@ -15,7 +15,11 @@ block append meta
 	- const canDisplaySplitTestMenu = hasFeature('saas') && hasNonAdminDomainCapability('view-split-test')
 	- const canDisplaySurveyMenu = hasFeature('saas') && canDisplayAdminMenu && hasAdminCapability('manage-survey', false)
 	- const canDisplayScriptLogMenu = hasFeature('saas') && hasAdminCapability('view-script-log', false) && canDisplayAdminMenu
-	- const canDisplayStatusMenu = canDisplayAdminMenu && settings.grafana && settings.grafana.internal_url
+	//- Keep in sync with isStatusEnabled() in
+	//- modules/monitoring/app/src/MonitoringRouter.mjs: the page is only
+	//- usable when internal_url AND admin_password are set (admin_user
+	//- defaults to "admin", so it never gates enablement).
+	- const canDisplayStatusMenu = canDisplayAdminMenu && settings.grafana && settings.grafana.internal_url && settings.grafana.admin_password
 	- const enableUpgradeButton = projectDashboardReact && usersBestSubscription && (usersBestSubscription.type === 'free' || usersBestSubscription.type === 'standalone-ai-add-on')
 	- const showSignUpLink = hasFeature('registration-page')
 
