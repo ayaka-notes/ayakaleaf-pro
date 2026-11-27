@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <a href="https://ayakaleaf-pro.ayaka.space"><img src="logo.png" alt="Ayakaleaf Pro" width="300"></a>
+  <a href="https://ayakaleaf-pro.ayaka.space"><picture><source media="(prefers-color-scheme: dark)" srcset="logo-dark.png"><img src="logo.png" alt="Ayakaleaf Pro" width="300"></picture></a>
 </h1>
 
 <h4 align="center">Overleaf Community Edition potenziato con tutte le funzionalità Pro <br/>(open source, gratuito, installabile sul proprio server).</h4>
@@ -58,10 +58,11 @@ Ayakaleaf Pro è una versione potenziata di Overleaf con quasi tutte le funziona
 - Integrazione con Mendeley (con supporto OAuth per Mendeley)
 - Ricerca avanzata dei riferimenti (cerca in tutte le tue voci bib)
 - Supporto Git-Bridge (clone, pull e push con Git)
-- Pannello di amministrazione (gestione globale di utenti/progetti)
+- Pannello di amministrazione completo (utenti, progetti e modelli, con ricerca, azioni di massa, sessioni e registri di controllo)
 - SSO con LDAP e SAML oppure OAuth 2.0
 - Tempo di compilazione illimitato (regolabile nel pannello di amministrazione)
 - Registrazione autonoma (facoltativa, limitabile per dominio email)
+- reCAPTCHA (facoltativo, su accesso, registrazione e reimpostazione della password)
 - Compilazione in sandbox (con supporto per l'immagine [texlive-full](https://github.com/ayaka-notes/texlive-full))
 - Sistema di modelli (con galleria di modelli)
 - Revisione delle modifiche (con pannello di revisione e commenti)
@@ -101,6 +102,7 @@ Consulta il file [CONTRIBUTING](../CONTRIBUTING.md) per informazioni su come con
 
 ## Blog
 Scriviamo del funzionamento interno di Overleaf, delle prestazioni di compilazione e dell'infrastruttura LaTeX self-hosted. Leggi di più sul nostro blog:
+- [2026.11 Meet the New Admin Panel in Ayakaleaf Pro](https://ayakaleaf-pro.ayaka.space/blog/2026/new-admin-panel)
 - [2026.08 Overleaf Server Pro Price and Open-Source Alternative](https://ayakaleaf-pro.ayaka.space/blog/2026/overleaf-server-pro-price-and-open-source-alternative)
 - [2026.08 Overleaf Benchmark: A Deep Research of Concurrent LaTeX Compilation in Overleaf](https://ayakaleaf-pro.ayaka.space/blog/2026/overleaf-benchmark)
 
@@ -117,9 +119,14 @@ Il codice di questo repository è rilasciato sotto la GNU AFFERO GENERAL PUBLIC 
 - Copyright (c) [Pro Authors](https://ayakaleaf-pro.ayaka.space/on-premises/readme/features-and-copyright), 2026-now.
 
 ## Sponsor
-- [Linux Do Community](https://linux.do)
-- [OpenAI Codex OSS](https://openai.com/en/form/codex-for-oss/)
-- [GitBook](https://www.gitbook.com/)
+
+<p align="center">
+  <a href="https://www.vultr.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/vultr-dark.svg"><img src="sponsors/vultr.svg" alt="Vultr" width="160"></picture></a>
+  <a href="https://linux.do"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/linux-do-dark.svg"><img src="sponsors/linux-do.svg" alt="Linux Do Community" width="160"></picture></a>
+  <a href="https://openai.com/en/form/codex-for-oss/"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/openai-codex-oss-dark.svg"><img src="sponsors/openai-codex-oss.svg" alt="OpenAI Codex OSS" width="160"></picture></a>
+  <a href="https://www.gitbook.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/gitbook-dark.svg"><img src="sponsors/gitbook.svg" alt="GitBook" width="160"></picture></a>
+  <a href="https://www.mintlify.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="sponsors/mintlify-dark.svg"><img src="sponsors/mintlify.svg" alt="Mintlify" width="160"></picture></a>
+</p>
 
 ## Star History
 

@@ -1,0 +1,61 @@
+# Every Node.js service of the dev environment serves Prometheus metrics on
+# /metrics through @overleaf/metrics, git-bridge serves JVM metrics there.
+# The service label is the host name.
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: overleaf
+    static_configs:
+      - targets:
+          - web:3000
+          - chat:3010
+          - clsi:3013
+          - docstore:3016
+          - document-updater:3003
+          - filestore:3009
+          - history-v1:3100
+          - notifications:3042
+          - project-history:3054
+          - real-time:3026
+          - linked-url-proxy:3066
+          - third-party-datastore:3002
+          - git-bridge:8000
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: "([^:]+):.*"
+        target_label: service
+
+  - job_name: mongodb
+    static_configs:
+      - targets: [mongodb-exporter:9216]
+        labels:
+          service: mongo
+
+  - job_name: redis
+    static_configs:
+      - targets: [redis-exporter:9121]
+        labels:
+          service: redis
+
+  - job_name: node
+    static_configs:
+      - targets: [node-exporter:9100]
+
+  # Keeps the containers of this Compose project, with the service as label,
+  # and the sandboxed compiles of clsi (project-<id>-<hash>) as service=compile
+  - job_name: cadvisor
+    static_configs:
+      - targets: [cadvisor:8080]
+    metric_relabel_configs:
+      - source_labels: [container_label_com_docker_compose_project, name]
+        regex: "develop;.*|;project-.*"
+        action: keep
+      - source_labels: [container_label_com_docker_compose_service]
+        target_label: service
+      - source_labels: [name]
+        regex: "project-.*"
+        target_label: service
+        replacement: compile
+      - regex: container_label_.*|id|image
+        action: labeldrop

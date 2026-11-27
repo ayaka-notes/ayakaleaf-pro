@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Applies the locale patches like the image builds do, then lists the keys the
+# frontend uses. The changed files are local only, do not commit them.
+
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+locales=../services/web/locales
+patches=$locales/locales_patches
+
+# Start from the tracked files, so that keys of another branch do not stay behind
+git restore --source=HEAD --worktree -- "$locales"/*.json
+
+# The highest version replaces whole files, the added translations then win per key
+patch_dir=$(printf '%s\n' "$patches"/v*/ | sort -V | tail -n1)
+cp "$patch_dir"*.json "$locales"/
+for file in "$patches"/added/*.json; do
+  lang=$(basename "$file")
+  [[ $lang == added-translations.json ]] && continue
+  jq -s '.[0] * .[1]' "$locales/$lang" "$file" > "$locales/$lang.tmp"
+  mv "$locales/$lang.tmp" "$locales/$lang"
+done
+
+extract='cd /overleaf/services/web && yarn run extract-translations'
+if [[ -n $(bin/docker-compose ps --quiet --status running webpack) ]]; then
+  bin/docker-compose exec -T -u node webpack sh -c "$extract"
+else
+  # A missing webpack image gets built by run, which needs a synced yarn.lock
+  docker image inspect "$(bin/docker-compose config --images webpack)" >/dev/null 2>&1 || bin/sync
+  bin/docker-compose -f docker-compose.dev.yml run --rm --no-deps -T -u node webpack sh -c "$extract"
+fi

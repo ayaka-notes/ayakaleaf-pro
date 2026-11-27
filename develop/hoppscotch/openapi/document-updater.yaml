@@ -1,0 +1,1303 @@
+openapi: 3.0.3
+info:
+  title: document-updater
+  version: '6.3'
+  description: >-
+    Holds the docs that are open in the editor in Redis, applies edits to them and
+    flushes them back to Mongo through web. Called by web and real-time.
+security: []
+servers:
+  - url: http://document-updater:3003
+    description: Inside the Docker network, through the Hoppscotch proxy
+# The servers are Docker addresses that a docs reader cannot reach
+x-hideTryItPanel: true
+tags:
+  - name: Status
+    x-page-icon: heart-pulse
+    description: Liveness, health checks and metrics.
+  - name: Docs
+    x-page-icon: file-lines
+    description: Single docs held in Redis.
+  - name: Ranges
+    x-page-icon: highlighter
+    description: Comments and tracked changes of docs held in Redis.
+  - name: Project
+    x-page-icon: folder-open
+    description: All docs of one project held in Redis.
+  - name: History
+    x-page-icon: clock-rotate-left
+    description: Project history resync.
+paths:
+  /status:
+    get:
+      operationId: getStatus
+      summary: Check that the service is running
+      description: >-
+        Returns a fixed text. Returns 503 once the service has started shutting
+        down. Registered in app.js.
+      tags: [Status]
+      responses:
+        '200':
+          description: The service is running.
+          content:
+            text/html:
+              schema:
+                type: string
+                example: document updater is alive
+        '503':
+          description: The service is shutting down.
+  /health_check:
+    get:
+      operationId: healthCheck
+      summary: Check Redis and Mongo
+      description: >-
+        Runs the Redis health check on the pubsub and the documentupdater Redis
+        clients, then pings Mongo. The Redis check writes a unique key with a
+        60 second expiry, reads it back and deletes it.
+      tags: [Status]
+      responses:
+        '200':
+          description: All checks passed.
+        '500':
+          description: A check failed. The reason is only logged.
+  /health_check/redis:
+    get:
+      operationId: healthCheckRedis
+      summary: Check the pubsub Redis
+      description: >-
+        Runs the Redis health check (write, read and delete a unique key) on the
+        pubsub Redis client.
+      tags: [Status]
+      responses:
+        '200':
+          description: The check passed.
+        '500':
+          description: The check failed.
+  /health_check/redis_cluster:
+    get:
+      operationId: healthCheckRedisCluster
+      summary: Check the documentupdater Redis
+      description: >-
+        Runs the Redis health check (write, read and delete a unique key) on the
+        documentupdater Redis client.
+      tags: [Status]
+      responses:
+        '200':
+          description: The check passed.
+        '500':
+          description: The check failed.
+  /metrics:
+    get:
+      operationId: getMetrics
+      summary: Get Prometheus metrics
+      description: >-
+        Prometheus metrics of this process, added by `injectMetricsRoute` from
+        `@overleaf/metrics`.
+      tags: [Status]
+      responses:
+        '200':
+          description: Metrics in the Prometheus text format.
+          content:
+            text/plain:
+              schema:
+                type: string
+  /total:
+    get:
+      operationId: getTotal
+      summary: Count the docs in Redis (broken)
+      description: >-
+        Meant to return the number of docs in Redis, but it calls
+        `RedisManager.getCountOfDocsInMemory`, which no longer exists (removed in
+        commit b2e58266ae), so every call fails with 500. No caller in this
+        repository.
+      tags: [Status]
+      responses:
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/doc/{doc_id}:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+      - $ref: '#/components/parameters/doc_id'
+    get:
+      operationId: getDoc
+      summary: Get a doc and its recent ops
+      description: >-
+        Returns the doc from Redis. If the doc is not in Redis, it is loaded from
+        web (which reads docstore) and kept in Redis, so this call has a side
+        effect on docs that are not open. Takes the project lock and applies
+        queued updates first. With `fromVersion`, also returns the ops from that
+        version up to the current one; 422 if those ops are no longer in Redis.
+        Callers: real-time `DocumentUpdaterManager.getDocument` (on joinDoc, with
+        `historyOTSupport=true`) and web `DocumentUpdaterHandler.getDocument`.
+      tags: [Docs]
+      parameters:
+        - name: fromVersion
+          in: query
+          description: Return the ops since this version. -1 returns no ops.
+          schema:
+            type: integer
+            default: -1
+        - name: historyOTSupport
+          in: query
+          description: >-
+            When true, a doc stored in history-ot format is returned as is
+            (`lines` is then an object). When false, it is converted to lines and
+            ranges.
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: The doc.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    example: 64b7f1a2c3d4e5f601234568
+                  lines:
+                    $ref: '#/components/schemas/DocLines'
+                  version:
+                    type: integer
+                  ops:
+                    type: array
+                    description: >-
+                      Ops applied after `fromVersion`, as stored in Redis. Empty when
+                      `fromVersion` is -1.
+                    items:
+                      type: object
+                  ranges:
+                    $ref: '#/components/schemas/Ranges'
+                  pathname:
+                    type: string
+                    example: /main.tex
+                  ttlInS:
+                    type: integer
+                    description: How long ops stay in Redis (3600).
+                  type:
+                    type: string
+                    enum: [sharejs-text-ot, history-ot]
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: The requested ops are no longer in Redis.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  firstVersionInRedis:
+                    type: integer
+                  version:
+                    type: integer
+                  ttlInS:
+                    type: integer
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      operationId: setDoc
+      summary: Replace the content of a doc
+      description: >-
+        Diffs the new lines against the current doc and applies the diff as an
+        external update, so open editors receive it. If the doc was already in
+        Redis it is then flushed; otherwise it is flushed and removed from Redis
+        again, and project-history is flushed in the background. Caller: web
+        `DocumentUpdaterHandler.setDocument` (used by
+        `ProjectEntityUpdateHandler`, e.g. uploads and Git/Dropbox sync).
+      tags: [Docs]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [lines, source]
+              properties:
+                lines:
+                  type: array
+                  items:
+                    type: string
+                source:
+                  type: string
+                  description: Where the change comes from, e.g. `upload`.
+                user_id:
+                  $ref: '#/components/schemas/NullableObjectId'
+                undoing:
+                  type: boolean
+                  description: Mark the ops as undo (sharejs-text-ot docs only).
+                trackChanges:
+                  type: boolean
+                  description: Apply the change as tracked changes. Needs `user_id`.
+      responses:
+        '200':
+          description: >-
+            Result of the flush to web. An empty object when nothing was flushed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlushResult'
+        '400':
+          description: >-
+            `trackChanges` without `user_id` (text body), or an invalid body (JSON,
+            see ValidationError).
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '406':
+          description: The new lines are longer than `max_doc_length`.
+        '413':
+          description: The JSON body is larger than `maxJsonRequestSize`.
+        '422':
+          description: Web returned a doc without lines or version.
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      operationId: deleteDoc
+      summary: Flush a doc and remove it from Redis
+      description: >-
+        Flushes the doc to web if it has unflushed changes, removes it from Redis
+        and flushes project-history in the background. Caller: web
+        `DocumentUpdaterHandler.deleteDoc` (used when a doc is deleted or
+        replaced).
+      tags: [Docs]
+      parameters:
+        - name: ignore_flush_errors
+          in: query
+          description: Remove the doc from Redis even if the flush fails.
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '204':
+          description: The doc is no longer in Redis.
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/doc/{doc_id}/peek:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+      - $ref: '#/components/parameters/doc_id'
+    get:
+      operationId: peekDoc
+      summary: Read a doc only if it is in Redis
+      description: >-
+        Returns the doc from Redis without loading it and without taking a lock.
+        404 when the doc is not in Redis. No caller in this repository.
+      tags: [Docs]
+      parameters:
+        - name: historyOTSupport
+          in: query
+          description: When true, a history-ot doc is returned as is; otherwise as lines.
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: The doc.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  lines:
+                    $ref: '#/components/schemas/DocLines'
+                  version:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/doc/{doc_id}/append:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+      - $ref: '#/components/parameters/doc_id'
+    post:
+      operationId: appendToDoc
+      summary: Append lines to a doc
+      description: >-
+        Adds the lines at the end of the doc, then works like setDoc (external
+        update, flush, and removal from Redis if the doc was not open). Caller:
+        web `DocumentUpdaterHandler.appendToDocument` (used by
+        `ProjectEntityUpdateHandler.appendToDoc`).
+      tags: [Docs]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [lines, source]
+              properties:
+                lines:
+                  type: array
+                  items:
+                    type: string
+                source:
+                  type: string
+                user_id:
+                  $ref: '#/components/schemas/NullableObjectId'
+                trackChanges:
+                  type: boolean
+      responses:
+        '200':
+          description: >-
+            Result of the flush to web. The body is empty when nothing was flushed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlushResult'
+        '400':
+          description: >-
+            `trackChanges` without `user_id` (text body), or an invalid body (JSON).
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: The doc would become longer than `max_doc_length`.
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/doc/{doc_id}/flush:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+      - $ref: '#/components/parameters/doc_id'
+    post:
+      operationId: flushDocIfLoaded
+      summary: Flush a doc to Mongo
+      description: >-
+        If the doc is in Redis and has unflushed changes, sends it to web, which
+        writes it to docstore. The doc stays in Redis. Does nothing for docs that
+        are not loaded. Caller: web `DocumentUpdaterHandler.flushDocToMongo`.
+      tags: [Docs]
+      responses:
+        '204':
+          description: Flushed, or nothing to flush.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/doc/{doc_id}/comment/{comment_id}:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+      - $ref: '#/components/parameters/doc_id'
+      - $ref: '#/components/parameters/comment_id'
+    get:
+      operationId: getComment
+      summary: Get one comment range of a doc
+      description: >-
+        Returns the comment range (position and thread id) from the doc's ranges.
+        Like getDoc, this loads the doc into Redis if it is not there. The comment
+        text lives in chat. Wrapped by web `DocumentUpdaterHandler.getComment`,
+        which has no caller in this repository.
+      tags: [Ranges]
+      responses:
+        '200':
+          description: The comment range.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      operationId: deleteComment
+      summary: Delete a comment range
+      description: >-
+        Removes the comment range from the doc in Redis (loading the doc first if
+        needed). For docs with history ranges support the deletion is also
+        queued for project-history. The chat thread is deleted separately by
+        web. Caller: web
+        `DocumentUpdaterHandler.deleteThread` (track-changes module).
+      tags: [Ranges]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserIdBody'
+      responses:
+        '204':
+          description: Deleted.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/doc/{doc_id}/comment/{comment_id}/resolve:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+      - $ref: '#/components/parameters/doc_id'
+      - $ref: '#/components/parameters/comment_id'
+    post:
+      operationId: resolveComment
+      summary: Mark a comment as resolved
+      description: >-
+        Records the resolved state in the doc (history-ot docs) or in Redis and
+        queues it for project-history (docs with history ranges support); for
+        other docs nothing changes here. The chat thread is resolved separately
+        by web. Caller: web
+        `DocumentUpdaterHandler.resolveThread` (track-changes and mcp-server
+        modules).
+      tags: [Ranges]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserIdBody'
+      responses:
+        '204':
+          description: Resolved.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/doc/{doc_id}/comment/{comment_id}/reopen:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+      - $ref: '#/components/parameters/doc_id'
+      - $ref: '#/components/parameters/comment_id'
+    post:
+      operationId: reopenComment
+      summary: Reopen a resolved comment
+      description: >-
+        Same as resolveComment with the resolved state set to false. Caller: web
+        `DocumentUpdaterHandler.reopenThread`.
+      tags: [Ranges]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserIdBody'
+      responses:
+        '204':
+          description: Reopened.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/doc/{doc_id}/change/accept:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+      - $ref: '#/components/parameters/doc_id'
+    post:
+      operationId: acceptChanges
+      summary: Accept tracked changes
+      description: >-
+        Accepts the listed tracked changes: removes them from the doc's ranges in
+        Redis (loading the doc first if needed) and queues history updates when
+        the doc has history ranges support. Returns the change authors and
+        previews used for notification emails. 422 for history-ot docs. Caller:
+        web `DocumentUpdaterHandler.acceptChanges` (track-changes module).
+      tags: [Ranges]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                change_ids:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/AcceptChangesResult'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: The doc is a history-ot doc.
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/doc/{doc_id}/change/{change_id}/accept:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+      - $ref: '#/components/parameters/doc_id'
+      - name: change_id
+        in: path
+        required: true
+        description: >-
+          Tracked change id. The schema expects a 24 character hex id. Used only
+          when the body has no `change_ids`.
+        schema:
+          type: string
+          example: 64b7f1a2c3d4e5f60123456b
+    post:
+      operationId: acceptChange
+      summary: Accept one tracked change
+      description: >-
+        Same handler as acceptChanges (`HttpController.acceptChanges`); the change
+        id comes from the path unless the body has `change_ids`. No caller in
+        this repository.
+      tags: [Ranges]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                change_ids:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/AcceptChangesResult'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: The doc is a history-ot doc.
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/ranges:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+    get:
+      operationId: getProjectRanges
+      summary: Get the ranges of the project's docs in Redis
+      description: >-
+        Returns the ranges of each doc of the project that is in Redis. Docs that
+        are not loaded are missing, so this is not the full project; flush and
+        read docstore for that. Read only. Wrapped by web
+        `DocumentUpdaterHandler.getProjectRanges`, which has no caller in this
+        repository.
+      tags: [Ranges]
+      responses:
+        '200':
+          description: Ranges per loaded doc.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  docs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        ranges:
+                          $ref: '#/components/schemas/Ranges'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/get_and_flush_if_old:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+    post:
+      operationId: getProjectDocsAndFlushIfOld
+      summary: Get all loaded docs if the project state matches
+      description: >-
+        Compares `state` with the project state hash stored in Redis and stores
+        the new hash. If they differ, returns 409. Otherwise returns the lines
+        and version of each doc of the project in Redis, flushing docs whose
+        changes are older than `maxUnflushedAgeMs`. Caller: web
+        `DocumentUpdaterHandler.getProjectDocsIfMatch` (ClsiManager, incremental
+        compiles).
+      tags: [Project]
+      parameters:
+        - $ref: '#/components/parameters/state'
+      responses:
+        '200':
+          $ref: '#/components/responses/ProjectDocs'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: The project state changed; read the docs from docstore instead.
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/doc:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+    get:
+      operationId: getProjectDocsAndFlushIfOldLegacy
+      summary: Get all loaded docs if the project state matches (old GET form)
+      description: >-
+        Same handler and side effects as `POST /project/{project_id}/get_and_flush_if_old`
+        (stores the state hash, may flush old docs). Kept for backwards
+        compatibility; web uses the POST form.
+      tags: [Project]
+      parameters:
+        - $ref: '#/components/parameters/state'
+      responses:
+        '200':
+          $ref: '#/components/responses/ProjectDocs'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: The project state changed.
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/last_updated_at:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+    get:
+      operationId: getProjectLastUpdatedAt
+      summary: Get the last edit time of the loaded docs
+      description: >-
+        Returns the newest last-updated timestamp of the project's docs in Redis.
+        The field is missing when no doc is loaded. Read only. Caller: web
+        `DocumentUpdaterHandler.getProjectLastUpdatedAt` (ClsiCacheManager).
+      tags: [Project]
+      responses:
+        '200':
+          description: The newest timestamp.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lastUpdatedAt:
+                    type: integer
+                    description: Milliseconds since the epoch.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/clearState:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+    post:
+      operationId: clearProjectState
+      summary: Clear the stored project state hash
+      description: >-
+        Deletes the project state hash used by get_and_flush_if_old, so the next
+        call returns 409. Caller: web `DocumentUpdaterHandler.clearProjectState`
+        (ClsiManager, after a failed compile).
+      tags: [Project]
+      responses:
+        '200':
+          description: Cleared. The body is the text `OK`.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/flush:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+    post:
+      operationId: flushProject
+      summary: Flush all loaded docs of a project to Mongo
+      description: >-
+        Flushes every doc of the project that is in Redis and has unflushed
+        changes to web/docstore. Docs stay in Redis. Run this before reading all
+        docs from docstore. Caller: web `DocumentUpdaterHandler.flushProjectToMongo`
+        (ClsiManager, ProjectDuplicator, Git sync modules and others).
+      tags: [Project]
+      responses:
+        '204':
+          description: Flushed.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+    post:
+      operationId: updateProject
+      summary: Apply project structure changes
+      description: >-
+        Takes the adds and renames of docs and files (a delete is a rename to an
+        empty `newPathname`), updates the pathname of loaded docs and queues the
+        changes for project-history. Caller: web
+        `DocumentUpdaterHandler.updateProjectStructure` (ProjectEntityUpdateHandler,
+        ProjectDuplicator, ProjectUploadManager).
+      tags: [Project]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [version]
+              properties:
+                projectHistoryId:
+                  $ref: '#/components/schemas/ProjectHistoryId'
+                userId:
+                  $ref: '#/components/schemas/NullableObjectId'
+                updates:
+                  type: array
+                  default: []
+                  items:
+                    oneOf:
+                      - $ref: '#/components/schemas/RenameUpdate'
+                      - $ref: '#/components/schemas/AddUpdate'
+                    discriminator:
+                      propertyName: type
+                      mapping:
+                        rename-doc: '#/components/schemas/RenameUpdate'
+                        rename-file: '#/components/schemas/RenameUpdate'
+                        add-doc: '#/components/schemas/AddUpdate'
+                        add-file: '#/components/schemas/AddUpdate'
+                version:
+                  description: Project version from web.
+                  oneOf:
+                    - type: number
+                    - type: string
+                source:
+                  description: >-
+                    A plain string (e.g. `editor`), a history origin object (e.g.
+                    a restore, see overleaf-editor-core `lib/origin/`), or null
+                    for system changes. The origin object is not modelled here.
+                  anyOf:
+                    - type: string
+                      nullable: true
+                    - type: object
+      responses:
+        '204':
+          description: Applied.
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      operationId: deleteProject
+      summary: Flush a project and remove it from Redis
+      description: >-
+        Flushes all loaded docs, removes them from Redis and flushes
+        project-history. With `background=true` the project is only added to the
+        flush-and-delete queue, which is processed by the background flush
+        (`CONTINUOUS_BACKGROUND_FLUSH`) or by `GET /flush_queued_projects`.
+        Callers: real-time `DocumentUpdaterManager.flushProjectToMongoAndDelete`
+        (when the last client leaves, `background=true`, plus `shutdown=true`
+        while shutting down) and web
+        `DocumentUpdaterHandler.flushProjectToMongoAndDelete` (ProjectDeleter,
+        InactiveProjectManager, HistoryOTMigration).
+      tags: [Project]
+      parameters:
+        - name: background
+          in: query
+          description: Only queue the project for a later flush and delete.
+          schema:
+            type: boolean
+            default: false
+        - name: shutdown
+          in: query
+          description: Skip the project-history flush.
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '204':
+          description: Deleted, or queued.
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project:
+    delete:
+      operationId: deleteMultipleProjects
+      summary: Queue several projects for flush and delete
+      description: >-
+        Adds each project to the flush-and-delete queue, like
+        `DELETE /project/{project_id}?background=true`. No caller in this
+        repository.
+      tags: [Project]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                project_ids:
+                  type: array
+                  default: []
+                  items:
+                    $ref: '#/components/schemas/ObjectId'
+      responses:
+        '204':
+          description: Queued.
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/block:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+    post:
+      operationId: blockProject
+      summary: Block a project from being loaded
+      description: >-
+        Sets a block key (30 second expiry) so no doc of the project can be
+        loaded. Only works when no doc of the project is in Redis;
+        `blocked` says whether it worked. Caller: web
+        `DocumentUpdaterHandler.blockProject` (HistoryOTMigration,
+        HistoryRangesSupportMigration, scripts/resync_projects).
+      tags: [Project]
+      responses:
+        '200':
+          description: Whether the project is now blocked.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  blocked:
+                    type: boolean
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/unblock:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+    post:
+      operationId: unblockProject
+      summary: Remove the block on a project
+      description: >-
+        Deletes the block key. Caller: web `DocumentUpdaterHandler.unblockProject`.
+      tags: [Project]
+      responses:
+        '200':
+          description: Whether a block was removed.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  wasBlocked:
+                    type: boolean
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /flush_queued_projects:
+    get:
+      operationId: flushQueuedProjects
+      summary: Flush and delete queued projects
+      description: >-
+        Despite being a GET, this flushes and removes from Redis the projects in
+        the flush-and-delete queue that were queued at least `min_delete_age` ms
+        ago and not edited since. Runs for up to 5 minutes (response timeout 10
+        minutes). No caller in this repository; the same work runs in the
+        background when `CONTINUOUS_BACKGROUND_FLUSH=true`.
+      tags: [Project]
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of projects to flush.
+          schema:
+            type: integer
+            default: 1000
+        - name: min_delete_age
+          in: query
+          description: Minimum time in the queue, in milliseconds.
+          schema:
+            type: integer
+            default: 300000
+      responses:
+        '200':
+          description: Number of projects flushed.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  flushed:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/history/resync:
+    parameters:
+      - $ref: '#/components/parameters/project_id'
+    post:
+      operationId: resyncProjectHistory
+      summary: Queue a project-history resync
+      description: >-
+        Queues a resync of the project structure for project-history and, unless
+        `resyncProjectStructureOnly` is set, a resync of each doc's content (which
+        loads docs from web with peek). Response timeout 6 minutes. Caller: web
+        `DocumentUpdaterHandler.resyncProjectHistory`
+        (ProjectEntityUpdateHandler.resyncProjectHistory, itself triggered by
+        project-history through web).
+      tags: [History]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [projectHistoryId, docs, files]
+              properties:
+                projectHistoryId:
+                  $ref: '#/components/schemas/ProjectHistoryId'
+                docs:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [doc, path]
+                    properties:
+                      doc:
+                        $ref: '#/components/schemas/ObjectId'
+                      path:
+                        type: string
+                        example: /main.tex
+                files:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [file, path]
+                    properties:
+                      file:
+                        $ref: '#/components/schemas/ObjectId'
+                      path:
+                        type: string
+                      url:
+                        type: string
+                        nullable: true
+                        description: Legacy filestore URL for files without a blob.
+                      _hash:
+                        $ref: '#/components/schemas/BlobHash'
+                      createdBlob:
+                        type: boolean
+                      metadata:
+                        $ref: '#/components/schemas/FileMetadata'
+                historyRangesMigration:
+                  type: string
+                resyncProjectStructureOnly:
+                  type: boolean
+      responses:
+        '204':
+          description: Queued.
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+components:
+  parameters:
+    project_id:
+      name: project_id
+      in: path
+      required: true
+      description: Project id (Mongo ObjectId).
+      schema:
+        $ref: '#/components/schemas/ObjectId'
+    doc_id:
+      name: doc_id
+      in: path
+      required: true
+      description: Doc id (Mongo ObjectId).
+      schema:
+        type: string
+        pattern: '^[0-9a-f]{24}$'
+        example: 64b7f1a2c3d4e5f601234568
+    comment_id:
+      name: comment_id
+      in: path
+      required: true
+      description: Comment id, which is also the chat thread id.
+      schema:
+        type: string
+        pattern: '^[0-9a-f]{24}$'
+        example: 64b7f1a2c3d4e5f601234569
+    state:
+      name: state
+      in: query
+      required: false
+      description: Project state hash computed by web from the project structure.
+      schema:
+        type: string
+  schemas:
+    ObjectId:
+      type: string
+      pattern: '^[0-9a-f]{24}$'
+      example: 64b7f1a2c3d4e5f601234567
+    NullableObjectId:
+      type: string
+      nullable: true
+      pattern: '^[0-9a-f]{24}$'
+      example: 64b7f1a2c3d4e5f60123456a
+    ProjectHistoryId:
+      description: A 24 character hex id or a positive integer of up to 10 digits.
+      oneOf:
+        - type: integer
+        - type: string
+          pattern: '^([0-9a-f]{24}|[1-9][0-9]{0,9})$'
+    BlobHash:
+      type: string
+      pattern: '^[0-9a-f]{40}$'
+    FileMetadata:
+      type: object
+      description: >-
+        History file metadata (e.g. `importedAt`, linked-file data, `main`). Not
+        modelled in detail here; see `rawFileMetadata` in
+        overleaf-editor-core `lib/schemas.js`.
+    DocLines:
+      description: >-
+        Lines of the doc. For history-ot docs requested with
+        `historyOTSupport=true`, an object in the history StringFileData raw
+        format instead.
+      oneOf:
+        - type: array
+          items:
+            type: string
+        - type: object
+    FlushResult:
+      type: object
+      description: The JSON web returned when the doc was flushed.
+      properties:
+        rev:
+          type: integer
+        modified:
+          type: boolean
+    Ranges:
+      type: object
+      description: >-
+        Comments and tracked changes in the RangesTracker format
+        (`@overleaf/ranges-tracker/schemas.js`).
+      properties:
+        comments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Comment'
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrackedChange'
+    Comment:
+      type: object
+      required: [op]
+      properties:
+        id:
+          type: string
+          description: Same as `op.t`, the chat thread id.
+        op:
+          type: object
+          required: [c, p, t]
+          properties:
+            c:
+              type: string
+              description: Commented text.
+            p:
+              type: integer
+              minimum: 0
+              description: Position in the doc.
+            t:
+              type: string
+              description: Thread id.
+            u:
+              type: boolean
+            resolved:
+              type: boolean
+        metadata:
+          type: object
+          properties:
+            user_id:
+              type: string
+            ts:
+              type: string
+    TrackedChange:
+      type: object
+      required: [op, metadata]
+      properties:
+        id:
+          type: string
+        op:
+          type: object
+          description: Either `i` (inserted text) or `d` (deleted text) is set.
+          required: [p]
+          properties:
+            i:
+              type: string
+            d:
+              type: string
+            p:
+              type: integer
+              minimum: 0
+            u:
+              type: boolean
+            fixedRemoveChange:
+              type: boolean
+            orderedRejections:
+              type: boolean
+        metadata:
+          type: object
+          required: [user_id, ts]
+          properties:
+            user_id:
+              type: string
+            ts:
+              type: string
+    UserIdBody:
+      type: object
+      additionalProperties: false
+      properties:
+        user_id:
+          $ref: '#/components/schemas/ObjectId'
+    RenameUpdate:
+      type: object
+      additionalProperties: false
+      required: [type, id, pathname, newPathname]
+      properties:
+        type:
+          type: string
+          enum: [rename-doc, rename-file]
+        id:
+          $ref: '#/components/schemas/ObjectId'
+        pathname:
+          type: string
+          description: Current path. Checked by `zz.safePath()`.
+        newPathname:
+          type: string
+          description: New path, or an empty string for a delete.
+    AddUpdate:
+      type: object
+      additionalProperties: false
+      required: [type, id, pathname]
+      properties:
+        type:
+          type: string
+          enum: [add-doc, add-file]
+        id:
+          $ref: '#/components/schemas/ObjectId'
+        pathname:
+          type: string
+          description: Checked by `zz.safePath()`.
+        docLines:
+          type: string
+        ranges:
+          $ref: '#/components/schemas/Ranges'
+        historyRangesSupport:
+          type: boolean
+        url:
+          type: string
+          nullable: true
+          description: Legacy filestore URL for files without a blob.
+        hash:
+          $ref: '#/components/schemas/BlobHash'
+        metadata:
+          $ref: '#/components/schemas/FileMetadata'
+        createdBlob:
+          type: boolean
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+        statusCode:
+          type: integer
+  responses:
+    ValidationError:
+      description: >-
+        Invalid query or body. Sent when `REQ_VALIDATION_MODE` is `enforce-log`
+        (set in the server image) or `enforce`. When it is unset (`log`, as in
+        the dev environment), these routes only log the problem and go on.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+    NotFound:
+      description: >-
+        The doc is not found (plain text `Not Found`), or a path parameter is not
+        a valid id (JSON, only when validation is enforced).
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: Not Found
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+    ServerError:
+      description: Unexpected error.
+      content:
+        text/html:
+          schema:
+            type: string
+            example: Oops, something went wrong
+    ProjectDocs:
+      description: The docs of the project that are in Redis.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              type: object
+              properties:
+                _id:
+                  type: string
+                lines:
+                  type: array
+                  items:
+                    type: string
+                v:
+                  type: integer
+    AcceptChangesResult:
+      description: The authors of the accepted changes and their previews.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              changeContributors:
+                type: array
+                description: User ids of the accepted changes' authors.
+                items:
+                  type: string
+              previews:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    sectionPath:
+                      type: array
+                      items:
+                        type: string
+                    startLine:
+                      type: integer
+                    changes:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          i:
+                            type: string
+                          d:
+                            type: string
+                          p:
+                            type: integer
+                    slice:
+                      type: string
+                    sliceStart:
+                      type: integer
+                    userIds:
+                      type: array
+                      items:
+                        type: string
