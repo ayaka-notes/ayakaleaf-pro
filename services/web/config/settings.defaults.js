@@ -806,6 +806,10 @@ module.exports = {
     title: process.env.APP_NAME || 'Overleaf Community Edition',
 
     hide_powered_by: process.env.NAV_HIDE_POWERED_BY === 'true',
+    // Name shown at the bottom of the project list sidebar
+    ds_name: process.env.NAV_DS_NAME || 'Digital Science',
+    // Optional link for the name (e.g. back to the project list). Empty = plain text.
+    ds_name_link: process.env.NAV_DS_NAME_LINK || null,
     left_footer: [],
 
     right_footer: [
