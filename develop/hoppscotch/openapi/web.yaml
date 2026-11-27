@@ -1,0 +1,1652 @@
+openapi: 3.0.3
+info:
+  title: web
+  version: '6.3'
+  description: >-
+    Private API of web, the main Overleaf app. Other services
+    (real-time, document-updater, project-history, third-party-datastore,
+    git-bridge) and the cron scripts of the Server CE image call it.
+    These routes need HTTP basic auth only, no CSRF token: the private router
+    is mounted before the web router, and only the web router runs the CSRF
+    check. With `BLOCK_CROSS_ORIGIN_REQUESTS=true` (off by default) web
+    returns 403 for any request whose `Origin` header is not in
+    `ALLOWED_ORIGINS` (default: the site URL). Browsers send `Origin` on
+    POST, so with that switch on, POSTs sent from Hoppscotch in the browser
+    get 403 unless they go through the Hoppscotch proxy.
+servers:
+  - url: http://web:3000
+    description: Inside the Docker network, through the Hoppscotch proxy
+# The servers are Docker addresses that a docs reader cannot reach
+x-hideTryItPanel: true
+security:
+  - privateApiBasicAuth: []
+tags:
+  - name: Health
+    x-page-icon: heart-pulse
+    description: Status, health checks and metrics.
+  - name: Users
+    x-page-icon: users
+    description: User data and expiry of deleted users.
+  - name: Projects
+    x-page-icon: folder-open
+    description: Project details, downloads, expiry and deactivation.
+  - name: Documents
+    x-page-icon: file-lines
+    description: Doc contents, read and written by document-updater.
+  - name: Editor
+    x-page-icon: pen-to-square
+    description: Joining a project from real-time.
+  - name: History
+    x-page-icon: clock-rotate-left
+    description: Project history resyncs.
+  - name: TPDS
+    x-page-icon: cloud-arrow-up
+    description: Third-party datastore updates (Dropbox sync and file updates by path).
+  - name: git-bridge
+    x-page-icon: code-branch
+    description: >-
+      Module `git-bridge` (ours). Git Bridge API v0, registered only when
+      `GIT_BRIDGE_ENABLED=true`. Uses a personal access token, not basic auth.
+paths:
+  /status:
+    get:
+      operationId: getStatus
+      summary: Get the status of the private API
+      description: >-
+        Returns a fixed text when the API process is up. The same path on the
+        public router returns site state, but the private router is mounted
+        first, so port 3000 answers with this one.
+      tags: [Health]
+      security: []
+      responses:
+        '200':
+          description: The API is up.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: web is alive (api)
+  /perfTest:
+    get:
+      operationId: perfTest
+      summary: Return a fixed text
+      description: Returns `hello`. No caller in this repository.
+      tags: [Health]
+      security: []
+      responses:
+        '200':
+          description: Fixed text.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: hello
+  /metrics:
+    get:
+      operationId: getMetrics
+      summary: Get Prometheus metrics
+      description: >-
+        Prometheus metrics of the web process, added by
+        `@overleaf/metrics` `injectMetricsRoute`.
+      tags: [Health]
+      security: []
+      responses:
+        '200':
+          description: Metrics in the Prometheus text format.
+          content:
+            text/plain:
+              schema:
+                type: string
+  /health_check:
+    get:
+      operationId: healthCheck
+      summary: Check Redis and Mongo
+      description: >-
+        Runs `checkActiveHandles`, then `checkApi`: writes and reads a
+        temporary Redis key, then reads the email of the user in
+        `SMOKE_TEST_USER_ID` from Mongo.
+      tags: [Health]
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        '404':
+          description: '`SMOKE_TEST_USER_ID` is not set.'
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Not Found
+        '500':
+          description: >-
+            Too many active handles (`maxActiveHandles`), Redis failed, or
+            the smoke test user has no email.
+          content:
+            text/plain:
+              schema:
+                type: string
+  /health_check/api:
+    get:
+      operationId: checkApi
+      summary: Check Redis and Mongo
+      description: Same handlers as `GET /health_check`.
+      tags: [Health]
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        '404':
+          description: '`SMOKE_TEST_USER_ID` is not set.'
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Not Found
+        '500':
+          description: >-
+            Too many active handles (`maxActiveHandles`), Redis failed, or
+            the smoke test user has no email.
+          content:
+            text/plain:
+              schema:
+                type: string
+  /health_check/redis:
+    get:
+      operationId: checkRedis
+      summary: Check Redis
+      description: Writes, reads and deletes a temporary Redis key.
+      tags: [Health]
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /health_check/mongo:
+    get:
+      operationId: checkMongo
+      summary: Check Mongo
+      description: >-
+        Reads the email of the user in `SMOKE_TEST_USER_ID`. Without that
+        variable (as in the dev environment) it returns 500.
+      tags: [Health]
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /user/{user_id}/personal_info:
+    get:
+      operationId: getPersonalInfo
+      summary: Get a user's name and email
+      description: >-
+        Looks the user up by Mongo id, or by v1 id (`overleaf.id`) when the
+        parameter is all digits. Fields that are empty are left out. No caller
+        in this repository.
+      tags: [Users]
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: Mongo ObjectId, or a numeric v1 user id.
+          schema:
+            type: string
+          example: 6ab3f6d0040b00ac810bca0b
+      responses:
+        '200':
+          description: The user's info.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id:
+                    type: string
+                  first_name:
+                    type: string
+                  last_name:
+                    type: string
+                  email:
+                    type: string
+        '400':
+          description: '`user_id` is neither an ObjectId nor a number (log-only validation mode).'
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Bad Request
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /user/{userId}/tag:
+    get:
+      operationId: apiGetAllTags
+      summary: List a user's tags
+      description: Returns every tag (project folder on the project list) the user owns. No caller in this repository.
+      tags: [Users]
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-f]{24}$'
+          example: 6ab3f6d0040b00ac810bca0b
+      responses:
+        '200':
+          description: The tags.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tag'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /internal/expire-deleted-users-after-duration:
+    post:
+      operationId: expireDeletedUsersAfterDuration
+      summary: Expire deleted users past the retention period
+      description: >-
+        For each deleted user older than `userHardDeletionDelay`: fires the
+        `expireDeletedUser` hook (Dropbox, GitHub, GitLab and Gitea sync
+        modules clean up), removes onboarding data, redacts the deleted-user
+        record and deletes the user's audit log entries. Called by
+        `server-ce/cron/delete-users.sh`.
+      tags: [Users]
+      responses:
+        '204':
+          description: Done.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /internal/users/{userId}/expire:
+    post:
+      operationId: expireDeletedUser
+      summary: Expire one deleted user
+      description: >-
+        Fires the `expireDeletedUser` hook, removes onboarding data and
+        redacts the deleted-user record. Unlike the batch route it does not
+        delete the audit log entries. No caller in this repository.
+      tags: [Users]
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-f]{24}$'
+          example: 6ab3f6d0040b00ac810bca0b
+      responses:
+        '204':
+          description: Done.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          description: Also returned when no deleted-user record exists for the id.
+          content:
+            text/plain:
+              schema:
+                type: string
+  /project/{project_id}/details:
+    get:
+      operationId: getProjectDetails
+      summary: Get project details
+      description: >-
+        Deprecated in favour of `GET /internal/project/{project_id}` but still
+        used. Returns the name, description, compiler, the owner's features
+        (or the default features) and the `overleaf` field. Called by
+        project-history (`services/project-history/app/js/WebApiManager.js`).
+      tags: [Projects]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+      responses:
+        '200':
+          description: The details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDetails'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /internal/project/{project_id}:
+    get:
+      operationId: getProjectDetailsInternal
+      summary: Get project details
+      description: >-
+        Same handler (`ProjectApiController.getProjectDetails`) as
+        `GET /project/{project_id}/details`. No caller in this repository.
+      tags: [Projects]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+      responses:
+        '200':
+          description: The details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDetails'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /internal/project/{Project_id}/zip:
+    get:
+      operationId: downloadProject
+      summary: Download a project as a zip
+      description: >-
+        Flushes the project from document-updater to Mongo, adds a
+        `project-downloaded` entry to the project audit log, then streams the
+        zip. No caller in this repository.
+      tags: [Projects]
+      parameters:
+        - $ref: '#/components/parameters/Project_id'
+      responses:
+        '200':
+          description: The project zip, as an attachment named after the project.
+          headers:
+            X-History-Version:
+              description: History version the zip was built from, when built from history.
+              schema:
+                type: integer
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /internal/project/{project_id}/compile/pdf:
+    get:
+      operationId: compileAndDownloadPdf
+      summary: Compile a project and download the PDF
+      description: >-
+        Runs an anonymous compile (no user id) on CLSI and streams
+        `output.pdf`. The code comment says only templates use it; no caller
+        in this repository.
+      tags: [Projects]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+      responses:
+        '200':
+          description: The PDF.
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          description: The compile failed or produced no `output.pdf`.
+          content:
+            text/plain:
+              schema:
+                type: string
+  /internal/expire-deleted-projects-after-duration:
+    post:
+      operationId: expireDeletedProjectsAfterDuration
+      summary: Expire deleted projects past the retention period
+      description: >-
+        Takes up to 10000 deleted projects older than `projectHardDeletionDelay`
+        and, for each, destroys its docs (docstore), history, chat and audit
+        log, fires the `projectExpired` hook (Dropbox, GitHub, GitLab, Gitea
+        sync and git-bridge modules clean up), and redacts the deleted-project
+        record. Called by `server-ce/cron/delete-projects.sh`.
+      tags: [Projects]
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /internal/project/{projectId}/expire-deleted-project:
+    post:
+      operationId: expireDeletedProject
+      summary: Expire one deleted project
+      description: >-
+        Same work as the batch route for one project. If the project is still
+        active, only the stale deleted-project record is removed. No caller in
+        this repository.
+      tags: [Projects]
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-f]{24}$'
+          example: 6ab3f6db040b00ac810bca26
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /internal/deactivateOldProjects:
+    post:
+      operationId: deactivateOldProjects
+      summary: Deactivate projects not opened for a while
+      description: >-
+        Finds active projects whose `lastOpened` is older than `ageOfProjects`
+        days (default 360), up to `numberOfProjectsToArchive` (default 10), and
+        deactivates each: flushes and removes it from document-updater, fires
+        the `deactivateProject` hook, archives its docs in docstore and marks
+        it inactive. Called by `server-ce/cron/deactivate-projects.sh`, which
+        sends `{"numberOfProjectsToArchive":"720","ageOfProjects":"7"}`.
+      tags: [Projects]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                numberOfProjectsToArchive:
+                  description: Integer, or a string holding one (coerced).
+                  oneOf:
+                    - type: integer
+                    - type: string
+                      pattern: '^-?\d+$'
+                ageOfProjects:
+                  description: Age in days. Integer, or a string holding one (coerced).
+                  oneOf:
+                    - type: integer
+                    - type: string
+                      pattern: '^-?\d+$'
+      responses:
+        '200':
+          description: The projects that were processed (failures are only logged).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    _id:
+                      type: string
+                    lastOpened:
+                      type: string
+                      format: date-time
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /internal/project/{project_id}/deactivate:
+    post:
+      operationId: deactivateProject
+      summary: Deactivate one project
+      description: >-
+        Flushes and removes the project from document-updater, fires the
+        `deactivateProject` hook, archives its docs in docstore and marks it
+        inactive. No caller in this repository.
+      tags: [Projects]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{Project_id}/doc/{doc_id}:
+    get:
+      operationId: getDocument
+      summary: Get a doc
+      description: >-
+        Reads the doc from docstore (through web) with its path, history ids
+        and the ids of resolved comment threads in it. Called by
+        document-updater (`services/document-updater/app/js/PersistenceManager.js`)
+        when it loads a doc; resyncs pass `peek=true`.
+      tags: [Documents]
+      parameters:
+        - $ref: '#/components/parameters/Project_id'
+        - $ref: '#/components/parameters/doc_id'
+        - name: plain
+          in: query
+          required: false
+          description: >-
+            `true` returns only the text, as text/plain. A zod `stringbool`:
+            true, 1, yes, on, y, enabled and their opposites, any case.
+          schema:
+            type: string
+            example: 'true'
+        - name: peek
+          in: query
+          required: false
+          description: >-
+            `true` reads the doc from docstore with peek, which does not
+            unarchive it. Same values as `plain`.
+          schema:
+            type: string
+            example: 'true'
+      responses:
+        '200':
+          description: The doc.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lines:
+                    type: array
+                    items:
+                      type: string
+                  version:
+                    type: integer
+                  ranges:
+                    $ref: '#/components/schemas/Ranges'
+                  pathname:
+                    type: string
+                    example: /main.tex
+                  projectHistoryId:
+                    type: string
+                  projectHistoryType:
+                    type: string
+                    enum: [project-history]
+                  historyRangesSupport:
+                    type: boolean
+                  otMigrationStage:
+                    type: integer
+                  resolvedCommentIds:
+                    type: array
+                    items:
+                      type: string
+            text/plain:
+              schema:
+                type: string
+                description: The lines joined with `\n`, when `plain=true`.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      operationId: setDocument
+      summary: Save a doc
+      description: >-
+        Writes the lines, version and ranges to docstore. When the doc
+        changed, marks the project as updated and queues the doc for the
+        third-party datastore. Fires the `docModified` hook (no module
+        attaches it in this repository). Called by document-updater
+        (`services/document-updater/app/js/PersistenceManager.js`) when it
+        flushes a doc.
+      tags: [Documents]
+      parameters:
+        - $ref: '#/components/parameters/Project_id'
+        - $ref: '#/components/parameters/doc_id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [lines, version, ranges]
+              properties:
+                lines:
+                  type: array
+                  items:
+                    type: string
+                version:
+                  type: integer
+                ranges:
+                  $ref: '#/components/schemas/Ranges'
+                lastUpdatedAt:
+                  description: Epoch milliseconds (coerced to a positive integer).
+                  type: integer
+                  nullable: true
+                lastUpdatedBy:
+                  type: string
+                  pattern: '^[0-9a-f]{24}$'
+                  nullable: true
+      responses:
+        '200':
+          description: The docstore revision; `modified` only when the doc changed and is not deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rev:
+                    type: integer
+                  modified:
+                    type: boolean
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /project/{Project_id}/doc/{doc_id}/changes/reject:
+    post:
+      operationId: trackChangesRejected
+      summary: Report rejected tracked changes
+      description: >-
+        Fires the `trackChangesRejected` hook with the acting user, the
+        authors of the rejected changes and previews (no module attaches it in
+        this repository). Without `userId` it does nothing. Called by
+        document-updater (`services/document-updater/app/js/WebApiManager.js`).
+      tags: [Documents]
+      parameters:
+        - $ref: '#/components/parameters/Project_id'
+        - $ref: '#/components/parameters/doc_id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [rejectedChangeAuthorIds]
+              properties:
+                rejectedChangeAuthorIds:
+                  type: array
+                  items:
+                    type: string
+                    pattern: '^[0-9a-f]{24}$'
+                userId:
+                  type: string
+                  pattern: '^[0-9a-f]{24}$'
+                  nullable: true
+                previews:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ChangePreview'
+      responses:
+        '204':
+          description: Done.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /project/{Project_id}/join:
+    post:
+      operationId: joinProject
+      summary: Join a project
+      description: >-
+        Returns the project model and the user's privilege level. Clears the
+        "deleted by external source" flag once it was shown. Rate limited to
+        45 requests a minute per project and user. Called by real-time
+        (`services/real-time/app/js/WebApiManager.js`) when a client joins.
+      tags: [Editor]
+      parameters:
+        - $ref: '#/components/parameters/Project_id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [userId]
+              properties:
+                userId:
+                  description: A user id, or `anonymous-user` for link-sharing visitors without an account.
+                  type: string
+                  example: 6ab3f6d0040b00ac810bca0b
+                anonymousAccessToken:
+                  type: string
+      responses:
+        '200':
+          description: The project view.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  project:
+                    type: object
+                    description: Built by `ProjectEditorHandler.buildProjectModelView`; shape not modelled here.
+                  privilegeLevel:
+                    type: string
+                    enum: [readOnly, review, readAndWrite, owner]
+                  isRestrictedUser:
+                    type: boolean
+                  isTokenMember:
+                    type: boolean
+                  isInvitedMember:
+                    type: boolean
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The user has no access to the project.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Forbidden
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /project/{Project_id}/history/resync:
+    post:
+      operationId: resyncProjectHistory
+      summary: Resync project history
+      description: >-
+        Starts a resync of the project's history from web's project
+        structure and docs. Can take up to 6 minutes. Called by
+        project-history (`services/project-history/app/js/WebApiManager.js`).
+      tags: [History]
+      parameters:
+        - $ref: '#/components/parameters/Project_id'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                historyRangesMigration:
+                  type: string
+                  enum: [forwards, backwards]
+                resyncProjectStructureOnly:
+                  type: boolean
+                  default: false
+      responses:
+        '204':
+          description: Done.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: History is disabled for the project, or the project id is invalid.
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+  /user/{user_id}/project/new:
+    post:
+      operationId: createProject
+      summary: Create a blank project
+      description: >-
+        Creates a blank project for the user, with a unique name made from
+        `projectName`, without sending it back to the third-party datastore.
+        No caller in this repository.
+      tags: [TPDS]
+      parameters:
+        - $ref: '#/components/parameters/user_id'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                projectName:
+                  type: string
+      responses:
+        '200':
+          description: The new project.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  projectId:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /user/{user_id}/project/resolve:
+    post:
+      operationId: resolveProject
+      summary: Resolve a project by id or name
+      description: >-
+        Finds the project by id, or by name for the user; by name, a blank
+        project is created when none matches, and duplicate names are handled
+        before the request is rejected. Called by third-party-datastore
+        (`services/third-party-datastore/app/js/WebApiClient.mjs`).
+      tags: [TPDS]
+      parameters:
+        - $ref: '#/components/parameters/user_id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  additionalProperties: false
+                  required: [projectId]
+                  properties:
+                    projectId:
+                      type: string
+                      pattern: '^[0-9a-f]{24}$'
+                - type: object
+                  additionalProperties: false
+                  required: [projectName]
+                  properties:
+                    projectName:
+                      type: string
+                      minLength: 1
+      responses:
+        '200':
+          description: '`success` with the project, or `rejected`.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [success, rejected]
+                  projectId:
+                    type: string
+                  historyId:
+                    type: string
+                  otMigrationStage:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /tpds/folder-update:
+    post:
+      operationId: updateFolder
+      summary: Create a folder in a project
+      description: >-
+        Creates the folder at `path`. Without `projectId`, the first path
+        segment is the project name. Called by third-party-datastore
+        (`services/third-party-datastore/app/js/WebApiClient.mjs`).
+      tags: [TPDS]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, path]
+              properties:
+                userId:
+                  type: string
+                  pattern: '^[0-9a-f]{24}$'
+                projectId:
+                  description: A project id, or empty to resolve the project by name.
+                  type: string
+                  pattern: '^([0-9a-f]{24})?$'
+                path:
+                  type: string
+      responses:
+        '200':
+          description: The folder.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entityId:
+                    type: string
+                  projectId:
+                    type: string
+                  path:
+                    type: string
+                  folderId:
+                    type: string
+                    nullable: true
+                    description: The parent folder id.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: The folder could not be created.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  userId:
+                    type: string
+                  projectName:
+                    type: string
+                  filePath:
+                    type: string
+            text/plain:
+              schema:
+                type: string
+  /user/{user_id}/update/{path}:
+    post:
+      operationId: mergeUpdate
+      summary: Add or update a file by project name
+      description: >-
+        `path` is `<project name>/<path in project>`. The project is found by
+        name, or created; noisy files such as `.DS_Store` are ignored. The
+        request body is the file content. Called by third-party-datastore
+        (`services/third-party-datastore/app/js/WebApiClient.mjs`) for folders
+        not mapped to a project.
+      tags: [TPDS]
+      parameters:
+        - $ref: '#/components/parameters/user_id'
+        - $ref: '#/components/parameters/tpdsPath'
+        - $ref: '#/components/parameters/xUpdateSource'
+      requestBody:
+        $ref: '#/components/requestBodies/FileContent'
+      responses:
+        '200':
+          $ref: '#/components/responses/MergeUpdateResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/TooManyFiles'
+    delete:
+      operationId: deleteUpdate
+      summary: Delete a file by project name
+      description: >-
+        `path` is `<project name>/<path in project>`. A path that is only the
+        project name marks the project as deleted by an external source.
+        Called by third-party-datastore
+        (`services/third-party-datastore/app/js/WebApiClient.mjs`).
+      tags: [TPDS]
+      parameters:
+        - $ref: '#/components/parameters/user_id'
+        - $ref: '#/components/parameters/tpdsPath'
+        - $ref: '#/components/parameters/xUpdateSource'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /project/{project_id}/user/{user_id}/update/{path}:
+    post:
+      operationId: mergeUpdateForProject
+      summary: Add or update a file in a known project
+      description: >-
+        Same handler as `POST /user/{user_id}/update/{path}`, with the project
+        given by id and `path` being the path in the project. The request
+        body is the file content. Called by third-party-datastore
+        (`services/third-party-datastore/app/js/WebApiClient.mjs`).
+      tags: [TPDS]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+        - $ref: '#/components/parameters/user_id'
+        - $ref: '#/components/parameters/tpdsPath'
+        - $ref: '#/components/parameters/xUpdateSource'
+      requestBody:
+        $ref: '#/components/requestBodies/FileContent'
+      responses:
+        '200':
+          $ref: '#/components/responses/MergeUpdateResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/TooManyFiles'
+    delete:
+      operationId: deleteUpdateForProject
+      summary: Delete a file in a known project
+      description: >-
+        Same handler as `DELETE /user/{user_id}/update/{path}`, with the
+        project given by id. Called by third-party-datastore
+        (`services/third-party-datastore/app/js/WebApiClient.mjs`).
+      tags: [TPDS]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+        - $ref: '#/components/parameters/user_id'
+        - $ref: '#/components/parameters/tpdsPath'
+        - $ref: '#/components/parameters/xUpdateSource'
+      responses:
+        '200':
+          $ref: '#/components/responses/OK'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /project/{project_id}/contents/{path}:
+    post:
+      operationId: updateProjectContents
+      summary: Add or update a file by path
+      description: >-
+        Writes the request body to `path` in the project as the system user
+        (no user id). Unlike the update routes, noisy files are not ignored.
+        The code comment names GitHub sync; no caller in this repository.
+      tags: [TPDS]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+        - $ref: '#/components/parameters/tpdsPath'
+        - $ref: '#/components/parameters/xUpdateSource'
+      requestBody:
+        $ref: '#/components/requestBodies/FileContent'
+      responses:
+        '200':
+          description: The entity written.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entityId:
+                    type: string
+                  rev:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Invalid or duplicate file name.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Unprocessable Entity
+    delete:
+      operationId: deleteProjectContents
+      summary: Delete a file by path
+      description: >-
+        Deletes the entity at `path` in the project as the system user. The
+        code comment names GitHub sync; no caller in this repository.
+      tags: [TPDS]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+        - $ref: '#/components/parameters/tpdsPath'
+        - $ref: '#/components/parameters/xUpdateSource'
+      responses:
+        '200':
+          description: >-
+            The id of the deleted entity. `entityId` is left out when the
+            delete failed: the error is only logged.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entityId:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v0/docs/{project_id}:
+    get:
+      operationId: getDoc
+      summary: Get the latest version of a project
+      description: >-
+        Reads the latest version from project-history
+        (`GET /project/{id}/version`, which processes queued updates first)
+        and the name and email of its first author. Called by git-bridge
+        (`services/git-bridge/src/main/java/uk/ac/ic/wlgitbridge/snapshot/getdoc/GetDocRequest.java`).
+      tags: [git-bridge]
+      security:
+        - gitBridgeToken: []
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+      responses:
+        '200':
+          description: The latest version.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  latestVerId:
+                    type: integer
+                  latestVerAt:
+                    type: string
+                    format: date-time
+                  latestVerBy:
+                    $ref: '#/components/schemas/GitBridgeUser'
+        '401':
+          $ref: '#/components/responses/OAuthError'
+        '403':
+          $ref: '#/components/responses/GitBridgeRestricted'
+        '404':
+          $ref: '#/components/responses/GitBridgeNotFound'
+  /api/v0/docs/{project_id}/saved_vers:
+    get:
+      operationId: getSavedVers
+      summary: List the saved versions of a project
+      description: >-
+        Lists the history labels from project-history as saved versions.
+        Called by git-bridge
+        (`services/git-bridge/src/main/java/uk/ac/ic/wlgitbridge/snapshot/getsavedvers/GetSavedVersRequest.java`).
+      tags: [git-bridge]
+      security:
+        - gitBridgeToken: []
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+      responses:
+        '200':
+          description: The saved versions.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    versionId:
+                      type: integer
+                    comment:
+                      type: string
+                    user:
+                      $ref: '#/components/schemas/GitBridgeUser'
+                    createdAt:
+                      type: string
+                      format: date-time
+        '401':
+          $ref: '#/components/responses/OAuthError'
+        '403':
+          $ref: '#/components/responses/GitBridgeRestricted'
+        '404':
+          $ref: '#/components/responses/GitBridgeNotFound'
+  /api/v0/docs/{project_id}/snapshots/{version}:
+    get:
+      operationId: getSnapshot
+      summary: Get the files of a project at a version
+      description: >-
+        Reads the snapshot from history at `version`. Text files come with
+        their content; binary files come with a history-v1 blob URL carrying a
+        5-minute JWT. Called by git-bridge
+        (`services/git-bridge/src/main/java/uk/ac/ic/wlgitbridge/snapshot/getforversion/GetForVersionRequest.java`).
+      tags: [git-bridge]
+      security:
+        - gitBridgeToken: []
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 1
+      responses:
+        '200':
+          description: The snapshot.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  srcs:
+                    description: '`[content, path]` pairs of the text files.'
+                    type: array
+                    items:
+                      type: array
+                      minItems: 2
+                      maxItems: 2
+                      items:
+                        type: string
+                  atts:
+                    description: '`[url, path]` pairs of the binary files.'
+                    type: array
+                    items:
+                      type: array
+                      minItems: 2
+                      maxItems: 2
+                      items:
+                        type: string
+        '400':
+          description: A file path in the snapshot is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '401':
+          $ref: '#/components/responses/OAuthError'
+        '403':
+          $ref: '#/components/responses/GitBridgeRestricted'
+        '404':
+          $ref: '#/components/responses/GitBridgeNotFound'
+  /api/v0/docs/{project_id}/snapshots:
+    post:
+      operationId: postSnapshot
+      summary: Push files from git
+      description: >-
+        Checks `latestVerId` against the latest history version and accepts
+        the push. Then, in the background, it downloads each changed file from
+        its `url` (served by git-bridge), writes it to the project, deletes
+        files missing from `files`, and posts the result to `postbackUrl`.
+        Needs write access. Called by git-bridge
+        (`services/git-bridge/src/main/java/uk/ac/ic/wlgitbridge/snapshot/push/PushRequest.java`).
+      tags: [git-bridge]
+      security:
+        - gitBridgeToken: []
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+      requestBody:
+        required: true
+        description: Not validated by a schema; shape read from the controller.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                latestVerId:
+                  type: integer
+                files:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        description: Path relative to the project root.
+                      url:
+                        type: string
+                        nullable: true
+                        description: Set only when the file changed.
+                postbackUrl:
+                  type: string
+      responses:
+        '202':
+          description: Accepted; the result is posted to `postbackUrl` later.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GitBridgePushStatus'
+        '401':
+          $ref: '#/components/responses/OAuthError'
+        '403':
+          $ref: '#/components/responses/GitBridgeRestricted'
+        '404':
+          $ref: '#/components/responses/GitBridgeNotFound'
+        '409':
+          description: '`latestVerId` is not the latest version.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GitBridgePushStatus'
+components:
+  securitySchemes:
+    privateApiBasicAuth:
+      type: http
+      scheme: basic
+      description: >-
+        User `WEB_API_USER` and password `WEB_API_PASSWORD`
+        (`Settings.httpAuthUsers`), checked by
+        `AuthenticationController.requirePrivateApiAuth`.
+    gitBridgeToken:
+      type: http
+      scheme: bearer
+      description: >-
+        A personal access token with the `git_bridge` scope (module
+        `oauth2-server`), checked by `AuthenticationController.requireOauth`.
+        The user also needs the Git feature and access to the project.
+  parameters:
+    project_id:
+      name: project_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[0-9a-f]{24}$'
+      example: 6ab3f6db040b00ac810bca26
+    Project_id:
+      name: Project_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[0-9a-f]{24}$'
+      example: 6ab3f6db040b00ac810bca26
+    user_id:
+      name: user_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[0-9a-f]{24}$'
+      example: 6ab3f6d0040b00ac810bca0b
+    doc_id:
+      name: doc_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[0-9a-f]{24}$'
+      example: 6ab3f6db040b00ac810bca2b
+    tpdsPath:
+      name: path
+      in: path
+      required: true
+      description: A file path that may contain `/` (Express `:path(.+)`), without a leading `/`.
+      schema:
+        type: string
+      example: main.tex
+    xUpdateSource:
+      name: x-update-source
+      in: header
+      required: false
+      description: Where the update comes from, e.g. `dropbox`. Defaults to `unknown`.
+      schema:
+        type: string
+  requestBodies:
+    FileContent:
+      required: true
+      description: The file content, streamed as is.
+      content:
+        application/octet-stream:
+          schema:
+            type: string
+            format: binary
+  responses:
+    OK:
+      description: Done.
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: OK
+    Unauthorized:
+      description: Missing or wrong basic auth.
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+            example: OverleafLogin
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: Unauthorized
+    BadRequest:
+      description: >-
+        The body or query fails the route's zod schema. Routes that pass
+        `logOnly` only log the failure in the default `REQ_VALIDATION_MODE=log`;
+        the Server CE image sets `REQ_VALIDATION_MODE=enforce-log`.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+    NotFound:
+      description: >-
+        Not found (text), or a path parameter fails the route's zod schema
+        (JSON, see BadRequest for the validation modes).
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: Not Found
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+    ServerError:
+      description: Internal error.
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: Internal Server Error
+    TooManyRequests:
+      description: Rate limit reached.
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: Rate limit reached, please try again later
+    TooManyFiles:
+      description: The project has too many files.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              code:
+                type: string
+                enum: [project_has_too_many_files]
+    MergeUpdateResult:
+      description: '`applied` with the entity, or `rejected` (no write access, archived project, ignored file name).'
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [status]
+            properties:
+              status:
+                type: string
+                enum: [applied, rejected]
+              projectId:
+                type: string
+              entityId:
+                type: string
+              entityType:
+                type: string
+              folderId:
+                type: string
+              rev:
+                type: string
+                description: Left out for doc edits, which document-updater merges.
+    OAuthError:
+      description: Missing, malformed, invalid or expired token.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              error_description:
+                type: string
+              error_code:
+                type: string
+                enum: [token_expired, token_invalid, token_malformed, invalid_request, insufficient_scope, unauthorized_request, unknown]
+    GitBridgeRestricted:
+      description: The user lacks the Git feature or access to the project.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Message'
+    GitBridgeNotFound:
+      description: Project not found, or `project_id` is not an ObjectId.
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/Message'
+              - $ref: '#/components/schemas/ValidationError'
+  schemas:
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+        statusCode:
+          type: integer
+    Message:
+      type: object
+      properties:
+        message:
+          type: string
+    Tag:
+      type: object
+      properties:
+        _id:
+          type: string
+        user_id:
+          type: string
+        name:
+          type: string
+        color:
+          type: string
+          description: '`#rrggbb` or `hsl(h, 70%, 45%)`.'
+        project_ids:
+          type: array
+          items:
+            type: string
+        __v:
+          type: integer
+    ProjectDetails:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        compiler:
+          type: string
+        features:
+          type: object
+          description: The owner's features, or `defaultFeatures`.
+          additionalProperties: true
+        overleaf:
+          type: object
+          description: The project's `overleaf` field (history ids and state).
+          additionalProperties: true
+    Ranges:
+      type: object
+      description: RangesTracker data (`libraries/ranges-tracker/schemas.js`).
+      properties:
+        comments:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              op:
+                type: object
+                required: [c, p, t]
+                properties:
+                  c:
+                    type: string
+                  p:
+                    type: integer
+                    minimum: 0
+                  t:
+                    type: string
+                    description: Thread id.
+                  u:
+                    type: boolean
+                  resolved:
+                    type: boolean
+              metadata:
+                type: object
+                properties:
+                  user_id:
+                    type: string
+                  ts:
+                    type: string
+        changes:
+          type: array
+          items:
+            type: object
+            required: [op, metadata]
+            properties:
+              id:
+                type: string
+              op:
+                type: object
+                description: An insert (`i`) or a delete (`d`) at position `p`.
+                required: [p]
+                properties:
+                  i:
+                    type: string
+                  d:
+                    type: string
+                  p:
+                    type: integer
+                    minimum: 0
+                  u:
+                    type: boolean
+                  fixedRemoveChange:
+                    type: boolean
+                  orderedRejections:
+                    type: boolean
+              metadata:
+                type: object
+                required: [user_id, ts]
+                properties:
+                  user_id:
+                    type: string
+                  ts:
+                    type: string
+    ChangePreview:
+      type: object
+      additionalProperties: false
+      required: [sectionPath, startLine, changes, slice, sliceStart, userIds]
+      properties:
+        sectionPath:
+          type: array
+          items:
+            type: string
+        startLine:
+          type: integer
+          minimum: 1
+        changes:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [p]
+            properties:
+              i:
+                type: string
+              d:
+                type: string
+              p:
+                type: integer
+                minimum: 0
+        slice:
+          type: string
+        sliceStart:
+          type: integer
+          minimum: 0
+        userIds:
+          type: array
+          items:
+            type: string
+            pattern: '^[0-9a-f]{24}$'
+    GitBridgeUser:
+      type: object
+      description: '`unknown` when there is no author.'
+      properties:
+        email:
+          type: string
+        name:
+          type: string
+    GitBridgePushStatus:
+      type: object
+      properties:
+        status:
+          type: integer
+        code:
+          type: string
+          enum: [accepted, outOfDate]
+        message:
+          type: string

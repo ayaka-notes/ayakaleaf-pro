@@ -222,6 +222,13 @@
   padding-top: 0;
 }
 
+// the small tables on a user's or a project's page: with the panel's top and
+// bottom padding, their first and last rows would look taller than the others
+.admin-panel-details-wrapper .table-container {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
 .admin-panel-table {
   th,
   td {
@@ -503,6 +510,13 @@
   justify-content: center;
   gap: var(--spacing-04);
   margin-top: var(--spacing-06);
+}
+
+// the rows of a user's emails, which have a button each while editing
+.admin-panel-email-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-02);
 }
 
 // a field of the account form inside a details row

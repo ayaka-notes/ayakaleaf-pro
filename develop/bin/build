@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-docker compose build --pull "$@"
+"$(dirname "$0")/docker-compose" build --pull "$@"
 
 # Setup development data directories
 sudo mkdir -p data/git-bridge data/redis-insight

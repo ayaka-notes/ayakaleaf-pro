@@ -1,0 +1,50 @@
+// Sends the logs of every container of the develop project to Loki, with the
+// Compose service as the service label and the bunyan level as the level label.
+discovery.docker "develop" {
+  host = "unix:///var/run/docker.sock"
+
+  filter {
+    name   = "label"
+    values = ["com.docker.compose.project=develop"]
+  }
+}
+
+discovery.relabel "develop" {
+  targets = []
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+}
+
+loki.source.docker "develop" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.docker.develop.targets
+  relabel_rules = discovery.relabel.develop.rules
+  forward_to    = [loki.process.bunyan.receiver]
+}
+
+// The Node.js services log bunyan JSON with a numeric level
+loki.process "bunyan" {
+  stage.json {
+    expressions = { level = "level" }
+  }
+
+  stage.template {
+    source   = "level"
+    template = `{{ if eq .Value "60" }}fatal{{ else if eq .Value "50" }}error{{ else if eq .Value "40" }}warn{{ else if eq .Value "30" }}info{{ else if eq .Value "20" }}debug{{ else if eq .Value "10" }}trace{{ end }}`
+  }
+
+  stage.labels {
+    values = { level = "" }
+  }
+
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

@@ -102,6 +102,7 @@ Overleaf 개발에 기여하는 방법은 [CONTRIBUTING](../CONTRIBUTING.md) 파
 
 ## 블로그
 Overleaf 내부 구조, 컴파일 성능, 자체 호스팅 LaTeX 인프라에 관한 글을 씁니다. 블로그에서 더 읽어 보세요:
+- [2026.11 Meet the New Admin Panel in Ayakaleaf Pro](https://ayakaleaf-pro.ayaka.space/blog/2026/new-admin-panel)
 - [2026.08 Overleaf Server Pro Price and Open-Source Alternative](https://ayakaleaf-pro.ayaka.space/blog/2026/overleaf-server-pro-price-and-open-source-alternative)
 - [2026.08 Overleaf Benchmark: A Deep Research of Concurrent LaTeX Compilation in Overleaf](https://ayakaleaf-pro.ayaka.space/blog/2026/overleaf-benchmark)
 
