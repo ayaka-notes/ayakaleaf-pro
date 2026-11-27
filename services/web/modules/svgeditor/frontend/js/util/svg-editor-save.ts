@@ -74,5 +74,6 @@ export async function saveEditedSvg(input: SaveInput): Promise<SaveResult> {
 
     return { ok: true, uploadedId, uploadedHash }
   } catch (err: any) {
-    return { ok: false, error: err?.message ?? 'svg_edit_failed' } }
+    return { ok: false, error: err?.message ?? 'svg_edit_failed' }
+  }
 }
