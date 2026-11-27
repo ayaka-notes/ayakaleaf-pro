@@ -1,6 +1,10 @@
 import logger from '@overleaf/logger'
 import OError from '@overleaf/o-error'
+import dns from 'node:dns'
+import http from 'node:http'
+import https from 'node:https'
 import net from 'node:net'
+import tls from 'node:tls'
 import Settings from '@overleaf/settings'
 import {
   fetchNothing,
@@ -94,18 +98,7 @@ function validateApiUrl(apiUrl) {
     })
   }
 
-  const wt = Settings.wakatime || {}
-  const allowedHosts = (Array.isArray(wt.allowedHosts) ? wt.allowedHosts : [])
-    .map(h => String(h).toLowerCase())
-    .filter(Boolean)
-  const hostWithPort = url.port ? `${host}:${url.port}` : host
-  if (
-    allowedHosts.includes(host) ||
-    allowedHosts.includes(hostWithPort) ||
-    wt.allowInternalHosts === true
-  ) {
-    return
-  }
+  if (policyExempt(url)) return
 
   if (
     host === 'localhost' ||
@@ -210,6 +203,146 @@ function isBlockedIpLiteral(host) {
   return false
 }
 
+/**
+ * Deployment policy override for a specific URL: an allowlisted host
+ * (Settings.wakatime.allowedHosts) or a deployment that opts into internal
+ * hosts. Such URLs skip the internal-address checks.
+ */
+function policyExempt(url) {
+  const wt = Settings.wakatime || {}
+  if (wt.allowInternalHosts === true) return true
+  const allowedHosts = (Array.isArray(wt.allowedHosts) ? wt.allowedHosts : [])
+    .map(h => String(h).toLowerCase())
+    .filter(Boolean)
+  const host = (url.hostname || '').toLowerCase()
+  const hostWithPort = url.port ? `${host}:${url.port}` : host
+  return allowedHosts.includes(host) || allowedHosts.includes(hostWithPort)
+}
+
+/**
+ * Resolve a hostname and vet the destination IP(s) at request time.
+ *
+ * String-level checks (validateApiUrl) only see the name the user typed:
+ * a public hostname can still resolve to internal addresses (split-horizon
+ * DNS, rebinding), so before every request we resolve the host and reject
+ * the link if ANY address it resolves to is private/link-local/loopback.
+ * The returned `target` is the vetted address the connection is pinned to
+ * (below), so resolution and connection can not diverge.
+ */
+async function resolveVettedHost(url) {
+  const hostname =
+    url.hostname.startsWith('[') && url.hostname.endsWith(']')
+      ? url.hostname.slice(1, -1)
+      : url.hostname
+  if (policyExempt(url)) {
+    return { host: hostname, target: hostname }
+  }
+
+  const isIp = net.isIPv4(hostname) || net.isIPv6(hostname)
+  let addresses
+  if (isIp) {
+    addresses = [hostname]
+  } else {
+    try {
+      const lookedUp = await dns.promises.lookup(hostname, {
+        all: true,
+        verbatim: true,
+      })
+      addresses = lookedUp.map(a => a.address)
+    } catch (err) {
+      throw new OError(`Could not resolve ${hostname}`, {
+        status: 400,
+      }).withCause(err)
+    }
+  }
+
+  for (const addr of addresses) {
+    if (isBlockedIpLiteral(addr)) {
+      throw new OError(
+        'This deployment does not allow WakaTime API URLs resolving to private or internal network addresses',
+        { status: 400, hostname }
+      )
+    }
+  }
+
+  // Connect to the vetted address (prefer IPv4 when both are offered).
+  const target = addresses.find(a => net.isIPv4(a)) || addresses[0]
+  return { host: hostname, target }
+}
+
+const MAX_REDIRECT_HOPS = 5
+
+/**
+ * Run a fetchJson/fetchNothing call with transport-level SSRF protection:
+ *
+ *  - the host is resolved and EVERY resolved address vetted, and the
+ *    connection is pinned to that vetted address (SNI/Host keep the
+ *    original name), so DNS rebinding cannot swap in an internal IP
+ *    between the check and the connect;
+ *  - redirects are followed manually (up to MAX_REDIRECT_HOPS); every hop
+ *    is re-validated (string policy + destination vetting) before any
+ *    bytes leave the machine; 301/302/303 drop a POST/PUT body per the
+ *    fetch spec, 307/308 keep it.
+ */
+async function guardedFetch(url, fetcher, fetchOpts = {}) {
+  let method = String(fetchOpts.method || 'GET').toUpperCase()
+  let body = fetchOpts.body
+  let current = url instanceof URL ? url : new URL(url)
+
+  for (let hop = 0; ; hop++) {
+    validateApiUrl(current.href)
+
+    const isHttps = current.protocol === 'https:'
+    const { host: hostname, target } = await resolveVettedHost(current)
+
+    const agent = new (isHttps ? https.Agent : http.Agent)({
+      createConnection: options => {
+        const connOpts = { ...options, host: target }
+        if (isHttps) {
+          // Pin SNI to the original hostname, not the IP.
+          connOpts.servername = hostname
+          return tls.connect(connOpts)
+        }
+        return net.connect(connOpts)
+      },
+    })
+
+    let response
+    try {
+      response = await fetcher(current, {
+        ...fetchOpts,
+        agent,
+        redirect: 'manual',
+        method,
+        body,
+      })
+    } finally {
+      agent.destroy()
+    }
+
+    if (![301, 302, 303, 307, 308].includes(response.status)) {
+      return response
+    }
+
+    const location = response.headers?.get?.('location')
+    if (response.body) response.body.resume()
+
+    if (!location) return response // let the caller see the 3xx as a failure
+    if (hop >= MAX_REDIRECT_HOPS) return response
+
+    if (
+      response.status === 303 ||
+      ((response.status === 301 || response.status === 302) &&
+        (method === 'POST' || method === 'PUT'))
+    ) {
+      method = 'GET'
+      body = undefined
+    }
+
+    current = new URL(location, current)
+  }
+}
+
 // Shared UA/Content-Type for all API calls.
 const COMMON_HEADERS = {
   'Content-Type': 'application/json',
@@ -275,7 +408,7 @@ async function verifyCredentials(apiUrl, apiKey) {
     ? `${url}/users/current?${authQuery}`
     : `${url}/users/current`
   try {
-    await fetchJson(target, {
+    await guardedFetch(target, fetchJson, {
       headers,
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     })
@@ -300,10 +433,14 @@ async function getConnectionStatus(userId) {
   if (auth.kind === 'none') return { connected: false }
 
   try {
-    await fetchJson(authUrl(auth, '/users/current'), {
-      headers: auth.headers,
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    })
+    await guardedFetch(
+      authUrl(auth, '/users/current'),
+      fetchJson,
+      {
+        headers: auth.headers,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      }
+    )
     return {
       connected: true,
       apiUrl: auth.url,
@@ -328,12 +465,16 @@ async function sendHeartbeat(userId, heartbeat) {
   }
 
   try {
-    await fetchNothing(authUrl(auth, '/users/current/heartbeats'), {
-      method: 'POST',
-      headers: auth.headers,
-      body: JSON.stringify(heartbeat),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    })
+    await guardedFetch(
+      authUrl(auth, '/users/current/heartbeats'),
+      fetchNothing,
+      {
+        method: 'POST',
+        headers: auth.headers,
+        body: JSON.stringify(heartbeat),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      }
+    )
   } catch (err) {
     normalizeApiError(err, 'sendHeartbeat')
   }
@@ -359,12 +500,16 @@ async function sendHeartbeatsBulk(userId, heartbeats) {
     // So a "bulk" send is a loop over the .bulk endpoint: sequential, at
     // most MAX_BULK_HEARTBEATS (50) per call, each 2xx-counting.
     for (const heartbeat of heartbeats) {
-      await fetchNothing(authUrl(auth, '/users/current/heartbeats.bulk'), {
-        method: 'POST',
-        headers: auth.headers,
-        body: JSON.stringify(heartbeat),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      })
+      await guardedFetch(
+        authUrl(auth, '/users/current/heartbeats.bulk'),
+        fetchNothing,
+        {
+          method: 'POST',
+          headers: auth.headers,
+          body: JSON.stringify(heartbeat),
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        }
+      )
     }
   } catch (err) {
     normalizeApiError(err, 'sendHeartbeatsBulk')
@@ -389,8 +534,9 @@ async function getProjectSummary(userId, projectName, range = 7) {
   })
 
   try {
-    const summary = await fetchJson(
+    const summary = await guardedFetch(
       authUrl(auth, '/users/current/summaries', qs.toString()),
+      fetchJson,
       {
         headers: auth.headers,
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -438,10 +584,14 @@ async function getUserSummary(userId, range = 30) {
 
   let summary
   try {
-    summary = await fetchJson(authUrl(auth, '/users/current/summaries', qs.toString()), {
-      headers: auth.headers,
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    })
+    summary = await guardedFetch(
+      authUrl(auth, '/users/current/summaries', qs.toString()),
+      fetchJson,
+      {
+        headers: auth.headers,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      }
+    )
   } catch (err) {
     normalizeApiError(err, 'getUserSummary')
   }
