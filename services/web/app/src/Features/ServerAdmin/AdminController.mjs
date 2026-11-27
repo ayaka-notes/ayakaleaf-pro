@@ -54,6 +54,31 @@ const pollDropboxForUserSchema = z.object({
 const createMessageSchema = z.object({
   body: z.strictObject({
     content: z.string(),
+    // #17b: where the message is shown; missing → all pages
+    placements: z
+      .array(z.enum(['editor', 'hub', 'auth']))
+      .optional(),
+    // #17d: hide the dismiss (X) button for this message
+    unremovable: z.boolean().optional(),
+  }),
+})
+
+const updateMessageSchema = z.object({
+  params: z.object({
+    id: zz.objectId(),
+  }),
+  body: z.strictObject({
+    placements: z
+      .array(z.enum(['editor', 'hub', 'auth']))
+      .optional(),
+    // #17d: hide the dismiss (X) button for this message
+    unremovable: z.boolean().optional(),
+  }),
+})
+
+const deleteMessageSchema = z.object({
+  params: z.object({
+    id: zz.objectId(),
   }),
 })
 
@@ -65,6 +90,8 @@ const AdminController = {
       delay
     )
   },
+  // Admin page (classic panel): the System Messages pane moved to the
+  // React page at /admin/messages, so it no longer lists the DB here.
   index: expressify(async (req, res, next) => {
     let url
     const openSockets = {}
@@ -80,9 +107,6 @@ const AdminController = {
       )
     }
 
-    const systemMessages =
-      await SystemMessageManager.promises.getMessagesFromDB()
-
     const privilegesMatrixResults = await Modules.promises.hooks.fire(
       'getPrivilegesMatrix'
     )
@@ -92,7 +116,6 @@ const AdminController = {
     const toRender = {
       title: 'System Admin',
       openSockets,
-      systemMessages,
       privilegesMatrix,
     }
 
@@ -148,13 +171,66 @@ const AdminController = {
     TpdsUpdateSender.pollDropboxForUser(body.user_id, () => res.sendStatus(200))
   },
 
+  // The clients of these endpoints are the React page at /admin/messages
+  // (fetch-based), so they answer with JSON status codes rather than the
+  // 302 redirects the old classic form flow used.
   createMessage(req, res, next) {
     const { body } = parseReq(req, createMessageSchema, { logOnly: true })
-    SystemMessageManager.createMessage(body.content, function (error) {
+    SystemMessageManager.createMessage(
+      body.content,
+      body.placements,
+      body.unremovable ?? false,
+      function (error) {
+        if (error) {
+          return next(error)
+        }
+        res.sendStatus(200)
+      }
+    )
+  },
+
+  // #17b: update where a message is shown (placements).
+  // #17d: optionally toggle the dismiss (X) button via `unremovable`.
+  // Both fields may be sent independently; only the ones present update.
+  updateMessage: expressify(async (req, res, next) => {
+    const { params, body } = parseReq(req, updateMessageSchema, {
+      logOnly: true,
+    })
+    if (body.placements !== undefined) {
+      await SystemMessageManager.promises.updateMessagePlacements(
+        params.id,
+        body.placements
+      )
+    }
+    if (body.unremovable !== undefined) {
+      await SystemMessageManager.promises.setMessageUnremovable(
+        params.id,
+        body.unremovable
+      )
+    }
+    res.sendStatus(200)
+  }),
+
+  // #17c: delete a single message.
+  deleteMessage(req, res, next) {
+    const { params } = parseReq(req, deleteMessageSchema, { logOnly: true })
+    SystemMessageManager.deleteMessage(params.id, function (error) {
       if (error) {
         return next(error)
       }
-      res.redirect('/admin#system-messages')
+      res.sendStatus(200)
+    })
+  },
+
+  // The admin page lists the DB directly so it always manages the real
+  // messages — the public GET /system/messages endpoint overrides the
+  // list with the synthetic 'protected' message when the site is closed.
+  getMessagesJSON(req, res, next) {
+    SystemMessageManager.getMessagesFromDB(function (error, messages) {
+      if (error) {
+        return next(error)
+      }
+      res.json(messages || [])
     })
   },
 
@@ -163,7 +239,7 @@ const AdminController = {
       if (error) {
         return next(error)
       }
-      res.redirect('/admin#system-messages')
+      res.sendStatus(200)
     })
   },
 }

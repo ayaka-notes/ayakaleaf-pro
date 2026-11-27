@@ -6,6 +6,7 @@ import EmailHelper from '../../../../app/src/Features/Helpers/EmailHelper.mjs'
 import HaveIBeenPwned from '../../../../app/src/Features/Authentication/HaveIBeenPwned.mjs'
 import UserAuditLogHandler from '../../../../app/src/Features/User/UserAuditLogHandler.mjs'
 import UserGetter from '../../../../app/src/Features/User/UserGetter.mjs'
+import SystemMessageManager from '../../../../app/src/Features/SystemMessages/SystemMessageManager.mjs'
 
 // The new account goes on its own audit log, as an account made at a first
 // SSO login: nobody else asked for it
@@ -48,6 +49,11 @@ export default {
     res.render(Path.resolve(__dirname, '../views/user/register'), {
       showPasswordField,
       csrfToken: req.csrfToken(),
+      // #17b: auth-surface system messages for the login/register pages,
+      // plus legacy messages; emitted server-side (classic page).
+      systemMessages:
+        (await SystemMessageManager.promises.getMessagesForSurface('auth')) ||
+        [],
     })
   },
 

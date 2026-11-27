@@ -1,0 +1,271 @@
+// admin/messages page chrome — same "settings page" look as the llm
+// admin settings page (container + numbered section cards).
+.sm-system-messages {
+  max-width: 800px;
+  margin: 0 auto;
+  padding-bottom: 4rem;
+}
+
+.sm-system-messages-header {
+  margin-bottom: 2rem;
+
+  &-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+
+    .material-symbols {
+      font-size: 1.5rem;
+      color: var(--content-secondary, #475569);
+    }
+  }
+
+  &-desc {
+    color: var(--content-secondary, #475569);
+    margin: 0;
+  }
+}
+
+.sm-system-messages-toast {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.sm-settings-section {
+  padding: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-secondary, #dfe5ec);
+  background-color: var(--bg-body-01, #fff);
+  margin-bottom: 1.25rem;
+
+  &-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+
+  &-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    background-color: var(--bg-accent-01, #28518f);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  &-desc {
+    color: var(--content-secondary, #475569);
+    font-size: 0.875rem;
+    margin-bottom: 1.25rem;
+  }
+
+  &-body {
+    border: 1px solid var(--border-secondary, #dfe5ec);
+    border-radius: 6px;
+    padding: 1rem;
+  }
+}
+
+.sm-section-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--content-secondary, #475569);
+}
+
+.sm-settings-section-header-actions {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  row-gap: 0.75rem;
+
+  .sm-settings-section-header-main {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+}
+
+.sm-add-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+
+  .sm-add-input {
+    flex: 1 1 20rem;
+    min-width: 0;
+  }
+
+  .btn {
+    flex-shrink: 0;
+  }
+}
+
+.sm-add-input {
+  font-size: var(--font-size-03, 0.9375rem);
+}
+
+.sm-placement-label {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--content-secondary, #475569);
+  margin-top: 0.875rem;
+}
+
+.sm-placement-sublabel {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--content-secondary, #475569);
+}
+
+.sm-unremovable-toggle {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.sm-unremovable-row {
+  margin-top: 0.5rem;
+}
+
+.sm-placement-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  font-size: 0.8125rem;
+  margin-top: 0.5rem;
+}
+
+.sm-placement-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+
+  // forces the surface chips onto the line after "All pages"
+  .sm-chip-row-break {
+    flex-basis: 100%;
+    width: 0;
+    height: 0;
+  }
+}
+
+.sm-placement-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.875rem;
+  border: 1px solid var(--border-secondary, #dfe5ec);
+  border-radius: 999px;
+  background-color: var(--bg-body-01, #fff);
+  color: var(--content-primary, #333);
+  font-size: var(--font-size-02, 0.875rem);
+  font-weight: 500;
+  cursor: pointer;
+
+  .sm-placement-chip-icon {
+    display: inline-block;
+    width: 1em;
+    font-size: 0.875rem;
+    color: #fff;
+  }
+
+  &:hover:not(:disabled) {
+    border-color: var(--bg-accent-01, #28518f);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--bg-accent-01, #28518f);
+    outline-offset: 1px;
+  }
+
+  &.is-on {
+    background-color: var(--bg-accent-01, #28518f);
+    border-color: var(--bg-accent-01, #28518f);
+    color: #fff;
+
+    .sm-placement-chip-icon {
+      color: #fff;
+    }
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.sm-message-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.sm-message-row {
+  border: 1px solid var(--border-secondary, #dfe5ec);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  background-color: var(--bg-body-01, #fff);
+
+  &-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  &-bottom {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.75rem;
+    margin-top: 0.5rem;
+  }
+
+  &-delete {
+    flex-shrink: 0;
+    opacity: 0.6;
+
+    &:hover,
+    &:focus {
+      opacity: 1;
+      color: var(--red-60, #dc3545);
+    }
+  }
+}
+
+.sm-message-content {
+  flex: 1;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.sm-message-error {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  margin-top: 0.5rem;
+}
+
+.sm-clear-confirm {
+  background-color: var(--red-70, #b02a37);
+  border-color: var(--red-70, #b02a37);
+  color: #fff;
+}
+
+.sm-empty {
+  padding: 0.25rem;
+}

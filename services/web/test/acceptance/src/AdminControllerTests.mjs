@@ -144,6 +144,16 @@ describe('AdminController', function () {
     })
   })
 
+  describe('GET /admin/messages (page)', function () {
+    it('should render the React admin page', async function () {
+      const { response, body } = await admin.doRequest('get', {
+        url: '/admin/messages',
+      })
+      expect(response.statusCode).to.equal(200)
+      expect(body).to.include('system-messages-root')
+    })
+  })
+
   describe('POST /admin/messages', function () {
     it('should reject a missing content field with 400', async function () {
       const { response, body } = await admin.doRequest('post', {
@@ -157,24 +167,149 @@ describe('AdminController', function () {
       )
     })
 
-    it('should create the message and redirect', async function () {
+    it('should reject an unknown placement with 400', async function () {
+      const { response, body } = await admin.doRequest('post', {
+        url: '/admin/messages',
+        json: { content: 'x', placements: ['nope'] },
+      })
+      expectValidationErrorRaw(
+        { statusCode: response.statusCode, body },
+        400,
+        'placements'
+      )
+    })
+
+    it('should create the message', async function () {
       const { response } = await admin.doRequest('post', {
         url: '/admin/messages',
-        json: { content: 'a system message' },
+        json: { content: 'a system message', placements: ['editor'] },
       })
-      expect(response.statusCode).to.equal(302)
-      expect(response.headers.location).to.equal('/admin#system-messages')
+      expect(response.statusCode).to.equal(200)
+    })
+  })
+
+  describe('POST /admin/messages/list', function () {
+    it('should list the DB messages as JSON', async function () {
+      const { response, body } = await admin.doRequest('post', {
+        url: '/admin/messages/list',
+        json: {},
+      })
+      expect(response.statusCode).to.equal(200)
+      expect(Array.isArray(body)).to.equal(true)
+    })
+  })
+
+  describe('PATCH /admin/messages/:id', function () {
+    it('should reject a malformed id with 400', async function () {
+      const { response, body } = await admin.doRequest('patch', {
+        url: '/admin/messages/not-an-object-id',
+        json: { placements: ['hub'] },
+      })
+      expectValidationErrorRaw(
+        { statusCode: response.statusCode, body },
+        400,
+        'id'
+      )
+    })
+
+    it('should update the placements', async function () {
+      const { body: createdList } = await admin.doRequest('post', {
+        url: '/admin/messages',
+        json: { content: 'placement-update-test', placements: ['editor'] },
+      })
+      const { body: list } = await admin.doRequest('post', {
+        url: '/admin/messages/list',
+        json: {},
+      })
+      const msg = list.find((m) => m.content === 'placement-update-test')
+      expect(msg).to.not.be.undefined
+      expect(msg.placements).to.deep.equal(['editor'])
+
+      const { response } = await admin.doRequest('patch', {
+        url: `/admin/messages/${msg._id}`,
+        json: { placements: ['hub', 'auth'] },
+      })
+      expect(response.statusCode).to.equal(200)
+
+      const { body: updatedList } = await admin.doRequest('post', {
+        url: '/admin/messages/list',
+        json: {},
+      })
+      const updated = updatedList.find((m) => m._id === msg._id)
+      expect(updated.placements).to.deep.equal(['hub', 'auth'])
+
+      // cleanup
+      await admin.doRequest('delete', {
+        url: `/admin/messages/${msg._id}`,
+      })
+    })
+
+    it('should toggle unremovable (hide the dismiss X) (#17d)', async function () {
+      await admin.doRequest('post', {
+        url: '/admin/messages',
+        json: { content: 'unremovable-test' },
+      })
+      const { body: list } = await admin.doRequest('post', {
+        url: '/admin/messages/list',
+        json: {},
+      })
+      const msg = list.find((m) => m.content === 'unremovable-test')
+      expect(msg).to.not.be.undefined
+      expect(msg.unremovable ?? false).to.equal(false)
+
+      const { response } = await admin.doRequest('patch', {
+        url: `/admin/messages/${msg._id}`,
+        json: { unremovable: true },
+      })
+      expect(response.statusCode).to.equal(200)
+
+      const { body: updatedList } = await admin.doRequest('post', {
+        url: '/admin/messages/list',
+        json: {},
+      })
+      const updated = updatedList.find((m) => m._id === msg._id)
+      expect(updated.unremovable).to.equal(true)
+
+      // cleanup
+      await admin.doRequest('delete', {
+        url: `/admin/messages/${msg._id}`,
+      })
+    })
+  })
+
+  describe('DELETE /admin/messages/:id', function () {
+    it('should delete a single message', async function () {
+      await admin.doRequest('post', {
+        url: '/admin/messages',
+        json: { content: 'delete-me-message' },
+      })
+      const { body: list } = await admin.doRequest('post', {
+        url: '/admin/messages/list',
+        json: {},
+      })
+      const msg = list.find((m) => m.content === 'delete-me-message')
+      expect(msg).to.not.be.undefined
+
+      const { response } = await admin.doRequest('delete', {
+        url: `/admin/messages/${msg._id}`,
+      })
+      expect(response.statusCode).to.equal(200)
+
+      const { body: listAfter } = await admin.doRequest('post', {
+        url: '/admin/messages/list',
+        json: {},
+      })
+      expect(listAfter.find((m) => m._id === msg._id)).to.be.undefined
     })
   })
 
   describe('POST /admin/messages/clear', function () {
-    it('should clear messages and redirect', async function () {
+    it('should clear messages', async function () {
       const { response } = await admin.doRequest('post', {
         url: '/admin/messages/clear',
         json: {},
       })
-      expect(response.statusCode).to.equal(302)
-      expect(response.headers.location).to.equal('/admin#system-messages')
+      expect(response.statusCode).to.equal(200)
     })
   })
 })

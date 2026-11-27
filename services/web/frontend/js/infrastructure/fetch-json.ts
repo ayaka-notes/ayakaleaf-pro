@@ -26,6 +26,10 @@ export function putJSON<T = any>(path: FetchPath, options?: FetchConfig) {
   return fetchJSON<T>(path, { ...options, method: 'PUT' })
 }
 
+export function patchJSON<T = any>(path: FetchPath, options?: FetchConfig) {
+  return fetchJSON<T>(path, { ...options, method: 'PATCH' })
+}
+
 export function deleteJSON<T = any>(path: FetchPath, options?: FetchConfig) {
   return fetchJSON<T>(path, { ...options, method: 'DELETE' })
 }

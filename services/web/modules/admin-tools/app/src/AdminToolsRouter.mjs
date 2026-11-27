@@ -3,6 +3,7 @@ import AuthenticationController from '../../../../app/src/Features/Authenticatio
 import AuthorizationMiddleware from '../../../../app/src/Features/Authorization/AuthorizationMiddleware.mjs'
 import AdminProjectController from './AdminProjectController.mjs'
 import AdminUserController from './AdminUserController.mjs'
+import SystemMessagesController from './SystemMessagesController.mjs'
 
 // Every route is for site admins. Loaded before core's user-activate module
 // (moduleImportSequence), whose /admin/user only redirects to its own page.
@@ -16,6 +17,14 @@ export default {
       AuthenticationController.requireLogin(),
       AuthorizationMiddleware.ensureUserIsSiteAdmin,
     ]
+
+    // "System Messages" pane of the classic /admin page, moved to its own
+    // React page (the CRUD endpoints live in app/src/router.mjs).
+    webRouter.get(
+      '/admin/messages',
+      admin,
+      SystemMessagesController.manageMessagesPage
+    )
 
     // the user list
     webRouter.get('/admin/user', admin, AdminUserController.usersPage)

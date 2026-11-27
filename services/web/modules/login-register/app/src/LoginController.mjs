@@ -1,6 +1,7 @@
 import AuthenticationController from "../../../../app/src/Features/Authentication/AuthenticationController.mjs"
 import Settings from "@overleaf/settings"
 import Path from 'path'
+import SystemMessageManager from '../../../../app/src/Features/SystemMessages/SystemMessageManager.mjs'
 
 // Only when users have another way to log in, so nobody gets locked out
 export const localLoginDisabled = () =>
@@ -29,6 +30,12 @@ export default {
       login_support_text: Settings.nav?.login_support_text,
       localLoginDisabled: localLoginDisabled(),
       metadata,
+      // #17b: auth-surface system messages ('Login & register') plus legacy
+      // messages; this page is classic, server-rendered, so the banner is
+      // emitted straight into the markup.
+      systemMessages:
+        (await SystemMessageManager.promises.getMessagesForSurface('auth')) ||
+        [],
     })
   },
 
