@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream'
+import { createHash } from 'node:crypto'
 
 // Request headers we never forward to the upstream Grafana (hopping headers,
 // the client's own credentials, and content-encoding the response must match).
@@ -32,26 +33,49 @@ const SKIP_RESPONSE_HEADERS = new Set([
 // separate Grafana origin) is not possible while the proxy authenticates with
 // the session, so we harden the document with the strictest CSP that keeps it
 // working:
-//  - Grafana's boot HTML uses inline <script> tags with empty nonces, so
-//    script-src must allow 'unsafe-inline' (a nonce-based policy would break
-//    the dashboard);
-//  - everything else stays locked down to 'self', which blocks the realistic
-//    injection/exfil vectors: remote <script src> injection, cross-origin
-//    fetch/XHR exfiltration (connect-src), <img>/<object> exfiltration and
-//    plugins, <base> hijacking (Grafana sets a same-origin <base> at boot,
-//    hence 'self' rather than 'none'), form escape, and third-party framing.
-export const DOCUMENT_CSP = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
-  "font-src 'self' data:",
-  "connect-src 'self'", // same-origin includes the same-origin Grafana live WebSocket; bare ws:/wss: would allow cross-origin exfil
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'self'",
-].join('; ')
+//  - script-src allows 'self' plus exactly the inline boot scripts present in
+//    the document, pinned by sha256 hash ('unsafe-hashes'). Grafana renders
+//    its boot data as inline <script> tags with empty nonces, so a
+//    nonce-based policy would break the dashboard — but with per-response
+//    hashes every *other* inline script is refused, so a compromise cannot
+//    inject inline payloads via the DOM. No 'unsafe-eval' either: eval-based
+//    exfil/injection is blocked.
+//  - everything else stays locked down to 'self', which blocks remote
+//    <script src> injection, cross-origin fetch/XHR exfiltration
+//    (connect-src), <img>/<object> exfiltration and plugins, <base>
+//    hijacking (Grafana sets a same-origin <base> at boot, hence 'self'
+//    rather than 'none'), form escape, and third-party framing.
+function cspHashes(html) {
+  // inline scripts only (no src attribute), content exactly as served
+  const re = /<script\b(?![^>]*\bsrc\s*=)[^>]*>([\s\S]*?)<\/script>/gi
+  const hashes = []
+  let m
+  while ((m = re.exec(html)) !== null) {
+    if (m[1].trim()) {
+      hashes.push(`'sha256-${createHash('sha256').update(m[1]).digest('base64')}'`)
+    }
+  }
+  return hashes
+}
+
+export function buildDocumentCsp(html) {
+  const hashes = cspHashes(html)
+  const scriptSrc = hashes.length
+    ? `script-src 'self' 'unsafe-hashes' ${hashes.join(' ')}`
+    : "script-src 'self'"
+  return [
+    "default-src 'self'",
+    scriptSrc,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "connect-src 'self'", // same-origin includes the same-origin Grafana live WebSocket; bare ws:/wss: would allow cross-origin exfil
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'self'",
+  ].join('; ')
+}
 
 export function buildUpstreamRequest(req, { target, auth }) {
   const headers = {}
@@ -80,7 +104,7 @@ export function buildUpstreamRequest(req, { target, auth }) {
 
 // Copies the upstream response to `res` (express- or node:http-compatible
 // response object), applying the hardening headers described above.
-export function applyUpstreamToResponse(upstream, res) {
+export async function applyUpstreamToResponse(upstream, res) {
   res.statusCode = upstream.status
   // the app's global CSP middleware (frame-ancestors 'none') set these
   // before the handler ran; clear them before we decide what the embedded
@@ -94,7 +118,11 @@ export function applyUpstreamToResponse(upstream, res) {
   res.setHeader('x-content-type-options', 'nosniff')
   const contentType = (upstream.headers.get('content-type') || '').toLowerCase()
   if (contentType.includes('text/html')) {
-    res.setHeader('content-security-policy', DOCUMENT_CSP)
+    // buffer the (small) dashboard document so the CSP can pin its inline
+    // boot scripts by hash
+    const html = Buffer.from(await upstream.arrayBuffer()).toString('utf8')
+    res.setHeader('content-security-policy', buildDocumentCsp(html))
+    return res.end(html)
   }
   if (!contentType) {
     res.setHeader('content-type', 'application/octet-stream')
