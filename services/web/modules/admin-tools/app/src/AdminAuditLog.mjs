@@ -1,10 +1,9 @@
-import _ from 'lodash'
-import { User } from '../../../../app/src/models/User.mjs'
 import { UserAuditLogEntry } from '../../../../app/src/models/UserAuditLogEntry.mjs'
 import { ProjectAuditLogEntry } from '../../../../app/src/models/ProjectAuditLogEntry.mjs'
 import ProjectAuditLogHandler from '../../../../app/src/Features/Project/ProjectAuditLogHandler.mjs'
 import UserAuditLogHandler from '../../../../app/src/Features/User/UserAuditLogHandler.mjs'
 import { clampPage, containing, parsePaging } from './AdminQueryHelper.mjs'
+import AdminUserListManager from './AdminUserListManager.mjs'
 
 // ---- writing ----
 
@@ -59,8 +58,11 @@ function parseEntriesQuery(query) {
 function entriesMatch(scope, query, skipOperation) {
   const and = [scope]
   if (query.search) {
-    const regex = containing(query.search)
-    and.push({ $or: [{ operation: regex }, { ipAddress: regex }] })
+    // the table shows change-features as "Change features"
+    const operation = containing(query.search.trim().replace(/\s+/g, '-'))
+    and.push({
+      $or: [{ operation }, { ipAddress: containing(query.search) }],
+    })
   }
   if (query.operation !== 'all' && !skipOperation) {
     and.push({ operation: query.operation })
@@ -89,14 +91,9 @@ async function listEntries(Model, scope, rawQuery) {
     .lean()
     .exec()
 
-  const initiatorIds = _.uniq(
-    entries.map(entry => entry.initiatorId?.toString()).filter(Boolean)
-  )
-  const initiators = await User.find({ _id: { $in: initiatorIds } }, 'email')
-    .lean()
-    .exec()
-  const emails = Object.fromEntries(
-    initiators.map(user => [user._id.toString(), user.email])
+  // the initiator can be a deleted user too, as in the lists
+  const personOf = await AdminUserListManager.ownersOf(
+    entries.map(entry => entry.initiatorId)
   )
 
   return {
@@ -111,7 +108,7 @@ async function listEntries(Model, scope, rawQuery) {
       operation: entry.operation,
       timestamp: entry.timestamp,
       initiatorId: entry.initiatorId?.toString(),
-      initiatorEmail: emails[entry.initiatorId?.toString()],
+      initiatorEmail: personOf(entry.initiatorId).email,
       ipAddress: entry.ipAddress,
       info: entry.info,
     })),

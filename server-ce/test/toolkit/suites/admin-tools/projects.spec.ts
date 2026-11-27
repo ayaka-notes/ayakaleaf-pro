@@ -10,6 +10,7 @@ import {
   expectLogged,
   createUser,
   dialog,
+  findUser,
   header,
   headerAction,
   interceptSearch,
@@ -62,6 +63,16 @@ function addDoc(projectId: string, name: string, parentFolderId?: string) {
   }).then(response => {
     expect(response.status).to.equal(200)
     return response.body._id as string
+  })
+}
+
+// What the project page knows, from its meta tag
+function adminProjectOf(projectId: string) {
+  return cy.request(`/admin/project/${projectId}`).then(response => {
+    const meta = Cypress.$('<div>')
+      .html(response.body as string)
+      .find('meta[name="ol-adminProject"]')
+    return JSON.parse(meta.attr('content') ?? '{}')
   })
 }
 
@@ -601,6 +612,29 @@ describe('the project page', function () {
     })
   })
 
+  it('refuses to restore a file of a project deleted meanwhile', function () {
+    const goneOwner = email('restore-gone-owner')
+    createUser(goneOwner)
+    login(goneOwner)
+    createProject(projectName('Restore gone')).then(projectId => {
+      addDoc(projectId, 'gone.tex').then(docId => {
+        requestWithCsrf('DELETE', `/project/${projectId}/doc/${docId}`)
+          .its('status')
+          .should('be.lessThan', 300)
+        // the admin's page still lists the file when the project goes
+        login(ADMIN_EMAIL)
+        visitProject(projectId, 'deleted-files')
+        row('gone.tex').findByRole('button', { name: 'Restore file' }).should('exist')
+        requestWithCsrf('DELETE', `/admin/project/${projectId}`)
+          .its('status')
+          .should('equal', 200)
+        postWithCsrf(`/admin/project/${projectId}/doc/${docId}/restore`, {})
+          .its('status')
+          .should('equal', 404)
+      })
+    })
+  })
+
   it('edits the project’s settings with the pencil', function () {
     cy.wrap(null).then(() => ids.page).then(projectId => {
       const renamed = projectName('Renamed')
@@ -613,8 +647,7 @@ describe('the project page', function () {
       cy.get('#admin-project-imageName').select('TeX Live 2025')
       // the main document: any doc the editor offers, here one in a folder
       cy.get('#admin-project-rootDocId').select('/chapters/intro.tex')
-      // only the owner has the links, so only the owner turns it on and off
-      cy.get('#admin-project-link-sharing').should('not.exist')
+      cy.get('#admin-project-link-sharing').uncheck()
       cy.get('.tab-pane.active').findByRole('button', { name: 'Save' }).click()
       cy.get('.tab-pane.active').contains('Saved').should('exist')
       cy.get('.admin-panel-user-header').should('contain.text', renamed)
@@ -622,8 +655,38 @@ describe('the project page', function () {
       detail('Compiler').should('contain.text', 'XeLaTeX')
       detail('TeX Live version').should('contain.text', 'TeX Live 2025')
       detail('Main document').should('contain.text', '/chapters/intro.tex')
-      detail('Link sharing').should('contain.text', 'Link sharing is on')
+      detail('Link sharing').should('contain.text', 'Link sharing is off')
       projectNameOf(owner, projectId).should('equal', renamed)
+    })
+  })
+
+  it('offers None while there is no main document, then sets the only .tex file', function () {
+    const noMainOwner = email('no-main')
+    createUser(noMainOwner)
+    login(noMainOwner)
+    createProject(projectName('No main')).then(projectId => {
+      cy.visit('/project')
+      addDoc(projectId, 'chapter.tex').then(docId => {
+        login(ADMIN_EMAIL)
+        adminProjectOf(projectId).then(({ project }) => {
+          login(noMainOwner)
+          cy.visit('/project')
+          requestWithCsrf('DELETE', `/project/${projectId}/doc/${project.rootDocId}`)
+            .its('status')
+            .should('be.lessThan', 300)
+        })
+        login(ADMIN_EMAIL)
+        visitProject(projectId)
+        headerAction('Edit').click()
+        // None is picked, and disabled as in core: nothing to go back to
+        cy.get('#admin-project-rootDocId option:selected')
+          .should('have.text', 'None')
+          .and('be.disabled')
+        cy.get('#admin-project-rootDocId').select('/chapter.tex')
+        cy.get('.tab-pane.active').findByRole('button', { name: 'Save' }).click()
+        cy.get('.tab-pane.active').contains('Saved').should('exist')
+        adminProjectOf(projectId).its('project.rootDocId').should('equal', docId)
+      })
     })
   })
 
@@ -686,6 +749,59 @@ describe('a deleted project', function () {
           .its('info.name')
           .should('contain', name)
       })
+    })
+  })
+
+  it('names its owner and its deleter once their accounts are deleted too', function () {
+    const goneOwner = email('gone-owner')
+    createUser(goneOwner)
+    login(goneOwner)
+    createProject(projectName('Gone with owner')).then(projectId => {
+      // the owner deletes it, then the admin deletes the owner
+      cy.visit('/project')
+      requestWithCsrf('DELETE', `/project/${projectId}`)
+        .its('status')
+        .should('be.lessThan', 300)
+      login(ADMIN_EMAIL)
+      userId(goneOwner).then(ownerId => {
+        cy.visit('/admin/user')
+        postWithCsrf(`/admin/user/${ownerId}/delete`, {})
+          .its('status')
+          .should('equal', 200)
+      })
+      visitProject(projectId)
+      detail('Owner').should('contain.text', goneOwner)
+      detail('Deleted By email').should('contain.text', goneOwner)
+      // the account's name (the helper names it after the email)
+      cy.get('.previous-page-link')
+        .should('contain.text', goneOwner.split('@')[0])
+        .invoke('text')
+        .should('not.match', /[0-9a-f]{24}/)
+
+      // a purge leaves no email: "Deleted user", as the review panel says
+      findUser(goneOwner, 'deleted').then(gone => {
+        requestWithCsrf('DELETE', `/admin/user/${gone!.id}`)
+          .its('status')
+          .should('equal', 200)
+      })
+      // the same address only changes the hash: load the page again
+      cy.reload()
+      detail('Deleted By email')
+        .should('have.text', 'Deleted user')
+        .find('a')
+        .should('not.exist')
+      detail('Owner')
+        .should('have.text', 'Deleted user')
+        .find('a')
+        .should('not.exist')
+      // the owner's page is gone too: back to the projects
+      cy.get('.previous-page-link')
+        .should('have.attr', 'href', '/admin/project')
+        .and('contain.text', 'Deleted user')
+      // and there a purge of the project goes as well
+      headerAction('Delete permanently').click()
+      confirmDialog('Delete permanently')
+      cy.location('pathname').should('equal', '/admin/project')
     })
   })
 

@@ -6,6 +6,7 @@ import { CopyToClipboard } from '@/shared/components/copy-to-clipboard'
 import OLButton from '@/shared/components/ol/ol-button'
 import OLFormControl from '@/shared/components/ol/ol-form-control'
 import OLFormSelect from '@/shared/components/ol/ol-form-select'
+import OLFormSwitch from '@/shared/components/ol/ol-form-switch'
 import OLNotification from '@/shared/components/notification'
 import { DetailsTable } from '../../admin-user/details-table'
 import { FullDate } from '../../admin-user/tabs/shared'
@@ -37,6 +38,7 @@ type Form = {
   compiler: string
   imageName: string
   rootDocId: string
+  linkSharing: boolean
 }
 
 const formFrom = (project: Project): Form => ({
@@ -44,6 +46,7 @@ const formFrom = (project: Project): Form => ({
   compiler: project.compiler ?? '',
   imageName: project.imageName ?? '',
   rootDocId: project.rootDocId ?? '',
+  linkSharing: project.linkSharing,
 })
 
 // The project's details, as the original admin page's Project Info; the
@@ -85,7 +88,8 @@ function OverviewTab({
   if (form.compiler !== (project.compiler ?? '')) settings.compiler = form.compiler
   if (form.imageName !== (project.imageName ?? '')) settings.imageName = form.imageName
   if (form.rootDocId !== (project.rootDocId ?? '')) settings.rootDocId = form.rootDocId
-  const dirty = Object.keys(settings).length > 0
+  const linkSharingChanged = form.linkSharing !== project.linkSharing
+  const dirty = Object.keys(settings).length > 0 || linkSharingChanged
 
   const docs = project.entries.filter(
     entry => entry.type === 'doc' && MAIN_DOC.test(entry.path)
@@ -102,7 +106,18 @@ function OverviewTab({
       ]
 
   const save = () => {
-    runAsync(postJSON(`/project/${project.id}/settings`, { body: settings }))
+    runAsync(
+      (async () => {
+        if (Object.keys(settings).length > 0) {
+          await postJSON(`/project/${project.id}/settings`, { body: settings })
+        }
+        if (linkSharingChanged) {
+          await postJSON(`/project/${project.id}/settings/admin`, {
+            body: { publicAccessLevel: form.linkSharing ? 'tokenBased' : 'private' },
+          })
+        }
+      })()
+    )
       .then(() => {
         const saved: Project = {
           ...project,
@@ -114,6 +129,7 @@ function OverviewTab({
             form.imageName,
           rootDocId: form.rootDocId,
           mainDocument: docs.find(doc => doc.id === form.rootDocId)?.path,
+          linkSharing: form.linkSharing,
         }
         onSaved(saved)
         setForm(formFrom(saved))
@@ -130,7 +146,7 @@ function OverviewTab({
 
   const select = (
     key: 'compiler' | 'imageName' | 'rootDocId',
-    options: { value: string; label: string }[]
+    options: { value: string; label: string; disabled?: boolean }[]
   ) => (
     <OLFormSelect
       key={key}
@@ -141,7 +157,11 @@ function OverviewTab({
       onChange={event => change({ [key]: event.target.value })}
     >
       {options.map(option => (
-        <option key={option.value} value={option.value}>
+        <option
+          key={option.value}
+          value={option.value}
+          disabled={option.disabled}
+        >
           {option.label}
         </option>
       ))}
@@ -177,9 +197,14 @@ function OverviewTab({
       t('owner'),
       ownerKey ? (
         <div key="owner" className="admin-panel-inline-field">
-          <a className="admin-panel-plain-link" href={`/admin/user/${ownerKey}`}>
-            {owner?.email ?? ownerKey}
-          </a>
+          {owner?.email ? (
+            <a className="admin-panel-plain-link" href={`/admin/user/${ownerKey}`}>
+              {owner.email}
+            </a>
+          ) : (
+            // expired or purged, as the review panel names it
+            <span className="admin-panel-muted">{t('deleted_user')}</span>
+          )}
           {/* a transfer notifies both owners and cannot be undone, so it is
               confirmed on its own, not saved with the form */}
           {editing && (
@@ -193,15 +218,25 @@ function OverviewTab({
     [t('status'), <ProjectStatusBadge key="status" status={project.status} />],
     [t('created'), <FullDate key="created" date={project.createdAt} />],
     [t('last_modified'), <FullDate key="modified" date={project.lastUpdated} />],
-    // the owner's to change in the share modal, the one place with the links,
-    // as upstream gives them only to the owner
+    // core lets site admins turn it on and off (canUserAdminProject), but
+    // gives the links only to the owner; without link sharing core answers 403
     ...(linkSharingEnabled
       ? ([
           [
             t('link_sharing'),
-            project.linkSharing
-              ? t('link_sharing_is_on')
-              : t('link_sharing_is_off_short'),
+            editing ? (
+              <OLFormSwitch
+                key="link-sharing"
+                id="admin-project-link-sharing"
+                label={t('link_sharing')}
+                checked={form.linkSharing}
+                onChange={event => change({ linkSharing: event.target.checked })}
+              />
+            ) : project.linkSharing ? (
+              t('link_sharing_is_on')
+            ) : (
+              t('link_sharing_is_off_short')
+            ),
           ],
         ] as [string, React.ReactNode][])
       : []),
@@ -232,7 +267,13 @@ function OverviewTab({
       editing
         ? select(
             'rootDocId',
-            docs.map(doc => ({ value: doc.id ?? '', label: doc.path }))
+            // as core's main document setting: without one, None shows first
+            [
+              ...(project.rootDocId
+                ? []
+                : [{ value: '', label: 'None', disabled: true }]),
+              ...docs.map(doc => ({ value: doc.id ?? '', label: doc.path })),
+            ]
           )
         : project.mainDocument,
     ],
@@ -243,10 +284,13 @@ function OverviewTab({
       [t('deleted_at'), <FullDate key="deleted" date={project.deletedAt} />],
       [
         t('deleted_by_email'),
-        deleter?.id ? (
+        deleter?.email ? (
           <a key="deleter" className="admin-panel-plain-link" href={`/admin/user/${deleter.id}`}>
-            {deleter.email ?? deleter.id}
+            {deleter.email}
           </a>
+        ) : deleter?.id ? (
+          // expired or purged, as the review panel names it
+          <span key="deleter" className="admin-panel-muted">{t('deleted_user')}</span>
         ) : null,
       ],
       [t('deleted_by_ip'), deleter?.ipAddress]

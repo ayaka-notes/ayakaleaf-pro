@@ -1,0 +1,368 @@
+openapi: 3.0.3
+info:
+  title: real-time
+  version: '6.3'
+  description: >-
+    Holds the editor's socket.io connections and relays edits and events
+    between browsers, web and document-updater. This file covers its HTTP
+    routes only; the socket.io protocol under `/socket.io/1/` is not described.
+security: []
+servers:
+  - url: http://real-time:3026
+    description: Inside the Docker network, through the Hoppscotch proxy
+# The servers are Docker addresses that a docs reader cannot reach
+x-hideTryItPanel: true
+tags:
+  - name: Status
+    x-page-icon: heart-pulse
+    description: Liveness, health checks and metrics.
+  - name: Clients
+    x-page-icon: plug
+    description: Connected socket.io clients.
+  - name: Admin
+    x-page-icon: user-shield
+    description: Operations on running connections.
+paths:
+  /status:
+    get:
+      operationId: getStatus
+      summary: Check that the service is running
+      description: >-
+        Returns a fixed text, or 503 once shutdown has started. Registered in
+        app.js.
+      tags: [Status]
+      responses:
+        '200':
+          description: The service is running.
+          content:
+            text/html:
+              schema:
+                type: string
+                example: real-time is alive
+        '503':
+          description: Shutting down.
+  /:
+    get:
+      operationId: getRoot
+      summary: Check that the service accepts connections
+      description: >-
+        For load balancer checks. Returns 503 while shutting down or when the
+        deployment is closed by the status file watched by `DeploymentManager`.
+      tags: [Status]
+      responses:
+        '200':
+          description: Open.
+          content:
+            text/html:
+              schema:
+                type: string
+                example: real-time is open
+        '503':
+          description: Shutting down or closed.
+  /health_check:
+    get:
+      operationId: healthCheck
+      summary: Check Redis and pubsub
+      description: >-
+        Runs the Redis health check on the realtime Redis client (writes, reads
+        and deletes a unique key with a 60 second expiry) and checks that pubsub
+        messages arrive. Returns 503 after shutdown has completed.
+      tags: [Status]
+      responses:
+        '200':
+          description: All checks passed.
+        '500':
+          description: A check failed. The reason is only logged.
+        '503':
+          description: Shutdown is complete.
+  /health_check/redis:
+    get:
+      operationId: healthCheckRedis
+      summary: Check Redis and pubsub (no shutdown check)
+      description: Same checks as `/health_check`, without the shutdown check.
+      tags: [Status]
+      responses:
+        '200':
+          description: All checks passed.
+        '500':
+          description: A check failed.
+  /metrics:
+    get:
+      operationId: getMetrics
+      summary: Get Prometheus metrics
+      description: >-
+        Prometheus metrics of this process, added by `injectMetricsRoute` from
+        `@overleaf/metrics`.
+      tags: [Status]
+      responses:
+        '200':
+          description: Metrics in the Prometheus text format.
+          content:
+            text/plain:
+              schema:
+                type: string
+  /socket.io/socket.io.js:
+    get:
+      operationId: getSocketIoClient
+      summary: Get the socket.io client script
+      description: >-
+        Serves `socket.io.min.js` from the bundled socket.io-client package, with
+        ETag and Last-Modified handling.
+      tags: [Status]
+      responses:
+        '200':
+          description: The script.
+          content:
+            application/javascript:
+              schema:
+                type: string
+  /debug/events:
+    get:
+      operationId: startDebugEvents
+      summary: Log the next editor events
+      description: >-
+        Despite being a GET, this changes state: the next `count` editor events
+        received from Redis are logged. No caller in this repository.
+      tags: [Admin]
+      parameters:
+        - name: count
+          in: query
+          description: Number of events to log. 20 when missing or 0.
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Debug mode started.
+          content:
+            text/html:
+              schema:
+                type: string
+                example: debug mode will log next 20 events
+        '400':
+          $ref: '#/components/responses/ValidationError'
+  /clients:
+    get:
+      operationId: getConnectedClients
+      summary: List the clients connected to this process
+      description: >-
+        Returns every socket.io client connected to this real-time process (not
+        other replicas). Read only. Used by real-time's acceptance tests; no
+        other caller in this repository.
+      tags: [Clients]
+      responses:
+        '200':
+          description: The clients.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Client'
+  /clients/{client_id}:
+    parameters:
+      - $ref: '#/components/parameters/client_id'
+    get:
+      operationId: getConnectedClient
+      summary: Get one connected client
+      description: >-
+        Returns one client of this process. 404 when it is not connected here.
+        Read only. Used by real-time's acceptance tests.
+      tags: [Clients]
+      responses:
+        '200':
+          description: The client.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /client/{client_id}/disconnect:
+    parameters:
+      - $ref: '#/components/parameters/client_id'
+    post:
+      operationId: disconnectClient
+      summary: Disconnect a client
+      description: >-
+        Disconnects the client from this process and answers once it is gone.
+        404 when it is not connected here. Used by real-time's acceptance tests;
+        no other caller in this repository.
+      tags: [Admin]
+      responses:
+        '204':
+          description: Disconnected.
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /drain:
+    post:
+      operationId: startDrain
+      summary: Ask clients to reconnect
+      description: >-
+        Starts asking the clients of this process to reconnect (the
+        `reconnectGracefully` event), `rate` clients per second, so they move to
+        other processes. A rate below 1 spaces them out (0.1 is one client every
+        10 seconds); 0 stops a running drain. Used by real-time's acceptance
+        tests; the same drain runs on shutdown.
+      tags: [Admin]
+      parameters:
+        - name: rate
+          in: query
+          description: Clients per second.
+          schema:
+            type: number
+            default: 4
+      responses:
+        '204':
+          description: Drain started.
+        '400':
+          $ref: '#/components/responses/ValidationError'
+  /project/{project_id}/message/{message}:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        description: Project id (Mongo ObjectId). The message goes to this project's room.
+        schema:
+          type: string
+          pattern: '^[0-9a-f]{24}$'
+          example: 64b7f1a2c3d4e5f601234567
+      - name: message
+        in: path
+        required: true
+        description: Name of the socket.io event to emit.
+        schema:
+          type: string
+          minLength: 1
+          example: custom:test:event
+    post:
+      operationId: sendMessage
+      summary: Send an event to the clients of a project
+      description: >-
+        Publishes the body on the Redis `editor-events` channel, so every
+        real-time process emits it to the clients in the project's room as a
+        socket.io event named `message`. An array body sends one event per
+        element. real-time does not read the payload. Used by real-time's acceptance tests; web
+        sends editor events through Redis directly (EditorRealTimeController).
+      tags: [Admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  additionalProperties: true
+                - type: array
+                  items:
+                    type: object
+                    additionalProperties: true
+      responses:
+        '204':
+          description: Published.
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /project/{projectId}/count-connected-clients:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        description: Project id (Mongo ObjectId).
+        schema:
+          type: string
+          pattern: '^[0-9a-f]{24}$'
+          example: 64b7f1a2c3d4e5f601234567
+    get:
+      operationId: countConnectedClients
+      summary: Count the clients connected to a project
+      description: >-
+        Returns the size of the project's connected-clients set in Redis, which
+        covers all real-time processes. Entries expire after four days without
+        updates, so the count can include stale clients. Read only. Caller: web
+        `RealTimeHandler.countConnectedClients` (HistoryOTMigration).
+      tags: [Clients]
+      responses:
+        '200':
+          description: The count.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nConnectedClients:
+                    type: integer
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          description: The Redis query failed.
+components:
+  parameters:
+    client_id:
+      name: client_id
+      in: path
+      required: true
+      description: socket.io client id, 20 characters of base64url.
+      schema:
+        type: string
+        minLength: 20
+        maxLength: 20
+        pattern: '^[A-Za-z0-9_-]{20}$'
+        example: AbCdEfGhIjKlMnOpQrSt
+  schemas:
+    Client:
+      type: object
+      description: >-
+        A connected client. The user and project fields are set once the client
+        has joined a project.
+      properties:
+        client_id:
+          type: string
+        project_id:
+          type: string
+        user_id:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+        connected_time:
+          type: string
+          format: date-time
+        rooms:
+          type: array
+          description: Rooms the client is in (the project id and open doc ids).
+          items:
+            type: string
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+        statusCode:
+          type: integer
+  responses:
+    ValidationError:
+      description: >-
+        Invalid query or body. Sent when `REQ_VALIDATION_MODE` is `enforce-log`
+        (set in the server image) or `enforce`; `/debug/events` always checks.
+        When it is unset (`log`, as in the dev environment), the other routes
+        only log the problem and go on.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+    NotFound:
+      description: >-
+        The client is not connected to this process (plain text `Not Found`), or
+        a path parameter is invalid (JSON, only when validation is enforced).
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: Not Found
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'

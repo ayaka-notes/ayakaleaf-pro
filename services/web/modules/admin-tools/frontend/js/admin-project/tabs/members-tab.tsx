@@ -145,7 +145,7 @@ function MembersTab({
 
   return (
     <>
-      <TableContainer bordered>
+      <TableContainer bordered responsive>
         <OLTable container={false} className="admin-panel-table">
           <thead>
             <tr>

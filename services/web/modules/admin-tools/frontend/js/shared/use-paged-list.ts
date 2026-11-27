@@ -4,6 +4,55 @@ import { debugConsole } from '@/utils/debugging'
 
 const SEARCH_DEBOUNCE_MS = 300
 
+type ListQuery = { [key: string]: unknown }
+
+// Only the values that differ from the defaults go in the URL. The default
+// order depends on the sort, so a changed sort always carries its order.
+export function toSearchParams<Q extends ListQuery>(query: Q, defaults: Q) {
+  const params = new URLSearchParams()
+  for (const key of Object.keys(defaults)) {
+    const changed = query[key] !== defaults[key]
+    const sortChanged = key === 'order' && query.sort !== defaults.sort
+    if (changed || sortChanged) params.set(key, String(query[key]))
+  }
+  return params
+}
+
+// The query a list kept in the URL starts with, after a reload
+export function fromSearchParams<Q extends ListQuery>(defaults: Q): Q {
+  const params = new URLSearchParams(window.location.search)
+  const query: ListQuery = { ...defaults }
+  for (const key of Object.keys(defaults)) {
+    const value = params.get(key)
+    if (value === null) continue
+    if (typeof defaults[key] !== 'number') {
+      query[key] = value
+    } else if (Number.isInteger(Number(value)) && Number(value) > 0) {
+      query[key] = Number(value)
+    }
+  }
+  return query as Q
+}
+
+// Keeps a list's query in the URL, as the user list does, so that a reload
+// shows the same
+export function useQueryInUrl<Q extends ListQuery>(
+  query: Q,
+  defaults: Q,
+  enabled: boolean
+) {
+  useEffect(() => {
+    if (!enabled) return
+    const params = toSearchParams(query, defaults)
+    const search = params.toString() ? `?${params}` : ''
+    window.history.replaceState(
+      null,
+      '',
+      window.location.pathname + search + window.location.hash
+    )
+  }, [query, defaults, enabled])
+}
+
 // Fetches a page of an admin list from the backend whenever the query
 // changes; typing in the search box is debounced. The first page can come
 // with the HTML (initialResult), otherwise it is fetched on mount.

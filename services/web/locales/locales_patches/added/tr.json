@@ -11,6 +11,8 @@
   "expires_in_one_hour": "1 saat içinde sona erer",
   "export_project_to_x": "Projeyi __provider__’a yükle",
   "found_matching_deleted_projects": "__count__ eşleşen silinmiş proje bulundu",
+  "gitea": "Gitea",
+  "gitlab": "GitLab",
   "hide_deleted_projects": "Silinmiş projeleri gizle",
   "import_from_x": "__provider__’dan yükle",
   "importing_and_merging_changes_in_x": "Değişiklikler __provider__’a aktarılıyor",

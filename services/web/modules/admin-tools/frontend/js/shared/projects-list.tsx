@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import classnames from 'classnames'
 import OLTable, { TableContainer } from '@/shared/components/ol/ol-table'
 import OLIconButton from '@/shared/components/ol/ol-icon-button'
 import OLTooltip from '@/shared/components/ol/ol-tooltip'
@@ -7,11 +8,21 @@ import OLNotification from '@/shared/components/notification'
 import FilterDropdown, {
   statusOptionLayout,
 } from '../admin-users/components/filter-dropdown'
-import { RelativeDate } from '../admin-users/components/users-table'
+import {
+  MatchedEmails,
+  PrimaryBadge,
+  RelativeDate,
+} from '../admin-users/components/users-table'
+import type { MatchedEmail } from '../admin-users/types'
 import ListSearch from './list-search'
 import ListFooter from './list-footer'
 import SortHeader from './sort-header'
-import { usePagedList, useReloadWhenShown } from './use-paged-list'
+import {
+  fromSearchParams,
+  usePagedList,
+  useQueryInUrl,
+  useReloadWhenShown,
+} from './use-paged-list'
 import DeletedHint from './deleted-hint'
 import { useSelection } from './selection'
 import OLFormCheckbox from '@/shared/components/ol/ol-form-checkbox'
@@ -47,8 +58,24 @@ type ProjectsResult = {
     deletedAt?: string
     status: RowStatus
     // the site's list: each row's owner
-    owner?: { id?: string; email?: string; name?: string; deleted?: boolean }
+    owner?: {
+      id?: string
+      email?: string
+      name?: string
+      deleted?: boolean
+      // the secondary emails the search found this owner by
+      matchedEmails?: MatchedEmail[]
+    }
   }[]
+}
+
+const DEFAULT_QUERY: ProjectsQuery = {
+  page: 1,
+  pageSize: 10,
+  search: '',
+  status: 'all',
+  sort: 'lastUpdated',
+  order: 'desc',
 }
 
 // A list of projects, paged, searched and filtered in the backend, laid out
@@ -61,6 +88,7 @@ function ProjectsList({
   ownerId,
   active,
   placeholder,
+  inUrl = false,
 }: {
   url: string
   // the prefix of the controls' ids
@@ -69,6 +97,8 @@ function ProjectsList({
   // whether its tab shows; opening it again reloads the projects
   active: boolean
   placeholder: string
+  // the site's list keeps its query in the URL, as the user list does
+  inUrl?: boolean
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState<{ project: ProjectRow; action: Action } | null>(null)
@@ -76,14 +106,8 @@ function ProjectsList({
   const { query, result, loading, error, updateQuery, reload } = usePagedList<
     ProjectsQuery,
     ProjectsResult
-  >(url, {
-    page: 1,
-    pageSize: 10,
-    search: '',
-    status: 'all',
-    sort: 'lastUpdated',
-    order: 'desc',
-  })
+  >(url, inUrl ? fromSearchParams(DEFAULT_QUERY) : DEFAULT_QUERY)
+  useQueryInUrl(query, DEFAULT_QUERY, inUrl)
   useReloadWhenShown(active, reload)
 
   const labels: Record<ProjectStatus, string> = {
@@ -243,14 +267,31 @@ function ProjectsList({
                   </td>
                   {!ownerId && (
                     <td className="d-none d-md-table-cell">
-                      {project.owner?.id && (
+                      {project.owner?.email ? (
                         <a className="admin-panel-plain-link" href={`/admin/user/${project.owner.id}`}>
-                          {project.owner.name || project.owner.email || project.owner.id}
+                          {project.owner.name || project.owner.email}
                         </a>
-                      )}
+                      ) : project.owner?.id ? (
+                        // expired or purged, as the review panel names it
+                        <span className="admin-panel-muted">{t('deleted_user')}</span>
+                      ) : null}
+                      {!project.owner?.name && project.owner?.matchedEmails?.length ? (
+                        <> <PrimaryBadge /></>
+                      ) : null}
                       {project.owner?.name && (
-                        <div className="admin-panel-muted">{project.owner.email}</div>
+                        <div
+                          className={classnames('admin-panel-muted', {
+                            'admin-panel-inline-field': project.owner.matchedEmails?.length,
+                          })}
+                        >
+                          {project.owner.email}
+                          {project.owner.matchedEmails?.length ? <PrimaryBadge /> : null}
+                        </div>
                       )}
+                      <MatchedEmails
+                        className="admin-panel-muted"
+                        emails={project.owner?.matchedEmails ?? []}
+                      />
                     </td>
                   )}
                   <td>

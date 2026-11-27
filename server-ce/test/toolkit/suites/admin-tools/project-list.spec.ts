@@ -332,6 +332,38 @@ describe('every project of the site', function () {
     answered(projects)
   }
 
+  it('keeps the search and the filter in the address, so a reload shows the same', function () {
+    visitList()
+    search(prefix)
+    status('Deleted')
+    cy.location('search')
+      .should('contain', 'status=deleted')
+      .and('contain', `search=${prefix}`)
+    cy.reload()
+    cy.get('#admin-projects-status').should('contain.text', 'Deleted')
+    cy.get('.tab-pane.active')
+      .findByRole('textbox', { name: 'Search' })
+      .should('have.value', prefix)
+    row(names.adaDeleted).should('exist')
+    row(names.adaActive).should('not.exist')
+  })
+
+  it('says something went wrong, and keeps the page, when the session ended', function () {
+    visitList()
+    search(prefix)
+    cy.clearCookie('overleaf.sid')
+    cy.get('.tab-pane.active')
+      .findByRole('textbox', { name: 'Search' })
+      .clear()
+      .type(names.bobActive)
+    cy.get('.tab-pane.active .notification-type-error').should('exist')
+    cy.get('.tab-pane.active')
+      .findByRole('textbox', { name: 'Search' })
+      .should('have.value', names.bobActive)
+    // the page that replaces a crashed one asks for a reload
+    cy.contains('Please refresh the page to continue').should('not.exist')
+  })
+
   it('sorts by title and by last modified, both ways, and deleted ones by when', function () {
     visitList()
     search(prefix)

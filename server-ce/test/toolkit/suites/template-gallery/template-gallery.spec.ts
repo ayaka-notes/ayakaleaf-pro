@@ -1,4 +1,5 @@
 import { v4 as uuid } from 'uuid'
+import { adminUserInfo } from '../../../helpers/adminTools'
 import { login } from '../../../helpers/login'
 import { expectOwnAuditEntry, expectProjectAuditEntry } from '../../../helpers/auditLog'
 import {
@@ -627,6 +628,32 @@ describe('managing templates', function () {
       .should('equal', 409)
   })
 
+  it('edits only the fields of the form, and refuses one that is not text', function () {
+    cy.visit('/project')
+    getTemplate(templateId).then(before => {
+      postWithCsrf(`/template/${templateId}/edit`, {
+        authorMD: 'Only this changes',
+        owner: '0123456789abcdef01234567',
+        version: 99,
+        project_id: '0123456789abcdef01234567',
+        mainFile: 'other.tex',
+      })
+        .its('status')
+        .should('equal', 200)
+      getTemplate(templateId).then(after => {
+        expect(after.authorMD).to.equal('Only this changes')
+        for (const key of ['owner', 'version', 'project_id', 'mainFile']) {
+          expect(after[key], key).to.deep.equal(before[key])
+        }
+      })
+    })
+    for (const body of [{ name: { $ne: '' } }, { descriptionMD: ['a', 'b'] }]) {
+      postWithCsrf(`/template/${templateId}/edit`, body)
+        .its('status')
+        .should('equal', 400)
+    }
+  })
+
   it('sanitises the markdown fields', function () {
     cy.visit('/project')
     postWithCsrf(`/template/${templateId}/edit`, {
@@ -672,6 +699,8 @@ describe('managing templates', function () {
   })
 
   it('deletes the template, its page and its files', function () {
+    // an earlier case renames it
+    getTemplate(templateId).its('name').as('templateName')
     visitTemplate(templateId)
     cy.findByRole('button', { name: 'Delete' }).click()
     cy.findByRole('dialog').within(() => {
@@ -687,7 +716,12 @@ describe('managing templates', function () {
       expect(template).to.equal(null)
     })
     waitUntilGone(`/template/${templateId}/zip?version=2`)
-    expectOwnAuditEntry(ADMIN_EMAIL, 'delete-template')
+    // the name too, as the admin panel's delete
+    cy.get<string>('@templateName').then(templateName => {
+      expectOwnAuditEntry(ADMIN_EMAIL, 'delete-template')
+        .its('info')
+        .should('deep.equal', { templateId, name: templateName })
+    })
   })
 })
 
@@ -718,6 +752,36 @@ describe('template permissions', function () {
       .its('status')
       .should('equal', 403)
     requestWithCsrf('DELETE', `/template/${templateId}/delete`, { version: 1 })
+      .its('status')
+      .should('equal', 403)
+    getTemplate(templateId).its('name').should('equal', name)
+  })
+
+  // A session keeps the isAdmin it logged in with: these routes ask the database
+  it('refuses an admin who lost the role, in the session opened with it', function () {
+    const address = `demoted-${uuid()}@example.com`
+    const setAdmin = (isAdmin: boolean) => {
+      login(ADMIN_EMAIL)
+      adminUserInfo(address).then(({ id }) => {
+        postWithCsrf(`/admin/user/${id}/update`, { isAdmin })
+          .its('status')
+          .should('equal', 200)
+      })
+    }
+    ensureUserExists(address)
+    setAdmin(true)
+    // the browser of the new admin, logged in with the role
+    login(address)
+    cy.visit('/project')
+    cy.getCookie('overleaf.sid').its('value').as('cookie')
+
+    setAdmin(false)
+    cy.get<string>('@cookie').then(cookie => {
+      cy.clearAllCookies()
+      cy.setCookie('overleaf.sid', cookie)
+    })
+    cy.visit('/project')
+    postWithCsrf(`/template/${templateId}/edit`, { name: 'hijacked' })
       .its('status')
       .should('equal', 403)
     getTemplate(templateId).its('name').should('equal', name)

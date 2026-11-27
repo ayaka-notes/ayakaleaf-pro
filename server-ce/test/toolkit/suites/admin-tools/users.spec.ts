@@ -61,8 +61,7 @@ function rowAction(text: string, name: string) {
   row(text).findByRole('button', { name }).click()
 }
 
-// Registers an account like the Create account modal, not activated, with
-// the activation link the old Info endpoint gives
+// Registers an account like the Create account modal, not activated
 function createAccount(address: string, firstName = 'List', lastName = 'User') {
   cy.visit('/admin/user')
   return postWithCsrf('/admin/user/create', {
@@ -72,14 +71,6 @@ function createAccount(address: string, firstName = 'List', lastName = 'User') {
   }).then(response => {
     expect(response.status).to.equal(200)
   })
-}
-
-function activationLinkOf(address: string): Cypress.Chainable<string> {
-  return userId(address).then(id =>
-    cy
-      .request(`/admin/user/${id}/info`)
-      .then(response => response.body.activationLink as string)
-  )
 }
 
 // groups below log in as the admin first, also when GREP runs only them
@@ -109,6 +100,26 @@ describe('access', function () {
     }
   })
 
+  it('answers the lists of a signed out visitor with 401, which the pages show as an error', function () {
+    for (const url of [
+      '/admin/users/list',
+      '/admin/projects/list',
+      '/admin/templates/list',
+      `/admin/user/${id}/projects/list`,
+      `/admin/user/${id}/audit-log/list`,
+      `/admin/project/${id}/audit-log/list`,
+    ]) {
+      cy.request({
+        url,
+        headers: { Accept: 'application/json' },
+        followRedirect: false,
+        failOnStatusCode: false,
+      })
+        .its('status')
+        .should('equal', 401)
+    }
+  })
+
   it('refuses the pages and the endpoints to users who are not admins', function () {
     login(visitor)
     for (const url of [
@@ -132,6 +143,7 @@ describe('access', function () {
     for (const url of [
       `/admin/user/${id}/clear-sessions`,
       `/admin/user/${id}/transfer-projects`,
+      `/admin/user/${id}/remove-email`,
       `/admin/project/${id}/doc/${id}/restore`,
     ]) {
       postWithCsrf(url, {}).then(response => {
@@ -507,12 +519,20 @@ describe('creating accounts', function () {
       cy.findByLabelText('First name').type('Grace')
       cy.findByLabelText('Last name').type('Hopper')
       cy.findByRole('button', { name: 'Create' }).click()
+      // no email on this site: the modal hands the link out instead
+      cy.contains('No email was sent').should('exist')
+      cy.contains('Grace Hopper').should('exist')
+      cy.get('code').invoke('text').as('link', { type: 'static' })
+      cy.findByRole('button', { name: 'Close' }).click()
     })
     dialog().should('not.exist')
     search(address)
     row(address).should('contain.text', 'Grace Hopper').and('contain.text', 'Pending')
 
-    activationLinkOf(address).then(link => activateUser(link))
+    cy.get<string>('@link').then(link => {
+      expect(link).to.contain('/user/activate?token=')
+      activateUser(link)
+    })
     tryLogin(address).its('body.redir').should('equal', '/project')
   })
 
@@ -526,6 +546,7 @@ describe('creating accounts', function () {
       cy.findByLabelText('Email address').type(address)
       cy.findByLabelText('Admin').check()
       cy.findByRole('button', { name: 'Create' }).click()
+      cy.findByRole('button', { name: 'Close' }).click()
     })
     dialog().should('not.exist')
     findUser(address).its('isAdmin').should('equal', true)
@@ -565,6 +586,21 @@ describe('creating accounts', function () {
     dialog().should('not.exist')
   })
 
+  it('refuses a name longer than core keeps, and creates nothing', function () {
+    const address = email('long-name')
+    for (const field of ['first_name', 'last_name']) {
+      postWithCsrf('/admin/user/create', {
+        email: address,
+        [field]: 'n'.repeat(256),
+      })
+        .its('status')
+        .should('equal', 422)
+    }
+    cy.request(`/admin/users/list?search=${encodeURIComponent(address)}`)
+      .its('body.total')
+      .should('equal', 0)
+  })
+
   it('keeps an address given in capitals as the one email of the account', function () {
     const address = email('capitals')
     createAccount(address.toUpperCase())
@@ -581,6 +617,24 @@ describe('creating accounts', function () {
 })
 
 describe('row actions', function () {
+  it('says Not found when the account was deleted meanwhile', function () {
+    const address = email('gone-meanwhile')
+    login(ADMIN_EMAIL)
+    createAccount(address)
+    visitList()
+    search(address)
+    // another admin deletes it while the list still shows it
+    userId(address).then(id => {
+      postWithCsrf(`/admin/user/${id}/delete`, {}).its('status').should('equal', 200)
+    })
+    rowAction(address, 'Disable')
+    dialog().within(() => {
+      cy.findByRole('button', { name: 'Disable' }).click()
+      cy.get('.notification-type-error').should('contain.text', 'Not found')
+      cy.findByRole('button', { name: 'Cancel' }).click()
+    })
+  })
+
   it('disables an account, which logs the user out everywhere, and enables it', function () {
     const address = email('toggle')
     createUser(address)
@@ -962,8 +1016,8 @@ describe('row actions', function () {
     })
   })
 
-  // A session keeps the isAdmin it logged in with, and some checks read that
-  it('ends the sessions of an admin who loses the role', function () {
+  // Their session only drops the isAdmin it logged in with
+  it('keeps an admin who loses the role logged in, without the role', function () {
     const address = email('demoted')
     createUser(address)
     login(ADMIN_EMAIL)
@@ -985,7 +1039,34 @@ describe('row actions', function () {
       cy.setCookie('overleaf.sid', value)
       cy.request({ url: '/user/personal_info', followRedirect: false })
         .its('status')
+        .should('equal', 200)
+      cy.request({ url: '/admin/user', followRedirect: false })
+        .its('status')
         .should('not.equal', 200)
+      cy.visit('/project')
+      cy.findByRole('menubar')
+        .findByRole('menuitem', { name: 'Admin' })
+        .should('not.exist')
+    })
+  })
+
+  it('gives a logged in user who gets the role the Admin menu, without a new login', function () {
+    const address = email('promoted')
+    createUser(address)
+    login(address)
+    cy.visit('/project')
+    cy.findByRole('menubar')
+      .findByRole('menuitem', { name: 'Admin' })
+      .should('not.exist')
+    cy.getCookie('overleaf.sid').its('value').as('userCookie')
+
+    login(ADMIN_EMAIL)
+    makeAdmin(address)
+    cy.get<string>('@userCookie').then(value => {
+      cy.clearAllCookies()
+      cy.setCookie('overleaf.sid', value)
+      cy.visit('/project')
+      cy.findByRole('menubar').findByRole('menuitem', { name: 'Admin' })
     })
   })
 
