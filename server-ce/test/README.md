@@ -4,9 +4,10 @@ These tests install Overleaf Pro the same way a user would (with the
 [toolkit](https://github.com/ayaka-notes/toolkit)), then click through it in a
 browser with Cypress.
 
-CI runs them daily against the latest ops image, one suite per runner
+CI runs them daily against the latest ops image, one group of suites per runner
 (`.github/workflows/test_ops_image.yml`). It can also be started by hand with
-another ops tag.
+another ops tag, on one platform, or for some `suites` and the cases matching
+`grep`.
 
 ## How to run
 
@@ -42,6 +43,10 @@ One folder per module in `toolkit/suites/`, named and nested like
   password. The variants sign up with an activation email: `any-domain/`
   for any domain (`@*`), `domain/` for one domain, `domains/` for a list
   with a `*.` subdomain wildcard.
+- `user-emails/` – without a mail server the single email field stays. The
+  `smtp/` variant adds, confirms, removes and makes an email primary, then
+  logs in and resets the password with it; `with-captcha/` asks for a captcha
+  when adding one.
 - `sandboxed-compiles/` – compiling in sibling containers, switching between
   two TeX Live images, XeLaTeX, errors, stopping a compile, SyncTeX.
 - `symbol-palette/` – opening and closing the palette, switching categories
@@ -103,8 +108,8 @@ One folder per module in `toolkit/suites/`, named and nested like
   exporting a project into a new project, importing a repository, pulling,
   pushing, merging through a merge request (deleted when allowed), conflicts
   and merges held back by approval or pipeline rules, renames and deletes,
-  binary files, force pushes, lost push access, and what collaborators may
-  do. Git-bridge is on as the docs require.
+  binary files, force pushes, lost push access, what collaborators may do,
+  and GitLab turned off for a user. Git-bridge is on as the docs require.
 - `gitea-sync/` – Gitea Sync against `toolkit/services/gitea`, a real Gitea
   (the oldest supported version, `GITEA_IMAGE` picks another) at
   `http://gitea:3000`: linking through the OAuth application and Gitea's
@@ -114,8 +119,9 @@ One folder per module in `toolkit/suites/`, named and nested like
   merging through a pull request with the repository's merge style,
   conflicts, manual merges in a working copy and squash merges, merges held
   back by required approvals or status checks, a branch deleted unmerged,
-  renames and deletes, binary files, force pushes, lost push access, and
-  what collaborators may do. Git-bridge is on as the docs require.
+  renames and deletes, binary files, force pushes, lost push access, what
+  collaborators may do, and Gitea turned off for a user. Git-bridge is on as
+  the docs require.
 - `dropbox/` – Dropbox Sync against `toolkit/services/dropbox-mock`, which
   answers as the Dropbox API and sends signed webhooks: linking and unlinking
   through OAuth, the projects sent when linking (owned and shared), edits
@@ -146,7 +152,8 @@ One folder per module in `toolkit/suites/`, named and nested like
 - `instance-features/` – `/system/features` and the UI that hides itself
   with it: AI assistant, GitHub Sync, Zotero and Mendeley, all off on the
   default instance and all on in the `enabled/` variant, with git-bridge,
-  which GitHub Sync needs.
+  which GitHub Sync needs; there also what an admin turned off for one user,
+  and every sync turned off for another.
 - `admin-tools/` – the admin panel, `/admin/user` and `/admin/project`:
   who may open it; the user list (search by name, email and id, every Status, Login and Role
   filter with its counts, sorting, pages and page sizes, the deleted-match
@@ -216,4 +223,6 @@ Things that need email (activation mails, password reset) are not tested.
 3. The tests must not rely on other suites, each one runs on its own fresh
    instance. Create users with `ensureUserExists` from `helpers/users.ts`.
 4. `make setup SUITE=<name>`, then `make test_<name>`.
-5. Add `<name>` to the `e2e-amd64` matrix in `test_ops_image.yml` (`e2e-arm64` reuses it).
+5. Add `<name>` to a group of the `e2e-amd64` matrix in `test_ops_image.yml`
+   (`e2e-arm64` reuses it). The suites of a group share one runner and run one
+   after another (`bin/run-suites`).

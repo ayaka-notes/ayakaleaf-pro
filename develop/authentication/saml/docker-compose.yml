@@ -1,0 +1,10 @@
+# SAML test users, see authentication/README.md
+services:
+  saml:
+    build: ./authentication/saml
+    env_file:
+      - dev.env
+
+  web:
+    volumes:
+      - ./authentication/saml/idp.crt:/etc/saml/idp.crt:ro

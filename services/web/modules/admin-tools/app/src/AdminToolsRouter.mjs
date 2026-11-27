@@ -72,6 +72,11 @@ export default {
       AdminUserController.updateUser
     )
     webRouter.post(
+      '/admin/user/:userId/remove-email',
+      admin,
+      AdminUserController.removeEmail
+    )
+    webRouter.post(
       '/admin/user/:userId/transfer-projects',
       admin,
       AdminUserController.transferProjects
