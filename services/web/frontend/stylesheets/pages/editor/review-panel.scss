@@ -34,7 +34,9 @@ $rp-type-blue: #6b7797;
   color-scheme: var(--review-panel-color-scheme);
   height: 100%;
   flex-shrink: 0;
-  position: relative;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
 }
 
 .review-panel-inner {

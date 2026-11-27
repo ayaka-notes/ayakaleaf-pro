@@ -155,12 +155,75 @@ export const readSectioningCommandOutlineItem = (
 /**
  * Extracts FlatOutlineItem instances from the syntax tree
  */
+/**
+ * The Typst heading outline item (positions-based). markerFrom/markerTo
+ * delimit the leading 'HeadingMarker' run ('=', '==', ...); pass equal
+ * spans for the fallback where the grammar emitted a Heading with no
+ * distinct marker span — then the whole span is the title and the level
+ * defaults to 1. Returns false when the heading has no title. Pure over
+ * span positions + EditorState so it is unit-testable in Node without the
+ * wasm 'codemirror-lang-typst' grammar.
+ */
+export const makeTypstHeadingOutlineItem = (
+  state: EditorState,
+  headingFrom: number,
+  headingTo: number,
+  markerFrom: number,
+  markerTo: number
+): FlatOutlineItem | false => {
+  const hasMarker = markerFrom !== markerTo && markerFrom === headingFrom
+  let level = 1
+  let titleFrom = headingFrom
+  if (hasMarker) {
+    const markerText = state.doc.sliceString(markerFrom, markerTo)
+    level = markerText.match(/^=+/)?.[0]?.length ?? 1
+    titleFrom = markerTo
+  }
+  const title = state.doc.sliceString(titleFrom, headingTo).trim()
+  if (!title) {
+    return false
+  }
+  return {
+    line: state.doc.lineAt(headingFrom).number,
+    toLine: state.doc.lineAt(headingTo).number,
+    title,
+    from: headingFrom,
+    to: headingTo,
+    level,
+  } as FlatOutlineItem
+}
+
 export const enterNode = (
   state: EditorState,
   node: SyntaxNodeRef,
   items: FlatOutlineItem[],
   nodeIntersectsChange: NodeIntersectsChangeFn
 ): any => {
+  // Typst heading support (= H1, == H2, ...): the lezer grammar emits
+  // 'Heading' + a leading 'HeadingMarker'. The string-name check cannot
+  // collide with the LaTeX branches below, which are keyed on typed term
+  // ids the Typst grammar never emits.
+  if (node.type.name === 'Heading') {
+    if (!nodeIntersectsChange(node)) {
+      // This should already be in 'items'
+      return
+    }
+    const headingNode = node.node
+    const markerChild = headingNode.firstChild
+    const hasMarker =
+      markerChild && markerChild.type.name === 'HeadingMarker'
+    const item = makeTypstHeadingOutlineItem(
+      state,
+      headingNode.from,
+      headingNode.to,
+      hasMarker ? markerChild.from : headingNode.from,
+      hasMarker ? markerChild.to : headingNode.from
+    )
+    if (item) {
+      items.push(item)
+    }
+    return false // don't recurse into heading children
+  }
   if (node.type.is('SectioningCommand')) {
     if (!nodeIntersectsChange(node)) {
       // This should already be in `items`

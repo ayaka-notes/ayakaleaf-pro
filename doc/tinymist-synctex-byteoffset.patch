@@ -1,0 +1,157 @@
+From 01fafc81152e6357d0c2eec2191a4cc4fad08d89 Mon Sep 17 00:00:00 2001
+From: Overleaf Typst <typst@ollitex.local>
+Date: Thu, 19 Nov 2026 17:02:55 +0000
+Subject: [PATCH] feat(cli): record the source byte offset in each SyncTeX run
+
+--synctex maps PDF boxes to (file, line), which opens the right source
+line but not the exact spot within it. Emit the glyph's byte offset into
+the source file as the third SyncTeX link field (the spec's optional
+'column'; for ASCII it equals the character column).
+
+A consumer's reverse search can then place the cursor on the exact word
+rather than the start of the line. The offset typst already computes is
+carried through instead of being dropped.
+
+- crates/tinymist-task/src/compute/synctex.rs: thread the byte offset out
+  of locate() into Run and emit it per run record; document the field.
+- tests/e2e/e2e/cli.rs: hbox() reads the new field; assert it increases
+  across the two source lines that map to one typeset line.
+---
+ crates/tinymist-task/src/compute/synctex.rs | 27 +++++++++++++--------
+ tests/e2e/e2e/cli.rs                        | 15 +++++++-----
+ 2 files changed, 26 insertions(+), 16 deletions(-)
+
+diff --git a/crates/tinymist-task/src/compute/synctex.rs b/crates/tinymist-task/src/compute/synctex.rs
+index 981c3b7..6095eba 100644
+--- a/crates/tinymist-task/src/compute/synctex.rs
++++ b/crates/tinymist-task/src/compute/synctex.rs
+@@ -25,7 +25,7 @@
+ //! Content:
+ //! {1                               page 1
+ //! [1,2:0,842:595,842,0             page box:  tag,line:x,y:width,height,depth
+-//! (1,2:72,100:300,9,3              text run:  same fields, x,y at the baseline
++//! (1,2,47:72,100:300,9,3           text run:  tag,line,byteoff:x,y:width,height,depth
+ //! )
+ //! ]
+ //! }1
+@@ -34,8 +34,11 @@
+ //! Post scriptum:
+ //! ```
+ //!
+-//! Every text run becomes one hbox record carrying the file tag and line of its
+-//! glyphs; runs are split where the source line changes. Outline entries are
++//! Every text run becomes one hbox record carrying the file tag, line, and a
++//! byte offset into the source file for its glyphs; runs are split where the
++//! source line changes. The byte offset (the third link field, an extension of
++//! the SyncTeX `column`) lets a consumer jump to the exact spot rather than the
++//! line start; for ASCII sources it equals the character column. Outline entries are
+ //! skipped: their text carries the heading's span, and a viewer would otherwise
+ //! jump to the table of contents instead of the heading.
+ //!
+@@ -115,6 +118,7 @@ struct SyncTexGen<'a, F: CompilerFeat> {
+ struct Run {
+     tag: usize,
+     line: usize,
++    offset: usize,
+     origin: Point,
+     width: Abs,
+     ascent: Abs,
+@@ -139,9 +143,10 @@ impl<F: CompilerFeat> SyncTexGen<'_, F> {
+         for run in runs {
+             let _ = writeln!(
+                 self.content,
+-                "({},{}:{},{}:{},{},{}\n)",
++                "({},{},{}:{},{}:{},{},{}\n)",
+                 run.tag,
+                 run.line,
++                run.offset,
+                 sp(run.origin.x),
+                 sp(run.origin.y),
+                 sp(run.width),
+@@ -189,15 +194,16 @@ impl<F: CompilerFeat> SyncTexGen<'_, F> {
+                         let loc = self.locate(glyph.span.0, glyph.span.1 as usize);
+ 
+                         let same = matches!((&current, loc),
+-                            (Some(run), Some((tag, line))) if run.tag == tag && run.line == line);
++                            (Some(run), Some((tag, line, _))) if run.tag == tag && run.line == line);
+                         if !same {
+                             if let Some(run) = current.take() {
+                                 runs.push(run);
+                             }
+                             start = Point::new(x, pos.y);
+-                            current = loc.map(|(tag, line)| Run {
++                            current = loc.map(|(tag, line, offset)| Run {
+                                 tag,
+                                 line,
++                                offset,
+                                 origin: start.transform(ts),
+                                 width: Abs::zero(),
+                                 ascent,
+@@ -219,8 +225,8 @@ impl<F: CompilerFeat> SyncTexGen<'_, F> {
+         }
+     }
+ 
+-    /// Resolves a span to its file tag and 1-based line.
+-    fn locate(&mut self, span: typst::syntax::Span, offset: usize) -> Option<(usize, usize)> {
++    /// Resolves a span to its file tag, 1-based line, and byte offset.
++    fn locate(&mut self, span: typst::syntax::Span, offset: usize) -> Option<(usize, usize, usize)> {
+         let id = span.id()?;
+         if !self.tags.contains_key(&id) {
+             let entry = self.register(id);
+@@ -229,8 +235,9 @@ impl<F: CompilerFeat> SyncTexGen<'_, F> {
+         let (tag, source) = self.tags.get(&id)?.as_ref()?;
+ 
+         let node = source.find(span)?;
+-        let line = source.lines().byte_to_line(node.offset() + offset)?;
+-        Some((*tag, line + 1))
++        let byte = node.offset() + offset;
++        let line = source.lines().byte_to_line(byte)?;
++        Some((*tag, line + 1, byte))
+     }
+ 
+     fn register(&mut self, id: FileId) -> Option<(usize, Source)> {
+diff --git a/tests/e2e/e2e/cli.rs b/tests/e2e/e2e/cli.rs
+index c2c4aa2..f2cda7d 100644
+--- a/tests/e2e/e2e/cli.rs
++++ b/tests/e2e/e2e/cli.rs
+@@ -678,13 +678,15 @@ fn sp(pt: f64) -> i64 {
+     (pt * 65536.0 * 72.27 / 72.0).round() as i64
+ }
+ 
+-/// The source line and position of an hbox record `(tag,line:x,y:w,h,d`.
+-fn hbox(record: &str) -> (usize, i64, i64) {
++/// The source line, byte offset, and position of an hbox record
++/// `(tag,line,offset:x,y:w,h,d`.
++fn hbox(record: &str) -> (usize, usize, i64, i64) {
+     let (_, rest) = record.split_once(',').expect("record should have a tag");
+     let mut fields = rest.split([':', ',']);
+     let mut field = || fields.next().expect("record should have all fields");
+     (
+         field().parse().expect("line"),
++        field().parse().expect("byte offset"),
+         field().parse().expect("x"),
+         field().parse().expect("y"),
+     )
+@@ -741,14 +743,15 @@ second source line
+         // One typeset line from two source lines gives one record per source line.
+         let (first, second) = (on_line(FIRST), on_line(SECOND));
+         assert_eq!((first.len(), second.len()), (1, 1), "{hboxes:?}");
+-        assert_eq!(first[0].2, second[0].2, "both on the same typeset line");
+-        assert!(first[0].1 < second[0].1, "second source line further right");
++        assert_eq!(first[0].3, second[0].3, "both on the same typeset line");
++        assert!(first[0].2 < second[0].2, "second source line further right");
++        assert!(first[0].1 < second[0].1, "second source line further into the file");
+ 
+         // The scaled text sits at the place offset, not at the origin of its group.
+         let scaled = on_line(SCALED);
+         assert_eq!(scaled.len(), 1, "{hboxes:?}");
+-        assert_eq!(scaled[0].1, sp(100.0));
+-        assert!(scaled[0].2 > sp(200.0), "baseline below the place offset");
++        assert_eq!(scaled[0].2, sp(100.0));
++        assert!(scaled[0].3 > sp(200.0), "baseline below the place offset");
+ 
+         Ok(())
+     })
+-- 
+2.53.0
+

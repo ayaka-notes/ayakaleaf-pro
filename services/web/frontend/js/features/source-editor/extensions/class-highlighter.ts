@@ -4,6 +4,12 @@
  */
 import { tagHighlighter, tags } from '@lezer/highlight'
 
+// Diagnostic: log Overleaf's tags identity for comparison with typst package
+if (typeof window !== 'undefined') {
+  // eslint-disable-next-line no-console
+  console.log('[OLTAGS] Overleaf tags.comment id:', tags.comment.id, 'name:', tags.comment.name)
+}
+
 export const classHighlighter = tagHighlighter([
   { tag: tags.link, class: 'tok-link' },
   { tag: tags.heading, class: 'tok-heading' },

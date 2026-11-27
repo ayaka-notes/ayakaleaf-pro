@@ -679,6 +679,8 @@ const _CompileController = {
     }
 
     const userId = CompileController._getUserIdForCompile(req)
+    const { compiler } =
+      await CompileManager.promises.getProjectCompileLimits(projectId)
     await _downloadFromClsiNginx(
       projectId,
       userId,
@@ -688,7 +690,8 @@ const _CompileController = {
       clsiServerId,
       'output-file',
       req,
-      res
+      res,
+      compiler
     )
   },
 
@@ -742,6 +745,8 @@ const _CompileController = {
       res.sendStatus(500)
       return
     }
+    const { compiler } =
+      await CompileManager.promises.getProjectCompileLimits(projectId)
     await _downloadFromClsiNginx(
       projectId,
       null,
@@ -751,7 +756,8 @@ const _CompileController = {
       clsiServerId,
       'output-file',
       req,
-      res
+      res,
+      compiler
     )
   },
 
@@ -792,6 +798,8 @@ const _CompileController = {
       fallbackSchema: getFileFromClsiFallbackSchema,
     })
 
+    const { compiler } =
+      await CompileManager.promises.getProjectCompileLimits(projectId)
     await _downloadFromClsiNginx(
       projectId,
       userId,
@@ -801,7 +809,8 @@ const _CompileController = {
       clsiServerId,
       'output-file',
       req,
-      res
+      res,
+      compiler
     )
   },
 
@@ -812,6 +821,8 @@ const _CompileController = {
     } = parseReq(req, getFileForSubmissionFromClsiSchema, {
       fallbackSchema: getFileForSubmissionFromClsiFallbackSchema,
     })
+    // Submissions have no project document to look up a compiler from;
+    // they are compiled and served by the default CLSI.
     await _downloadFromClsiNginx(
       submissionId,
       null,
@@ -821,7 +832,8 @@ const _CompileController = {
       clsiServerId,
       'output-file',
       req,
-      res
+      res,
+      undefined
     )
   },
 
@@ -928,7 +940,7 @@ async function _downloadFromClsi(
   req,
   res
 ) {
-  const { compileBackendClass } =
+  const { compileBackendClass, compiler } =
     await CompileManager.promises.getProjectCompileLimits(
       projectIdOrSubmissionId
     )
@@ -937,7 +949,8 @@ async function _downloadFromClsi(
     userId,
     buildId,
     compileBackendClass,
-    clsiServerId
+    clsiServerId,
+    compiler
   )
   return await _proxyToClsi(
     url,
@@ -961,14 +974,16 @@ async function _downloadFromClsiNginx(
   clsiServerId,
   action,
   req,
-  res
+  res,
+  compiler
 ) {
   const url = getOutputFileURL(
     projectIdOrSubmissionId,
     userId,
     buildId,
     file,
-    clsiServerId
+    clsiServerId,
+    compiler
   )
   return await _proxyToClsi(
     url,

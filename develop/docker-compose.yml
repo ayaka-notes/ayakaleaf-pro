@@ -49,6 +49,25 @@ services:
       - ${PWD}/output:/output:ro
       - ../services/clsi/nginx.conf:/etc/nginx/conf.d/nginx.conf:ro
 
+  # Typst compile service (services/clsi-typst) — sibling of clsi. Selected
+  # per-project by the project's `compiler` field ("typst"). Writes to the
+  # SAME shared /output volume as clsi, served by the SAME clsi-nginx (project
+  # ids are unique, so a project is either TeX or Typst, never both).
+  clsi-typst:
+    build:
+      context: ..
+      dockerfile: services/clsi-typst/Dockerfile
+    env_file:
+      - dev.env
+    environment:
+      - SANDBOXED_COMPILES=true
+      - DOWNLOAD_HOST=http://clsi-nginx:8080
+    user: root
+    volumes:
+      - ${PWD}/compiles:/overleaf/services/clsi-typst/compiles
+      - ${PWD}/output:/overleaf/services/clsi-typst/output
+      - ${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock
+
   docstore:
     build:
       context: ..
@@ -211,6 +230,8 @@ services:
       - OVERLEAF_ALLOW_PUBLIC_ACCESS=true
       - OVERLEAF_CONFIG=/overleaf/services/web/settings.dev-env.cjs
       - TPDS_HOST=third-party-datastore
+      - CLSI_TYPST_HOST=clsi-typst
+      - COMPILE_TYPEST_ENABLED=true
     command: ["node", "app.mjs"]
     volumes:
       - sharelatex-data:/var/lib/overleaf
@@ -225,6 +246,8 @@ services:
       chat:
         condition: service_started
       clsi:
+        condition: service_started
+      clsi-typst:
         condition: service_started
       docstore:
         condition: service_started

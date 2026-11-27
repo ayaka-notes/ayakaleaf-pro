@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.backend.json",
+  "include": [
+    "app.js",
+    "app.ts",
+    "app/js/**/*",
+    "benchmarks/**/*",
+    "config/**/*",
+    "scripts/**/*",
+    "test/**/*",
+    "types",
+    "vitest.config.unit.cjs"
+  ]
+}

@@ -1,0 +1,38 @@
+.references-search-modal {
+  .selected-key-tag {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-02);
+    align-items: center;
+    min-height: 30px;
+    max-height: 58px;
+    overflow-y: auto;
+    font-size: var(--font-size-02);
+    margin-top: -10px;
+    margin-bottom: 8px;
+    box-shadow: 0 1px 0 var(--ds-color-neutral-100);
+    padding-bottom: 6px;
+
+    .badge-tag {
+      background-color:var(--ds-color-green-50) !important;
+    }
+  }
+
+  .search-results {
+    .search-results-scroll-container {
+      max-height: calc(100vh - 330px);
+      overflow-y: auto;
+    }
+    .search-result-hit {
+      &:focus {
+        background: var(--ds-color-yellow-50);
+        outline: none;
+      }
+    }
+    .found-token {
+      color: var(--ds-color-red-600);
+      font-weight: bold;
+    }
+  }
+}

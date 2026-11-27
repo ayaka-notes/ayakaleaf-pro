@@ -742,7 +742,7 @@ async function _getProjects(
   const results = await Promise.all([
     ProjectGetter.promises.findAllUsersProjects(
       userId,
-      'name lastUpdated lastUpdatedBy publicAccesLevel archived trashed owner_ref tokens'
+      'name lastUpdated lastUpdatedBy publicAccesLevel archived trashed owner_ref tokens compiler'
     ),
     TagsHandler.promises.getAllTags(userId),
   ])
@@ -886,6 +886,7 @@ function _formatProjectInfo(project, accessLevel, source, userId) {
     source,
     archived,
     trashed,
+    compiler: project.compiler || 'latex',
   }
 }
 
@@ -939,6 +940,7 @@ async function _injectProjectUsers(projects) {
         ? undefined
         : users[project.owner_ref.toString()],
     owner_ref: undefined,
+    compiler: project.compiler || 'latex',
   }))
 }
 

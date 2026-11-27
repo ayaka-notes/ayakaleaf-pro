@@ -1,0 +1,253 @@
+services:
+  overleaf:
+# image: docker.io/sharelatex/sharelatex:${OVERLEAF_VERSION}
+    # image: docker.io/sharelatex/sharelatex:drawio
+    image: docker.io/sharelatex/sharelatex:typst-support
+    # image: docker.io/sharelatex/sharelatex:nav-ds-name
+    # image: docker.io/sharelatex/sharelatex:notifcations
+    # image: docker.io/sharelatex/sharelatex:admin-active-project
+    # image: docker.io/sharelatex/sharelatex:llm-byo
+    container_name: overleaf
+    hostname: overleaf
+    restart: always
+    extra_hosts:
+      # Reach the apprise container (published on the Docker host)
+      # without a shared network. See tools/containers/apprise.
+      - "host.docker.internal:host-gateway"
+    volumes:
+    - ./data:/var/lib/overleaf
+    - ./log:/var/log/overleaf
+    - /var/run/docker.sock:/var/run/docker.sock
+
+    environment:
+      NAV_DS_NAME: "Ayakaleaf Pro"
+      NAV_DS_NAME_LINK: "https://github.com/ayaka-notes/ayakaleaf-pro"
+
+      GIT_BRIDGE_ENABLED: true
+      GIT_BRIDGE_HOST: git-bridge
+      GIT_BRIDGE_PORT: 8000
+
+      # LLM BYO (llm-byo build): enable the LLM module + per-user BYO provider rows
+      LLM_ENABLED: "true"
+      LLM_ALLOW_USER_SETTINGS: "true"
+
+      WEBDAV_ENABLED: true
+      WEBDAV_TOKEN_CIPHER_PASSWORD: lPiPt24iMM1xf+Vx6a+6uTLnaTIdV9PLZTScM4nfZXQ=
+
+
+      ## LanguageTool grammar check (services/web/modules/languagetool)
+      ## Requires the `languagetool` container reachable on the attached
+      ## `languagetools` network (see tools/languagetools_server_compose).
+      ## Picky level is the default on the client side.
+      LANGUAGE_TOOL_ENABLED: true
+      LANGUAGE_TOOL_HOST: grammar-llm
+      LANGUAGE_TOOL_PORT: "8010"
+
+      ## WakaTime/Wakapi activity tracking (PR 249 + bundled Wakapi server)
+      ## — see tools/wakapi_server_compose in the overleaf-cep repo).
+      ## Shared identity (trusted header, muety/wakapi#808): NO per-user
+      ## registration, NO API keys — logged-in users appear in Wakapi
+      ## automatically. The 'wakapi' DNS alias + this env must both be in
+      ## place; re-run tools/wakapi_server_compose/1_attach_overleaf_network.sh
+      ## after every overleaf container recreation.
+      WAKATIME_SHARED_IDENTITY: true
+      WAKATIME_SHARED_IDENTITY_API_URL: http://wakapi:3000/api/compat/wakatime/v1
+      WAKATIME_SHARED_IDENTITY_HEADER: Remote-User
+
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      OVERLEAF_REDIS_HOST: redis
+
+      # Notification dispatch goes through the Apprise API container
+      # (mailto by default; per-user Apprise URLs override the channel).
+      # Apprise is self-contained (tools/containers/apprise) and publishes
+      # 8001 on the Docker host; Overleaf reaches it via host-gateway.
+      # Without it, Overleaf falls back to direct SMTP + local Web Push.
+      NOTIFICATIONS_APPRISDE_API_URL: http://host.docker.internal:8001
+      # Minimum debounce before a project-change notification is scheduled
+      PROJECT_CHANGE_NOTIFICATION_MIN_DELAY_MS: 120000
+
+      V1_HISTORY_URL: http://overleaf:3100/api
+
+      OVERLEAF_MONGO_URL: mongodb://mongo/sharelatex
+
+      OVERLEAF_APP_NAME: ${OVERLEAF_APP_NAME}
+
+      ENABLED_LINKED_FILE_TYPES: project_file,project_output_file,url,zotero,mendeley
+      ENABLE_CONVERSIONS: true
+      EMAIL_CONFIRMATION_DISABLED: true
+      OVERLEAF_BEHIND_PROXY: true
+      OVERLEAF_SECURE_COOKIE: true
+      OVERLEAF_SITE_URL: ${OVERLEAF_SITE_URL}
+      OVERLEAF_NAV_TITLE: ${OVERLEAF_NAV_TITLE}
+      NAV_HIDE_POWERED_BY: true
+      OVERLEAF_ADMIN_EMAIL: ${OVERLEAF_ADMIN_EMAIL}
+      OVERLEAF_LOGIN_SUPPORT_TEXT: ${OVERLEAF_LOGIN_SUPPORT_TEXT}
+      SHOW_UNSUPPORT_WARNING: false
+      # ENABLE_LOCAL_LOGIN_MASK: false
+
+      ########################
+      ## eMail              ##
+      ########################
+
+      OVERLEAF_EMAIL_FROM_ADDRESS: ${OVERLEAF_EMAIL_FROM_ADDRESS}
+      OVERLEAF_EMAIL_SMTP_HOST: ${OVERLEAF_EMAIL_SMTP_HOST}
+      OVERLEAF_EMAIL_SMTP_PORT: ${OVERLEAF_EMAIL_SMTP_PORT}
+      OVERLEAF_EMAIL_SMTP_SECURE: "false"
+      OVERLEAF_EMAIL_SMTP_USER: ${OVERLEAF_EMAIL_SMTP_USER}
+      OVERLEAF_EMAIL_SMTP_PASS: ${OVERLEAF_EMAIL_PASSWORD}
+      OVERLEAF_EMAIL_SMTP_IGNORE_TLS: "false"
+      OVERLEAF_EMAIL_SMTP_LOGGER: true
+      OVERLEAF_CUSTOM_EMAIL_FOOTER: ${OVERLEAF_CUSTOM_EMAIL_FOOTER}
+
+      #########################################
+      ## Overleaf Filestore S3 Configuration ##
+      #########################################
+
+      OVERLEAF_FILESTORE_BACKEND: s3
+      OVERLEAF_FILESTORE_USER_FILES_BUCKET_NAME: overleaf-user-files
+      OVERLEAF_FILESTORE_TEMPLATE_FILES_BUCKET_NAME: overleaf-template-files
+      
+      OVERLEAF_FILESTORE_S3_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      OVERLEAF_FILESTORE_S3_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      OVERLEAF_FILESTORE_S3_ENDPOINT: http://s3:8333
+      OVERLEAF_FILESTORE_S3_PATH_STYLE: "true"
+      OVERLEAF_FILESTORE_S3_REGION: "us-east-1"
+
+      #########################################
+      ## Overleaf History S3 Configuration   ##
+      #########################################
+
+      OVERLEAF_HISTORY_BACKEND: s3
+      OVERLEAF_HISTORY_PROJECT_BLOBS_BUCKET: overleaf-project-blobs
+      OVERLEAF_HISTORY_CHUNKS_BUCKET: overleaf-chunks
+
+      OVERLEAF_HISTORY_S3_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      OVERLEAF_HISTORY_S3_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      OVERLEAF_HISTORY_S3_ENDPOINT: http://s3:8333
+      OVERLEAF_HISTORY_S3_PATH_STYLE: "true"
+      OVERLEAF_HISTORY_S3_REGION: "us-east-1"
+
+      ########################
+      ## OIDC               ##
+      ########################
+
+      EXTERNAL_AUTH: oidc
+      # Multi-provider SSO: read the provider set (legacy env + file) from the
+      # persistent data volume. See services/web/modules/authentication/providers.
+      OVERLEAF_SSO_PROVIDERS_FILE: /var/lib/overleaf/data/ssos.providers.json
+      OVERLEAF_OIDC_PROVIDER_ID: oidc
+      OVERLEAF_OIDC_ISSUER: ${OVERLEAF_OIDC_ISSUER}
+      OVERLEAF_OIDC_AUTHORIZATION_URL: ${OVERLEAF_OIDC_ISSUER}/protocol/openid-connect/auth
+      OVERLEAF_OIDC_TOKEN_URL: ${OVERLEAF_OIDC_ISSUER}/protocol/openid-connect/token
+      OVERLEAF_OIDC_USER_INFO_URL: ${OVERLEAF_OIDC_ISSUER}/protocol/openid-connect/userinfo
+      OVERLEAF_OIDC_LOGOUT_URL: ${OVERLEAF_OIDC_ISSUER}/protocol/openid-connect/logout
+      OVERLEAF_OIDC_IDENTITY_SERVICE_NAME: ${OVERLEAF_OIDC_IDENTITY_SERVICE_NAME}
+      OVERLEAF_OIDC_CLIENT_ID: ${OVERLEAF_OIDC_CLIENT_ID}
+      OVERLEAF_OIDC_CLIENT_SECRET: ${OVERLEAF_OIDC_CLIENT_SECRET}
+      OVERLEAF_OIDC_UPDATE_USER_DETAILS_ON_LOGIN: true
+      OVERLEAF_OIDC_IS_ADMIN_FIELD: email
+      OVERLEAF_OIDC_IS_ADMIN_FIELD_VALUE: ${OVERLEAF_OIDC_IS_ADMIN_FIELD_VALUE}
+
+      OVERLEAF_LEFT_FOOTER: "[]"
+      OVERLEAF_RIGHT_FOOTER: '[{"text":"Powered by Overleaf CEP", "url":"https://github.com/yu-i-i/overleaf-cep"}]'
+
+      ########################
+      ## Sandboxed Compiles ##
+      ########################
+
+      SERVER_PRO: true
+      DOCKER_RUNNER: true
+
+      SIBLING_CONTAINERS_ENABLED: true
+      DOCKER_SOCKET_PATH: /var/run/docker.sock
+
+      SANDBOXED_COMPILES: true
+      SANDBOXED_COMPILES_SIBLING_CONTAINERS: true
+
+      # WARNING: CHANGE DIR!!!!
+      SANDBOXED_COMPILES_HOST_DIR: ${COMPILES_HOST_DIR}
+      COMPILES_HOST_DIR: ${COMPILES_HOST_DIR}
+      # png2pdf: CLSI's per-project cache dir must be host-visible so the
+      # png2pdf sibling container can bind-mount it (CLSI_CACHE_PATH inside
+      # the container == SANDBOXED_COMPILES_HOST_DIR_CACHE on the host,
+      # via the ./data -> /var/lib/overleaf mount)
+      CLSI_CACHE_PATH: /var/lib/overleaf/data/cache
+      SANDBOXED_COMPILES_HOST_DIR_CACHE: ${COMPILES_HOST_DIR_CACHE}
+      PNG2PDF_MIN_FILE_SIZE_BYTES: 50000
+
+      # filestore PDF→image conversion backend (template gallery preview/thumb).
+      # Choices:
+      #   imagemagick         local `convert`   (image must ship ImageMagick)
+      #   pdftocairo          local `pdftocairo` (image must ship poppler)
+      #   pdftocairo-sandbox  sibling container (no network, CapDrop ALL, mem cap) —
+      #                       works on images WITHOUT any converter binaries
+      CONVERTER: pdftocairo-sandbox
+      CONVERSION_SANDBOX_IMAGE: sharelatex/pdftocairo:24.02
+      # Scratch dir bound into the sandbox container — the same directory seen from
+      # two sides (the overleaf container mounts ./data):
+      CONVERSION_SANDBOX_DIR: /var/lib/overleaf/tmp/conversions
+      CONVERSION_SANDBOX_HOST_DIR: ${CONVERSION_SANDBOX_HOST_DIR}
+
+      ALL_TEX_LIVE_DOCKER_IMAGES: ${TEX_LIVE_REPO}/texlive-full:2026.1, ${TEX_LIVE_REPO}/texlive-full:2025.1, ${TEX_LIVE_REPO}/texlive-full:2024.1, ${TEX_LIVE_REPO}/texlive-full:2023.1
+      ALL_TEX_LIVE_DOCKER_IMAGE_NAMES: TeXLive 2026, TeXLive 2025, TeXLive 2024, TeXLive 2023
+      TEX_LIVE_DOCKER_IMAGE: ${TEX_LIVE_REPO}/texlive-full:2026.1
+      TEX_COMPILER_EXTRA_FLAGS: -shell-escape
+      TEXLIVE_IMAGE_USER: www-data
+      COMPILE_TIMEOUT: 599
+
+      #################
+      #   TEMPLATES   #
+      #################
+      OVERLEAF_TEMPLATE_GALLERY: true
+      OVERLEAF_NON_ADMIN_CAN_PUBLISH_TEMPLATES: false
+      OVERLEAF_TEMPLATE_CATEGORIES: presentation thesis
+
+      TEMPLATE_PRESENTATION_NAME: Presentations
+      TEMPLATE_PRESENTATION_DESCRIPTION: Templates for Beamer and other presentation formats, tailored for academic talks and lectures.
+
+      TEMPLATE_THESIS_NAME: Theses
+      TEMPLATE_THESIS_DESCRIPTION: Templates for writing theses and dissertations, following institutional formatting and citation guidelines.
+
+      TEMPLATE_ALL_NAME: All templates
+      TEMPLATE_ALL_DESCRIPTION: Browse a collection of all available LaTeX templates, categorized by document type, style, and purpose.
+
+      ####################
+      # Special settings #
+      ####################
+      COMPILE_BODY_SIZE_LIMIT_MB: 50
+      COMPILE_SIZE_LIMIT: 50mb
+
+      ENABLE_PANDOC_CONVERSIONS: true
+      PANDOC_IMAGE: sharelatex/sharelatex-pandoc:${OVERLEAF_VERSION}
+
+      ENABLE_PNG2PDF_CONVERSIONS: true
+      PNG2PDF_IMAGE: sharelatex/png2pdf:2026-06-24
+
+      ZOTERO_CLIENT_KEY: ${ZOTERO_CLIENT_KEY}
+      ZOTERO_CLIENT_SECRET: ${ZOTERO_CLIENT_SECRET}
+      MENDELEY_CLIENT_ID: ${MENDELEY_CLIENT_ID}
+      MENDELEY_CLIENT_SECRET: ${MENDELEY_CLIENT_SECRET}
+      MENDELEY_CALLBACK_URL: ${MENDELEY_CALLBACK_URL}
+
+      GITHUB_SYNC_ENABLED: true
+      GITHUB_SYNC_CLIENT_ID: ${GITHUB_SYNC_CLIENT_ID}
+      GITHUB_SYNC_CLIENT_SECRET: ${GITHUB_SYNC_CLIENT_SECRET}
+      GITHUB_TOKEN_CIPHER_PASSWORD: ${GITHUB_TOKEN_CIPHER_PASSWORD}
+
+      OVERLEAF_INVITE_TOKEN_SECRET: ${OVERLEAF_INVITE_TOKEN_SECRET}
+
+    networks:
+      - overleaf-network
+
+    healthcheck:
+      test: bash -c "curl  -fsI --connect-timeout 10 http://localhost || exit 1"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 600s
+
+networks:
+  overleaf-network:
+    external: true
+

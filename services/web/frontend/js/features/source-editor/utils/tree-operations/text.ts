@@ -60,7 +60,7 @@ export const getNormalTextSpansFromLine = (
       ) {
         return false
       }
-      if (node.type.name === 'Normal') {
+      if (node.type.name === 'Normal' || node.type.name === 'Text') {
         normalTextSpans.push(
           new NormalTextSpan({
             from: node.from,
