@@ -1105,10 +1105,11 @@ const _ProjectController = {
         canUseClsiCache:
           Features.hasFeature('saas') &&
           ownerFeatures?.compileGroup === 'priority',
-        canUsePng2Pdf:
-          Features.hasFeature('saas') &&
-          ownerFeatures?.compileGroup === 'priority' &&
-          splitTestAssignments['png2pdf']?.variant === 'enabled',
+        // CE: saas/priority gate removed, but keep the toggle in sync with the
+        // compile-time png2pdf split-test flag (settings.defaults.js), which is
+        // only enabled when ENABLE_PNG2PDF_CONVERSIONS is set — otherwise the
+        // toggle would be shown but silently do nothing.
+        canUsePng2Pdf: process.env.ENABLE_PNG2PDF_CONVERSIONS === 'true',
         user: {
           id: userId,
           email: user.email,
