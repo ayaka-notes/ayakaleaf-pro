@@ -1,3 +1,9 @@
+import {
+  expectRoutesAnswer,
+  setUserFeatures,
+  storedFeatures,
+  visitWithFeatures,
+} from '../../../helpers/adminTools'
 import { login } from '../../../helpers/login'
 import { expectOwnAuditEntry, expectProjectAuditEntry } from '../../../helpers/auditLog'
 import {
@@ -1352,6 +1358,78 @@ describe('collaborators', function () {
       })
         .its('status')
         .should('equal', 403)
+    })
+  })
+})
+
+describe('a user GitLab is turned off for', function () {
+  const member = `gitlab-off-${Date.now()}@example.com`
+
+  before(function () {
+    cy.clearAllCookies()
+    ensureUserExists(member)
+  })
+
+  it('hides it and refuses its routes until it is on again', function () {
+    // Nobody turned it off yet: nothing is stored, and the user has it
+    storedFeatures(member).should('not.have.property', 'gitlab')
+    login(member)
+    linkGitLabAccount()
+    createProject(projectName('GitLab off')).then(projectId => {
+      login(ADMIN_EMAIL)
+      setUserFeatures(member, { gitlab: false })
+      storedFeatures(member).its('gitlab').should('equal', false)
+
+      login(member)
+      visitWithFeatures('/user/settings')
+      cy.findByRole('heading', { name: 'Change password' }).should('exist')
+      gitlabWidget().should('not.exist')
+
+      cy.visit('/project')
+      cy.intercept('GET', '/system/features').as('features')
+      cy.findAllByRole('button', { name: 'New project' }).first().click()
+      cy.wait('@features')
+      cy.findByRole('menuitem', { name: 'Blank project' }).should('exist')
+      cy.findByRole('menuitem', { name: 'Import from GitLab' }).should(
+        'not.exist'
+      )
+
+      cy.intercept('GET', '/system/features').as('features')
+      openProject(projectId)
+      cy.wait('@features')
+      openRailTab('Integrations')
+      cy.findByText('Git clone this project.').should('exist')
+      cy.findByRole('button', { name: /GitLab/ }).should('not.exist')
+
+      cy.visit('/project')
+      expectRoutesAnswer(403, [
+        ['GET', '/user/gitlab-sync/oauth2'],
+        ['GET', '/user/gitlab-sync/oauth2/callback?code=code&state=state'],
+        ['GET', '/user/gitlab-sync/status'],
+        ['GET', '/user/gitlab-sync/orgs'],
+        ['GET', '/user/gitlab-sync/repos'],
+        ['POST', '/project/new/gitlab-sync', { projectName: 'x', repo: 'x/x' }],
+        ['POST', `/project/${projectId}/gitlab-sync/export`, {}],
+        ['GET', `/project/${projectId}/gitlab-sync/state`],
+        ['GET', `/project/${projectId}/gitlab-sync/merge/overview`],
+        ['POST', `/project/${projectId}/gitlab-sync/merge`, {}],
+      ])
+      // Unlinking stays open
+      postWithCsrf('/user/gitlab-sync/unlink', {})
+        .its('status')
+        .should('be.lessThan', 300)
+      expectTokensRevoked()
+
+      // The admin, who has it on, keeps it
+      login(ADMIN_EMAIL)
+      connectionStatus().should('equal', false)
+      setUserFeatures(member, { gitlab: true })
+      storedFeatures(member).its('gitlab').should('equal', true)
+
+      login(member)
+      linkGitLabAccount()
+      connectionStatus().should('equal', true)
+      projectSyncState(projectId).should('exist')
     })
   })
 })

@@ -10,6 +10,7 @@ import {
   setAiFeatures,
   type ChatRequest,
 } from '../../../helpers/ai'
+import { expectOwnAuditEntry } from '../../../helpers/auditLog'
 import { prepareWaitForNextCompileSlot } from '../../../helpers/compile'
 import { login } from '../../../helpers/login'
 import { dataUrl, openInOverleaf } from '../../../helpers/openInOverleaf'
@@ -922,6 +923,10 @@ describe('the token quota', function () {
     chatRequests().should('have.length', 1)
 
     login(ADMIN_EMAIL)
+    // the blocked chat is on the user's audit log, as core's quota writes it
+    expectOwnAuditEntry(quotaUser, 'ai-quota-breach')
+      .its('info')
+      .should('deep.equal', { tool: 'workbench' })
     cy.then(() => {
       aiUsage(userId).should('deep.equal', { used: 110_000, limit: 100_000 })
       resetAiUsage(userId)

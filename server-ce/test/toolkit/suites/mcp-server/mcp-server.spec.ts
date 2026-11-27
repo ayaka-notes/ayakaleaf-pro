@@ -18,6 +18,8 @@ import {
   addComment,
   commentEntry,
   openReviewPanel,
+  reviewPanel,
+  waitForServer,
 } from '../../../helpers/review'
 import { shareProject, shareProjectByLink } from '../../../helpers/sharing'
 import { ADMIN_EMAIL, ensureUserExists } from '../../../helpers/users'
@@ -183,20 +185,36 @@ describe('MCP server of a project', function () {
       .its('body.result.tools')
       .then((tools: { name: string }[]) => tools.map(tool => tool.name).sort())
       .should('deep.equal', [
+        'accept_tracked_changes',
+        'add_comment',
         'compile',
+        'create_folder',
+        'create_version',
+        'delete_comment_message',
         'delete_file',
+        'delete_version',
+        'diff',
+        'edit_comment_message',
         'edit_file',
         'get_clone_info',
         'get_compile_log',
         'get_output_file_link',
         'get_settings',
+        'list_changes',
+        'list_chat_messages',
         'list_comments',
         'list_files',
+        'list_tracked_changes',
         'list_versions',
+        'move_file',
         'read_file',
+        'reject_tracked_changes',
         'reopen_comment',
         'reply_to_comment',
         'resolve_comment',
+        'restore_file',
+        'restore_project',
+        'send_chat_message',
         'update_settings',
         'word_count',
         'write_file',
@@ -387,6 +405,36 @@ describe('MCP server of a project', function () {
       expect(result.content[0].text).to.contain('not an available TeX Live image')
     })
   })
+
+  it('changes the spell check language', function () {
+    callTool(projectId, viewerToken, 'update_settings', {
+      spellCheckLanguage: 'de',
+    }).then(result => {
+      expect(result.isError).to.equal(true)
+      expect(result.content[0].text).to.contain('cannot change the settings')
+    })
+    callTool(projectId, ownerToken, 'update_settings', {
+      spellCheckLanguage: 'de',
+    }).then(result => expect(result.isError).not.to.equal(true))
+    callTool(projectId, viewerToken, 'get_settings')
+      .then(toolJson)
+      .its('spellCheckLanguage')
+      .should('equal', 'de')
+    callTool(projectId, ownerToken, 'update_settings', {
+      spellCheckLanguage: 'xx',
+    }).then(result => {
+      expect(result.isError).to.equal(true)
+      expect(result.content[0].text).to.contain('not a spell check language')
+    })
+    // an empty language turns spell check off, as in the editor
+    callTool(projectId, ownerToken, 'update_settings', {
+      spellCheckLanguage: '',
+    }).then(result => expect(result.isError).not.to.equal(true))
+    callTool(projectId, ownerToken, 'get_settings')
+      .then(toolJson)
+      .its('spellCheckLanguage')
+      .should('equal', '')
+  })
 })
 
 describe('Editing a project through MCP', function () {
@@ -489,6 +537,70 @@ describe('Editing a project through MCP', function () {
     readFile('twice.tex').should('equal', 'same\nsame')
   })
 
+  // The review panel reads the tracked changes and their authors from these
+  // routes of the track-changes module
+  it('makes an edit a tracked change of the user when asked', function () {
+    login(owner)
+    callTool(projectId, token, 'write_file', {
+      path: 'tracked.tex',
+      content: 'First line',
+    })
+    callTool(projectId, token, 'edit_file', {
+      path: 'tracked.tex',
+      oldString: 'First line',
+      newString: 'First line\nNot tracked',
+    })
+    cy.request(`/project/${projectId}/ranges`)
+      .then(response => JSON.stringify(response.body))
+      .should('not.contain', 'Not tracked')
+
+    callTool(projectId, token, 'edit_file', {
+      path: 'tracked.tex',
+      oldString: 'Not tracked',
+      newString: 'Not tracked\nTracked edit',
+      trackChanges: true,
+    }).then(result => expect(result.isError).not.to.equal(true))
+    callTool(projectId, token, 'write_file', {
+      path: 'tracked.tex',
+      content: 'First line\nNot tracked\nTracked edit\nTracked write',
+      trackChanges: true,
+    }).then(result => expect(result.isError).not.to.equal(true))
+    readFile('tracked.tex').should(
+      'equal',
+      'First line\nNot tracked\nTracked edit\nTracked write'
+    )
+    waitForServer(`/project/${projectId}/ranges`, 'Tracked edit')
+    waitForServer(`/project/${projectId}/ranges`, 'Tracked write')
+    cy.request(`/project/${projectId}/changes/users`)
+      .its('body')
+      .then((users: { email: string }[]) => users.map(user => user.email))
+      .should('deep.equal', [owner])
+  })
+
+  it('refuses a tracked change when track changes is off for the owner', function () {
+    const member = `track-changes-off-${uuid()}@example.com`
+    ensureUserExists(member)
+    login(member)
+    createProject(projectName('Mcp tracked off')).then(id => {
+      createGitToken().then(memberToken => {
+        login(ADMIN_EMAIL)
+        setUserFeatures(member, { trackChanges: false })
+        callTool(id, memberToken, 'edit_file', {
+          path: 'main.tex',
+          oldString: '\\section{Introduction}',
+          newString: '\\section{Introduction}\nTracked edit',
+          trackChanges: true,
+        }).then(result => {
+          expect(result.isError).to.equal(true)
+          expect(result.content[0].text).to.contain('Track changes is off')
+        })
+        callTool(id, memberToken, 'read_file', { path: 'main.tex' })
+          .its('content.0.text')
+          .should('not.contain', 'Tracked edit')
+      })
+    })
+  })
+
   it('keeps binary files binary', function () {
     login(owner)
     createProject(projectName('Mcp binary'), 'example').then(exampleId => {
@@ -550,6 +662,135 @@ describe('Editing a project through MCP', function () {
       .its('mainDocument')
       .should('equal', 'other.tex')
   })
+
+  function filePaths() {
+    return callTool(projectId, token, 'list_files')
+      .then(toolJson)
+      .then((files: { path: string }[]) => files.map(file => file.path))
+  }
+
+  it('moves, renames and creates folders', function () {
+    callTool(projectId, token, 'write_file', {
+      path: 'draft.tex',
+      content: 'Moved through MCP',
+    })
+    callTool(projectId, token, 'move_file', {
+      path: 'draft.tex',
+      newPath: 'chapters/one.tex',
+    }).then(result => {
+      expect(result.isError, result.content[0].text).not.to.equal(true)
+      expect(result.content[0].text).to.contain(`git pull in ./${projectId}/`)
+    })
+    filePaths().should(paths => {
+      expect(paths).to.include('chapters/one.tex')
+      expect(paths).not.to.include('draft.tex')
+    })
+    readFile('chapters/one.tex').should('equal', 'Moved through MCP')
+
+    // a rename in place, then a folder with what is in it
+    callTool(projectId, token, 'move_file', {
+      path: 'chapters/one.tex',
+      newPath: 'chapters/first.tex',
+    })
+    callTool(projectId, token, 'move_file', {
+      path: 'chapters',
+      newPath: 'parts/chapters',
+    })
+    readFile('parts/chapters/first.tex').should('equal', 'Moved through MCP')
+    filePaths().should('not.include', 'chapters/first.tex')
+
+    callTool(projectId, token, 'create_folder', { path: 'figures/plots' }).then(
+      result => expect(result.isError, result.content[0].text).not.to.equal(true)
+    )
+    callTool(projectId, token, 'create_folder', { path: 'figures/plots' }).then(
+      result => {
+        expect(result.isError).to.equal(true)
+        expect(result.content[0].text).to.contain('already exists')
+      }
+    )
+    callTool(projectId, token, 'move_file', {
+      path: 'parts/chapters/first.tex',
+      newPath: 'figures/plots/first.tex',
+    })
+    readFile('figures/plots/first.tex').should('equal', 'Moved through MCP')
+  })
+
+  it('refuses a move from a missing path or onto an existing one', function () {
+    callTool(projectId, token, 'write_file', { path: 'keep.tex', content: 'Kept' })
+    callTool(projectId, token, 'move_file', {
+      path: 'missing.tex',
+      newPath: 'any.tex',
+    }).then(result => {
+      expect(result.isError).to.equal(true)
+      expect(result.content[0].text).to.contain('missing.tex not found')
+    })
+    callTool(projectId, token, 'move_file', {
+      path: 'keep.tex',
+      newPath: 'main.tex',
+    }).then(result => {
+      expect(result.isError).to.equal(true)
+      expect(result.content[0].text).to.contain('main.tex already exists')
+    })
+    readFile('keep.tex').should('equal', 'Kept')
+    readFile('main.tex').should('not.equal', 'Kept')
+  })
+
+  it('moves and renames past files with the old or the new name', function () {
+    for (const [path, content] of [
+      ['clash/a.tex', 'A'],
+      ['clash/b.tex', 'B'],
+      ['reverse/a.tex', 'Reverse A'],
+      ['reverse-target/a.tex', 'Target A'],
+      ['both/a.tex', 'Both A'],
+      ['both/b.tex', 'Both B'],
+      ['both-target/a.tex', 'Both target A'],
+    ]) {
+      callTool(projectId, token, 'write_file', { path, content })
+    }
+    // the old folder has the new name: moved first, then renamed
+    callTool(projectId, token, 'move_file', {
+      path: 'clash/a.tex',
+      newPath: 'clash-target/b.tex',
+    }).then(result => expect(result.isError, result.content[0].text).not.to.equal(true))
+    readFile('clash-target/b.tex').should('equal', 'A')
+    readFile('clash/b.tex').should('equal', 'B')
+    // the new folder has the old name: renamed first, then moved
+    callTool(projectId, token, 'move_file', {
+      path: 'reverse/a.tex',
+      newPath: 'reverse-target/c.tex',
+    }).then(result => expect(result.isError, result.content[0].text).not.to.equal(true))
+    readFile('reverse-target/c.tex').should('equal', 'Reverse A')
+    readFile('reverse-target/a.tex').should('equal', 'Target A')
+    // both: nothing changes
+    callTool(projectId, token, 'move_file', {
+      path: 'both/a.tex',
+      newPath: 'both-target/b.tex',
+    }).then(result => {
+      expect(result.isError).to.equal(true)
+      expect(result.content[0].text).to.contain('two steps')
+    })
+    readFile('both/a.tex').should('equal', 'Both A')
+  })
+
+  it('shows a move live in the open file tree', function () {
+    callTool(projectId, token, 'write_file', {
+      path: 'live-move.tex',
+      content: 'Moved while open',
+    })
+    // the main document is other.tex by now, which openProject does not wait for
+    login(owner)
+    cy.visit(`/project/${projectId}`)
+    cy.findByRole('tab', { name: 'File tree' }).then(tab => {
+      if (tab.attr('aria-selected') !== 'true') cy.wrap(tab).click()
+    })
+    cy.findByRole('treeitem', { name: 'live-move.tex' }).should('exist')
+    callTool(projectId, token, 'move_file', {
+      path: 'live-move.tex',
+      newPath: 'live-moved.tex',
+    })
+    cy.findByRole('treeitem', { name: 'live-moved.tex' }).should('exist')
+    cy.findByRole('treeitem', { name: 'live-move.tex' }).should('not.exist')
+  })
 })
 
 type Comment = {
@@ -558,7 +799,7 @@ type Comment = {
   text: string
   resolved: boolean
   resolvedBy?: string | null
-  messages: { author: string | null; content: string }[]
+  messages: { id: string; author: string | null; content: string }[]
 }
 
 describe('Comments through MCP', function () {
@@ -679,6 +920,703 @@ describe('Comments through MCP', function () {
       expect(result.isError).to.equal(true)
       expect(result.content[0].text).to.contain('list_comments again')
     })
+  })
+
+  // The range of a comment in its doc, as the review panel reads it, with the
+  // owner's session
+  function commentRange(threadId: string) {
+    return cy.request(`/project/${projectId}/ranges`).then(response => {
+      for (const doc of response.body as {
+        ranges: { comments?: { op: { c: string; p: number; t: string } }[] }
+      }[]) {
+        const comment = doc.ranges.comments?.find(c => c.op.t === threadId)
+        if (comment) return comment.op
+      }
+      return null
+    })
+  }
+
+  function addCommentThrough(token: string, args: Record<string, string>) {
+    return callTool(projectId, token, 'add_comment', args).then(result => {
+      expect(result.isError, result.content[0].text).not.to.equal(true)
+      return JSON.parse(result.content[0].text).threadId as string
+    })
+  }
+
+  it('adds a comment live in the open editor, which stays connected', function () {
+    login(owner)
+    openProject(projectId)
+    openReviewPanel()
+    // reviewers comment, as in the review panel
+    addCommentThrough(reviewerToken, {
+      path: 'main.tex',
+      text: '\\maketitle',
+      content: 'Comment through MCP',
+    }).then(threadId => {
+      commentEntry('Comment through MCP').should('be.visible')
+      commentRange(threadId).should('deep.include', { c: '\\maketitle' })
+      listComments(ownerToken).then(comments => {
+        const comment = comments.find(c => c.threadId === threadId)!
+        expect(comment.file).to.equal('main.tex')
+        expect(comment.text).to.equal('\\maketitle')
+        expect(comment.messages[0].author).to.contain(reviewer)
+      })
+    })
+    // the comment is an op of the doc: the editor applied it and its own
+    // edits still reach the server, which it sends a moment after typing
+    cy.get('.cm-content').type('{ctrl+end}\nTyped after the comment')
+    waitForMainTex(projectId, ownerToken, 'Typed after the comment')
+  })
+
+  it('comments the occurrence that context points at', function () {
+    login(owner)
+    callTool(projectId, ownerToken, 'write_file', {
+      path: 'twice.tex',
+      content: 'one word\ntwo word\n',
+    })
+    callTool(projectId, ownerToken, 'add_comment', {
+      path: 'twice.tex',
+      text: 'word',
+      content: 'Which one?',
+    }).then(result => {
+      expect(result.isError).to.equal(true)
+      expect(result.content[0].text).to.contain('appears 2 times')
+    })
+    addCommentThrough(ownerToken, {
+      path: 'twice.tex',
+      text: 'word',
+      context: 'two word',
+      content: 'The second one',
+    }).then(threadId =>
+      // 'one word\n' is 9 characters, then 'two '
+      commentRange(threadId).should('deep.include', { c: 'word', p: 13 })
+    )
+    for (const [args, error] of [
+      [{ text: 'word', context: 'two' }, 'must appear exactly once in context'],
+      [{ text: 'word', context: 'three word' }, 'context not found'],
+      [{ text: 'missing' }, 'text not found'],
+    ] as const) {
+      callTool(projectId, ownerToken, 'add_comment', {
+        path: 'twice.tex',
+        content: 'Nowhere',
+        ...args,
+      }).then(result => {
+        expect(result.isError).to.equal(true)
+        expect(result.content[0].text).to.contain(error)
+      })
+    }
+  })
+
+  it('keeps a new comment on its text as the file changes', function () {
+    login(owner)
+    callTool(projectId, ownerToken, 'write_file', {
+      path: 'moving.tex',
+      content: 'Commented text',
+    })
+    addCommentThrough(ownerToken, {
+      path: 'moving.tex',
+      text: 'Commented text',
+      content: 'Follows its text',
+    }).then(threadId => {
+      commentRange(threadId).should('deep.include', { p: 0 })
+      callTool(projectId, ownerToken, 'edit_file', {
+        path: 'moving.tex',
+        oldString: 'Commented text',
+        newString: 'Inserted before. Commented text',
+      })
+      commentRange(threadId).should('deep.include', {
+        c: 'Commented text',
+        p: 'Inserted before. '.length,
+      })
+    })
+  })
+
+  it('keeps the new comments from viewers who joined by link', function () {
+    callTool(projectId, linkViewerToken, 'add_comment', {
+      path: 'main.tex',
+      text: '\\maketitle',
+      content: 'Not allowed',
+    }).then(result => {
+      expect(result.isError).to.equal(true)
+      expect(result.content[0].text).to.contain('cannot comment')
+    })
+  })
+
+  it('edits and deletes messages as the review panel', function () {
+    login(owner)
+    openProject(projectId)
+    openReviewPanel()
+    addCommentThrough(ownerToken, {
+      path: 'main.tex',
+      text: '\\begin{document}',
+      content: 'Owner thread',
+    }).then(threadId => {
+      callTool(projectId, reviewerToken, 'reply_to_comment', {
+        threadId,
+        content: 'Reviewer reply',
+      })
+      callTool(projectId, ownerToken, 'reply_to_comment', {
+        threadId,
+        content: 'Owner reply',
+      })
+      listComments(ownerToken).then(comments => {
+        const [first, reviewerReply, ownerReply] = comments.find(
+          comment => comment.threadId === threadId
+        )!.messages
+        const call = (token: string, name: string, args: object) =>
+          callTool(projectId, token, name, { threadId, ...args })
+        const refused = (text: string) => (result: ToolResult) => {
+          expect(result.isError).to.equal(true)
+          expect(result.content[0].text).to.contain(text)
+        }
+
+        // everyone edits only their own messages
+        call(ownerToken, 'edit_comment_message', {
+          messageId: reviewerReply.id,
+          content: 'Changed by the owner',
+        }).then(refused('only edit your own'))
+        call(reviewerToken, 'edit_comment_message', {
+          messageId: reviewerReply.id,
+          content: 'Edited reply',
+        }).then(result => expect(result.isError).not.to.equal(true))
+        commentEntry('Edited reply').should('be.visible')
+
+        // reviewers delete only their own messages and comments
+        call(reviewerToken, 'delete_comment_message', {
+          messageId: ownerReply.id,
+        }).then(refused('only delete your own'))
+        call(reviewerToken, 'delete_comment_message', {
+          messageId: first.id,
+        }).then(refused('cannot delete this comment'))
+        call(ownerToken, 'delete_comment_message', {
+          messageId: reviewerReply.id,
+        }).then(result => expect(result.isError).not.to.equal(true))
+        commentEntry('Edited reply').should('not.exist')
+
+        // the first message is the comment itself
+        call(ownerToken, 'delete_comment_message', {
+          messageId: first.id,
+        }).then(result =>
+          expect(result.content[0].text).to.contain('Deleted the comment')
+        )
+        commentEntry('Owner thread').should('not.exist')
+        commentRange(threadId).should('equal', null)
+      })
+    })
+  })
+})
+
+// The editor sends what is typed a moment later
+function waitForMainTex(
+  projectId: string,
+  token: string,
+  text: string,
+  attempt = 1
+) {
+  callTool(projectId, token, 'read_file', { path: 'main.tex' }).then(
+    result => {
+      if (!result.content[0].text.includes(text) && attempt < 20) {
+        cy.wait(500)
+        waitForMainTex(projectId, token, text, attempt + 1)
+      } else {
+        expect(result.content[0].text).to.contain(text)
+      }
+    }
+  )
+}
+
+type TrackedChange = {
+  id: string
+  file: string | null
+  type: 'insert' | 'delete'
+  text: string
+  author: string | null
+}
+
+// Tokens of the owner and of each kind of member, on a new project
+function projectWithMembers(name: string) {
+  const tokens = {} as Record<
+    'owner' | 'reviewer' | 'viewer' | 'linkViewer',
+    string
+  >
+  let projectId = ''
+  login(owner)
+  createProject(projectName(name)).then(id => {
+    projectId = id
+    shareProject(projectId, reviewer, 'review')
+    login(owner)
+    shareProject(projectId, viewer, 'readOnly')
+    login(owner)
+    shareProjectByLink(projectId, linkViewer, 'readOnly')
+  })
+  for (const [key, email] of [
+    ['owner', owner],
+    ['reviewer', reviewer],
+    ['viewer', viewer],
+    ['linkViewer', linkViewer],
+  ] as const) {
+    login(email)
+    createGitToken().then(token => {
+      tokens[key] = token
+    })
+  }
+  return cy.then(() => ({ projectId, tokens }))
+}
+
+describe('Tracked changes through MCP', function () {
+  let projectId: string
+  let tokens: Record<string, string>
+
+  before(function () {
+    projectWithMembers('Mcp tracked').then(created => {
+      ;({ projectId, tokens } = created)
+    })
+  })
+
+  function listTrackedChanges(token: string): Cypress.Chainable<TrackedChange[]> {
+    return callTool(projectId, token, 'list_tracked_changes').then(toolJson)
+  }
+
+  function changeEntry(text: string) {
+    return reviewPanel().find(`.review-panel-entry-change:contains("${text}")`)
+  }
+
+  it('lists the tracked changes with their authors and accepts the ones asked for', function () {
+    login(owner)
+    openProject(projectId)
+    openReviewPanel()
+    callTool(projectId, tokens.owner, 'edit_file', {
+      path: 'main.tex',
+      oldString: '\\section{Introduction}',
+      newString: '\\section{Introduction}\nTracked insert',
+      trackChanges: true,
+    })
+    changeEntry('Tracked insert').should('be.visible')
+
+    // members who can read the project see them, as the review panel
+    listTrackedChanges(tokens.viewer).then(changes => {
+      const change = changes.find(c => c.text.includes('Tracked insert'))!
+      expect(change).to.include({ file: 'main.tex', type: 'insert' })
+      expect(change.author).to.contain(owner)
+
+      // reviewers do not accept, as in the review panel
+      callTool(projectId, tokens.reviewer, 'accept_tracked_changes', {
+        ids: [change.id],
+      }).then(result => {
+        expect(result.isError).to.equal(true)
+        expect(result.content[0].text).to.contain('cannot accept')
+      })
+      callTool(projectId, tokens.owner, 'accept_tracked_changes', {
+        ids: ['0'.repeat(24)],
+      }).then(result => {
+        expect(result.isError).to.equal(true)
+        expect(result.content[0].text).to.contain('list_tracked_changes again')
+      })
+      callTool(projectId, tokens.owner, 'accept_tracked_changes', {
+        ids: [change.id],
+      }).then(result => expect(result.isError).not.to.equal(true))
+      changeEntry('Tracked insert').should('not.exist')
+      listTrackedChanges(tokens.owner)
+        .then(left => left.map(c => c.id))
+        .should('not.include', change.id)
+      // an accepted insert stays in the text
+      callTool(projectId, tokens.owner, 'read_file', { path: 'main.tex' })
+        .its('content.0.text')
+        .should('contain', 'Tracked insert')
+    })
+  })
+
+  it('rejects the ones asked for live in the open editor, which stays connected', function () {
+    const lines = 'First: Deleted then back.\nSecond: Replace old word.\nThird:'
+    login(owner)
+    openProject(projectId)
+    openReviewPanel()
+    callTool(projectId, tokens.owner, 'edit_file', {
+      path: 'main.tex',
+      oldString: '\\section{Introduction}',
+      newString: `\\section{Introduction}\n${lines}`,
+    })
+    // a delete, a replaced word (a delete next to an insert) and inserts
+    for (const [oldString, newString] of [
+      ['Deleted then back.', ''],
+      ['old word', 'new word'],
+      ['Third:', 'Third: Rejected insert'],
+      ['\\end{document}', 'Kept insert\n\\end{document}'],
+    ]) {
+      callTool(projectId, tokens.owner, 'edit_file', {
+        path: 'main.tex',
+        oldString,
+        newString,
+        trackChanges: true,
+      })
+    }
+    changeEntry('Rejected insert').should('be.visible')
+    // further down, out of view
+    changeEntry('Kept insert').should('exist')
+
+    listTrackedChanges(tokens.owner).then(changes => {
+      const kept = changes.find(c => c.text.includes('Kept insert'))!
+      const ids = changes.filter(c => c !== kept).map(c => c.id)
+      // the delete, the replaced word and the insert
+      expect(ids).to.have.length.of.at.least(4)
+
+      // reviewers do not reject the changes of others, as in the review panel
+      callTool(projectId, tokens.reviewer, 'reject_tracked_changes', {
+        ids,
+      }).then(result => {
+        expect(result.isError).to.equal(true)
+        expect(result.content[0].text).to.contain('cannot reject')
+      })
+      callTool(projectId, tokens.owner, 'reject_tracked_changes', {
+        ids: ['0'.repeat(24)],
+      }).then(result => {
+        expect(result.isError).to.equal(true)
+        expect(result.content[0].text).to.contain('list_tracked_changes again')
+      })
+      callTool(projectId, tokens.owner, 'reject_tracked_changes', {
+        ids,
+      }).then(result => expect(result.isError).not.to.equal(true))
+
+      // the inserts are gone and the deleted text is back
+      callTool(projectId, tokens.owner, 'read_file', { path: 'main.tex' })
+        .its('content.0.text')
+        .should('contain', `\\section{Introduction}\n${lines}\n`)
+        .and('contain', 'Kept insert')
+      listTrackedChanges(tokens.owner)
+        .then(left => left.map(c => c.id))
+        .should('deep.equal', [kept.id])
+      changeEntry('Rejected insert').should('not.exist')
+      changeEntry('Kept insert').should('exist')
+      cy.get('.cm-content').should('not.contain.text', 'Rejected insert')
+    })
+    // the editor applied the undo and its own edits still reach the server
+    cy.get('.cm-content').type('{ctrl+end}\nTyped after the rejection')
+    waitForMainTex(projectId, tokens.owner, 'Typed after the rejection')
+  })
+
+  it('keeps the tracked changes from viewers who joined by link', function () {
+    callTool(projectId, tokens.linkViewer, 'list_tracked_changes').then(
+      result => {
+        expect(result.isError).to.equal(true)
+        expect(result.content[0].text).to.contain('cannot see the tracked changes')
+      }
+    )
+  })
+})
+
+type HistoryChange = {
+  fromVersion: number
+  toVersion: number
+  authors: (string | null)[]
+  files: string[]
+}
+
+describe('History through MCP', function () {
+  let projectId: string
+  let tokens: Record<string, string>
+
+  before(function () {
+    projectWithMembers('Mcp history').then(created => {
+      ;({ projectId, tokens } = created)
+    })
+  })
+
+  function saveVersion(token: string, comment: string) {
+    return callTool(projectId, token, 'create_version', { comment })
+      .then(toolJson)
+      .then((label: { version: number }) => label.version)
+  }
+
+  function listChanges(token: string) {
+    return callTool(projectId, token, 'list_changes').then(toolJson) as Cypress.Chainable<{
+      changes: HistoryChange[]
+      before: number | null
+      note?: string
+    }>
+  }
+
+  it('lists the changes, compares versions and reads a file as it was', function () {
+    callTool(projectId, tokens.owner, 'write_file', {
+      path: 'history.tex',
+      content: 'First version\nUnchanged line',
+    })
+    saveVersion(tokens.owner, 'Written').then(written => {
+      callTool(projectId, tokens.owner, 'edit_file', {
+        path: 'history.tex',
+        oldString: 'First version',
+        newString: 'Second version',
+      })
+      saveVersion(tokens.owner, 'Edited').then(edited => {
+        callTool(projectId, tokens.viewer, 'diff', {
+          fromVersion: written,
+          toVersion: edited,
+          path: 'history.tex',
+        })
+          .its('content.0.text')
+          .should('contain', '-First version\n+Second version\n Unchanged line')
+        callTool(projectId, tokens.viewer, 'diff', {
+          fromVersion: written,
+          toVersion: edited,
+        })
+          .then(toolJson)
+          .should('deep.equal', [{ path: 'history.tex', change: 'edited' }])
+        callTool(projectId, tokens.viewer, 'read_file', {
+          path: 'history.tex',
+          version: written,
+        })
+          .its('content.0.text')
+          .should('equal', 'First version\nUnchanged line')
+        listChanges(tokens.viewer).then(({ changes, before }) => {
+          expect(before).to.equal(null)
+          const change = changes.find(
+            c => c.toVersion >= edited && c.files.includes('history.tex')
+          )!
+          expect(change.authors[0]).to.contain(owner)
+        })
+        callTool(projectId, tokens.viewer, 'diff', {
+          fromVersion: written,
+          toVersion: edited + 1000,
+        }).then(result => {
+          expect(result.isError).to.equal(true)
+          expect(result.content[0].text).to.contain('not found')
+        })
+      })
+    })
+  })
+
+  it('shows a line break added at the end of a file, as git diff', function () {
+    callTool(projectId, tokens.owner, 'write_file', {
+      path: 'eol.tex',
+      content: 'Last line',
+    })
+    saveVersion(tokens.owner, 'Without the line break').then(without => {
+      callTool(projectId, tokens.owner, 'write_file', {
+        path: 'eol.tex',
+        content: 'Last line\n',
+      })
+      saveVersion(tokens.owner, 'With the line break').then(withBreak => {
+        callTool(projectId, tokens.viewer, 'diff', {
+          fromVersion: without,
+          toVersion: withBreak,
+          path: 'eol.tex',
+        })
+          .its('content.0.text')
+          .should(
+            'contain',
+            '-Last line\n\\ No newline at end of file\n+Last line'
+          )
+      })
+    })
+  })
+
+  it('saves and deletes versions as the history panel', function () {
+    saveVersion(tokens.owner, 'Owner version')
+    // reviewers save versions, as in the history panel
+    saveVersion(tokens.reviewer, 'Reviewer version')
+    callTool(projectId, tokens.viewer, 'create_version', {
+      comment: 'Viewer version',
+    }).then(result => {
+      expect(result.isError).to.equal(true)
+      expect(result.content[0].text).to.contain('cannot save versions')
+    })
+    callTool(projectId, tokens.viewer, 'list_versions')
+      .then(toolJson)
+      .then((versions: { id: string; comment: string; savedBy: string }[]) => {
+        const ownerVersion = versions.find(v => v.comment === 'Owner version')!
+        const reviewerVersion = versions.find(
+          v => v.comment === 'Reviewer version'
+        )!
+        expect(ownerVersion.savedBy).to.contain(owner)
+        expect(reviewerVersion.savedBy).to.contain(reviewer)
+
+        // only the owner deletes the versions others saved
+        callTool(projectId, tokens.reviewer, 'delete_version', {
+          id: ownerVersion.id,
+        }).then(result => {
+          expect(result.isError).to.equal(true)
+          expect(result.content[0].text).to.contain('only delete the versions you saved')
+        })
+        callTool(projectId, tokens.owner, 'delete_version', {
+          id: reviewerVersion.id,
+        }).then(result => expect(result.isError).not.to.equal(true))
+      })
+    saveVersion(tokens.reviewer, 'Reviewer own version')
+    callTool(projectId, tokens.reviewer, 'list_versions')
+      .then(toolJson)
+      .then((versions: { id: string; comment: string }[]) => {
+        const own = versions.find(v => v.comment === 'Reviewer own version')!
+        callTool(projectId, tokens.reviewer, 'delete_version', { id: own.id })
+          .then(result => expect(result.isError).not.to.equal(true))
+      })
+    callTool(projectId, tokens.owner, 'list_versions')
+      .then(toolJson)
+      .then((versions: { comment: string }[]) => versions.map(v => v.comment))
+      .should(comments => {
+        expect(comments).to.include('Owner version')
+        expect(comments).not.to.include('Reviewer version')
+        expect(comments).not.to.include('Reviewer own version')
+      })
+  })
+
+  it('restores a file and the whole project', function () {
+    callTool(projectId, tokens.owner, 'write_file', {
+      path: 'restore.tex',
+      content: 'Before',
+    })
+    saveVersion(tokens.owner, 'Before restore').then(before => {
+      callTool(projectId, tokens.owner, 'edit_file', {
+        path: 'restore.tex',
+        oldString: 'Before',
+        newString: 'After',
+      })
+      callTool(projectId, tokens.owner, 'write_file', {
+        path: 'added-later.tex',
+        content: 'Added later',
+      })
+      // reviewers and viewers do not restore, as in the history panel
+      for (const token of [tokens.reviewer, tokens.viewer]) {
+        callTool(projectId, token, 'restore_file', {
+          path: 'restore.tex',
+          version: before,
+        }).then(result => {
+          expect(result.isError).to.equal(true)
+          expect(result.content[0].text).to.contain('cannot edit')
+        })
+      }
+      callTool(projectId, tokens.owner, 'restore_file', {
+        path: 'restore.tex',
+        version: before,
+      }).then(result => {
+        expect(result.isError, result.content[0].text).not.to.equal(true)
+        expect(result.content[0].text).to.contain(`git pull in ./${projectId}/`)
+      })
+      callTool(projectId, tokens.owner, 'read_file', { path: 'restore.tex' })
+        .its('content.0.text')
+        .should('equal', 'Before')
+
+      callTool(projectId, tokens.owner, 'restore_project', {
+        version: before,
+      }).then(result => expect(result.isError).not.to.equal(true))
+      callTool(projectId, tokens.owner, 'list_files')
+        .then(toolJson)
+        .then((files: { path: string }[]) => files.map(file => file.path))
+        .should(paths => {
+          expect(paths).to.include('restore.tex')
+          expect(paths).not.to.include('added-later.tex')
+        })
+      // a restore is a change of its own, which can be restored again
+      listChanges(tokens.owner)
+        .its('changes.0.toVersion')
+        .should('be.greaterThan', before)
+    })
+  })
+
+  it('keeps the history from viewers who joined by link', function () {
+    for (const [name, args] of [
+      ['list_changes', {}],
+      ['diff', { fromVersion: 0, toVersion: 1 }],
+      ['read_file', { path: 'main.tex', version: 0 }],
+    ] as const) {
+      callTool(projectId, tokens.linkViewer, name, args).then(result => {
+        expect(result.isError).to.equal(true)
+        expect(result.content[0].text).to.contain('cannot see the history')
+      })
+    }
+  })
+
+  it('shows the changes of the last day to owners without full project history', function () {
+    const member = `history-off-${uuid()}@example.com`
+    ensureUserExists(member)
+    login(member)
+    createProject(projectName('Mcp history off')).then(id => {
+      createGitToken().then(token => {
+        callTool(id, token, 'write_file', { path: 'today.tex', content: 'Today' })
+        login(ADMIN_EMAIL)
+        setUserFeatures(member, { versioning: false })
+        callTool(id, token, 'list_changes')
+          .then(toolJson)
+          .should(({ changes, note }) => {
+            // all of them are recent, so none is hidden
+            expect(note).to.equal(undefined)
+            expect(
+              changes.flatMap(
+                (c: { fileOperations: object[] }) => c.fileOperations
+              )
+            ).to.deep.include({ added: 'today.tex' })
+          })
+      })
+    })
+  })
+})
+
+describe('Project chat through MCP', function () {
+  let projectId: string
+  let tokens: Record<string, string>
+
+  before(function () {
+    projectWithMembers('Mcp chat').then(created => {
+      ;({ projectId, tokens } = created)
+    })
+  })
+
+  type ChatMessages = {
+    messages: { author: string | null; content: string }[]
+    before: number | null
+  }
+
+  function listChat(before?: number): Cypress.Chainable<ChatMessages> {
+    return callTool(projectId, tokens.owner, 'list_chat_messages', {
+      ...(before != null && { before }),
+    }).then(toolJson)
+  }
+
+  it('sends messages live to the open chat and reads them back', function () {
+    login(owner)
+    openProject(projectId)
+    cy.findByRole('tab', { name: 'Chat' }).then(tab => {
+      if (tab.attr('aria-selected') !== 'true') cy.wrap(tab).click()
+    })
+    // invited viewers chat, as in the editor
+    callTool(projectId, tokens.viewer, 'send_chat_message', {
+      content: 'Hello from MCP',
+    }).then(result => expect(result.isError).not.to.equal(true))
+    cy.contains('.message-content', 'Hello from MCP').should('be.visible')
+    listChat().then(({ messages }) => {
+      expect(messages[0].content).to.equal('Hello from MCP')
+      expect(messages[0].author).to.contain(viewer)
+    })
+  })
+
+  it('reads the chat 50 messages at a time, newest first', function () {
+    for (let i = 1; i <= 50; i++) {
+      callTool(projectId, tokens.owner, 'send_chat_message', {
+        content: `Message ${i}`,
+      })
+    }
+    listChat().then(({ messages, before }) => {
+      expect(messages).to.have.length(50)
+      expect(messages[0].content).to.equal('Message 50')
+      expect(messages[49].content).to.equal('Message 1')
+      expect(before).to.be.a('number')
+      listChat(before!).then(older => {
+        expect(older.messages.map(m => m.content)).to.deep.equal([
+          'Hello from MCP',
+        ])
+        expect(older.before).to.equal(null)
+      })
+    })
+  })
+
+  it('keeps the chat from viewers who joined by link', function () {
+    for (const [name, args] of [
+      ['list_chat_messages', {}],
+      ['send_chat_message', { content: 'Not allowed' }],
+    ] as const) {
+      callTool(projectId, tokens.linkViewer, name, args).then(result => {
+        expect(result.isError).to.equal(true)
+        expect(result.content[0].text).to.contain('cannot use the chat')
+      })
+    }
   })
 })
 
