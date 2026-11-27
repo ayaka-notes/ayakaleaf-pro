@@ -1,5 +1,12 @@
+import {
+  expectRoutesAnswer,
+  setUserFeatures,
+  storedFeatures,
+  visitWithFeatures,
+} from '../../../helpers/adminTools'
 import { git, workingCopy } from '../../../helpers/git'
 import { login } from '../../../helpers/login'
+import { expectOwnAuditEntry, expectProjectAuditEntry } from '../../../helpers/auditLog'
 import {
   createProject,
   openProject,
@@ -361,6 +368,12 @@ describe('linking the Gitea account', function () {
       .click()
     giteaWidget().findByRole('link', { name: 'Link' }).should('exist')
     connectionStatus().should('equal', false)
+    expectOwnAuditEntry(ADMIN_EMAIL, 'integration-account-linked')
+      .its('info.integration')
+      .should('equal', 'gitea')
+    expectOwnAuditEntry(ADMIN_EMAIL, 'integration-account-unlinked')
+      .its('info.integration')
+      .should('equal', 'gitea')
   })
 
   it('sends the application id, callback, scopes and a state to Gitea', function () {
@@ -496,6 +509,9 @@ describe('linking a project to a repository', function () {
         .then(commits => commits.map(c => c.commit.message.trim()))
         .should('deep.equal', ['Initial Overleaf import'])
       repoBranches(fullName).should('deep.equal', ['main'])
+      expectProjectAuditEntry(projectId, 'integration-repo-linked', ADMIN_EMAIL)
+        .its('info.integration')
+        .should('equal', 'gitea')
     })
   })
 
@@ -553,6 +569,7 @@ describe('linking a project to a repository', function () {
         .should('equal', 'need-export')
       // The repository stays on Gitea
       repoFiles(`${GITEA_USER}/${name}`).should('have.property', 'main.tex')
+      expectProjectAuditEntry(projectId, 'integration-repo-unlinked', ADMIN_EMAIL)
     })
   })
 })
@@ -1470,6 +1487,79 @@ describe('collaborators', function () {
       })
         .its('status')
         .should('equal', 403)
+    })
+  })
+})
+
+describe('a user Gitea is turned off for', function () {
+  const member = `gitea-off-${Date.now()}@example.com`
+
+  before(function () {
+    cy.clearAllCookies()
+    ensureUserExists(member)
+  })
+
+  it('hides it and refuses its routes until it is on again', function () {
+    // Nobody turned it off yet: nothing is stored, and the user has it
+    storedFeatures(member).should('not.have.property', 'gitea')
+    login(member)
+    linkGiteaAccount()
+    createProject(projectName('Gitea off')).then(projectId => {
+      login(ADMIN_EMAIL)
+      setUserFeatures(member, { gitea: false })
+      storedFeatures(member).its('gitea').should('equal', false)
+
+      login(member)
+      visitWithFeatures('/user/settings')
+      cy.findByRole('heading', { name: 'Change password' }).should('exist')
+      giteaWidget().should('not.exist')
+
+      cy.visit('/project')
+      cy.intercept('GET', '/system/features').as('features')
+      cy.findAllByRole('button', { name: 'New project' }).first().click()
+      cy.wait('@features')
+      cy.findByRole('menuitem', { name: 'Blank project' }).should('exist')
+      cy.findByRole('menuitem', { name: 'Import from Gitea' }).should(
+        'not.exist'
+      )
+
+      cy.intercept('GET', '/system/features').as('features')
+      openProject(projectId)
+      cy.wait('@features')
+      openRailTab('Integrations')
+      cy.findByText('Git clone this project.').should('exist')
+      cy.findByRole('button', { name: /Gitea/ }).should('not.exist')
+
+      cy.visit('/project')
+      expectRoutesAnswer(403, [
+        ['GET', '/user/gitea-sync/oauth2'],
+        ['GET', '/user/gitea-sync/oauth2/callback?code=code&state=state'],
+        ['GET', '/user/gitea-sync/status'],
+        ['GET', '/user/gitea-sync/orgs'],
+        ['GET', '/user/gitea-sync/repos'],
+        ['POST', '/project/new/gitea-sync', { projectName: 'x', repo: 'x/x' }],
+        ['POST', `/project/${projectId}/gitea-sync/export`, {}],
+        ['GET', `/project/${projectId}/gitea-sync/state`],
+        ['GET', `/project/${projectId}/gitea-sync/merge/overview`],
+        ['POST', `/project/${projectId}/gitea-sync/merge`, {}],
+      ])
+      // Unlinking stays open. Gitea has no API to revoke the token: unlinking
+      // forgets it
+      postWithCsrf('/user/gitea-sync/unlink', {})
+        .its('status')
+        .should('equal', 200)
+
+      // The admin, who has it on, keeps it
+      login(ADMIN_EMAIL)
+      connectionStatus().should('equal', false)
+      setUserFeatures(member, { gitea: true })
+      storedFeatures(member).its('gitea').should('equal', true)
+
+      login(member)
+      connectionStatus().should('equal', false)
+      linkGiteaAccount()
+      connectionStatus().should('equal', true)
+      projectSyncState(projectId).should('exist')
     })
   })
 })

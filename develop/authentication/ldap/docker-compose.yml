@@ -1,0 +1,6 @@
+# LDAP test users, see authentication/README.md
+services:
+  ldap:
+    build: ./authentication/ldap
+    healthcheck:
+      test: ["CMD-SHELL", "ldapsearch -x -H ldap:/// -b dc=planetexpress,dc=com -s base >/dev/null"]
