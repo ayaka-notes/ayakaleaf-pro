@@ -526,8 +526,12 @@ async function updateUserSettings(req, res, next) {
   }
   if (body.customKeybindings != null) {
     // Sanitize: keep only entries whose value is a null (clear) or a bounded
-    // string key-binding. Keys are short identifiers; values are never
-    // executed — the client only uses them to pick a fixed command handler.
+    // string key-binding: up to 3 modifiers (mod/shift/alt) followed by one
+    // key — a single printable character (letters, digits, punctuation such
+    // as `/`) or a named key (Space, Enter, Escape, F1-F12, ...). Values are
+    // never executed — the client only uses them to pick a fixed command
+    // handler. Grammar exactly mirrors the client's isValidKeyString, so
+    // anything set in the modal also persists across reloads.
     const clean = {}
     for (const [id, value] of Object.entries(body.customKeybindings)) {
       if (value == null) {
@@ -536,7 +540,9 @@ async function updateUserSettings(req, res, next) {
         typeof value === 'string' &&
         value.length > 0 &&
         value.length <= 64 &&
-        /^[A-Za-z0-9 _-]+$/.test(value)
+        /^((mod|shift|alt)-){0,3}(space|enter|escape|backspace|delete|home|end|pageup|pagedown|tab|arrowup|arrowdown|arrowleft|arrowright|f1[0-2]|f[1-9]|[!-~])$/i.test(
+          value,
+        )
       ) {
         clean[id] = value
       }

@@ -397,18 +397,24 @@ export const KEYBINDING_ACTIONS: KeybindingAction[] = [
 
 /**
  * JSON-import / server-side value safety (owner R10 #1): a valid key string
- * is 1+ dash-separated parts, each either a modifier (Mod/Shift/Alt) or a
- * key name (single letter/number, F1-F12, or a known editor key name).
- * Nothing more exotic — so a stored binding can only match real keydowns.
+ * is up to 3 modifiers (Mod/Shift/Alt) followed by exactly one key: a single
+ * letter/number/punctuation character (e.g. `/`), F1-F12, or a known editor
+ * key name. Nothing more exotic — so a stored binding can only match real
+ * keydowns. The server enforces the same grammar, so anything that passes
+ * here also persists (and vice versa).
  */
 export function isValidKeyString(v: unknown): boolean {
   if (typeof v !== 'string' || !v || v.length > 32) return false
+  const MOD = /^(mod|shift|alt)$/i
   const NAMED =
-    /^(space|enter|backspace|delete|home|end|pageup|pagedown|esc|tab|arrowup|arrowdown|arrowleft|arrowright|f[1-9]|f1[0-2])$/i
-  return v
-    .split('-')
-    .filter(p => p.length > 0)
-    .every(p => /^(mod|shift|alt)$/i.test(p) || /^[a-z0-9]$/i.test(p) || NAMED.test(p))
+    /^(space|enter|escape|backspace|delete|home|end|pageup|pagedown|tab|arrowup|arrowdown|arrowleft|arrowright|f1[0-2]|f[1-9])$/i
+  const parts = v.split('-').filter(p => p.length > 0)
+  if (parts.length > 4) return false
+  const key = parts[parts.length - 1]
+  const mods = parts.slice(0, -1)
+  return (
+    (/^[!-~]$/i.test(key) || NAMED.test(key)) && mods.every(p => MOD.test(p))
+  )
 }
 
 /**
