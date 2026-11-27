@@ -498,6 +498,25 @@ describe('ProjectUploadManager', function () {
         }
       })
 
+      it('should import a user file with the bundle name in a subdirectory', async function (ctx) {
+        const nestedFsPath = '/path/to/nested-review-json'
+        ctx.importEntries.push({
+          type: 'file',
+          projectPath: '/docs/overleaf-comments-and-changes.json',
+          fsPath: nestedFsPath,
+        })
+        await ctx.ProjectUploadManager.promises.createProjectFromZipArchiveWithName(
+          ctx.ownerId,
+          ctx.projectName,
+          ctx.zipPath
+        )
+        const calls = ctx.FileStoreHandler.promises.uploadFileFromDiskWithHistoryId.args
+        expect(
+          calls.some(call => call.includes(nestedFsPath)),
+          'a user file with the bundle name in a subdirectory must be imported'
+        ).to.equal(true)
+      })
+
       it('should reconstitute the review state in the new project', async function (ctx) {
         await ctx.ProjectUploadManager.promises.createProjectFromZipArchiveWithName(
           ctx.ownerId,

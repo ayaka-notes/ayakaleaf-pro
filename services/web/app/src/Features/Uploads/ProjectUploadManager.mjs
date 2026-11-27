@@ -211,12 +211,16 @@ async function _restoreReviewState(project, docEntries, topLevelDir) {
  */
 async function _createEntriesFromImports(project, importEntries) {
   // A project zip bundles its review state (overleaf-comments-and-changes.json:
-  // comment threads + tracked changes). It is machine-generated metadata, not
-  // project content: it must never be carried over as a file — most importantly
-  // when a project becomes a template (a template must have no comments or
-  // tracked changes). _restoreReviewState reconstitutes the state instead.
+  // comment threads + tracked changes) at the top level of the project. It is
+  // machine-generated metadata, not project content: it must never be carried
+  // over as a file — most importantly when a project becomes a template (a
+  // template must have no comments or tracked changes).
+  // _restoreReviewState reconstitutes the state instead. Only the top-level
+  // bundle is skipped: a user's own file with the same name in a subdirectory
+  // is legitimate project content and must be imported.
+  const bundlePath = `/${REVIEW_JSON_NAME}`
   const keptEntries = importEntries.filter(
-    entry => Path.basename(entry.projectPath) !== REVIEW_JSON_NAME
+    entry => Path.posix.normalize(entry.projectPath) !== bundlePath
   )
   if (keptEntries.length !== importEntries.length) {
     logger.info(

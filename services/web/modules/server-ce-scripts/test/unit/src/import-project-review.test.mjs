@@ -24,6 +24,7 @@ vi.doMock(
 const {
   REVIEW_JSON_NAME,
   extractJsonFromZip,
+  shouldResolveThread,
   validateReviewState,
 } = await import('../../../scripts/import-project-review.mjs')
 
@@ -149,6 +150,31 @@ describe('import-project-review', function () {
       const state = validState()
       state.threads[THREAD_ID].messages[0].content = 42
       expect(() => validateReviewState(state)).toThrow(/bad message/)
+    })
+  })
+
+  describe('shouldResolveThread', function () {
+    it('resolves when the thread does not exist in the target yet', function () {
+      expect(shouldResolveThread({ resolved: true }, null)).to.equal(true)
+    })
+
+    it('resolves when the existing thread is still open', function () {
+      expect(
+        shouldResolveThread({ resolved: true }, { resolved: false })
+      ).to.equal(true)
+    })
+
+    it('does not resolve when the existing thread is already resolved', function () {
+      expect(
+        shouldResolveThread({ resolved: true }, { resolved: true })
+      ).to.equal(false)
+    })
+
+    it('does not resolve when the bundle thread is not resolved', function () {
+      expect(shouldResolveThread({ resolved: false }, null)).to.equal(false)
+      expect(
+        shouldResolveThread({ resolved: false }, { resolved: false })
+      ).to.equal(false)
     })
   })
 

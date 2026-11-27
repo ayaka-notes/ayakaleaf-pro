@@ -177,6 +177,16 @@ export function validateReviewState(state) {
   }
 }
 
+/**
+ * Decide whether a bundle thread must be resolved in the target project.
+ * existing?.resolved === true means the thread is already resolved there;
+ * an open existing thread (resolved === false) or a freshly created one
+ * (existing === null) must be resolved to match the bundle.
+ */
+export function shouldResolveThread(thread, existing) {
+  return Boolean(thread?.resolved) && existing?.resolved !== true
+}
+
 async function main() {
   const argv = parseArgs()
 
@@ -287,9 +297,7 @@ async function main() {
       report.threads.push({ threadId, status: 'existing', messages: existing.messages.length })
     }
 
-    if (thread.resolved && existing?.resolved != null) {
-      // already resolved
-    } else if (thread.resolved && existing?.resolved == null) {
+    if (shouldResolveThread(thread, existing)) {
       const resolver =
         (thread.resolved_by_user_id &&
           (await resolveUser(thread.resolved_by_user_id))) ||
