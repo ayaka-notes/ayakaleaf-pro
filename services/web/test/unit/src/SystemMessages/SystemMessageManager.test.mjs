@@ -42,7 +42,7 @@ describe('SystemMessageManager', function () {
 
   describe('getMessage', function () {
     beforeEach(function (ctx) {
-      ctx.SystemMessageManager._cachedMessages = ctx.messages
+      ctx.SystemMessageManager.promises._cachedMessages = ctx.messages
       ctx.result = ctx.SystemMessageManager.getMessages()
     })
 
@@ -115,15 +115,17 @@ describe('SystemMessageManager', function () {
       } catch (e) {
         err = e
       }
-      should.exist(err)
-      err.statusCode.should.equal(404)
+      err.should.be.an.instanceOf(Error)
+      err.info.statusCode.should.equal(404)
     })
   })
 
   describe('getMessagesForSurface (#17b: auth pages)', function () {
     beforeEach(function (ctx) {
       Settings.siteIsOpen = true
-      ctx.SystemMessageManager._cachedMessages = [
+      // the manager instance is exposed as `.promises`; the default export is
+      // a wrapper, so the cache must be set on the instance
+      ctx.SystemMessageManager.promises._cachedMessages = [
         { content: 'legacy message', placements: [] },
         { content: 'auth only', placements: ['auth'] },
         { content: 'editor only', placements: ['editor'] },
@@ -156,13 +158,34 @@ describe('SystemMessageManager', function () {
       hub.should.deep.equal(['legacy message'])
     })
 
+    it('should serve an empty loaded cache without querying the database', async function (ctx) {
+      // the manager instance is exposed as `.promises`; set the cache on it,
+      // not on the default-export wrapper
+      ctx.SystemMessageManager.promises._cachedMessages = []
+      // the import-time background refresh already called find once
+      ctx.SystemMessage.find.resetHistory()
+      const auth = await ctx.SystemMessageManager.promises.getMessagesForSurface(
+        'auth'
+      )
+      auth.should.deep.equal([])
+      ctx.SystemMessage.find.called.should.equal(false)
+    })
+    it('should query the database when the cache was never loaded', async function (ctx) {
+      ctx.SystemMessageManager.promises._cachedMessages = null
+      ctx.SystemMessage.find.resetHistory()
+      const auth = await ctx.SystemMessageManager.promises.getMessagesForSurface(
+        'auth'
+      )
+      ctx.SystemMessage.find.called.should.equal(true)
+      auth.should.deep.equal(['messages-stub'])
+    })
     it('should prepend the protected notice for auth when the site is closed', async function (ctx) {
       Settings.siteIsOpen = false
       const auth = await ctx.SystemMessageManager.promises.getMessagesForSurface(
         'auth'
       )
       auth[0]._id.should.equal('protected')
-      auth[0].content.should.containEql('SITE IS CLOSED')
+      auth[0].content.should.include('SITE IS CLOSED')
     })
   })
 })

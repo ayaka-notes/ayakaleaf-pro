@@ -10,10 +10,14 @@ import OError from '@overleaf/o-error'
 const PUB_SUB_CHANNEL_TRIGGER_REFRESH = 'refresh-system-messages'
 
 const SystemMessageManager = {
-  _cachedMessages: [],
+  // null = the cache was never loaded (initial fetch still running or failed);
+  // an empty array = loaded with zero messages. An empty-but-loaded cache is
+  // served as-is, so auth pages (/login, /register) don't hit the database on
+  // every request in the steady state of having no system messages.
+  _cachedMessages: null,
 
   getMessages() {
-    return this._cachedMessages
+    return this._cachedMessages || []
   },
 
   async getMessagesFromDB() {
@@ -29,11 +33,10 @@ const SystemMessageManager = {
   // so admins see it where they would log in (the /system/messages endpoint
   // adds it only for logged-in users).
   async getMessagesForSurface(surface) {
-    const cached = this.getMessages()
     let messages =
-      cached && cached.length > 0
-        ? cached
-        : ((await SystemMessage.find({}).exec()) || [])
+      this._cachedMessages === null
+        ? (await SystemMessage.find({}).exec()) || []
+        : this._cachedMessages
 
     if (surface === 'auth' && !Settings.siteIsOpen) {
       messages = [
