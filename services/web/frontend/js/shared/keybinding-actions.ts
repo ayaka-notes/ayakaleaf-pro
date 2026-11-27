@@ -396,24 +396,23 @@ export const KEYBINDING_ACTIONS: KeybindingAction[] = [
 ]
 
 /**
- * JSON-import / server-side value safety (owner R10 #1): a valid key string
- * is up to 3 modifiers (Mod/Shift/Alt) followed by exactly one key: a single
- * letter/number/punctuation character (e.g. `/`), F1-F12, or a known editor
- * key name. Nothing more exotic — so a stored binding can only match real
- * keydowns. The server enforces the same grammar, so anything that passes
- * here also persists (and vice versa).
+ * Shared key-binding grammar, kept in lockstep with the server's sanitizer in
+ * Features/User/UserController.mjs (unit-tested there): up to 3 modifiers
+ * (Mod/Shift/Alt) followed by exactly one key — a single printable character
+ * (letters, digits, punctuation — the key may itself be `-`, producing e.g.
+ * `mod--`) or a named key. Nothing more exotic — so a stored binding can only
+ * match real keydowns, and whatever passes here also persists (and vice
+ * versa). Matched as a whole string, because splitting on '-' destroys the
+ * dash-key case.
  */
+export const KEYBINDING_GRAMMAR =
+  /^((mod|shift|alt)-){0,3}(space|enter|escape|backspace|delete|home|end|pageup|pagedown|tab|arrowup|arrowdown|arrowleft|arrowright|f1[0-2]|f[1-9]|[!-~])$/i
+
+/** JSON-import / server-side value safety (owner R10 #1). */
 export function isValidKeyString(v: unknown): boolean {
-  if (typeof v !== 'string' || !v || v.length > 32) return false
-  const MOD = /^(mod|shift|alt)$/i
-  const NAMED =
-    /^(space|enter|escape|backspace|delete|home|end|pageup|pagedown|tab|arrowup|arrowdown|arrowleft|arrowright|f1[0-2]|f[1-9])$/i
-  const parts = v.split('-').filter(p => p.length > 0)
-  if (parts.length > 4) return false
-  const key = parts[parts.length - 1]
-  const mods = parts.slice(0, -1)
   return (
-    (/^[!-~]$/i.test(key) || NAMED.test(key)) && mods.every(p => MOD.test(p))
+    typeof v === 'string' && v.length > 0 && v.length <= 32 &&
+    KEYBINDING_GRAMMAR.test(v)
   )
 }
 
@@ -421,19 +420,40 @@ export function isValidKeyString(v: unknown): boolean {
  * Normalize a stored/display key string for comparison: modifiers canonical
  * (Mod/Shift/Alt, order-independent), single characters lower-cased,
  * Ctrl/Control/Cmd/Meta all → mod. Returns '' for empty input.
+ *
+ * The key part may itself be a single '-' (e.g. `mod--`), which splitting on
+ * '-' would destroy — so modifiers are peeled off the front and the remainder
+ * is kept intact as the key.
  */
 export function normalizeKeyBinding(str: string | null | undefined): string {
   if (!str) return ''
-  const parts: string[] = []
-  for (const raw of String(str).split('-')) {
-    const p = raw.trim()
-    if (!p) continue
-    if (p.length === 1 && /[a-zA-Z]/.test(p)) parts.push(p.toLowerCase())
-    else if (/^(mod|ctrl|control|cmd|meta)$/.test(p.toLowerCase())) parts.push('mod')
-    else if (/^shift$/.test(p.toLowerCase())) parts.push('shift')
-    else if (/^alt$/.test(p.toLowerCase())) parts.push('alt')
-    else parts.push(p)
+  const raw = String(str).trim()
+  const mods: string[] = []
+  let key: string
+  // Peel known modifiers off the front, one at a time, so the remainder is
+  // the key — which may itself be a single '-' (e.g. 'mod--').
+  key = raw
+  for (;;) {
+    const mm = key.match(/^(mod|ctrl|control|cmd|meta|shift|alt)-/i)
+    if (!mm) break
+    mods.push(
+      /^(mod|ctrl|control|cmd|meta)$/i.test(mm[1]) ? 'mod' : mm[1].toLowerCase(),
+    )
+    key = key.slice(mm[0].length)
   }
+  if (mods.length === 0) {
+    // Non-canonical (legacy) input: modifiers may appear anywhere; the key is
+    // the first non-modifier part (a dash key is not representable there).
+    let legacyKey: string | null = null
+    for (const p of raw.split('-')) {
+      if (!p) continue
+      if (/^(mod|ctrl|control|cmd|meta)$/i.test(p)) mods.push('mod')
+      else if (/^(shift|alt)$/i.test(p)) mods.push(p.toLowerCase())
+      else if (legacyKey === null) legacyKey = p
+    }
+    key = legacyKey ?? ''
+  }
+  const parts = [...mods, key.length === 1 && /[a-zA-Z]/.test(key) ? key.toLowerCase() : key]
   // canonical order: mod, shift, alt, key
   const order: Record<string, number> = { mod: 0, shift: 1, alt: 2 }
   parts.sort((a, b) => {
