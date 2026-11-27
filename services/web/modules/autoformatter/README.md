@@ -35,6 +35,10 @@ as tracked changes.
   than their layout: `escape`, `removeDuplicateFields` and `lowercase` are off.
   It is pinned to 1.14.0, as 1.15.x calls `Map.prototype.getOrInsert`, which
   browsers only have since early 2026 (Chrome 145, Firefox 144, Safari 26.2).
+- tex-fmt compiles WebAssembly in the browser, which requires
+  `'wasm-unsafe-eval'` in the `script-src` Content Security Policy (set in
+  `app/src/infrastructure/CSP.mjs`); without it, instantiation fails with a
+  `CompileError`.
 
 ## Rebuilding tex-fmt
 
