@@ -14,8 +14,14 @@ services:
   filestore:
     image: ghcr.io/ayaka-notes/overleaf-pro/dev:filestore
 
+  git-bridge:
+    image: ghcr.io/ayaka-notes/overleaf-pro/dev:git-bridge
+
   history-v1:
     image: ghcr.io/ayaka-notes/overleaf-pro/dev:history-v1
+
+  ldap:
+    image: ghcr.io/ayaka-notes/overleaf-pro/dev:ldap
 
   linked-url-proxy:
     image: ghcr.io/ayaka-notes/overleaf-pro/dev:linked-url-proxy
@@ -28,6 +34,9 @@ services:
 
   real-time:
     image: ghcr.io/ayaka-notes/overleaf-pro/dev:real-time
+
+  saml:
+    image: ghcr.io/ayaka-notes/overleaf-pro/dev:saml
 
   third-party-datastore:
     image: ghcr.io/ayaka-notes/overleaf-pro/dev:third-party-datastore

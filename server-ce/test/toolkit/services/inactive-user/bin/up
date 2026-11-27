@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Usage: services/inactive-user/bin/up
+#
+# Runs after the toolkit's bin/up. Creates inactive-user@example.com, an account
+# last seen years ago: no route writes these dates, so a spec cannot make one.
+
+set -euo pipefail
+
+email=inactive-user@example.com
+
+docker exec "${CONTAINER_PREFIX:-}sharelatex" bash -ce \
+  "cd /overleaf/services/web && node modules/server-ce-scripts/scripts/create-user.mjs --email=$email" \
+  >/dev/null
+docker exec "${CONTAINER_PREFIX:-}mongo" mongosh sharelatex --quiet --eval "
+  const longAgo = new Date('2020-01-01')
+  db.users.updateOne(
+    { email: '$email' },
+    { \$set: { loginCount: 1, lastLoggedIn: longAgo, lastActive: longAgo } }
+  )
+" >/dev/null

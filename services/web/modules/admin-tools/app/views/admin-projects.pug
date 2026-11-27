@@ -1,0 +1,15 @@
+extends ../../../../app/views/layout-react
+
+block entrypointVar
+	- entrypoint = 'modules/admin-tools/pages/admin-projects'
+
+block vars
+	- isWebsiteRedesign = true
+
+block append meta
+	//- read by the owner picker and the confirm modal shared with the user list
+	meta(name='ol-adminUsersOptions' data-type='json' content=adminUsersOptions)
+
+block content
+	main.content.content-alt#main-content
+		#admin-projects-root
