@@ -20,7 +20,9 @@ export function splitFileName(name: string): { base: string; ext: string } {
 
 /**
  * Pick the duplicate's name: `<base>-1<ext>`; if that name is already used
- * in the folder (exists(name) === true), `<base>-2<ext>`, ... (bounded).
+ * in the folder (exists(name) === true), `<base>-2<ext>`, ... (bounded to
+ * 100 candidates). Throws if all candidates up to the cap are taken,
+ * rather than returning a colliding name.
  */
 export function resolveDuplicateName(
   sourceName: string,
@@ -28,13 +30,15 @@ export function resolveDuplicateName(
 ): string {
   const { base, ext } = splitFileName(sourceName)
   const suffix = ext ? '.' + ext : ''
-  let candidate = `${base}-1${suffix}`
-  let i = 1
-  while (exists(candidate) && i < 100) {
-    candidate = `${base}-${i + 1}${suffix}`
-    i += 1
+  for (let i = 1; i <= 100; i += 1) {
+    const candidate = `${base}-${i}${suffix}`
+    if (!exists(candidate)) {
+      return candidate
+    }
   }
-  return candidate
+  throw new Error(
+    `could not find a free duplicate name for "${sourceName}"`
+  )
 }
 
 export interface DuplicateFileInput {

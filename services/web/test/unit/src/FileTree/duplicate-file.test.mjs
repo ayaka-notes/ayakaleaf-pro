@@ -53,6 +53,32 @@ describe('resolveDuplicateName', () => {
     const exists = (n) => n === 'report.pdf'
     expect(resolveDuplicateName('report.pdf', exists)).toBe('report-1.pdf')
   })
+
+  it('throws when all candidates up to the cap are taken, instead of returning a colliding name', () => {
+    // the old loop stopped at report-100 and returned it even when it
+    // was already taken. Now the cap is hard: an explicit error instead
+    // of a colliding name.
+    const takenUpTo100 = (n) => /^report-(\d+)\.pdf$/.test(n) && +RegExp.$1 <= 100
+    expect(() => resolveDuplicateName('report.pdf', takenUpTo100)).toThrow(
+      /free duplicate name/
+    )
+    expect(() => resolveDuplicateName('report.pdf', () => true)).toThrow(
+      /free duplicate name/
+    )
+  })
+
+  it('reports a failure (ok:false) when no free name can be found', async () => {
+    const result = await duplicateFile({
+      projectId: 'p1',
+      downloadPath: '/project/p1/blob/h',
+      folderId: 'f1',
+      sourceName: 'report.pdf',
+      exists: () => true,
+      fetchImpl: async () => new Response('blob'),
+    })
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/free duplicate name/)
+  })
 })
 
 describe('duplicateFile', () => {

@@ -67,6 +67,7 @@ function FileTreeItemMenuItems() {
   )
 
   const canDuplicate =
+    canCreate &&
     (selectedEntity?.type === 'fileRef' ||
       (selectedEntity?.type === 'doc' && !isLinkedFileDoc)) &&
     !!downloadPath &&
