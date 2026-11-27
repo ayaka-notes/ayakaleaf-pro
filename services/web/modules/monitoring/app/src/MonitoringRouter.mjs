@@ -22,19 +22,38 @@ function grafanaConfig() {
   }
 }
 
-// Single source of truth for "is the status page actually usable" — used by
-// both the page itself and the admin-menu visibility predicate.
+// Two embed modes, in order of preference:
+//  1. ISOLATED (recommended): public_base_url points the browser straight at
+//     Grafana's own origin (e.g. https://grafana.<internal-domain>), where
+//     the instance is configured with anonymous read-only (Viewer) access.
+//     The app's admin session never enters the iframe, so a Grafana-side
+//     compromise cannot touch Overleaf. Trade-off: anyone who can reach
+//     that origin can read the monitoring dashboards — keep it internal.
+//  2. PROXY (fallback): internal_url + admin credentials; the module proxies
+//     Grafana under /admin/status/grafana/** with server-side Basic auth.
+//     Session-gated (admins only), but same-origin — hence the CSP
+//     hardening in grafanaProxy.mjs. Use when the Grafana origin must not
+//     be reachable without a session.
 export function isStatusEnabled() {
-  const { internalUrl, user, password } = grafanaConfig()
-  return Boolean(internalUrl && user && password)
+  const { internalUrl, publicBase, user, password } = grafanaConfig()
+  return Boolean(publicBase) || Boolean(internalUrl && user && password)
 }
 
 function statusPage(req, res) {
+  const { internalUrl, publicBase, user, password } = grafanaConfig()
+  const isolated = Boolean(publicBase)
+  const proxied = Boolean(internalUrl && user && password)
   res.render(STATUS_VIEW, {
     title: 'instance_status',
-    // Same-origin through the /admin/status/grafana/ proxy below (this
-    // Grafana build has no /kiosk route — use the plain dashboard route)
-    grafanaPath: isStatusEnabled() ? `/admin/status/grafana/d/${DASHBOARD_UID}` : '',
+    // Isolated mode frames Grafana's own origin; proxy mode stays
+    // same-origin under /admin/status/grafana/ (this Grafana build has no
+    // /kiosk route — use the plain dashboard route).
+    grafanaPath: isolated
+      ? `${publicBase}/d/${DASHBOARD_UID}`
+      : proxied
+        ? `/admin/status/grafana/d/${DASHBOARD_UID}`
+        : '',
+    isolated,
   })
 }
 
@@ -59,7 +78,10 @@ function proxyGrafana(req, res) {
     })
 }
 
-// The whole module is for site admins, like the rest of /admin/*.
+// PROXY MODE (fallback, see isStatusEnabled above): the whole module below
+// is for site admins, like the rest of /admin/*. In isolated mode the
+// browser never uses these routes; they stay for deployments that gate
+// access with the session instead of exposing the Grafana origin.
 export default {
   apply(webRouter) {
     logger.debug({}, 'Init Monitoring router')

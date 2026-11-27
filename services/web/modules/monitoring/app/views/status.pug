@@ -21,9 +21,14 @@ block meta
 block body
 	if grafanaPath
 		body.full-height
-			iframe#status-frame(src=grafanaPath)
+			if isolated
+				//- Isolated mode: cross-origin Grafana; don't leak the app URL
+				//- (or the admin's referrer) to it.
+				iframe#status-frame(src=grafanaPath referrerpolicy="no-referrer")
+			else
+				iframe#status-frame(src=grafanaPath)
 	else
 		body.full-height
 			main#main-content.content.content-alt
 				.container
-					p Instance status is not configured (settings.grafana.internal_url and settings.grafana.admin_password are required).
+					p Instance status is not configured. Set settings.grafana.public_base_url (isolated embed, recommended) or settings.grafana.internal_url + settings.grafana.admin_password (same-origin proxy).
