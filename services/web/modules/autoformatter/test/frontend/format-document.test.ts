@@ -62,6 +62,28 @@ describe('formatDocument', function () {
     expect(view.state.doc.toString()).to.equal('x\ny')
   })
 
+  it('does not format a document whose state was replaced before its name was updated', async function () {
+    const view = makeView('first.tex', 'a\nb')
+    const pending = deferredFormatter()
+
+    expect(formatDocument(view, () => pending.promise)).to.equal(true)
+
+    // use-codemirror-scope replaces the view state when the document
+    // changes and only updates the doc name asynchronously afterwards, so
+    // the new state can still carry the previous document's name
+    view.setState(
+      EditorState.create({
+        doc: 'x\ny',
+        extensions: extension({ docName: 'first.tex' }),
+      })
+    )
+    pending.resolve(() => 'WRONG-DOCUMENT')
+    await flush()
+
+    // the newly opened document must have been left untouched
+    expect(view.state.doc.toString()).to.equal('x\ny')
+  })
+
   it('does not format a different kind of document opened while loading', async function () {
     const view = makeView('refs.bib', '@article{a}')
     const pending = deferredFormatter()

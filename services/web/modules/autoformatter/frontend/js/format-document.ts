@@ -37,6 +37,16 @@ export const formatDocNameField = StateField.define<string | null>({
   },
 })
 
+// A fresh value for every editor state, kept across all of its
+// transactions. The source editor reuses one EditorView for all documents
+// and replaces its state on a document switch (see use-codemirror-scope),
+// so this changes exactly when the open document changes.
+let nextDocSession = 0
+export const docSessionField = StateField.define<number>({
+  create: () => nextDocSession++,
+  update: value => value,
+})
+
 function formatterKind(state: EditorState): FormatterKind | null {
   const extension = state
     .field(formatDocNameField, false)
@@ -99,16 +109,18 @@ export function formatDocument(
   // The source editor reuses one EditorView for all documents and replaces
   // its state on a document switch (see use-codemirror-scope), so by the
   // time the formatter has loaded, view.state may describe a different
-  // document of the same kind. Stay bound to the document formatting was
-  // requested for.
-  const requestedDocName = view.state.field(formatDocNameField, false)
+  // document. Stay bound to the document formatting was requested for. The
+  // new state's doc name is not yet to be trusted for that check: it is
+  // created with the previous document's name and only updated
+  // asynchronously afterwards, while the doc session field is fresh at
+  // creation and stable across every edit to the same document.
+  const requestedDocSession = view.state.field(docSessionField)
   load(kind)
     .then(format => {
       // Another document may have been opened while the formatter loaded
       if (
-        formatterKind(view.state) !== kind ||
         view.state.readOnly ||
-        view.state.field(formatDocNameField, false) !== requestedDocName
+        view.state.field(docSessionField) !== requestedDocSession
       ) {
         return
       }

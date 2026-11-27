@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view'
-import { formatDocNameField, formatDocument } from './format-document'
+import { docSessionField, formatDocNameField, formatDocument } from './format-document'
 
 // Shift+Alt+F (Shift+Option+F on macOS) formats the document, as in VS Code.
 // CodeMirror's keymap leaves Option combinations on macOS to typing (this one
@@ -24,5 +24,6 @@ const formatShortcutHandler = EditorView.domEventHandlers({
 // sourceEditorExtensions modules export `extension`, a factory
 export const extension = (options: { docName: string }) => [
   formatDocNameField.init(() => options.docName),
+  docSessionField,
   formatShortcutHandler,
 ]
