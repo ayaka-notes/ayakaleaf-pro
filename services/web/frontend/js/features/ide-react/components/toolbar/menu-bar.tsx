@@ -196,6 +196,7 @@ export const ToolbarMenuBar = () => {
           'format-style-subparagraph',
         ],
       },
+      { id: 'format-document-group', children: ['format-document'] },
     ],
     [t]
   )

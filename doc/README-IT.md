@@ -67,6 +67,7 @@ Ayakaleaf Pro è una versione potenziata di Overleaf con quasi tutte le funziona
 - Sistema di modelli (con galleria di modelli)
 - Revisione delle modifiche (con pannello di revisione e commenti)
 - Cronologia completa del progetto (con ripristino e download)
+- Formattazione automatica (formatta LaTeX e BibTeX con un clic)
 - Tavolozza dei simboli (inserisci simboli matematici con un clic)
 - Traduzione i18n completa (ogni testo dell'interfaccia in 18 lingue)
 - Supporto ARM (x86_64/arm64 su Docker)

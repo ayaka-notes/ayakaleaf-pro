@@ -10,6 +10,7 @@
   "display_deleted_projects": "Zobrazit smazané projekty",
   "expires_in_one_hour": "Platnost vyprší za 1 hodinu",
   "export_project_to_x": "Exportovat projekt do __provider__u",
+  "format_document": "Formátovat dokument",
   "found_matching_deleted_projects": "Nalezeno odpovídajících smazaných projektů: __count__",
   "gitea": "Gitea",
   "gitlab": "GitLab",

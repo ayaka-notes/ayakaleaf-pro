@@ -10,6 +10,7 @@
   "display_deleted_projects": "Silinen projeleri göster",
   "expires_in_one_hour": "1 saat içinde sona erer",
   "export_project_to_x": "Projeyi __provider__’a yükle",
+  "format_document": "Belgeyi biçimlendir",
   "found_matching_deleted_projects": "__count__ eşleşen silinmiş proje bulundu",
   "gitea": "Gitea",
   "gitlab": "GitLab",

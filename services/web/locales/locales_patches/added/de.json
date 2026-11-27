@@ -10,6 +10,7 @@
   "display_deleted_projects": "Gelöschte Projekte anzeigen",
   "expires_in_one_hour": "Läuft in 1 Stunde ab",
   "export_project_to_x": "Projekt nach __provider__ exportieren",
+  "format_document": "Dokument formatieren",
   "found_matching_deleted_projects": "__count__ übereinstimmende gelöschte Projekte gefunden",
   "gitea": "Gitea",
   "gitlab": "GitLab",

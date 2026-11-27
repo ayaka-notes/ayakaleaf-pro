@@ -10,6 +10,7 @@
   "display_deleted_projects": "显示已删除的项目",
   "expires_in_one_hour": "1 小时后过期",
   "export_project_to_x": "将项目导出到__provider__",
+  "format_document": "格式化文档",
   "found_matching_deleted_projects": "找到 __count__ 个匹配的已删除项目",
   "gitea": "Gitea",
   "gitlab": "GitLab",

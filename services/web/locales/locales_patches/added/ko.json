@@ -10,6 +10,7 @@
   "display_deleted_projects": "삭제된 프로젝트 표시",
   "expires_in_one_hour": "1시간 후 만료",
   "export_project_to_x": "__provider__으로 프로젝트 보내기",
+  "format_document": "문서 서식",
   "found_matching_deleted_projects": "일치하는 삭제된 프로젝트 __count__개를 찾았습니다",
   "gitea": "Gitea",
   "gitlab": "GitLab",

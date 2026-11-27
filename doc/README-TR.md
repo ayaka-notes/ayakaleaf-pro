@@ -67,6 +67,7 @@ Ayakaleaf Pro, neredeyse tüm özellik ve yeteneklere sahip, Overleaf'in gelişt
 - Şablon sistemi (şablon galerisiyle)
 - Değişiklikleri izleme (inceleme ve yorum paneliyle)
 - Tam proje geçmişi (geri yükleme ve indirme ile)
+- Otomatik biçimlendirme (LaTeX ve BibTeX'i tek tıkla biçimlendirin)
 - Sembol paleti (matematik sembollerini tek tıkla ekleyin)
 - Tam i18n çevirisi (arayüzdeki her metin 18 dilde)
 - ARM desteği (Docker üzerinde x86_64/arm64)

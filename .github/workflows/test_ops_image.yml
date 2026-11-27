@@ -66,7 +66,7 @@ jobs:
           - group: Git and Tokens
             suites: git-bridge oauth2-server mcp-server
           - group: Editor
-            suites: track-changes symbol-palette
+            suites: track-changes symbol-palette autoformatter
           - group: AI
             suites: workbench error-assistant
           - group: References and Learn

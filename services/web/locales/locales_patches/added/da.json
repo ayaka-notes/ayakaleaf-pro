@@ -10,6 +10,7 @@
   "display_deleted_projects": "Vis slettede projekter",
   "expires_in_one_hour": "Udløber om 1 time",
   "export_project_to_x": "Eksporter projekt til __provider__",
+  "format_document": "Formatér dokument",
   "found_matching_deleted_projects": "Fandt __count__ matchende slettede projekter",
   "gitea": "Gitea",
   "gitlab": "GitLab",

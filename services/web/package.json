@@ -317,6 +317,7 @@
     "babel-plugin-macros": "^3.1.0",
     "babel-plugin-module-resolver": "^5.0.2",
     "backbone": "^1.6.0",
+    "bibtex-tidy": "1.14.0",
     "bootstrap": "^5.3.7",
     "c8": "^7.2.0",
     "chai": "^4.3.6",

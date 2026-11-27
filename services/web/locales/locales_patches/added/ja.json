@@ -10,6 +10,7 @@
   "display_deleted_projects": "削除済みプロジェクトを表示",
   "expires_in_one_hour": "1 時間後に期限切れ",
   "export_project_to_x": "プロジェクトを__provider__にエクスポート",
+  "format_document": "ドキュメントのフォーマット",
   "found_matching_deleted_projects": "一致する削除済みプロジェクトが __count__ 件見つかりました",
   "gitea": "Gitea",
   "gitlab": "GitLab",

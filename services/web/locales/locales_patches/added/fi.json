@@ -10,6 +10,7 @@
   "display_deleted_projects": "Näytä poistetut projektit",
   "expires_in_one_hour": "Vanhenee 1 tunnin kuluttua",
   "export_project_to_x": "Vie Projekti __provider__iin",
+  "format_document": "Muotoile asiakirja",
   "found_matching_deleted_projects": "Löytyi __count__ vastaavaa poistettua projektia",
   "gitea": "Gitea",
   "gitlab": "GitLab",
