@@ -11,6 +11,8 @@
   "expires_in_one_hour": "Verloopt over 1 uur",
   "export_project_to_x": "Project exporteren naar __provider__",
   "found_matching_deleted_projects": "__count__ overeenkomende verwijderde projecten gevonden",
+  "gitea": "Gitea",
+  "gitlab": "GitLab",
   "hide_deleted_projects": "Verwijderde projecten verbergen",
   "import_from_x": "Uit __provider__ importeren",
   "importing_and_merging_changes_in_x": "Veranderingen aan het importeren en toevoegen in __provider__",

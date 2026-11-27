@@ -39,8 +39,9 @@ export default {
           ai: isConfigured(),
           githubSync:
             Features.hasFeature('github-sync') && isFeatureOn(user, 'github'),
-          gitlabSync: Boolean(Settings.gitlabSync),
-          giteaSync: Boolean(Settings.giteaSync),
+          gitlabSync:
+            Boolean(Settings.gitlabSync) && isFeatureOn(user, 'gitlab'),
+          giteaSync: Boolean(Settings.giteaSync) && isFeatureOn(user, 'gitea'),
           dropbox: Boolean(Settings.dropbox) && isFeatureOn(user, 'dropbox'),
           zotero:
             Boolean(Settings.enabledLinkedFileTypes?.includes('zotero')) &&
