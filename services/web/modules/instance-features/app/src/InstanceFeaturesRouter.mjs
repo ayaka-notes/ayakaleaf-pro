@@ -43,6 +43,7 @@ export default {
             Boolean(Settings.gitlabSync) && isFeatureOn(user, 'gitlab'),
           giteaSync: Boolean(Settings.giteaSync) && isFeatureOn(user, 'gitea'),
           dropbox: Boolean(Settings.dropbox) && isFeatureOn(user, 'dropbox'),
+          webdav: Boolean(Settings.webdav),
           zotero:
             Boolean(Settings.enabledLinkedFileTypes?.includes('zotero')) &&
             isFeatureOn(user, 'zotero'),

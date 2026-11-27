@@ -1,0 +1,4 @@
+# webdav fixture runtime artifacts
+*.log
+__pycache__/
+*.pyc
