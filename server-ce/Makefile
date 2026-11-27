@@ -14,7 +14,7 @@ export OVERLEAF_BASE_TAG ?= sharelatex/sharelatex-base:$(BRANCH_NAME_TAG_SAFE)-$
 export OVERLEAF_BRANCH ?= sharelatex/sharelatex:$(BRANCH_NAME_TAG_SAFE)
 export OVERLEAF_LATEST ?= sharelatex/sharelatex
 export OVERLEAF_TAG ?= sharelatex/sharelatex:$(BRANCH_NAME_TAG_SAFE)-$(MONOREPO_REVISION)
-export OVERLEAF_PANDOC_TAG ?= sharelatex/sharelatex-pandoc:local
+export OVERLEAF_PANDOC_TAG ?= overleaf-pandoc:local
 export OVERLEAF_GITBRIDGE_TAG ?= sharelatex/git-bridge:latest
 
 all: build-base build-community build-pandoc build-git-bridge
