@@ -62,6 +62,14 @@ export default function ToastImageFileViewButton({
 }: {
   file: EditorFile
 }) {
+  // Read-only projects: the save flow uploads (replaces) the file, which a
+  // read-only user cannot do — hide the entry point rather than letting the
+  // user start an edit that fails on save (mirrors the file-view-header's
+  // own !fileTreeReadOnly gate on the refresh button).
+  const { fileTreeReadOnly } = useFileTreeData()
+  if (fileTreeReadOnly) {
+    return null
+  }
   if (!isEditableImage(file.name)) {
     return null
   }
@@ -387,13 +395,19 @@ function ImageEditorModal({
           return !img.src.includes(file.hash)
         }
         const refreshDetached = async () => {
-          if (!uploadedId) return
           for (let i = 0; i < 10; i++) {
-            try {
-              openFileWithId(uploadedId) // no-op until the tree has it
-              setView('file')
-            } catch (err) {
-              // context paths unavailable — the DOM path below still works
+            // With an id, re-open the new entity directly (no-op until the
+            // tree knows it); with a non-JSON response we only have the name,
+            // so fall back to the DOM reselect below — never skip the
+            // fallback entirely, or a successful save could leave a stale
+            // preview behind.
+            if (uploadedId) {
+              try {
+                openFileWithId(uploadedId) // no-op until the tree has it
+                setView('file')
+              } catch (err) {
+                // context paths unavailable — the DOM path below still works
+              }
             }
             rowClick()
             await sleep(1_000)
