@@ -1,4 +1,5 @@
 import Settings from '@overleaf/settings'
+import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import nodeFetch from 'node-fetch'
@@ -51,20 +52,33 @@ function _getProxyFetch() {
   return _proxyFetch
 }
 
-/** Lazily build (and cache) the OpenAI-compatible provider. */
+/**
+ * Lazily build (and cache) the provider for the gateway's API: Chat
+ * Completions, or the OpenAI Responses API with AI_API_MODE=responses.
+ */
 export function getProvider() {
   if (!_provider) {
     const config = {
-      name: 'workbench',
       baseURL: Settings.workbenchAi.baseURL,
       apiKey: Settings.workbenchAi.apiKey,
-      includeUsage: true,
     }
     const proxyFetch = _getProxyFetch()
     if (proxyFetch) {
       config.fetch = proxyFetch
     }
-    _provider = createOpenAICompatible(config)
+    // Responses keep OpenAI's default store: true, so the later steps of a
+    // tool call refer to the stored reasoning and call items (item_reference).
+    // With store: false, @ai-sdk/openai sends the reasoning back encrypted only
+    // for the models it knows (o-series, gpt-5), and the tool calls of newer
+    // reasoning models such as gpt-6.x would lose their reasoning items
+    _provider =
+      Settings.workbenchAi.apiMode === 'responses'
+        ? createOpenAI(config).responses
+        : createOpenAICompatible({
+            ...config,
+            name: 'workbench',
+            includeUsage: true,
+          })
   }
   return _provider
 }
@@ -83,8 +97,10 @@ export function hasPdf(messages = []) {
  */
 export function resolveModel(messages = []) {
   // Follow-up requests retain earlier attachments, so route the entire conversation.
-  if (Settings.workbenchAi?.pdfModel && hasPdf(messages)) {
-    return Settings.workbenchAi.pdfModel
+  // A PDF goes to the PDF model, or to the chat model without one, even with
+  // images: the image model may not read PDF files
+  if (hasPdf(messages)) {
+    return Settings.workbenchAi?.pdfModel || Settings.workbenchAi?.model
   }
   if (
     Settings.workbenchAi?.imageModel &&

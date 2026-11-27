@@ -2,6 +2,7 @@ import logger from '@overleaf/logger'
 import { callbackify } from '@overleaf/promise-utils'
 import LinkedFilesHandler from '../../../../app/src/Features/LinkedFiles/LinkedFilesHandler.mjs'
 import LinkedFilesErrors from '../../../../app/src/Features/LinkedFiles/LinkedFilesErrors.mjs'
+import { userHasFeature } from '../../../instance-features/app/src/UserFeatures.mjs'
 import MendeleyApiClient from './MendeleyApiClient.mjs'
 import {
   MendeleyForbiddenError,
@@ -14,6 +15,13 @@ const {
   NotOriginalImporterError,
   RemoteServiceError,
 } = LinkedFilesErrors
+
+// Core's linked file routes run the agent for whoever can write to the project
+async function assertFeatureOn(userId) {
+  if (!(await userHasFeature(userId, 'mendeley'))) {
+    throw new AccessDeniedError('Mendeley is turned off for this user')
+  }
+}
 
 /**
  * Create a linked .bib file from Mendeley (either My Library or a group).
@@ -33,6 +41,8 @@ async function createLinkedFile(
   parentFolderId,
   userId
 ) {
+  await assertFeatureOn(userId)
+
   logger.debug(
     { projectId, userId, groupId: linkedFileData.group_id },
     'creating Mendeley linked file'
@@ -61,6 +71,8 @@ async function refreshLinkedFile(
   parentFolderId,
   userId
 ) {
+  await assertFeatureOn(userId)
+
   logger.debug(
     { projectId, userId, groupId: linkedFileData.group_id },
     'refreshing Mendeley linked file'
