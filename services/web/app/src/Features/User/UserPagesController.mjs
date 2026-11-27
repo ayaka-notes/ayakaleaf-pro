@@ -266,9 +266,14 @@ const loginPageSchema = z.object({
   }),
 })
 
+async function symbolPalettePage(req, res) {
+  res.render('user/symbol-palette', { title: 'symbol_palette' })
+}
+
 const UserPagesController = {
   accountSuspended: expressify(accountSuspended),
   logout: expressify(logout),
+  symbolPalettePage: expressify(symbolPalettePage),
 
   registerPage(req, res) {
     const sharedProjectData = req.session.sharedProjectData || {}

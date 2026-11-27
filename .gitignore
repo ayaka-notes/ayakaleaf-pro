@@ -4,3 +4,22 @@
 # user defined files
 .env
 docker-compose.override.yml
+
+# yarn PnP local state (never commit; .yarn/patches stays tracked)
+.yarn/cache/
+.yarn/install-state.gz
+.yarn/unplugged/
+.pnp.cjs
+.pnp.loader.mjs
+.pnp.data.mjs
+node_modules/
+
+# local agent tooling state
+.pi/
+
+# webpack/babel local build cache
+services/web/.cache/
+
+# hashed webpack build artifacts (generated in the Docker image, not source)
+services/web/public/*.[0-9a-f]*.mjs
+services/web/public/*.[0-9a-f]*.mjs.LICENSE.txt

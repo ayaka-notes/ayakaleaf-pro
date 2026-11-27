@@ -29,7 +29,6 @@ const mountEditor = (content: string) => {
           ProjectProvider: makeProjectProvider(project),
           EditorPropertiesProvider: makeEditorPropertiesProvider({
             showVisual: false,
-            showSymbolPalette: false,
           }),
         }}
       >

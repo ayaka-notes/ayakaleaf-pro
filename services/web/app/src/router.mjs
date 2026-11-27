@@ -336,6 +336,11 @@ async function initialize(webRouter, privateApiRouter, publicApiRouter) {
     PermissionsController.useCapabilities(),
     UserPagesController.settingsPage
   )
+  webRouter.get(
+    '/user/symbol-palette',
+    AuthenticationController.requireLogin(),
+    UserPagesController.symbolPalettePage
+  )
   webRouter.post(
     '/user/settings',
     AuthenticationController.requireLogin(),

@@ -646,7 +646,6 @@ const _ProjectController = {
       'compile-with-checkpoint',
       'themed-modals',
       'intermittent-connection-improvements',
-      'symbol-recognition',
       'ai-assistant-pointer',
     ].filter(Boolean)
 

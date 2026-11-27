@@ -70,7 +70,6 @@ describe('<CodeMirrorEditor/> in Visual mode', function () {
             FileTreePathProvider,
             EditorPropertiesProvider: makeEditorPropertiesProvider({
               showVisual: true,
-              showSymbolPalette: false,
             }),
           }}
         >

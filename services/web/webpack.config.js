@@ -149,7 +149,6 @@ module.exports = {
           /node_modules\/(?!(react-dnd|chart\.js|@uppy|@writefull|pdfjs-dist|react-resizable-panels)\/)/,
           vendorDir,
           path.resolve(__dirname, 'modules/writefull/frontend/js/integration'),
-          /ort-wasm-simd-threaded\.mjs$/,
         ],
         use: [
           {
@@ -170,22 +169,6 @@ module.exports = {
       },
       {
         test: /\.wasm$/,
-        type: 'asset/resource',
-        generator: {
-          filename: 'js/[name]-[contenthash][ext]',
-        },
-      },
-      {
-        // ONNX Runtime model files (symbol-recognition)
-        test: /\.ort$/,
-        type: 'asset/resource',
-        generator: {
-          filename: 'js/[name]-[contenthash][ext]',
-        },
-      },
-      {
-        // The reduced onnxruntime-web wasm glue (symbol-recognition)
-        test: /ort-wasm-simd-threaded\.mjs$/,
         type: 'asset/resource',
         generator: {
           filename: 'js/[name]-[contenthash][ext]',
@@ -347,11 +330,6 @@ module.exports = {
     },
     // symlinks: false, // enable this while using `npm link`
     extensions: ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.json'],
-    // Resolve onnxruntime-web to the variant that doesn't embed
-    // `new URL(...)` references to its own wasm files, as the wasm is
-    // loaded from modules/symbol-recognition via `ort.env.wasm.wasmPaths`
-    // ('...' keeps the default condition names)
-    conditionNames: ['onnxruntime-web-use-extern-wasm', '...'],
     fallback: {
       events: require.resolve('events'),
       // for react-dnd + React 17

@@ -111,7 +111,6 @@ describe('<FigureModal />', function () {
             ProjectProvider: makeProjectProvider(project),
             EditorPropertiesProvider: makeEditorPropertiesProvider({
               showVisual: true,
-              showSymbolPalette: false,
             }),
           }}
         >
