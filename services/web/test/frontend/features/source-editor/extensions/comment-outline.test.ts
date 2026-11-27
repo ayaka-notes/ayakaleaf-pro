@@ -11,6 +11,7 @@ Some text with the word TODO but no percent sign.
 % FIXME broken figure
 % BUG: crash on save
 \\textbf{100\\% TODO: not a comment}
+\\\\% TODO: real comment after a line break
 \\end{document}`
 
 // line 2  % TODO: fix the intro
@@ -18,6 +19,7 @@ Some text with the word TODO but no percent sign.
 // line 6  % FIXME broken figure
 // line 7  % BUG: crash on save
 // line 8  \textbf{100\% TODO: not a comment} (escaped percent)
+// line 9  \\% TODO: real comment after a line break
 
 const TAGS: HighlightTag[] = [
   { tag: 'TODO', color: '#ff8c00' },
@@ -32,7 +34,7 @@ describe('computeCommentOutline', function () {
 
   it('lists the matching comments with tag, line and text', function () {
     const entries = computeCommentOutline(createDoc(), TAGS)
-    expect(entries.map(e => e.line)).to.deep.equal([2, 4, 6, 7])
+    expect(entries.map(e => e.line)).to.deep.equal([2, 4, 6, 7, 9])
 
     const intro = entries.find(e => e.line === 2)!
     expect(intro.tag).to.equal('TODO')
@@ -61,6 +63,15 @@ describe('computeCommentOutline', function () {
     const entries = computeCommentOutline(createDoc(), TAGS)
     // line 8 is "\textbf{100\% TODO: not a comment}"
     expect(entries.map(e => e.line)).to.not.include(8)
+  })
+
+  it('still lists a % after a LaTeX line break (\\) as a comment', function () {
+    const entries = computeCommentOutline(createDoc(), TAGS)
+    // line 9 is "\\% TODO: real comment after a line break"
+    expect(entries.map(e => e.line)).to.include(9)
+    const entry = entries.find(e => e.line === 9)!
+    expect(entry.tag).to.equal('TODO')
+    expect(entry.text).to.equal('real comment after a line break')
   })
 
   it('is empty when there are no tags', function () {

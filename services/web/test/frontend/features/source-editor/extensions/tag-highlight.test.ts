@@ -18,6 +18,7 @@ Some text with the word TODO but no percent sign.
 % FIXME and TODO on one line, FIXME listed first
 % BUG: broken figure
 \\textbf{100\\% TODO: not a comment}
+\\\\% TODO: real comment after a line break
 \\end{document}`
 
 // line 2  % TODO: fix the intro
@@ -29,6 +30,7 @@ Some text with the word TODO but no percent sign.
 // line 9  % FIXME and TODO on one line, FIXME listed first
 // line 10 % BUG: broken figure
 // line 11 \textbf{100\% TODO: not a comment} (escaped percent)
+// line 12 \\% TODO: real comment after a line break
 
 const TODO = { tag: 'TODO', color: '#ff8c00' }
 const FIXME = { tag: 'FIXME', color: '#e5484d' }
@@ -88,7 +90,7 @@ describe('tagHighlight extension', function () {
 
   it('highlights lines whose comment contains the tag', function () {
     createView()
-    expect(highlights().map(h => h.line)).to.deep.equal([2, 4, 7, 8])
+    expect(highlights().map(h => h.line)).to.deep.equal([2, 4, 7, 8, 12])
   })
 
   it('ignores whitespace between the % and the tag', function () {
@@ -120,6 +122,12 @@ describe('tagHighlight extension', function () {
     expect(highlights().map(h => h.line)).to.not.include(11)
   })
 
+  it('still treats a % after a LaTeX line break (\\) as a comment', function () {
+    createView()
+    // line 12 is "\\% TODO: real comment after a line break"
+    expect(highlights().map(h => h.line)).to.include(12)
+  })
+
   it('highlights no lines when the tag list is empty', function () {
     createView([])
     expect(highlights()).to.deep.equal([])
@@ -127,7 +135,7 @@ describe('tagHighlight extension', function () {
 
   it('applies the initial tags after state creation', function () {
     createView([TODO])
-    expect(highlights().map(h => h.line)).to.deep.equal([2, 4, 7, 8])
+    expect(highlights().map(h => h.line)).to.deep.equal([2, 4, 7, 8, 12])
   })
 
   it('applies each tag its own colour', function () {
@@ -149,11 +157,11 @@ describe('tagHighlight extension', function () {
 
   it('updates the highlighted lines when the tags are changed', function () {
     createView([TODO])
-    expect(highlights().map(h => h.line)).to.deep.equal([2, 4, 7, 8])
+    expect(highlights().map(h => h.line)).to.deep.equal([2, 4, 7, 8, 12])
     view.dispatch(setTagHighlight([NOTE]))
     expect(highlights().map(h => h.line)).to.deep.equal([])
     view.dispatch(setTagHighlight([TODO]))
-    expect(highlights().map(h => h.line)).to.deep.equal([2, 4, 7, 8])
+    expect(highlights().map(h => h.line)).to.deep.equal([2, 4, 7, 8, 12])
   })
 })
 
