@@ -62,7 +62,12 @@ if (existsSync(addedDir)) {
   for (const file of readdirSync(addedDir)) {
     if (!file.endsWith('.json') || file === 'added-translations.json') continue
     const target = join(locales, file)
-    if (!existsSync(target)) continue
+    if (!existsSync(target)) {
+      // Fail fast like the previous CI step: jq errored when the target locale
+      // was missing, surfacing a bad/mismatched patch instead of a silent gap.
+      console.error(`added translation ${file} found, but ${join('services/web/locales', file)} is missing`) 
+      process.exit(1)
+    }
     const merged = merge(JSON.parse(readFileSync(target, 'utf8')), JSON.parse(readFileSync(join(addedDir, file), 'utf8')))
     writeFileSync(target, JSON.stringify(merged, null, 2) + '\n')
     console.log(`Merged added translations into ${file}`)
