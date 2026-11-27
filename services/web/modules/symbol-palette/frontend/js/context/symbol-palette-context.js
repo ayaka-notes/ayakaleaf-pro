@@ -173,9 +173,10 @@ export function SymbolPaletteConfigProvider({ children }) {
             if (!parsed || !Array.isArray(parsed.categories) || !Array.isArray(parsed.symbols)) {
                 return false
             }
-            const categories = parsed.categories.filter(
+            // category ids are React keys and ARIA DOM ids, so dedupe (order kept)
+            const categories = [...new Set(parsed.categories.filter(
                 c => typeof c === 'string' && c.trim() !== ''
-            )
+            ))]
             if (categories.length === 0) {
                 return false
             }

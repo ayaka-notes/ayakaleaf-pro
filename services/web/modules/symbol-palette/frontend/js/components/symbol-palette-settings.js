@@ -157,7 +157,7 @@ function AddSymbolForm({ categoryId, onAdd }) {
                     type="text"
                     value={command}
                     onChange={e => setCommand(e.target.value)}
-                    placeholder="\alpha"
+                    placeholder="\\alpha"
                     size="sm"
                 />
             </td>
