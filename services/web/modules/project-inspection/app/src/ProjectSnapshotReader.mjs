@@ -88,6 +88,38 @@ async function loadBinaryBibliography(projectId, file, signal) {
   }
 }
 
+/**
+ * Load the binary (.bib/.bibtex) bibliography blobs for a project's files.
+ *
+ * This is kept separate from `read` on purpose: the cache key only needs the
+ * lightweight fingerprint (document paths + revisions, file paths + hashes),
+ * so a cache hit can skip this blob I/O entirely.
+ */
+async function loadBibliographies(projectId, files, { signal } = {}) {
+  const binaryBibliographies = []
+  let totalBinaryBibliographyBytes = 0
+  for (const file of files) {
+    throwIfAborted(signal)
+    if (!BIB_EXTENSION.test(file.path)) continue
+    const bibliography = await loadBinaryBibliography(projectId, file, signal)
+    totalBinaryBibliographyBytes += Buffer.byteLength(
+      bibliography.content ?? '',
+      'utf8'
+    )
+    if (totalBinaryBibliographyBytes > MAX_TOTAL_BIB_BYTES) {
+      throw new ProjectTooLargeError(
+        `Bibliography content exceeds the ${MAX_TOTAL_BIB_BYTES} byte analysis limit`
+      )
+    }
+    binaryBibliographies.push({
+      id: file.id,
+      path: file.path,
+      ...bibliography,
+    })
+  }
+  return binaryBibliographies
+}
+
 async function read(projectId, entryPointIds, { signal } = {}) {
   throwIfAborted(signal)
   await DocumentUpdaterHandler.promises.flushProjectToMongo(projectId)
@@ -143,35 +175,17 @@ async function read(projectId, entryPointIds, { signal } = {}) {
     )
   }
 
-  const binaryBibliographies = []
-  let totalBinaryBibliographyBytes = 0
-  for (const file of files) {
-    throwIfAborted(signal)
-    if (!BIB_EXTENSION.test(file.path)) continue
-    const bibliography = await loadBinaryBibliography(projectId, file, signal)
-    totalBinaryBibliographyBytes += Buffer.byteLength(
-      bibliography.content ?? '',
-      'utf8'
-    )
-    if (totalBinaryBibliographyBytes > MAX_TOTAL_BIB_BYTES) {
-      throw new ProjectTooLargeError(
-        `Bibliography content exceeds the ${MAX_TOTAL_BIB_BYTES} byte analysis limit`
-      )
-    }
-    binaryBibliographies.push({
-      id: file.id,
-      path: file.path,
-      ...bibliography,
-    })
-  }
-
+  // Binary bibliographies are intentionally NOT loaded here: they are only
+  // needed for the analysis itself, and a cache hit should skip that I/O.
+  // Callers run `loadBibliographies` after their cache check (see
+  // ProjectInspectionManager) and attach the result to the snapshot.
   return {
     projectId,
     documents,
     files,
-    binaryBibliographies,
+    binaryBibliographies: [],
     entryPointIds,
   }
 }
 
-export default { read }
+export default { read, loadBibliographies }

@@ -5,10 +5,10 @@ import AnalysisWorkerService from './AnalysisWorkerService.mjs'
 
 // In-process result cache. The analysis is a pure function of the project
 // snapshot, so a result stays valid until the project content changes. We key
-// on the highest document revision (any edit bumps a revision, which changes
-// the key) plus the selected entry points. This avoids re-spawning the worker
-// and re-reading the snapshot for repeated "Analyze" clicks. The cache is
-// per-process (not shared across web processes) and bounded by TTL + size.
+// on the lightweight snapshot fingerprint (document revisions, file hashes)
+// plus the selected entry points. A hit skips the binary-bibliography blob
+// reads and the worker run. The cache is per-process (not shared across web
+// processes) and bounded by TTL + size.
 const CACHE_TTL_MS = parsePositiveInteger(
   process.env.PROJECT_INSPECTION_CACHE_TTL_MS,
   60 * 1000
@@ -64,6 +64,9 @@ function setCached(key, result, now) {
 }
 
 async function analyze(projectId, entryPointIds, { signal } = {}) {
+  // `read` loads documents, files and validates entry points, but NOT the
+  // binary bibliography blobs: the cache key only needs the fingerprint
+  // (paths, revisions, hashes), so a hit skips that blob I/O as well.
   const snapshot = await ProjectSnapshotReader.read(projectId, entryPointIds, {
     signal,
   })
@@ -77,7 +80,15 @@ async function analyze(projectId, entryPointIds, { signal } = {}) {
   }
   Metrics.inc('project-inspection-cache', 1, { status: 'miss' })
 
-  const result = await AnalysisWorkerService.run(snapshot, { signal })
+  const binaryBibliographies = await ProjectSnapshotReader.loadBibliographies(
+    projectId,
+    snapshot.files,
+    { signal }
+  )
+  const result = await AnalysisWorkerService.run(
+    { ...snapshot, binaryBibliographies },
+    { signal }
+  )
   const envelope = {
     schemaVersion: 1,
     analysisId: randomUUID(),
