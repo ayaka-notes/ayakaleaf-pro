@@ -4,7 +4,6 @@ import logger from '@overleaf/logger'
 import { expressify } from '@overleaf/promise-utils'
 import SessionManager from '../../../../app/src/Features/Authentication/SessionManager.mjs'
 import HttpErrorHandler from '../../../../app/src/Features/Errors/HttpErrorHandler.mjs'
-import UserGetter from '../../../../app/src/Features/User/UserGetter.mjs'
 import UserAuditLogHandler from '../../../../app/src/Features/User/UserAuditLogHandler.mjs'
 import TpdsUpdateSender from '../../../../app/src/Features/ThirdPartyDataStore/TpdsUpdateSender.mjs'
 import TpdsProjectFlusher from '../../../../app/src/Features/ThirdPartyDataStore/TpdsProjectFlusher.mjs'
@@ -22,10 +21,6 @@ function redirectWithError(req, res, message) {
 // Redirect the user to the Dropbox authorization page
 async function oauth2(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
-  const user = await UserGetter.promises.getUser(userId, { features: 1 })
-  if (!user?.features?.dropbox) {
-    return HttpErrorHandler.forbidden(req, res)
-  }
   // another account would keep the sync state of this one: unlink first
   if (await DropboxHandler.isLinked(userId)) {
     return res.redirect(SETTINGS_URL)

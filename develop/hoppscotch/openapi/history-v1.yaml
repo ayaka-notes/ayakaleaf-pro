@@ -1,0 +1,1809 @@
+openapi: 3.0.3
+info:
+  title: history-v1
+  version: '6.3'
+  description: >-
+    Stores the full history of every project: chunks of changes in Mongo or
+    Postgres and object storage, and file content as blobs. project-history
+    writes changes to it; web, project-history and git-bridge read blobs,
+    snapshots and zips from it.
+servers:
+  - url: http://history-v1:3100
+    description: Inside the Docker network, through the Hoppscotch proxy
+# The servers are Docker addresses that a docs reader cannot reach
+x-hideTryItPanel: true
+tags:
+  - name: Projects
+    x-page-icon: folder-open
+    description: Create, clone and delete a project's history.
+  - name: Blobs
+    x-page-icon: cubes
+    description: File content stored by hash.
+  - name: History
+    x-page-icon: clock-rotate-left
+    description: Chunks, snapshots and changes.
+  - name: Zips
+    x-page-icon: file-zipper
+    description: The project as a zip file.
+  - name: Import
+    x-page-icon: file-import
+    description: Write changes into the history.
+  - name: Monitoring
+    x-page-icon: heart-pulse
+    description: Status, health checks and metrics.
+security:
+  - basicAuth: []
+paths:
+  /:
+    get:
+      tags: [Monitoring]
+      operationId: getRoot
+      summary: Answer with an empty body
+      security: []
+      responses:
+        '200':
+          description: Empty body.
+  /status:
+    get:
+      tags: [Monitoring]
+      operationId: status
+      summary: Check that the service and Mongo are up
+      description: Pings Mongo.
+      security: []
+      responses:
+        '200':
+          description: Up.
+          content:
+            text/html:
+              schema:
+                type: string
+                example: history-v1 is up
+        '500':
+          description: Lost connection with MongoDB.
+  /health_check:
+    get:
+      tags: [Monitoring]
+      operationId: healthCheck
+      summary: Answer OK
+      security: []
+      responses:
+        '200':
+          description: OK.
+          content:
+            text/html:
+              schema:
+                type: string
+                example: OK
+  /docs:
+    get:
+      tags: [Monitoring]
+      operationId: getDocs
+      summary: Answer OK behind basic auth
+      description: >-
+        A leftover of the removed Swagger docs: it only checks basic auth and
+        answers `OK`.
+      responses:
+        '200':
+          description: OK.
+          content:
+            text/html:
+              schema:
+                type: string
+                example: OK
+        '401':
+          description: Missing or wrong basic auth.
+  /metrics:
+    get:
+      tags: [Monitoring]
+      operationId: getMetrics
+      summary: Get Prometheus metrics
+      description: Added by `@overleaf/metrics` (`injectMetricsRoute`).
+      security: []
+      responses:
+        '200':
+          description: Metrics in Prometheus text format.
+          content:
+            text/plain:
+              schema:
+                type: string
+  /api/projects:
+    post:
+      tags: [Projects]
+      operationId: initializeProject
+      summary: Create the history of a new project
+      description: >-
+        Creates an empty first chunk. Without `projectId` it picks a new id.
+        Caller: `services/project-history/app/js/HistoryStoreManager.js`
+        (`initializeProject`).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                projectId:
+                  $ref: '#/components/schemas/ProjectHistoryId'
+      responses:
+        '200':
+          description: History created.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  projectId:
+                    type: string
+                    example: 6aec98777287243198a05332
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+  /api/projects/{project_id}/clone:
+    post:
+      tags: [Projects]
+      operationId: cloneProject
+      summary: Copy a project's history to another project
+      description: >-
+        Persists the source project's Redis buffer, then copies its chunks and
+        blobs to `targetProjectId`. The response is a plain-text progress
+        stream; a failure is a line starting with `error:`. Caller:
+        `services/project-history/app/js/HistoryStoreManager.js`
+        (`cloneProject`).
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [targetProjectId]
+              properties:
+                targetProjectId:
+                  $ref: '#/components/schemas/ProjectHistoryId'
+      responses:
+        '200':
+          description: Progress lines.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+  /api/projects/blob-stats:
+    post:
+      tags: [Blobs]
+      operationId: getProjectBlobsStats
+      summary: Sum the blob sizes of several projects
+      description: >-
+        Caller: `services/web/app/src/Features/History/HistoryManager.mjs`
+        (`getProjectBlobStats`, used by
+        `services/web/modules/admin-tools/app/src/AdminProjectManager.mjs`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [projectIds]
+              properties:
+                projectIds:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ProjectHistoryId'
+      responses:
+        '200':
+          description: One entry per requested project, in request order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BlobStats'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+  /api/projects/{project_id}/blob-stats:
+    post:
+      tags: [Blobs]
+      operationId: getBlobStats
+      summary: Sum the sizes of some blobs of a project
+      description: >-
+        Blobs not found are skipped. Wrapped by `getBlobStats` in
+        `services/web/app/src/Features/History/HistoryManager.mjs`, which has
+        no caller in this repository.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [blobHashes]
+              properties:
+                blobHashes:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/BlobHash'
+      responses:
+        '200':
+          description: Totals.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlobStats'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+  /api/projects/{project_id}:
+    delete:
+      tags: [Projects]
+      operationId: deleteProject
+      summary: Delete the whole history of a project
+      description: >-
+        Deletes the project's Redis buffer, all chunks and all project blobs.
+        Callers: `services/web/app/src/Features/History/HistoryManager.mjs`
+        (`deleteProject`, on hard deletion) and
+        `services/project-history/app/js/HistoryStoreManager.js`
+        (`deleteProject`).
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '204':
+          description: Deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/projects/{project_id}/blobs/{hash}:
+    get:
+      tags: [Blobs]
+      operationId: getProjectBlob
+      summary: Download a blob
+      description: >-
+        Streams the blob (project or global). Supports one range of the form
+        `bytes=start-end` (up to 7 digits each), answered with 206. Accepts
+        basic auth, a JWT in the `Authorization` header, or a JWT in `?token=`.
+        Callers: `services/web/app/src/Features/History/HistoryManager.mjs`
+        (`requestBlob`, used by HistoryBlobStore, HistoryController,
+        RestoreManager, ProjectFileAgent, FileStoreController and
+        ProjectZipStreamManager),
+        `services/project-history/app/js/HistoryStoreManager.js`
+        (`getProjectBlob`, `getProjectBlobStream`) and
+        `services/web/modules/git-bridge/app/src/GitBridgeApiController.mjs`
+        (with `?token=`).
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+        - tokenQuery: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/BlobHashPath'
+        - name: Range
+          in: header
+          required: false
+          schema:
+            type: string
+            example: bytes=0-1023
+      responses:
+        '200':
+          description: Blob content.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '206':
+          description: The requested range.
+          headers:
+            Content-Range:
+              schema:
+                type: string
+                example: bytes 0-1023/52341
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/WrongProject'
+        '404':
+          description: Blob not found (empty body), or a path parameter failed validation.
+        '416':
+          description: Range not satisfiable.
+          headers:
+            Content-Range:
+              schema:
+                type: string
+                example: bytes */52341
+    head:
+      tags: [Blobs]
+      operationId: headProjectBlob
+      summary: Check that a blob exists
+      description: >-
+        Served by the GET route: `getProjectBlob` hands HEAD requests to
+        `headProjectBlob`, which sets `Content-Length` to the blob size.
+        Caller: `services/project-history/app/js/HistoryStoreManager.js`
+        (`_checkBlobExists`).
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+        - tokenQuery: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/BlobHashPath'
+      responses:
+        '200':
+          description: The blob exists.
+          headers:
+            Content-Length:
+              schema:
+                type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Blob not found.
+    put:
+      tags: [Blobs]
+      operationId: createProjectBlob
+      summary: Upload a blob
+      description: >-
+        Stores the request body as a blob of the project after checking that
+        its git blob hash equals `hash`. Bodies over `MAX_FILE_UPLOAD_SIZE`
+        (default 50 MiB) get 413. Callers:
+        `services/web/app/src/Features/History/HistoryManager.mjs`
+        (`uploadBlobFromDisk`, used by FileStoreHandler) and
+        `services/project-history/app/js/HistoryStoreManager.js`
+        (`_createBlob`, used by `createBlobForUpdate`).
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/BlobHashPath'
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '201':
+          description: Stored.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/WrongProject'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: The content's hash does not match `hash`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '413':
+          description: Body too large.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+    post:
+      tags: [Blobs]
+      operationId: copyProjectBlob
+      summary: Copy a blob from another project
+      description: >-
+        Copies blob `hash` from project `copyFrom` into `project_id`. Answers
+        204 when the target already has it (always the case for global blobs).
+        Caller: `services/web/app/src/Features/History/HistoryManager.mjs`
+        (`copyBlob`, used by ProjectDuplicator).
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/BlobHashPath'
+        - name: copyFrom
+          in: query
+          required: true
+          description: History id of the source project.
+          schema:
+            $ref: '#/components/schemas/ProjectHistoryId'
+        - name: sizeLimit
+          in: query
+          required: false
+          description: Refuse blobs larger than this many bytes.
+          schema:
+            type: number
+      responses:
+        '201':
+          description: Copied.
+        '204':
+          description: The target already has the blob.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/WrongProject'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          description: The blob is larger than `sizeLimit`.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  size:
+                    type: integer
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+  /api/projects/{project_id}/latest/content:
+    get:
+      tags: [History]
+      operationId: getLatestContent
+      summary: Get the latest snapshot with file content
+      description: >-
+        Applies all changes of the latest chunk (including changes still in
+        history-v1's Redis buffer) and loads every file eagerly, so text files
+        come with `content`. Slow for large projects. Wrapped by
+        `getCurrentContent` in
+        `services/web/app/src/Features/History/HistoryManager.mjs`, which has
+        no caller in this repository.
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: The snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RawSnapshot'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/WrongProject'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/projects/{project_id}/latest/hashed_content:
+    get:
+      tags: [History]
+      operationId: getLatestHashedContent
+      summary: Get the latest snapshot with file hashes
+      description: >-
+        Like `latest/content`, but every file is returned as hashes. Hashes of
+        edited files are computed without storing new blobs. No caller in
+        this repository.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: The snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RawSnapshot'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/projects/{project_id}/latest/history:
+    get:
+      tags: [History]
+      operationId: getLatestHistory
+      summary: Get the latest chunk
+      description: >-
+        Returns the latest chunk, with changes still in history-v1's Redis
+        buffer appended. Callers:
+        `services/web/app/src/Features/History/HistoryManager.mjs`
+        (`getLatestHistory`, `getLatestHistoryWithHistoryId`, used by
+        HistoryController, ClsiManager and HistoryOTContentManager) and
+        `services/project-history/app/js/HistoryStoreManager.js`
+        (`getMostRecentChunk`).
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          $ref: '#/components/responses/ChunkResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/WrongProject'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/projects/{project_id}/latest/history/raw:
+    get:
+      tags: [History]
+      operationId: getLatestHistoryRaw
+      summary: Get the version range of the latest chunk
+      description: >-
+        Reads only the latest chunk's metadata. `readOnly=true` reads from the
+        read-only database connection. Caller:
+        `services/project-history/app/js/HistoryStoreManager.js`
+        (`getMostRecentVersionRaw`).
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: readOnly
+          in: query
+          required: false
+          description: Coerced with `Boolean()`, so any non-empty value means true.
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Chunk metadata.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  startVersion:
+                    type: integer
+                  endVersion:
+                    type: integer
+                  endTimestamp:
+                    type: string
+                    format: date-time
+                    nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/WrongProject'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/projects/{project_id}/latest/persistedHistory:
+    get:
+      tags: [History]
+      operationId: getLatestPersistedHistory
+      summary: Get the latest chunk (same as latest/history)
+      description: >-
+        Despite its name, the route is bound to the same handler as
+        `latest/history` and also returns buffered changes. No caller in this
+        repository.
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          $ref: '#/components/responses/ChunkResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/WrongProject'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/projects/{project_id}/versions/{version}/history:
+    get:
+      tags: [History]
+      operationId: getHistory
+      summary: Get the chunk that holds a version
+      description: >-
+        Caller: `services/project-history/app/js/HistoryStoreManager.js`
+        (`getChunkAtVersion`).
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/Version'
+      responses:
+        '200':
+          $ref: '#/components/responses/ChunkResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/WrongProject'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/projects/{project_id}/versions/{version}/content:
+    get:
+      tags: [History]
+      operationId: getContentAtVersion
+      summary: Get the snapshot at a version with file content
+      description: >-
+        Loads every file eagerly. Callers:
+        `services/web/app/src/Features/History/HistoryManager.mjs`
+        (`getContentAtVersion`, used by RestoreManager and
+        `services/web/modules/git-bridge/app/src/GitBridgeApiController.mjs`).
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/Version'
+      responses:
+        '200':
+          description: The snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RawSnapshot'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/WrongProject'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/projects/{project_id}/timestamp/{timestamp}/history:
+    get:
+      tags: [History]
+      operationId: getHistoryBefore
+      summary: Get the chunk in use at a time
+      description: No caller in this repository.
+      security:
+        - basicAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: timestamp
+          in: path
+          required: true
+          description: ISO 8601 date-time in UTC.
+          schema:
+            type: string
+            format: date-time
+            example: '2026-11-05T15:04:21.959Z'
+      responses:
+        '200':
+          $ref: '#/components/responses/ChunkResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/WrongProject'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/projects/{project_id}/latest/zip:
+    get:
+      tags: [Zips]
+      operationId: getLatestZip
+      summary: Download the latest version as a zip
+      description: >-
+        Builds the zip in a temporary folder and streams it. Sets
+        `X-History-Version` to the end version of the latest chunk. Accepts
+        basic auth or a JWT in `?token=`. Caller:
+        `services/web/app/src/Features/History/HistoryManager.mjs`
+        (`getLatestZipWithHistoryId`, used by ProjectZipStreamManager).
+      security:
+        - basicAuth: []
+        - tokenQuery: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: The zip.
+          headers:
+            X-History-Version:
+              schema:
+                type: integer
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/WrongProject'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/projects/{project_id}/version/{version}/zip:
+    get:
+      tags: [Zips]
+      operationId: getZip
+      summary: Download a version as a zip
+      description: >-
+        Accepts basic auth or a JWT in `?token=`. Caller:
+        `services/web/app/src/Features/History/HistoryController.mjs`
+        (`_pipeHistoryZipToResponse`, without the `saas` feature).
+      security:
+        - basicAuth: []
+        - tokenQuery: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/Version'
+      responses:
+        '200':
+          description: The zip.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/WrongProject'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Zips]
+      operationId: createZip
+      summary: Build a version's zip in the zip bucket
+      description: >-
+        Returns a signed URL at once and builds the zip in the background into
+        `OVERLEAF_EDITOR_ZIPS_BUCKET`. Caller:
+        `services/web/app/src/Features/History/HistoryController.mjs`
+        (`_pipeHistoryZipToResponse`, with the `saas` feature only).
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/Version'
+      responses:
+        '200':
+          description: Where the zip will be.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  zipUrl:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/projects/{project_id}/changes:
+    get:
+      tags: [History]
+      operationId: getChanges
+      summary: List changes since a version
+      description: >-
+        Returns the changes after `since` (default 0): from history-v1's Redis
+        buffer when it has them, else the rest of the chunk holding `since`, with
+        `hasMore` true when later chunks exist. Callers:
+        `services/web/app/src/Features/History/HistoryManager.mjs`
+        (`getChanges`, `getChangesWithHistoryId`, used by HistoryController,
+        HistoryOTContentManager and ClsiManager).
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: number
+            default: 0
+      responses:
+        '200':
+          description: The changes.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  changes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RawChange'
+                  hasMore:
+                    type: boolean
+        '400':
+          description: '`since` is negative or past the end of the history.'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: 'Version out of bounds: 99'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Import]
+      operationId: importChanges
+      summary: Append changes to the history
+      description: >-
+        Validates the changes, loads the blobs they refer to and commits them
+        on top of `end_version`. With `return_snapshot=hashed` it returns the
+        resulting snapshot as hashes, else `{resyncNeeded}`. No caller in this
+        repository; project-history uses `legacy_changes`, which runs the same
+        handler.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/EndVersion'
+        - $ref: '#/components/parameters/ReturnSnapshot'
+      requestBody:
+        $ref: '#/components/requestBodies/Changes'
+      responses:
+        '201':
+          $ref: '#/components/responses/ImportChangesResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /api/projects/{project_id}/import:
+    post:
+      tags: [Import]
+      operationId: importSnapshot
+      summary: Create a history from a snapshot
+      description: >-
+        Creates the project's history with this snapshot as its start. No
+        caller in this repository.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        $ref: '#/components/requestBodies/Snapshot'
+      responses:
+        '200':
+          $ref: '#/components/responses/ImportSnapshotResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /api/projects/{project_id}/legacy_import:
+    post:
+      tags: [Import]
+      operationId: legacyImportSnapshot
+      summary: Create a history from a snapshot (old path)
+      description: >-
+        Same handler as `import` (`importSnapshot`). No caller in this
+        repository.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        $ref: '#/components/requestBodies/Snapshot'
+      responses:
+        '200':
+          $ref: '#/components/responses/ImportSnapshotResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /api/projects/{project_id}/legacy_changes:
+    post:
+      tags: [Import]
+      operationId: legacyImportChanges
+      summary: Append changes to the history (path used by project-history)
+      description: >-
+        Same handler as `POST changes` (`importChanges`). Caller:
+        `services/project-history/app/js/HistoryStoreManager.js`
+        (`sendChanges`).
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/EndVersion'
+        - $ref: '#/components/parameters/ReturnSnapshot'
+      requestBody:
+        $ref: '#/components/requestBodies/Changes'
+      responses:
+        '201':
+          $ref: '#/components/responses/ImportChangesResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /api/projects/{project_id}/set_content:
+    post:
+      tags: [Import]
+      operationId: setContent
+      summary: Replace the content of one file
+      description: >-
+        Builds and commits a change that sets the file at `pathname` to
+        `content`, or to the existing blob `blobHash`. With `trackChanges` the
+        edit is recorded as tracked changes by `userId`. Returns the base
+        version and the change, or `change: null` when nothing changed. No
+        caller in this repository.
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          description: History id. This route does not check its format.
+          schema:
+            type: string
+            example: 6aec98777287243198a05332
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetContentBody'
+      responses:
+        '200':
+          description: Change committed, or nothing to change.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  baseVersion:
+                    type: integer
+                  change:
+                    type: object
+                    nullable: true
+                    allOf:
+                      - $ref: '#/components/schemas/RawChange'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          description: Content too large.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /api/projects/{project_id}/flush:
+    post:
+      tags: [Import]
+      operationId: flushChanges
+      summary: Persist the Redis buffer of a project
+      description: >-
+        Writes changes held in history-v1's Redis buffer to the chunk store.
+        Caller: `services/history-v1/storage/scripts/persist_redis_chunks.mjs`.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: Persisted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/projects/{project_id}/expire:
+    post:
+      tags: [Import]
+      operationId: expireProject
+      summary: Expire the Redis buffer of a project
+      description: >-
+        Deletes the project's history-v1 Redis buffer, but only when all of it
+        is persisted. Caller:
+        `services/history-v1/storage/scripts/expire_redis_chunks.js`.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: Done.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: >-
+        User `staging`. The password is history-v1's `STAGING_PASSWORD`
+        (`basicHttpAuth.password`; `BASIC_HTTP_AUTH_OLD_PASSWORD` also works).
+        Clients read the same secret from `V1_HISTORY_PASSWORD`. When the
+        variable is unset, history-v1 takes the value from its
+        `config/<NODE_ENV>.json`. Accepted on every protected route.
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >-
+        A JWT signed with `OT_JWT_AUTH_KEY` (`OT_JWT_AUTH_OLD_KEY` also works)
+        using `OT_JWT_AUTH_ALG` (HS256 in web's settings). Its payload needs
+        `project_id` equal to the path's `project_id`, else 403.
+    tokenQuery:
+      type: apiKey
+      in: query
+      name: token
+      description: The same JWT as `bearerAuth`, passed as `?token=`. git-bridge links use it.
+  parameters:
+    ProjectId:
+      name: project_id
+      in: path
+      required: true
+      description: History id (`project.overleaf.history.id`).
+      schema:
+        $ref: '#/components/schemas/ProjectHistoryId'
+    Version:
+      name: version
+      in: path
+      required: true
+      schema:
+        type: number
+        example: 23
+    BlobHashPath:
+      name: hash
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/BlobHash'
+    EndVersion:
+      name: end_version
+      in: query
+      required: true
+      description: Version the changes apply on top of; must equal the current end version.
+      schema:
+        type: number
+    ReturnSnapshot:
+      name: return_snapshot
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [hashed, none]
+        default: none
+  requestBodies:
+    Changes:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/RawChange'
+    Snapshot:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RawSnapshot'
+  responses:
+    ChunkResponse:
+      description: A chunk.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              chunk:
+                type: object
+                properties:
+                  history:
+                    type: object
+                    properties:
+                      snapshot:
+                        $ref: '#/components/schemas/RawSnapshot'
+                      changes:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/RawChange'
+                  startVersion:
+                    type: integer
+    ImportChangesResult:
+      description: Committed.
+      content:
+        application/json:
+          schema:
+            anyOf:
+              - type: object
+                properties:
+                  resyncNeeded:
+                    type: boolean
+              - $ref: '#/components/schemas/RawSnapshot'
+    ImportSnapshotResult:
+      description: History created.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              projectId:
+                type: string
+    Unauthorized:
+      description: >-
+        Missing or wrong credentials. Comes with a `WWW-Authenticate` header
+        (`Basic` or `Bearer`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    WrongProject:
+      description: The JWT was issued for another project.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    NotFound:
+      description: >-
+        Project, chunk or version not found (`{message}`), or a path parameter
+        failed validation (`{error, statusCode}`).
+      content:
+        application/json:
+          schema:
+            anyOf:
+              - $ref: '#/components/schemas/Message'
+              - $ref: '#/components/schemas/ValidationError'
+    Conflict:
+      description: The project's history already exists.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Message'
+    ValidationFailed:
+      description: A query or body parameter failed validation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+    Unprocessable:
+      description: >-
+        The body failed validation (`{error, statusCode}`), or the changes could
+        not be applied, for example a wrong `end_version` or an edit of a
+        missing file (`{message}`).
+      content:
+        application/json:
+          schema:
+            anyOf:
+              - $ref: '#/components/schemas/Message'
+              - $ref: '#/components/schemas/ValidationError'
+  schemas:
+    ProjectHistoryId:
+      type: string
+      description: A 24-hex Mongo ObjectId or a Postgres integer id.
+      pattern: '^([0-9a-f]{24}|[1-9][0-9]{0,9})$'
+      example: 6aec98777287243198a05332
+    ObjectId:
+      type: string
+      pattern: '^[0-9a-f]{24}$'
+      example: 6ab3f6d0040b00ac810bca0b
+    BlobHash:
+      type: string
+      description: Git blob hash (SHA-1) of the content.
+      pattern: '^[0-9a-f]{40}$'
+      example: 5b889ef3cf71c83a4c027c4e4dc3d1a106b27809
+    Message:
+      type: object
+      properties:
+        message:
+          type: string
+    ErrorBody:
+      type: object
+      description: Body of the generic error handler. `error` has details only when `NODE_ENV=development`.
+      properties:
+        message:
+          type: string
+        error:
+          type: object
+    ValidationError:
+      type: object
+      description: >-
+        From `@overleaf/validation-tools`. With `REQ_VALIDATION_MODE` unset
+        (`log`), most routes log a failed check and go on with a looser schema
+        instead of answering with this error.
+      properties:
+        error:
+          type: string
+        statusCode:
+          type: integer
+    BlobStats:
+      type: object
+      properties:
+        projectId:
+          type: string
+        textBlobBytes:
+          type: integer
+        binaryBlobBytes:
+          type: integer
+        totalBytes:
+          type: integer
+        nTextBlobs:
+          type: integer
+        nBinaryBlobs:
+          type: integer
+    SetContentBody:
+      description: >-
+        Exactly one of `content` or `blobHash`. `userId` is required when
+        `trackChanges` is true.
+      anyOf:
+        - type: object
+          additionalProperties: false
+          required: [pathname, source, timestamp, content]
+          properties:
+            pathname:
+              type: string
+              minLength: 1
+            source:
+              type: string
+              description: Origin kind of the change.
+            userId:
+              $ref: '#/components/schemas/ObjectId'
+            timestamp:
+              type: string
+              format: date-time
+            metadata:
+              $ref: '#/components/schemas/RawFileMetadata'
+            trackChanges:
+              type: boolean
+            content:
+              type: string
+        - type: object
+          additionalProperties: false
+          required: [pathname, source, timestamp, blobHash]
+          properties:
+            pathname:
+              type: string
+              minLength: 1
+            source:
+              type: string
+            userId:
+              $ref: '#/components/schemas/ObjectId'
+            timestamp:
+              type: string
+              format: date-time
+            metadata:
+              $ref: '#/components/schemas/RawFileMetadata'
+            trackChanges:
+              type: boolean
+            blobHash:
+              $ref: '#/components/schemas/BlobHash'
+    RawSnapshot:
+      type: object
+      additionalProperties: false
+      required: [files]
+      properties:
+        files:
+          type: object
+          description: Files keyed by path.
+          additionalProperties:
+            $ref: '#/components/schemas/RawFile'
+        projectVersion:
+          type: string
+        v2DocVersions:
+          type: object
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/RawV2DocVersions'
+        timestamp:
+          type: string
+          format: date-time
+    RawV2DocVersions:
+      type: object
+      description: Doc versions keyed by doc id.
+      additionalProperties:
+        type: object
+        additionalProperties: false
+        required: [pathname, v]
+        properties:
+          pathname:
+            type: string
+          v:
+            type: integer
+    RawChange:
+      type: object
+      additionalProperties: false
+      required: [operations, timestamp]
+      properties:
+        operations:
+          type: array
+          items:
+            $ref: '#/components/schemas/RawOperation'
+        timestamp:
+          type: string
+          format: date-time
+        authors:
+          type: array
+          description: Legacy v1 user ids; null for anonymous.
+          items:
+            type: integer
+            nullable: true
+        v2Authors:
+          type: array
+          description: User ids; null for anonymous.
+          items:
+            type: string
+            nullable: true
+            pattern: '^[0-9a-f]{24}$'
+        origin:
+          $ref: '#/components/schemas/RawOrigin'
+        projectVersion:
+          type: string
+        v2DocVersions:
+          $ref: '#/components/schemas/RawV2DocVersions'
+    RawOperation:
+      description: Add, edit, move (or delete with an empty `newPathname`), set metadata, or nothing.
+      anyOf:
+        - title: AddFile
+          type: object
+          additionalProperties: false
+          required: [pathname, file]
+          properties:
+            pathname:
+              type: string
+            file:
+              $ref: '#/components/schemas/RawFile'
+        - title: EditFile (text)
+          type: object
+          additionalProperties: false
+          required: [pathname, textOperation]
+          properties:
+            pathname:
+              type: string
+            textOperation:
+              $ref: '#/components/schemas/RawTextOperation'
+            contentHash:
+              type: string
+        - title: EditFile (add comment)
+          type: object
+          additionalProperties: false
+          required: [pathname, commentId, ranges]
+          properties:
+            pathname:
+              type: string
+            commentId:
+              $ref: '#/components/schemas/ObjectId'
+            ranges:
+              type: array
+              items:
+                $ref: '#/components/schemas/RawRange'
+            resolved:
+              type: boolean
+        - title: EditFile (delete comment)
+          type: object
+          additionalProperties: false
+          required: [pathname, deleteComment]
+          properties:
+            pathname:
+              type: string
+            deleteComment:
+              $ref: '#/components/schemas/ObjectId'
+        - title: EditFile (set comment state)
+          type: object
+          additionalProperties: false
+          required: [pathname, commentId, resolved]
+          properties:
+            pathname:
+              type: string
+            commentId:
+              $ref: '#/components/schemas/ObjectId'
+            resolved:
+              type: boolean
+        - title: EditFile (no-op)
+          type: object
+          additionalProperties: false
+          required: [pathname, noOp]
+          properties:
+            pathname:
+              type: string
+            noOp:
+              type: boolean
+              enum: [true]
+        - title: MoveFile
+          type: object
+          additionalProperties: false
+          required: [pathname, newPathname]
+          properties:
+            pathname:
+              type: string
+            newPathname:
+              type: string
+        - title: SetFileMetadata
+          type: object
+          additionalProperties: false
+          required: [pathname, metadata]
+          properties:
+            pathname:
+              type: string
+            metadata:
+              $ref: '#/components/schemas/RawFileMetadata'
+        - title: NoOperation
+          type: object
+          additionalProperties: false
+    RawTextOperation:
+      type: array
+      description: >-
+        Scan ops: a positive integer retains, a negative integer removes, a
+        string inserts. Object forms carry comment ids or tracking.
+      items:
+        anyOf:
+          - type: string
+          - type: integer
+            minimum: 1
+          - type: integer
+            maximum: -1
+          - type: object
+            additionalProperties: false
+            required: [i]
+            properties:
+              i:
+                type: string
+              commentIds:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ObjectId'
+              tracking:
+                $ref: '#/components/schemas/RawTrackingProps'
+          - type: object
+            additionalProperties: false
+            required: [r]
+            properties:
+              r:
+                type: integer
+                minimum: 1
+              commentIds:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ObjectId'
+              tracking:
+                anyOf:
+                  - $ref: '#/components/schemas/RawTrackingProps'
+                  - type: object
+                    additionalProperties: false
+                    required: [type]
+                    properties:
+                      type:
+                        type: string
+                        enum: [none]
+    RawTrackingProps:
+      type: object
+      additionalProperties: false
+      required: [type, userId, ts]
+      properties:
+        type:
+          type: string
+          enum: [insert, delete]
+        userId:
+          $ref: '#/components/schemas/ObjectId'
+        ts:
+          type: string
+          format: date-time
+    RawRange:
+      type: object
+      additionalProperties: false
+      required: [pos, length]
+      properties:
+        pos:
+          type: integer
+          minimum: 0
+        length:
+          type: integer
+          minimum: 0
+    RawComment:
+      type: object
+      additionalProperties: false
+      required: [id, ranges]
+      properties:
+        id:
+          $ref: '#/components/schemas/ObjectId'
+        ranges:
+          type: array
+          items:
+            $ref: '#/components/schemas/RawRange'
+        resolved:
+          type: boolean
+    RawTrackedChange:
+      type: object
+      additionalProperties: false
+      required: [range, tracking]
+      properties:
+        range:
+          $ref: '#/components/schemas/RawRange'
+        tracking:
+          $ref: '#/components/schemas/RawTrackingProps'
+    RawFile:
+      description: >-
+        A file: binary (`hash`, `byteLength`), text by hash (`hash`, optional
+        `rangesHash`), hollow (only a length), lazy text (`hash`,
+        `stringLength`, pending `operations`), or text with `content`. Each may
+        carry `metadata`.
+      anyOf:
+        - title: Binary
+          type: object
+          additionalProperties: false
+          required: [hash, byteLength]
+          properties:
+            hash:
+              $ref: '#/components/schemas/BlobHash'
+            byteLength:
+              type: integer
+              minimum: 0
+            metadata:
+              $ref: '#/components/schemas/RawFileMetadata'
+        - title: Hash
+          type: object
+          additionalProperties: false
+          required: [hash]
+          properties:
+            hash:
+              $ref: '#/components/schemas/BlobHash'
+            rangesHash:
+              $ref: '#/components/schemas/BlobHash'
+            metadata:
+              $ref: '#/components/schemas/RawFileMetadata'
+        - title: HollowBinary
+          type: object
+          additionalProperties: false
+          required: [byteLength]
+          properties:
+            byteLength:
+              type: integer
+              minimum: 0
+            metadata:
+              $ref: '#/components/schemas/RawFileMetadata'
+        - title: HollowString
+          type: object
+          additionalProperties: false
+          required: [stringLength]
+          properties:
+            stringLength:
+              type: integer
+              minimum: 0
+            metadata:
+              $ref: '#/components/schemas/RawFileMetadata'
+        - title: LazyString
+          type: object
+          additionalProperties: false
+          required: [hash, stringLength]
+          properties:
+            hash:
+              $ref: '#/components/schemas/BlobHash'
+            stringLength:
+              type: integer
+              minimum: 0
+            rangesHash:
+              $ref: '#/components/schemas/BlobHash'
+            operations:
+              type: array
+              items:
+                $ref: '#/components/schemas/RawEditOperation'
+            metadata:
+              $ref: '#/components/schemas/RawFileMetadata'
+        - title: String
+          type: object
+          additionalProperties: false
+          required: [content]
+          properties:
+            content:
+              type: string
+            comments:
+              type: array
+              items:
+                $ref: '#/components/schemas/RawComment'
+            trackedChanges:
+              type: array
+              items:
+                $ref: '#/components/schemas/RawTrackedChange'
+            metadata:
+              $ref: '#/components/schemas/RawFileMetadata'
+    RawEditOperation:
+      description: An edit without a path, as kept in a lazy file's `operations`.
+      anyOf:
+        - type: object
+          additionalProperties: false
+          required: [textOperation]
+          properties:
+            textOperation:
+              $ref: '#/components/schemas/RawTextOperation'
+            contentHash:
+              type: string
+        - type: object
+          additionalProperties: false
+          required: [commentId, ranges]
+          properties:
+            commentId:
+              $ref: '#/components/schemas/ObjectId'
+            ranges:
+              type: array
+              items:
+                $ref: '#/components/schemas/RawRange'
+            resolved:
+              type: boolean
+        - type: object
+          additionalProperties: false
+          required: [deleteComment]
+          properties:
+            deleteComment:
+              $ref: '#/components/schemas/ObjectId'
+        - type: object
+          additionalProperties: false
+          required: [commentId, resolved]
+          properties:
+            commentId:
+              $ref: '#/components/schemas/ObjectId'
+            resolved:
+              type: boolean
+        - type: object
+          additionalProperties: false
+          required: [noOp]
+          properties:
+            noOp:
+              type: boolean
+              enum: [true]
+    RawFileMetadata:
+      description: >-
+        Empty, `{importedAt}`, linked-file data (by `provider`), doc flags
+        (`main`, `mainBibliography`), or legacy v1 linked-file data (`agent`,
+        `agentDataId`).
+      anyOf:
+        - title: Empty
+          type: object
+          additionalProperties: false
+        - title: Uploaded file
+          type: object
+          additionalProperties: false
+          required: [importedAt]
+          properties:
+            importedAt:
+              type: string
+              format: date-time
+        - title: Linked URL
+          type: object
+          additionalProperties: false
+          required: [provider, url]
+          properties:
+            provider:
+              type: string
+              enum: [url]
+            url:
+              type: string
+            importedAt:
+              type: string
+              format: date-time
+        - title: Linked project file
+          type: object
+          additionalProperties: false
+          required: [provider, source_entity_path]
+          properties:
+            provider:
+              type: string
+              enum: [project_file]
+            source_project_id:
+              $ref: '#/components/schemas/ObjectId'
+            v1_source_doc_id:
+              type: number
+            source_entity_path:
+              type: string
+            source_project_display_name:
+              type: string
+            importedAt:
+              type: string
+              format: date-time
+        - title: Linked output file
+          type: object
+          additionalProperties: false
+          required: [provider, source_output_file_path]
+          properties:
+            provider:
+              type: string
+              enum: [project_output_file]
+            source_project_id:
+              $ref: '#/components/schemas/ObjectId'
+            v1_source_doc_id:
+              type: number
+            source_output_file_path:
+              type: string
+            build_id:
+              type: string
+              pattern: '^[0-9a-f]+-[0-9a-f]+$'
+            compileGroup:
+              type: string
+              enum: [alpha, gvisor, standard, priority]
+            clsiServerId:
+              type: string
+              pattern: '^[a-z0-9-]+$'
+            importedAt:
+              type: string
+              format: date-time
+        - title: Linked reference library
+          type: object
+          additionalProperties: false
+          required: [provider]
+          properties:
+            provider:
+              type: string
+              enum: [mendeley, zotero, papers]
+            format:
+              type: string
+              enum: [bibtex, biblatex]
+              description: Zotero only.
+            group_id:
+              type: string
+              nullable: true
+            importer_id:
+              type: string
+            v1_importer_id:
+              type: number
+            importedAt:
+              type: string
+              format: date-time
+        - title: Doc flags
+          type: object
+          additionalProperties: false
+          properties:
+            main:
+              type: boolean
+            mainBibliography:
+              type: boolean
+            importedAt:
+              type: string
+              format: date-time
+        - title: Legacy v1 linked file
+          type: object
+          additionalProperties: false
+          required: [agent, agentDataId]
+          properties:
+            agent:
+              type: string
+            agentDataId:
+              type: number
+            importedAt:
+              type: string
+              format: date-time
+    RawOrigin:
+      description: >-
+        Where a change came from. `restore`, `file-restore` and
+        `project-restore` have fields of their own; any other kind has only
+        `kind` and `historyClientId`.
+      anyOf:
+        - title: Restore
+          type: object
+          additionalProperties: false
+          required: [kind, version, timestamp]
+          properties:
+            kind:
+              type: string
+              enum: [restore, project-restore]
+            version:
+              type: integer
+            timestamp:
+              type: string
+              format: date-time
+            historyClientId:
+              type: string
+              format: uuid
+        - title: File restore
+          type: object
+          additionalProperties: false
+          required: [kind, version, path, timestamp]
+          properties:
+            kind:
+              type: string
+              enum: [file-restore]
+            version:
+              type: integer
+            path:
+              type: string
+            timestamp:
+              type: string
+              format: date-time
+            historyClientId:
+              type: string
+              format: uuid
+        - title: Other
+          type: object
+          additionalProperties: false
+          required: [kind]
+          properties:
+            kind:
+              type: string
+              example: history-resync
+            historyClientId:
+              type: string
+              format: uuid

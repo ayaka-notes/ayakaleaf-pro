@@ -1,0 +1,11 @@
+# Hoppscotch, with its proxy into the Docker network on /proxy, see README.md
+services:
+  hoppscotch:
+    image: hoppscotch/hoppscotch-frontend:2026.10.0
+    volumes:
+      - ./hoppscotch/Caddyfile:/etc/caddy/selfhost-web.Caddyfile:ro
+    ports:
+      - "127.0.0.1:${HOPPSCOTCH_PORT}:80"
+
+  hoppscotch-proxy:
+    image: hoppscotch/proxyscotch:v0.1.4

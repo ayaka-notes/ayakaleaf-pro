@@ -12,7 +12,7 @@ import { CopyToClipboard } from '@/shared/components/copy-to-clipboard'
 import OLButton from '@/shared/components/ol/ol-button'
 import { useProjectContext } from '@/shared/context/project-context'
 import IntegrationCard from '@/features/integrations-panel/integration-card'
-import getMeta from '@/utils/meta'
+import useInstanceFeatures from '@modules/instance-features/frontend/js/use-instance-features'
 import {
   OLModal,
   OLModalBody,
@@ -204,8 +204,10 @@ function McpIntegrationCard() {
   const [showModal, setShowModal] = useState(false)
   const { project } = useProjectContext()
 
-  // The MCP server is only there next to git-bridge
-  if (!getMeta('ol-gitBridgeEnabled')) {
+  const { gitBridge } = useInstanceFeatures()
+
+  // The MCP server is only there next to git-bridge, on its tokens
+  if (!gitBridge) {
     return null
   }
 
