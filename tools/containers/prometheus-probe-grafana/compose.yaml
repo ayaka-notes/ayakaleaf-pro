@@ -257,6 +257,14 @@ services:
       GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3000/}
       GF_SERVER_SERVE_FROM_SUB_PATH: ${GRAFANA_SERVE_FROM_SUB_PATH:-false}
       GF_SECURITY_ALLOW_EMBEDDING: "true"
+      # Isolated embed mode (recommended): the Overleaf admin status page
+      # frames THIS origin directly, authenticated as anonymous Viewer, so
+      # the Overleaf admin session never enters the iframe. Trade-off:
+      # anyone who can reach this origin can read the dashboards — keep the
+      # origin internal, or set GRAFANA_ANONYMOUS_ENABLED=false and use the
+      # same-origin proxy mode instead (see README, "Instance status").
+      GF_AUTH_ANONYMOUS_ENABLED: ${GRAFANA_ANONYMOUS_ENABLED:-true}
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
       # Grafana Live (websocket push) is useless for a read-only overview
       # dashboard, and the admin-UI proxy in the web app is HTTP-only (no WS
       # upgrade). Grafana 11.6 has no live_enabled setting — max_connections

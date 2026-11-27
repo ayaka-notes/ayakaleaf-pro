@@ -168,28 +168,55 @@ re-run any time.
 
 The Overleaf web app ships an admin-only **Instance status** page
 (`/admin/status`, link in the navbar's Admin dropdown) that shows this
-stack's overview dashboard in a full-screen, same-origin iframe — site
-admins see the monitoring without any Grafana login, regular users never
-see the menu item, and the browser never talks to Grafana directly (no
-mixed-content, no public Grafana route).
+stack's overview dashboard in a full-screen iframe. Site admins see the
+monitoring without any Grafana login; regular users never see the menu
+item. Two embed modes, in order of preference (the app picks the first
+configured):
 
-How it works (the `admingrafana` pattern from the OlliTeX toolkit era):
+### Isolated embed (recommended)
 
-- The web app's `monitoring` module proxies `/admin/status/grafana/**`
-  with **server-side Basic auth** (`GRAFANA_ADMIN_USER` /
-  `GRAFANA_ADMIN_PASSWORD` from the web app's env, same credentials as the
-  `GRAFANA_ADMIN_PASSWORD` in this `.env`).
-- Grafana is configured to serve under that subpath:
-  `GRAFANA_SERVE_FROM_SUB_PATH=true` +
-  `GRAFANA_ROOT_URL=https://<site>/admin/status/grafana/` (both set in the
-  test `.env` above), so every asset/API call the embedded UI makes stays
-  under the proxied prefix.
-- Wiring it up in the web app's env:
-  `GRAFANA_INTERNAL_URL=http://grafana:3000` (server-reachable URL),
-  `GRAFANA_PUBLIC_BASE_URL=https://<site>`, plus the admin credentials.
+The status page frames **Grafana's own origin** (e.g.
+`https://grafana.<internal-domain>/d/overleaf-overview`), where this stack
+enables anonymous read-only (Viewer) access (`GRAFANA_ANONYMOUS_ENABLED`).
 
-The `:3000` Grafana port stays for admin/debug only; the public route is the
-app's `/admin/status`.
+- **Trust model:** the iframe is a *separate origin*. The Overleaf admin
+  session never enters it, so a Grafana-side compromise (XSS, plugin
+  exploit) cannot touch Overleaf at all — the isolated origin is the trust
+  boundary.
+- **Trade-off:** anyone who can reach the Grafana origin can read the
+  dashboards (read-only; the admin API still needs the admin login).
+  Keep the origin on the internal network / behind your VPN — do not put
+  it on the public internet.
+- **Wiring (web app env):** `GRAFANA_PUBLIC_BASE_URL=https://grafana.<host>`
+  (the browser-reachable Grafana origin). Nothing else needed; the Grafana
+  port just has to be reachable from admins' browsers.
+
+### Same-origin proxy (fallback)
+
+Use when the Grafana origin must **not** be reachable without a session
+(e.g. only the app's domain may be exposed). The dashboard is served
+through the app under `/admin/status/grafana/**`, session-gated to site
+admins, with server-side Basic auth.
+
+- **Trust model:** same-origin by necessity (the proxy's admin gate needs
+  the session cookie, which only a same-origin iframe can send). A
+  Grafana-side compromise therefore runs under the app origin — mitigated,
+  not eliminated: the proxied document gets a strict, hash-pinned CSP (no
+  `unsafe-inline`/`unsafe-eval`, all other sources locked to `self`).
+- **Requirements (the `admingrafana` pattern from the OlliTeX toolkit era):**
+  - Grafana serves under the proxied subpath:
+    `GRAFANA_SERVE_FROM_SUB_PATH=true` +
+    `GRAFANA_ROOT_URL=https://<site>/admin/status/grafana/` (both set in
+    the test `.env` above), so every asset/API call the embedded UI makes
+    stays under the proxied prefix.
+  - Web app env: `GRAFANA_INTERNAL_URL=http://grafana:3000` (server-
+    reachable URL) + `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD` (same
+    credentials as this `.env`). Leave `public_base_url` unset.
+  - `GRAFANA_ANONYMOUS_ENABLED=false` (optional but cleaner: no anonymous
+    role on the origin).
+
+In proxy mode the `:3000` Grafana port stays for admin/debug only; the
+public route is the app's `/admin/status`.
 
 ## Layout
 
