@@ -24,6 +24,25 @@ export type ChatRequest = {
   messages: ChatMessage[]
 }
 
+// An input item of the Responses API (AI_API_MODE=responses): a message by
+// role, or an item by type (function_call_output, item_reference, ...)
+export type ResponsesItem = {
+  type?: string
+  id?: string
+  role?: string
+  content?: string | { type: string; text?: string }[]
+  call_id?: string
+  output?: unknown
+}
+
+export type ResponsesRequest = {
+  api: 'responses'
+  model: string
+  tools: string[]
+  input: ResponsesItem[]
+  store: boolean
+}
+
 export function aiMock(method: 'GET' | 'POST' | 'PUT', path: string, body?: object) {
   return cy.request({
     method,
@@ -40,8 +59,12 @@ export function chatRequests(): Cypress.Chainable<ChatRequest[]> {
   return aiMock('GET', '/requests').its('body')
 }
 
+export function responsesRequests(): Cypress.Chainable<ResponsesRequest[]> {
+  return aiMock('GET', '/requests').its('body')
+}
+
 // The text of a message, whether sent as a string or as parts
-export function messageText(message: ChatMessage) {
+export function messageText(message: ChatMessage | ResponsesItem) {
   if (typeof message.content === 'string') return message.content
   return (message.content || []).map(part => part.text || '').join('')
 }

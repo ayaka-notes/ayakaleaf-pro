@@ -1,10 +1,19 @@
+import { adminUserInfo } from '../../../helpers/adminTools'
 import { login } from '../../../helpers/login'
 import {
   createProject,
   openProject,
   projectName,
+  waitForMainDocToLoad,
 } from '../../../helpers/project'
-import { ADMIN_EMAIL, ensureAdminExists } from '../../../helpers/users'
+import { postWithCsrf } from '../../../helpers/request'
+import {
+  ADMIN_EMAIL,
+  ensureAdminExists,
+  ensureUserExists,
+} from '../../../helpers/users'
+
+const USER_WITHOUT_IT = 'no-symbol-palette@example.com'
 
 const alpha = 'Lowercase Greek letter alpha'
 const beta = 'Lowercase Greek letter beta'
@@ -105,6 +114,7 @@ function infinity(): Point[] {
 
 before(function () {
   ensureAdminExists()
+  ensureUserExists(USER_WITHOUT_IT)
 })
 
 describe('symbol palette', function () {
@@ -352,5 +362,64 @@ describe('symbol palette draw mode', function () {
     results().should('not.exist')
     cy.findByText(/Draw a symbol in the box on the right/)
     cy.findByRole('button', { name: 'Clear' }).should('be.disabled')
+  })
+})
+
+describe('symbol palette turned off for a user', function () {
+  // wide enough for the toolbar to keep its symbol button out of the overflow
+  beforeEach(function () {
+    cy.viewport(1920, 1080)
+  })
+
+  // what the admin panel saves; leaves the admin logged in
+  function setSymbolPalette(enabled: boolean) {
+    login(ADMIN_EMAIL)
+    adminUserInfo(USER_WITHOUT_IT).then(user => {
+      postWithCsrf(`/admin/user/${user.id}/update`, {
+        features: { symbolPalette: enabled },
+      })
+        .its('status')
+        .should('equal', 200)
+    })
+  }
+
+  function toolbarButton() {
+    return cy.findByRole('button', { name: 'Insert symbol' })
+  }
+
+  // The two ways to open it: the Insert menu and the toolbar's button
+  function expectNoWayToOpenIt() {
+    cy.findByRole('button', { name: 'Insert', exact: true }).click()
+    cy.findByRole('menuitem', { name: 'Table', exact: true }).should('exist')
+    cy.findByRole('menuitem', { name: 'Symbol', exact: true }).should(
+      'not.exist'
+    )
+    toolbarButton().should('not.exist')
+  }
+
+  it('hides it in the editor, also with the PDF detached, until it is turned back on', function () {
+    setSymbolPalette(false)
+    login(USER_WITHOUT_IT)
+    createProject(projectName('No symbols')).then(projectId => {
+      openProject(projectId)
+      expectNoWayToOpenIt()
+
+      cy.visit(`/project/${projectId}/detacher`)
+      waitForMainDocToLoad()
+      expectNoWayToOpenIt()
+
+      setSymbolPalette(true)
+      login(USER_WITHOUT_IT)
+      openProject(projectId)
+      toolbarButton().should('be.visible')
+      openPalette()
+    })
+  })
+
+  it('leaves it for everyone else', function () {
+    setSymbolPalette(false)
+    createProject(projectName('Still has symbols')).then(openProject)
+    toolbarButton().should('be.visible')
+    openPalette()
   })
 })

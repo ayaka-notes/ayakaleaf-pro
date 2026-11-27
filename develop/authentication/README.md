@@ -1,6 +1,6 @@
 # Authentication
 
-Test users for LDAP and SAML login in the dev env. `authentication.env` turns both on for `web`; values in `dev.env` override it. Local login keeps working.
+Test users for LDAP and SAML login in the dev env. `LDAP_ENABLED` and `SAML_ENABLED` in `dev.rc` turn them on, both by default. `authentication.env` holds their settings for `web`; values in `dev.env` override it. Local login keeps working.
 
 ## Users
 

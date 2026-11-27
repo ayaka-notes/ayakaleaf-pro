@@ -58,7 +58,7 @@ Ayakaleaf Pro er en udvidet version af Overleaf med næsten alle funktioner og m
 - Mendeley-integration (med understøttelse af Mendeley OAuth)
 - Avanceret referencesøgning (søg i alle dine Bib-poster)
 - Understøttelse af Git-Bridge (clone, pull og push med Git)
-- Administrationspanel (global administration af brugere og projekter)
+- Komplet administrationspanel (brugere, projekter og skabeloner med søgning, massehandlinger, sessioner og revisionslogge)
 - SSO med LDAP og SAML eller OAuth 2.0
 - Ubegrænset kompileringstid (kan justeres i administrationspanelet)
 - Selvregistrering (valgfri, kan begrænses efter maildomæne)
@@ -102,6 +102,7 @@ Se filen [CONTRIBUTING](../CONTRIBUTING.md) for information om, hvordan du bidra
 
 ## Blog
 Vi skriver om Overleafs interne opbygning, kompileringsydelse og selvhostet LaTeX-infrastruktur. Læs mere på vores blog:
+- [2026.11 Meet the New Admin Panel in Ayakaleaf Pro](https://ayakaleaf-pro.ayaka.space/blog/2026/new-admin-panel)
 - [2026.08 Overleaf Server Pro Price and Open-Source Alternative](https://ayakaleaf-pro.ayaka.space/blog/2026/overleaf-server-pro-price-and-open-source-alternative)
 - [2026.08 Overleaf Benchmark: A Deep Research of Concurrent LaTeX Compilation in Overleaf](https://ayakaleaf-pro.ayaka.space/blog/2026/overleaf-benchmark)
 
