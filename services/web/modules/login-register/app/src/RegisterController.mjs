@@ -4,6 +4,20 @@ import UserRegistrationHandler from '../../../../app/src/Features/User/UserRegis
 import AuthenticationManager from '../../../../app/src/Features/Authentication/AuthenticationManager.mjs'
 import EmailHelper from '../../../../app/src/Features/Helpers/EmailHelper.mjs'
 import HaveIBeenPwned from '../../../../app/src/Features/Authentication/HaveIBeenPwned.mjs'
+import UserAuditLogHandler from '../../../../app/src/Features/User/UserAuditLogHandler.mjs'
+import UserGetter from '../../../../app/src/Features/User/UserGetter.mjs'
+
+// The new account goes on its own audit log, as an account made at a first
+// SSO login: nobody else asked for it
+function logAccountCreated(req, user) {
+  UserAuditLogHandler.addEntryInBackground(
+    user._id,
+    'create-account',
+    user._id,
+    req.ip,
+    {}
+  )
+}
 
 // OVERLEAF_ALLOW_PUBLIC_REGISTRATION starting with '@' lists the domains that
 // can sign up with an activation email, separated by commas:
@@ -62,12 +76,19 @@ export default {
       })
     }
 
+    // core only sends the activation email again to an address that has an
+    // account, looked up as core's registerNewUser does
+    const existing = await UserGetter.promises.getUserByAnyEmail(
+      EmailHelper.parseEmail(email),
+      { _id: 1 }
+    )
     UserRegistrationHandler.registerNewUserAndSendActivationEmail(
       email,
       (error, user, setNewPasswordUrl) => {
         if (error != null) {
           return next(error)
         }
+        if (!existing) logAccountCreated(req, user)
         return res.status(200).json({
           message: 'Registration successful. Please check your email to activate your account.',
         })
@@ -139,6 +160,7 @@ export default {
         }
 
         // Registration successful
+        logAccountCreated(req, user)
         return res.json(
           {
             redir: '/login',

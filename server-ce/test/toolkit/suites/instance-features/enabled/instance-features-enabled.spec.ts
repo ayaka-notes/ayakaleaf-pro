@@ -145,3 +145,75 @@ describe('what an admin turned off for one user', function () {
     cy.request('/system/features').its('body.gitBridge').should('equal', true)
   })
 })
+
+describe('a user every sync is turned off for', function () {
+  const syncOffUser = `instance-features-sync-off-${Date.now()}@example.com`
+
+  before(function () {
+    ensureUserExists(syncOffUser)
+    login(ADMIN_EMAIL)
+    setUserFeatures(syncOffUser, {
+      github: false,
+      gitlab: false,
+      gitea: false,
+      dropbox: false,
+      gitBridge: false,
+    })
+  })
+
+  it('reports GitLab and Gitea off for them too', function () {
+    login(syncOffUser)
+    cy.request('/system/features').its('body').should('deep.equal', {
+      ai: true,
+      githubSync: false,
+      gitlabSync: false,
+      giteaSync: false,
+      dropbox: false,
+      zotero: true,
+      mendeley: true,
+      gitBridge: false,
+    })
+  })
+
+  it('leaves no empty Project synchronisation group in the account settings', function () {
+    login(syncOffUser)
+    visitWithFeatures('/user/settings')
+    cy.contains('.settings-widget-container', 'Zotero').should('exist')
+    for (const name of ['GitHub', 'GitLab', 'Gitea', 'Dropbox', 'Git integration']) {
+      cy.contains('.settings-widget-container', name).should('not.exist')
+    }
+    cy.findByRole('heading', { name: 'Project synchronisation' }).should(
+      'not.exist'
+    )
+    cy.findByRole('heading', { name: 'Reference managers' }).should('exist')
+  })
+
+  it('hides GitLab and Gitea in the project list and the editor', function () {
+    login(syncOffUser)
+    createProject(projectName('Sync off')).then(projectId => {
+      cy.visit('/project')
+      cy.intercept('GET', '/system/features').as('features')
+      cy.findAllByRole('button', { name: 'New project' }).first().click()
+      cy.wait('@features')
+      cy.findByRole('menuitem', { name: 'Blank project' }).should('exist')
+      for (const name of ['Import from GitLab', 'Import from Gitea']) {
+        cy.findByRole('menuitem', { name }).should('not.exist')
+      }
+
+      cy.intercept('GET', '/system/features').as('features')
+      openProject(projectId)
+      cy.wait('@features')
+    })
+    openRailTab('Integrations')
+    cy.findByRole('button', { name: /Zotero/ }).should('exist')
+    for (const name of [/GitLab/, /Gitea/]) {
+      cy.findByRole('button', { name }).should('not.exist')
+    }
+  })
+
+  it('leaves GitLab and Gitea on for everyone else', function () {
+    login(user)
+    cy.request('/system/features').its('body.gitlabSync').should('equal', true)
+    cy.request('/system/features').its('body.giteaSync').should('equal', true)
+  })
+})

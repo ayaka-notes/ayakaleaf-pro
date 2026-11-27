@@ -10,6 +10,7 @@ import SortHeader from '../../shared/sort-header'
 import type {
   AdminUser,
   AuthMethod,
+  MatchedEmail,
   SortBy,
   UsersQuery,
   UsersResult,
@@ -184,6 +185,39 @@ const COLUMN = {
   actions: 'd-none d-sm-table-cell',
 }
 
+// Which email is the primary one, once a row shows more than one
+export function PrimaryBadge() {
+  const { t } = useTranslation()
+  return (
+    <span className="admin-panel-badge admin-panel-badge-info">
+      {t('primary')}
+    </span>
+  )
+}
+
+// The secondary emails a search found a row by, each on a line under the
+// primary one, marked as on the user's page
+export function MatchedEmails({
+  emails,
+  className = 'admin-panel-user-email',
+}: {
+  emails: MatchedEmail[]
+  className?: string
+}) {
+  const { t } = useTranslation()
+  return emails.map(({ email, confirmed }) => (
+    <div
+      key={email}
+      className={classnames(className, 'admin-panel-inline-field')}
+    >
+      {email}
+      {!confirmed && (
+        <span className="admin-panel-badge">{t('unconfirmed')}</span>
+      )}
+    </div>
+  ))
+}
+
 function UserRow({
   user,
   onActionDone,
@@ -198,6 +232,8 @@ function UserRow({
   const { t } = useTranslation()
   const { sessionUserId } = getOptions()
   const name = [user.firstName, user.lastName].filter(Boolean).join(' ')
+  const matchedEmails = user.matchedEmails ?? []
+  const primaryBadge = matchedEmails.length > 0 && <PrimaryBadge />
 
   return (
     <tr>
@@ -214,13 +250,24 @@ function UserRow({
       <td className="admin-panel-cell-user">
         <div className="admin-panel-user-name">
           <a href={`/admin/user/${user.id}`}>{name || user.email}</a>
+          {!name && primaryBadge}
           {user.id === sessionUserId && (
             <span className="admin-panel-badge admin-panel-badge-info">
               {t('you')}
             </span>
           )}
         </div>
-        {name && <div className="admin-panel-user-email">{user.email}</div>}
+        {name && (
+          <div
+            className={classnames('admin-panel-user-email', {
+              'admin-panel-inline-field': primaryBadge,
+            })}
+          >
+            {user.email}
+            {primaryBadge}
+          </div>
+        )}
+        <MatchedEmails emails={matchedEmails} />
       </td>
       <td className={COLUMN.login}>
         <div className="admin-panel-badges">

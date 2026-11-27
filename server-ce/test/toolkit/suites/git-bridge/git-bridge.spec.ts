@@ -82,8 +82,9 @@ describe('git tokens in the account settings', function () {
           .findAllByRole('button', { name: 'Close' })
           .last()
           .click()
-        // Wait for the closing modal to stop covering the token's delete button.
-        cy.findByRole('dialog').should('not.exist')
+        // A closed modal sometimes stays in the DOM, invisible, and covers the
+        // token's delete button (arm64 Electron); a fresh page has none
+        cy.reload()
         // Only the start of the token is shown afterwards
         cy.contains(`${token.slice(0, 8)}************`)
       })
@@ -94,6 +95,7 @@ describe('git tokens in the account settings', function () {
       cy.findByRole('button', { name: 'Delete' }).click()
     })
     cy.findByRole('dialog').should('not.exist')
+    cy.get('.linking-git-bridge-revoke-button').should('not.exist')
   })
 })
 

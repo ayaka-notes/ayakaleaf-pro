@@ -6,8 +6,9 @@ import UserGetter from '../../../../app/src/Features/User/UserGetter.mjs'
 
 // The per-user switches of the admin panel, saved in user.features. A user has
 // a feature unless an admin turned it off: the defaults leave some of them
-// unset (github, gitBridge, zotero, mendeley), which counts as on, as in the
-// panel. Whether the instance has the feature at all is /system/features' part.
+// unset (github, gitlab, gitea, gitBridge, zotero, mendeley), which counts as
+// on, as in the panel. Whether the instance has the feature at all is
+// /system/features' part.
 
 export function isFeatureOn(user, feature) {
   return user?.features?.[feature] !== false
