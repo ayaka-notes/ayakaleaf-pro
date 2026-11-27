@@ -3,6 +3,7 @@ import Settings from '@overleaf/settings'
 import { boolFromEnv, hasPassword } from '../../../utils.mjs'
 import PermissionsManager from '../../../../../app/src/Features/Authorization/PermissionsManager.mjs'
 import OIDCAuthenticationController from './OIDCAuthenticationController.mjs'
+import { localLoginDisabled } from '../../../../login-register/app/src/LoginController.mjs'
 import { Strategy as OIDCStrategy } from 'passport-openidconnect'
 
 const OIDCModuleManager = {
@@ -53,9 +54,11 @@ const OIDCModuleManager = {
       logger.info({}, error.message)
     }
     const oidcPolicyValidator = async ({ user, subscription }) => {
-      // Only an account without a local password may not set one: LDAP and
-      // SAML remove the password on login, OIDC keeps the one of a local account
-      return !(await hasPassword(user._id))
+      // Unlike LDAP and SAML, OIDC keeps a local password on login, and an
+      // account made by OIDC may set one with a reset email, so that it can
+      // still log in once the IdP drops it, e.g. a graduate's. Instances that
+      // log in with the IdP only turn local login off: nobody sets one there.
+      return localLoginDisabled() && !(await hasPassword(user._id))
     }
     try {
       PermissionsManager.registerPolicy(
