@@ -244,6 +244,8 @@ const updateSchema = z.strictObject({
       gitBridge: featureSwitch,
       dropbox: featureSwitch,
       github: featureSwitch,
+      gitlab: featureSwitch,
+      gitea: featureSwitch,
       zotero: featureSwitch,
       mendeley: featureSwitch,
     })

@@ -11,6 +11,8 @@
   "expires_in_one_hour": "Platnost vyprší za 1 hodinu",
   "export_project_to_x": "Exportovat projekt do __provider__u",
   "found_matching_deleted_projects": "Nalezeno odpovídajících smazaných projektů: __count__",
+  "gitea": "Gitea",
+  "gitlab": "GitLab",
   "hide_deleted_projects": "Skrýt smazané projekty",
   "import_from_x": "Importovat z __provider__u",
   "importing_and_merging_changes_in_x": "Importuji a merguji změny v __provider__u",
