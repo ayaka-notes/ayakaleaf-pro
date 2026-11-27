@@ -10,12 +10,14 @@ const doc = `\\documentclass{article}
 Some text with the word TODO but no percent sign.
 % FIXME broken figure
 % BUG: crash on save
+\\textbf{100\\% TODO: not a comment}
 \\end{document}`
 
 // line 2  % TODO: fix the intro
 // line 4  %    TODO with leading spaces
 // line 6  % FIXME broken figure
 // line 7  % BUG: crash on save
+// line 8  \textbf{100\% TODO: not a comment} (escaped percent)
 
 const TAGS: HighlightTag[] = [
   { tag: 'TODO', color: '#ff8c00' },
@@ -53,6 +55,12 @@ describe('computeCommentOutline', function () {
     const entries = computeCommentOutline(createDoc(), TAGS)
     // line 5 has the word TODO but no % comment
     expect(entries.map(e => e.line)).to.not.include(5)
+  })
+
+  it('ignores tags after an escaped \\% (LaTeX literal percent)', function () {
+    const entries = computeCommentOutline(createDoc(), TAGS)
+    // line 8 is "\textbf{100\% TODO: not a comment}"
+    expect(entries.map(e => e.line)).to.not.include(8)
   })
 
   it('is empty when there are no tags', function () {

@@ -29,9 +29,11 @@ export function escapeRegExp(text: string) {
 
 // Match the tag in a comment: the tag right after the %, ignoring any
 // whitespace in between, case-insensitively, and not as part of a longer
-// word (so tag "TODO" matches "% TODO:" but not "% TODOIST").
+// word (so tag "TODO" matches "% TODO:" but not "% TODOIST"). An escaped
+// percent (LaTeX literal \) is not a comment start, so "100\% TODO" must not
+// match: the % must not be preceded by a backslash.
 export function tagRegexFor(tag: string) {
-  return new RegExp(`%\\s*${escapeRegExp(tag)}(?![\\w-])`, 'i')
+  return new RegExp(`(?<!\\\\)%\\s*${escapeRegExp(tag)}(?![\\w-])`, 'i')
 }
 
 // A single line decoration that paints the line with the given colour.

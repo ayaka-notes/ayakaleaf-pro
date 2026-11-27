@@ -17,6 +17,7 @@ Some text with the word TODO but no percent sign.
 50% TODO: a comment in the middle of the line
 % FIXME and TODO on one line, FIXME listed first
 % BUG: broken figure
+\\textbf{100\\% TODO: not a comment}
 \\end{document}`
 
 // line 2  % TODO: fix the intro
@@ -27,6 +28,7 @@ Some text with the word TODO but no percent sign.
 // line 8  50% TODO: mid-line
 // line 9  % FIXME and TODO on one line, FIXME listed first
 // line 10 % BUG: broken figure
+// line 11 \textbf{100\% TODO: not a comment} (escaped percent)
 
 const TODO = { tag: 'TODO', color: '#ff8c00' }
 const FIXME = { tag: 'FIXME', color: '#e5484d' }
@@ -110,6 +112,12 @@ describe('tagHighlight extension', function () {
     createView()
     // line 6 is "% TODOIST is a longer word"
     expect(highlights().map(h => h.line)).to.not.include(6)
+  })
+
+  it('does not treat an escaped \\% (LaTeX literal percent) as a comment', function () {
+    createView()
+    // line 11 is "\textbf{100\% TODO: not a comment}"
+    expect(highlights().map(h => h.line)).to.not.include(11)
   })
 
   it('highlights no lines when the tag list is empty', function () {
