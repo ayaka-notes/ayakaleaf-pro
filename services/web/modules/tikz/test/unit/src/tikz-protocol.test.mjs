@@ -17,9 +17,9 @@ describe('tikz-protocol', function () {
     it('does not claim other files', function () {
       expect(isTikzFile('main.tex')).toBe(false)
       expect(isTikzFile('notes.txt')).toBe(false)
-      // quirk of the implementation: a dotless name matches its own
-      // "extension", so a file literally named `tikz` is claimed
-      expect(isTikzFile('tikz')).toBe(true)
+      // extensionless names and hidden files are not claimed
+      expect(isTikzFile('tikz')).toBe(false)
+      expect(isTikzFile('.tikz')).toBe(false)
       expect(isTikzFile(null)).toBe(false)
       expect(isTikzFile(undefined)).toBe(false)
     })

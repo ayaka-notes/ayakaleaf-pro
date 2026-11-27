@@ -130,6 +130,7 @@ export const TIKZ_FILE_EXTENSIONS = ['tikz', 'pgf']
 
 export function isTikzFile (fileName: string | null | undefined): boolean {
   if (!fileName) return false
-  const ext = fileName.split('.').pop()?.toLowerCase()
-  return ext != null && TIKZ_FILE_EXTENSIONS.includes(ext)
+  const dot = fileName.lastIndexOf('.')
+  if (dot <= 0) return false
+  return TIKZ_FILE_EXTENSIONS.includes(fileName.slice(dot + 1).toLowerCase())
 }

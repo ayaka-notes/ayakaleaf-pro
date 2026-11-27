@@ -30,8 +30,6 @@
  * DOM-free so they run in the unit test environment.
  */
 
-import { parseDrawioFile } from './drawio-protocol'
-
 /** Labels that appear in the app's File menu but have no place here. */
 export const BLOCKED_FILE_MENU_LABELS: ReadonlySet<string> = new Set([
   'new',
