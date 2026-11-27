@@ -1082,7 +1082,12 @@ module.exports = {
     ],
     sourceEditorToolbarStartButtons: [],
     sourceEditorToolbarButtonGroups: [],
-    sourceEditorToolbarComponents: [],
+    sourceEditorToolbarComponents: [
+      Path.resolve(
+        __dirname,
+        '../modules/latex-editor/frontend/js/components/latex-editor-controller'
+      ),
+    ],
     sourceEditorToolbarEndButtons: [
       Path.resolve(
         __dirname,
