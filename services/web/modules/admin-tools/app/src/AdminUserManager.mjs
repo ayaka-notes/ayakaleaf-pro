@@ -24,11 +24,13 @@ import TagsHandler from '../../../../app/src/Features/Tags/TagsHandler.mjs'
 import UserDeleter from '../../../../app/src/Features/User/UserDeleter.mjs'
 import UserRegistrationHandler from '../../../../app/src/Features/User/UserRegistrationHandler.mjs'
 import UserSessionsManager from '../../../../app/src/Features/User/UserSessionsManager.mjs'
+import UserSessionsRedis from '../../../../app/src/Features/User/UserSessionsRedis.mjs'
 import UserUpdater from '../../../../app/src/Features/User/UserUpdater.mjs'
 import {
   getTokenUsage,
   resetTokenUsage,
 } from '../../../workbench/app/src/TokenQuota.mjs'
+import { rememberAdminFeatures } from './AdminFeatures.mjs'
 import {
   deleteUserEntries,
   logOnAdmin,
@@ -242,6 +244,8 @@ const updateSchema = z.strictObject({
       gitBridge: featureSwitch,
       dropbox: featureSwitch,
       github: featureSwitch,
+      gitlab: featureSwitch,
+      gitea: featureSwitch,
       zotero: featureSwitch,
       mendeley: featureSwitch,
     })
@@ -337,6 +341,27 @@ async function changeEmail(userId, newEmail, admin) {
   }
 }
 
+// Frees an address a user kept as a secondary email, e.g. one that stops
+// someone's first SSO login. Core logs it with the admin as the initiator.
+async function removeEmail(userId, email, admin) {
+  // a deleted user: from the copy that a restore brings back, so that it can
+  // come back without an email another account uses now
+  if (!(await User.exists({ _id: userId }))) {
+    const { modifiedCount } = await DeletedUser.updateOne(
+      { 'user._id': userId, 'user.email': { $ne: email } },
+      { $pull: { 'user.emails': { email } } }
+    )
+    if (modifiedCount === 0) throw new Errors.NotFoundError('email not found')
+    return await logOnUser(admin, userId, 'remove-email', {
+      removedEmail: email,
+    })
+  }
+  await UserUpdater.promises.removeEmailAddress(userId, email, {
+    initiatorId: admin.id,
+    ipAddress: admin.ip,
+  })
+}
+
 // The document changes of the plain fields
 function fieldChanges(user, fields) {
   const changes = {}
@@ -402,6 +427,23 @@ async function logChanges(admin, userId, requestedFeatures, changes) {
   }
 }
 
+// A session keeps the isAdmin it logged in with, which core reads for the Admin
+// menu and a few checks, and core only edits the session of the current request
+async function setAdminInSessions(userId, isAdmin) {
+  const rclient = UserSessionsRedis.client()
+  const sessionKeys = await rclient.smembers(
+    UserSessionsRedis.sessionSetKey({ _id: userId })
+  )
+  for (const key of sessionKeys) {
+    const value = await rclient.get(key)
+    if (!value) continue
+    const session = JSON.parse(value)
+    const sessionUser = session.passport?.user ?? session.user
+    sessionUser.isAdmin = isAdmin
+    await rclient.set(key, JSON.stringify(session), 'KEEPTTL', 'XX')
+  }
+}
+
 // Applies what the panel's edit forms send, and returns the fields that
 // changed under the names the panel uses
 async function updateUser(userId, body, admin) {
@@ -453,21 +495,22 @@ async function updateUser(userId, body, admin) {
     throw OError.tag(err, 'problem updating user settings', { userId })
   })
   if (disabling) await disableUser(userId, admin)
+  if (changes.features) await rememberAdminFeatures(userId, features)
 
-  // a new password ends what the old one opened, as when the user changes it. A
-  // session keeps the isAdmin it logged in with, so losing it ends them too.
+  // a new password ends what the old one opened, as when the user changes it.
   // Before the log: a failed entry must not leave them open
-  if (changes.hashedPassword || changes.isAdmin === false) {
+  if (changes.hashedPassword) {
     await UserSessionsManager.promises.removeSessionsFromRedis(
       { _id: userId },
       isOwnAccount ? admin.sessionId : undefined
     )
-  }
-  if (changes.hashedPassword) {
     await OneTimeTokenHandler.promises.expireAllTokensForUser(
       userId,
       'password'
     )
+  }
+  if (changes.isAdmin != null) {
+    await setAdminInSessions(userId, changes.isAdmin)
   }
   await logChanges(admin, userId, features, changes)
 
@@ -634,8 +677,17 @@ async function restoreDeletedUser(userId, admin) {
   if (!userData) {
     throw new RefusedError('Something went wrong. The user is purged?')
   }
-  if (await User.exists({ email: userData.email })) {
-    throw new Errors.EmailExistsError()
+  // every email comes back, and another account may use one by now, even as a
+  // secondary email
+  const emails = userData.emails.map(({ email }) => email)
+  const used = await User.distinct('emails.email', {
+    'emails.email': { $in: emails },
+  })
+  const taken = emails.filter(email => used.includes(email))
+  if (taken.length > 0) {
+    throw new RefusedError(
+      `Another account already uses ${taken.join(', ')}: remove it from one of the two accounts first`
+    )
   }
 
   try {
@@ -706,4 +758,5 @@ export default {
   restoreDeletedUser,
   getAiUsage,
   resetAiUsage,
+  removeEmail,
 }

@@ -4,6 +4,10 @@ import logger from '@overleaf/logger'
 import GiteaSyncController from './GiteaSyncController.mjs'
 import AuthenticationController from '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
 import AuthorizationMiddleware from '../../../../app/src/Features/Authorization/AuthorizationMiddleware.mjs'
+import { requireUserFeature } from '../../../instance-features/app/src/UserFeatures.mjs'
+
+// Unlinking stays open: a user can always let go of an account or a repository
+const requireGitea = requireUserFeature('gitea')
 
 export default {
   apply(webRouter) {
@@ -18,6 +22,7 @@ export default {
     webRouter.get(
       '/user/gitea-sync/oauth2',
       AuthenticationController.requireLogin(),
+      requireGitea,
       GiteaSyncController.oauth2
     )
 
@@ -25,6 +30,7 @@ export default {
     webRouter.get(
       '/user/gitea-sync/oauth2/callback',
       AuthenticationController.requireLogin(),
+      requireGitea,
       GiteaSyncController.oauth2Callback
     )
 
@@ -39,6 +45,7 @@ export default {
     webRouter.get(
       '/user/gitea-sync/status',
       AuthenticationController.requireLogin(),
+      requireGitea,
       GiteaSyncController.getConnectionStatus
     )
 
@@ -46,6 +53,7 @@ export default {
     webRouter.get(
       '/user/gitea-sync/orgs',
       AuthenticationController.requireLogin(),
+      requireGitea,
       GiteaSyncController.getUserAndOrgs
     )
 
@@ -53,6 +61,7 @@ export default {
     webRouter.get(
       '/user/gitea-sync/repos',
       AuthenticationController.requireLogin(),
+      requireGitea,
       GiteaSyncController.listUserRepos
     )
 
@@ -60,6 +69,7 @@ export default {
     webRouter.post(
       '/project/new/gitea-sync',
       AuthenticationController.requireLogin(),
+      requireGitea,
       GiteaSyncController.importRepo
     )
 
@@ -68,6 +78,7 @@ export default {
       '/project/:project_id/gitea-sync/export',
       AuthenticationController.requireLogin(),
       AuthorizationMiddleware.ensureUserCanWriteProjectContent,
+      requireGitea,
       GiteaSyncController.exportProject
     )
 
@@ -76,6 +87,7 @@ export default {
       '/project/:project_id/gitea-sync/state',
       AuthenticationController.requireLogin(),
       AuthorizationMiddleware.ensureUserCanWriteProjectContent,
+      requireGitea,
       GiteaSyncController.getProjectState
     )
 
@@ -85,6 +97,7 @@ export default {
       '/project/:project_id/gitea-sync/merge/overview',
       AuthenticationController.requireLogin(),
       AuthorizationMiddleware.ensureUserCanWriteProjectContent,
+      requireGitea,
       GiteaSyncController.getMergeOverview
     )
 
@@ -93,6 +106,7 @@ export default {
       '/project/:project_id/gitea-sync/merge',
       AuthenticationController.requireLogin(),
       AuthorizationMiddleware.ensureUserCanWriteProjectContent,
+      requireGitea,
       GiteaSyncController.gitMerge
     )
 

@@ -1,5 +1,5 @@
 import { DEFAULT_PASSWORD, login } from './login'
-import { postWithCsrf } from './request'
+import { requestWithCsrf, postWithCsrf } from './request'
 
 // Doing what the admin panel (/admin/user) does, for the suites that need an
 // account in a given state.
@@ -26,6 +26,61 @@ export function setSuspended(email: string, suspended: boolean) {
       .its('status')
       .should('equal', 200)
   })
+}
+
+// Sets features of the user like the Features tab of their page. Expects to be
+// logged in as admin.
+export function setUserFeatures(
+  email: string,
+  features: Record<string, boolean | number>
+) {
+  adminUserInfo(email).then(user => {
+    postWithCsrf(`/admin/user/${user.id}/update`, { features })
+      .its('status')
+      .should('equal', 200)
+  })
+}
+
+// The user's features as the database holds them: the admin's page of the
+// account reads them without defaults. Expects to be logged in as admin.
+export function storedFeatures(
+  email: string
+): Cypress.Chainable<Record<string, unknown>> {
+  return adminUserInfo(email).then(user => {
+    cy.visit(`/admin/user/${user.id}`)
+    return cy
+      .get('meta[name="ol-adminUser"]')
+      .invoke('attr', 'content')
+      .then(content => JSON.parse(content as string).user.features)
+  })
+}
+
+// Visits the page and waits until it knows what the user can use, so that
+// checking for missing UI cannot pass before the UI could have appeared
+export function visitWithFeatures(url: string) {
+  cy.intercept('GET', '/system/features').as('features')
+  cy.visit(url)
+  cy.wait('@features')
+}
+
+type Route = [
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+  url: string,
+  body?: Record<string, unknown>,
+]
+
+// What each route answers to a script, whatever the page offers. Expects to be
+// on a page with a CSRF token.
+export function expectRoutesAnswer(status: number, routes: Route[]) {
+  for (const [method, url, body] of routes) {
+    const request =
+      method === 'GET'
+        ? cy.request({ url, failOnStatusCode: false, followRedirect: false })
+        : requestWithCsrf(method, url, body)
+    request.then(response => {
+      expect(response.status, `${method} ${url}`).to.equal(status)
+    })
+  }
 }
 
 // Creates a local account like the Create account modal, not activated.

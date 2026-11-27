@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Runs docker compose with the features turned on in dev.rc, like
+# the Overleaf Toolkit's bin/docker-compose. Each feature has a docker-compose.yml
+# in its own folder, and paths in all of them are relative to develop/.
+# Arguments come after the feature files, so a caller can add its own -f.
+
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+source dev.rc
+
+files=(-f docker-compose.yml)
+add_feature() { # switch folder
+  if [[ ${!1} == true ]]; then
+    files+=(-f "$2/docker-compose.yml")
+  fi
+}
+add_feature LDAP_ENABLED authentication/ldap
+add_feature SAML_ENABLED authentication/saml
+add_feature MAILPIT_ENABLED mail
+add_feature S3_ENABLED s3
+add_feature HOPPSCOTCH_ENABLED hoppscotch
+add_feature GRAFANA_ENABLED grafana
+
+auth=()
+[[ $LDAP_ENABLED == true ]] && auth+=(ldap)
+[[ $SAML_ENABLED == true ]] && auth+=(saml)
+EXTERNAL_AUTH=$(IFS=,; echo "${auth[*]:-none}")
+
+export EXTERNAL_AUTH OVERLEAF_PORT HOPPSCOTCH_PORT
+
+exec docker compose "${files[@]}" "$@"

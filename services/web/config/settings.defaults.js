@@ -1378,7 +1378,8 @@ module.exports = {
     'error-assistant',
     'instance-features',
     'open-in-overleaf',
-    'drawio'
+    'drawio',
+    'user-emails'
   ],
   viewIncludes: {},
 

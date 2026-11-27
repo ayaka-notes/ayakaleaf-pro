@@ -19,8 +19,9 @@ import {
   setUserPassword,
 } from '../../../../helpers/adminTools'
 import { expectOwnAuditEntry } from '../../../../helpers/auditLog'
-import { login } from '../../../../helpers/login'
+import { login, randomPassword } from '../../../../helpers/login'
 import { postWithCsrf } from '../../../../helpers/request'
+import { addConfirmedEmail, makePrimary } from '../../../../helpers/userEmails'
 
 // SAML login against authentik (services/authentik). Admins are mapped from
 // the multi-valued Group attribute containing "Admins". The first admin is
@@ -196,7 +197,7 @@ describe('password reset of a SAML account', function () {
   })
   it('lets a local account change the password on the settings page', function () {
     const email = `local-${Cypress._.random(1e9)}@example.com`
-    const password = `Local-${Cypress._.random(1e9)}-Pass`
+    const password = randomPassword()
     samlLogin('carol')
     createLocalAccount(email)
     setUserPassword(email, password).its('status').should('equal', 200)
@@ -227,13 +228,18 @@ describe('SAML login of a disabled account', function () {
 })
 
 describe('SAML audit log', function () {
-  it('tells about the account a first login creates and links', function () {
+  it('tells about the account a first login creates and links, and whether it is an admin', function () {
     samlLogin('dave')
+    samlLogin('alice')
     samlLogin('carol')
     expectOwnAuditEntry(idpEmail('dave'), 'create-account')
-      .its('info.method')
-      .should('equal', 'SAML login')
+      .its('info')
+      .should('include', { method: 'SAML login', isAdmin: false })
     expectOwnAuditEntry(idpEmail('dave'), 'link-institution-sso')
+    // Group containing Admins makes an admin from the first login on
+    expectOwnAuditEntry(idpEmail('alice'), 'create-account')
+      .its('info.isAdmin')
+      .should('equal', true)
   })
 
   it('tells when a login takes over a local account and removes its password', function () {
@@ -258,5 +264,37 @@ describe('SAML audit log', function () {
     expectOwnAuditEntry(idpEmail('alice'), 'change-name')
       .its('info.method')
       .should('equal', 'SAML login')
+  })
+})
+
+describe('emails of a SAML account', function () {
+  it('adds an email but refuses to make it primary', function () {
+    const personal = `bob-${Cypress._.random(1e9)}@example.com`
+    samlLogin('bob')
+    addConfirmedEmail(personal)
+    makePrimary(personal)
+    cy.contains('Sorry, something went wrong')
+    postWithCsrf('/user/emails/default', { email: personal })
+      .its('status')
+      .should('equal', 403)
+    currentUser().its('email').should('equal', idpEmail('bob'))
+  })
+
+  it('refuses a first login with the secondary email of another account', function () {
+    // at the IdP with this email and logs in nowhere else in this spec
+    const email = 'eve@other.test'
+    samlLogin('bob')
+    addConfirmedEmail(email)
+    ssoLogin('/saml/login', 'eve', '/saml/login/callback')
+    cy.contains('This email is already registered as a secondary email')
+    cy.get('a[href^="mailto:"]').should('not.have.attr', 'href', 'mailto:undefined')
+
+    samlLogin('bob')
+    cy.visit('/user/settings')
+    postWithCsrf('/user/emails/delete', { email })
+      .its('status')
+      .should('equal', 200)
+    samlLogin('eve')
+    currentUser().its('email').should('equal', email)
   })
 })
