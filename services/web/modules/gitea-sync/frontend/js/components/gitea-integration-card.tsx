@@ -22,7 +22,7 @@ const GiteaSyncCard = () => {
   return (
     <>
       <IntegrationCard
-        title={'Gitea'}
+        title={t('gitea')}
         description={t('sync_with_a_x_repository', { provider: 'Gitea' })}
         icon={<GiteaLogo size={32} />}
         showPaywallBadge={false}

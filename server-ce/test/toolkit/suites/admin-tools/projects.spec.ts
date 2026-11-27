@@ -10,6 +10,7 @@ import {
   expectLogged,
   createUser,
   dialog,
+  findUser,
   header,
   headerAction,
   interceptSearch,
@@ -776,6 +777,31 @@ describe('a deleted project', function () {
         .should('contain.text', goneOwner.split('@')[0])
         .invoke('text')
         .should('not.match', /[0-9a-f]{24}/)
+
+      // a purge leaves no email: "Deleted user", as the review panel says
+      findUser(goneOwner, 'deleted').then(gone => {
+        requestWithCsrf('DELETE', `/admin/user/${gone!.id}`)
+          .its('status')
+          .should('equal', 200)
+      })
+      // the same address only changes the hash: load the page again
+      cy.reload()
+      detail('Deleted By email')
+        .should('have.text', 'Deleted user')
+        .find('a')
+        .should('not.exist')
+      detail('Owner')
+        .should('have.text', 'Deleted user')
+        .find('a')
+        .should('not.exist')
+      // the owner's page is gone too: back to the projects
+      cy.get('.previous-page-link')
+        .should('have.attr', 'href', '/admin/project')
+        .and('contain.text', 'Deleted user')
+      // and there a purge of the project goes as well
+      headerAction('Delete permanently').click()
+      confirmDialog('Delete permanently')
+      cy.location('pathname').should('equal', '/admin/project')
     })
   })
 

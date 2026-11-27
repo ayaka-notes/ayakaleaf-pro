@@ -11,6 +11,8 @@
   "expires_in_one_hour": "1시간 후 만료",
   "export_project_to_x": "__provider__으로 프로젝트 보내기",
   "found_matching_deleted_projects": "일치하는 삭제된 프로젝트 __count__개를 찾았습니다",
+  "gitea": "Gitea",
+  "gitlab": "GitLab",
   "hide_deleted_projects": "삭제된 프로젝트 숨기기",
   "import_from_x": "__provider__에서 불러오기",
   "importing_and_merging_changes_in_x": "__provider__의 변경사항들을 불러오고 합칩니다",

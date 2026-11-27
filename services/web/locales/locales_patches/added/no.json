@@ -11,6 +11,8 @@
   "expires_in_one_hour": "Utløper om 1 time",
   "export_project_to_x": "Eksporter prosjekt til __provider__",
   "found_matching_deleted_projects": "Fant __count__ samsvarende slettede prosjekter",
+  "gitea": "Gitea",
+  "gitlab": "GitLab",
   "hide_deleted_projects": "Skjul slettede prosjekter",
   "import_from_x": "Importer fra __provider__",
   "importing_and_merging_changes_in_x": "Importerer og merger endringer i __provider__",
