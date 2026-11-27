@@ -1082,8 +1082,18 @@ module.exports = {
     ],
     sourceEditorToolbarStartButtons: [],
     sourceEditorToolbarButtonGroups: [],
-    sourceEditorToolbarComponents: [],
-    sourceEditorToolbarEndButtons: [],
+    sourceEditorToolbarComponents: [
+      Path.resolve(
+        __dirname,
+        '../modules/latex-editor/frontend/js/components/latex-editor-controller'
+      ),
+    ],
+    sourceEditorToolbarEndButtons: [
+      Path.resolve(
+        __dirname,
+        '../modules/latex-editor/frontend/js/components/latex-editor-toolbar-button'
+      ),
+    ],
     rootContextProviders: [
       Path.resolve(
         __dirname,
@@ -1333,7 +1343,8 @@ module.exports = {
     'error-assistant',
     'instance-features',
     'open-in-overleaf',
-    'user-emails'
+    'user-emails',
+    'latex-editor',
   ],
   viewIncludes: {},
 

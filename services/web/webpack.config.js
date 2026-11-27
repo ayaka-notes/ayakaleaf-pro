@@ -1,4 +1,5 @@
 const path = require('node:path')
+const fs = require('node:fs')
 const { globSync } = require('glob')
 const webpack = require('webpack')
 const CopyPlugin = require('copy-webpack-plugin')
@@ -54,6 +55,30 @@ function getModuleDirectory(moduleName) {
   try {
     return path.dirname(require.resolve(`${moduleName}/package.json`))
   } catch (err) {
+    // Under a Yarn PnP linker, packages with an `exports` map that does
+    // not expose ./package.json (e.g. mathlive) fail the resolve above;
+    // resolve the package location through the PnP API instead.
+    try {
+      const pnpApi = require('pnpapi')
+      let dir = null
+      try {
+        dir = path.normalize(
+          pnpApi.resolveToUnqualified(moduleName, __filename)
+        )
+      } catch (e) {
+        // Older/newer pnpApi shapes: resolve the package entry and walk up
+        let d = path.dirname(pnpApi.resolveRequest(moduleName, __filename))
+        for (let i = 0; i < 5 && !fs.existsSync(path.join(d, 'package.json')); i++) {
+          d = path.dirname(d)
+        }
+        dir = d
+      }
+      if (dir && fs.existsSync(path.join(dir, 'package.json'))) {
+        return dir
+      }
+    } catch (e) {
+      // not a PnP environment; fall through to the original error
+    }
     throw new Error(`could not find Node module: ${moduleName}`, { cause: err })
   }
 }
@@ -62,6 +87,7 @@ const mathjaxDir = getModuleDirectory('mathjax')
 const pdfjsDir = getModuleDirectory('pdfjs-dist')
 const dictionariesDir = getModuleDirectory('@overleaf/dictionaries')
 const pyodideDir = getModuleDirectory('pyodide')
+const mathliveDir = getModuleDirectory('mathlive')
 const highlightJsDir = getModuleDirectory('highlight.js')
 
 const vendorDir = path.join(__dirname, 'frontend/js/vendor')
@@ -78,6 +104,17 @@ const DICTIONARIES_VERSION =
 if (DICTIONARIES_VERSION !== PackageVersions.version.dictionaries) {
   throw new Error(
     '"@overleaf/dictionaries" version de-synced, update services/web/app/src/infrastructure/PackageVersions.js'
+  )
+}
+
+// mathlive's package.json is not listed in its "exports" map, so resolve the
+// version from the installed package directory instead of a subpath require
+const MATHLIVE_VERSION = JSON.parse(
+  fs.readFileSync(path.join(mathliveDir, 'package.json'), 'utf8')
+).version
+if (MATHLIVE_VERSION !== PackageVersions.version.mathlive) {
+  throw new Error(
+    '"mathlive" version de-synced, update services/web/app/src/infrastructure/PackageVersions.js'
   )
 }
 
@@ -428,6 +465,13 @@ module.exports = {
           to: `js/dictionaries/${PackageVersions.version.dictionaries}`,
           toType: 'dir',
           context: `${dictionariesDir}/dictionaries`,
+        },
+        // Copy MathLive KaTeX fonts for the LaTeX equation editor (no CDN)
+        {
+          from: 'fonts/**/*',
+          to: `js/libs/mathlive-${PackageVersions.version.mathlive}`,
+          toType: 'dir',
+          context: mathliveDir,
         },
         // Copy Pyodide runtime assets from the npm package so the loader is
         // always available. Python package wheels are fetched separately by
