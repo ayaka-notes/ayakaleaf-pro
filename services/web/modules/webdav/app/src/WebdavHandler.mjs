@@ -98,7 +98,7 @@ async function importRemoteProject(userId, projectName, rootPath) {
 
   await collectFiles(remoteRoot)
   if (files.length === 0) {
-    logger.info({ projectId, remoteRoot }, 'No files found in WebDAV project folder')
+    logger.info({ userId, projectName, remoteRoot }, 'No files found in WebDAV project folder')
     return { importedFiles: 0 }
   }
 

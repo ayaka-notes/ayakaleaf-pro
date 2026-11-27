@@ -600,6 +600,10 @@ async function walk(client, resourcePath, callback) {
       continue
     }
     if (entry.isDirectory) {
+      // Collect directory presence too: the parity logic (create/delete local
+      // empty folders) needs remoteRelativeDirs. The callback decides what to
+      // do with each entry — file application only runs for files.
+      await callback(entry)
       await walk(client, entry.path, callback)
     } else {
       await callback(entry)
@@ -720,10 +724,10 @@ async function pollUser(userId, { onlyProjectName = null } = {}) {
       // name is '.' (fails the element-name check).
       if (!relativePath.startsWith('/')) relativePath = `/${relativePath}`
       if (entry.isDirectory) {
-        remoteRelativeDirs.add(relativePath.startsWith('/') ? relativePath : `/${relativePath}`)
-      } else {
-        remoteRelativeFiles.add(relativePath.startsWith('/') ? relativePath : `/${relativePath}`)
+        remoteRelativeDirs.add(relativePath)
+        return // directories are not files: no baseline, no GET, no apply
       }
+      remoteRelativeFiles.add(relativePath)
       // D2/RF.5: never process sync-excluded remote entries (hidden, LaTeX
       // transients) — they are neither applied, baselined, nor reported.
       if (isSyncExcluded(relativePath)) return

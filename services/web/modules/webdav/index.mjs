@@ -24,11 +24,13 @@ if (process.env.WEBDAV_ENABLED?.toLowerCase() === 'true') {
   }
   logger.debug({}, 'WebDAV module enabled (Settings.webdav configured)')
 
-  // Delete project sync state from mongo (hook 'projectExpired')
+  // Delete project sync state from mongo (hook 'projectExpired').
+  // projectId is normalized to String to match how this module stores state
+  // lookups/updates (state docs keep project._id.toString()).
   Modules.hooks.attach('projectExpired', async projectId => {
     try {
-      await WebdavSyncProjectStates.deleteMany({ projectId })
-      logger.debug({ projectId }, 'on project expire: removed WebDAV sync state')
+      await WebdavSyncProjectStates.deleteMany({ projectId: String(projectId) })
+      logger.debug({ projectId: String(projectId) }, 'on project expire: removed WebDAV sync state')
     } catch (err) {
       logger.warn(
         { projectId, err },
