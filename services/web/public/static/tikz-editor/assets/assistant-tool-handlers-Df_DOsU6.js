@@ -1,0 +1,27 @@
+function v(i,t){const s=t.parseResult?.diagnostics??[],e=t.semanticResult?.diagnostics??[],r=[...s,...e];if(r.length===0)return null;const c=i.split(`
+`),n=o=>{let a=1;for(let l=0;l<o&&l<i.length;l++)i[l]===`
+`&&a++;return a};return r.map(o=>{const a=n(o.span.from),l=o.code?` [${o.code}]`:"",d=c[a-1],$=d?` | ${d.trimStart()}`:"";return`${o.severity} (line ${a})${l}: ${o.message}${$}`}).join(`
+`)}function F(i,t){const s=t.figures;if(s.length<=1)return null;const e=t.activeFigureId,r=s.findIndex(d=>d.id===e);if(r<0)return null;const c=s[r],n=i.slice(c.span.from,c.span.to),o=i.slice(0,c.span.from).split(`
+`).length,a=n.split(`
+`).map((d,$)=>`${o+$}: ${d}`).join(`
+`),l=s.map((d,$)=>{const u=$===r?" (active)":"";return`  Figure ${$+1}: lines ${d.startLine+1}–${d.endLine+1}${u}`}).join(`
+`);return`This document contains ${s.length} figures:
+${l}
+
+The user is currently editing figure ${r+1}.
+
+Active figure source (with line numbers from the full document):
+\`\`\`tex
+${a}
+\`\`\`
+
+The full document source is in the file you will edit. Only modify the active figure unless the user asks otherwise. All tools accept a \`figure_index\` parameter (1-indexed) to query any figure; omit it to use the active figure.`}function Y(i,t){const s=t.scene;if(!s||s.elements.length===0)return"No elements in the current scene.";const e=i.split(`
+`),r=n=>{let o=1;for(let a=0;a<n&&a<i.length;a++)i[a]===`
+`&&o++;return o},c=s.elements.map(n=>{const o=r(n.sourceRef.sourceSpan.from),a=r(n.sourceRef.sourceSpan.to),l=o===a?`line ${o}`:`lines ${o}–${a}`,d=n.style.stroke??"none",$=n.style.fill??"none";let u=`  sourceId: ${n.sourceRef.sourceId}, kind: ${n.kind}, ${l}, stroke: ${d}, fill: ${$}`;if(n.kind==="Text"){const f=E(i,n.sourceRef.sourceSpan.from,n.sourceRef.sourceSpan.to),x=(n.position.x/28.3465).toFixed(2),h=(n.position.y/28.3465).toFixed(2);u+=`, center: (${x}, ${h})`,f&&(u+=`, name: "${f}"`),n.text&&(u+=`, text: "${n.text}"`)}else if(n.kind==="Circle"){const f=(n.center.x/28.3465).toFixed(2),x=(n.center.y/28.3465).toFixed(2),h=(n.radius/28.3465).toFixed(2);u+=`, center: (${f}, ${x}), radius: ${h}`}else if(n.kind==="Ellipse"){const f=(n.center.x/28.3465).toFixed(2),x=(n.center.y/28.3465).toFixed(2);u+=`, center: (${f}, ${x})`}const P=e[o-1];if(P){const f=P.trimStart();f.length<=80?u+=`
+    ${f}`:u+=`
+    ${f.slice(0,77)}...`}return u});return`${s.elements.length} element(s):
+${c.join(`
+`)}`}function E(i,t,s){const e=i.slice(t,s);return/\(([a-zA-Z_][\w.-]*)\)/.exec(e)?.[1]??null}function z(i,t){const s=i.semanticResult?.nodeAnchorTargets??[],e=s.filter(c=>c.nodeName===t);if(e.length===0)return`No node named "${t}" found. Available nodes: ${[...new Set(s.map(c=>c.nodeName))].join(", ")||"none"}`;const r=e.map(c=>{const n=(c.world.x/28.3465).toFixed(3),o=(c.world.y/28.3465).toFixed(3);return`  ${c.anchor}: (${n}, ${o})`});return`Anchors for node "${t}" (in cm):
+${r.join(`
+`)}`}function b(i){const t=i.scene?.bounds;if(!t)return"No scene bounds available (scene may be empty).";const s=(t.minX/28.3465).toFixed(3),e=(t.minY/28.3465).toFixed(3),r=(t.maxX/28.3465).toFixed(3),c=(t.maxY/28.3465).toFixed(3),n=((t.maxX-t.minX)/28.3465).toFixed(3),o=((t.maxY-t.minY)/28.3465).toFixed(3);return`Scene bounds (cm): x: [${s}, ${r}], y: [${e}, ${c}], size: ${n} × ${o}`}function M(i,t){return t.y+t.height-(i-t.y)}function T(i,t){return t.y+t.height-i+t.y}function I(i,t){let{svg:s,viewBox:e}=i;const r=e;if(t.zoomRegion){const n=t.zoomRegion,o=n.min_x*28.3465,a=n.max_x*28.3465,l=M(n.max_y*28.3465,r),d=M(n.min_y*28.3465,r);e={x:o,y:l,width:a-o,height:d-l}}let c="";if(t.showGrid){const n=t.showGrid.spacing??1,o=t.showGrid.color??"#cccccc",a=e.x/28.3465,l=(e.x+e.width)/28.3465,d=T(e.y,r)/28.3465,$=T(e.y+e.height,r)/28.3465,u=Math.floor(a/n)*n,P=Math.ceil(l/n)*n,f=Math.floor($/n)*n,x=Math.ceil(d/n)*n,h=[],y=[],_=Math.max(4,Math.min(10,n*28.3465*.3));for(let m=u;m<=P;m=p(m+n,n)){const g=m*28.3465;h.push(`<line x1="${g}" y1="${e.y}" x2="${g}" y2="${e.y+e.height}" stroke="${o}" stroke-width="0.4" />`);const C=e.y+e.height-_*.3;y.push(`<text x="${g+_*.15}" y="${C}" font-size="${_}" fill="${o}" font-family="sans-serif">${R(m)}</text>`)}for(let m=f;m<=x;m=p(m+n,n)){const g=M(m*28.3465,r);h.push(`<line x1="${e.x}" y1="${g}" x2="${e.x+e.width}" y2="${g}" stroke="${o}" stroke-width="0.4" />`),y.push(`<text x="${e.x+_*.15}" y="${g-_*.15}" font-size="${_}" fill="${o}" font-family="sans-serif">${R(m)}</text>`)}c=`<g class="assistant-grid" opacity="0.6">${h.join("")}${y.join("")}</g>`}return(c||t.zoomRegion)&&(s=s.replace(/viewBox="[^"]*"/,`viewBox="${e.x} ${e.y} ${e.width} ${e.height}"`),c&&(s=s.replace(/<\/svg>\s*$/,`${c}</svg>`))),{...i,svg:s,viewBox:e,model:w(i.model,e,c)}}function p(i,t){return Math.round(i/t)*t}function R(i){const t=Math.round(i*1e3)/1e3;return Number.isInteger(t)?String(t):t.toFixed(1)}function w(i,t,s){const e=[...i.parts];if(s){const c={partId:k(e),sourceId:"__assistant_tool__",elementId:null,order:e.length,markup:s,fingerprint:s};e.push(c)}return{...i,viewBox:t,parts:e}}function k(i){const t="assistant-grid",s=new Set(i.map(r=>r.partId));if(!s.has(t))return t;let e=2;for(;s.has(`${t}#${e}`);)e+=1;return`${t}#${e}`}function L(i,t,s){const e=s?i.slice(s.from,s.to):i,r=s?s.from:0,c=/\\end\{tikzpicture\*?\}/g;let n=null,o;for(;(o=c.exec(e))!==null;)n=o;if(!n)return i;const a=r+n.index;return i.slice(0,a)+t+`
+`+i.slice(a)}export{I as applyPreviewEnhancements,b as buildBoundsText,v as buildDiagnosticsText,Y as buildElementList,F as buildFigureContext,z as buildNodeAnchors,L as injectOverlayCode};

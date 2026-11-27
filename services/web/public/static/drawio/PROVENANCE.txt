@@ -1,0 +1,18 @@
+draw.io embed bundle — vendored 2026-10-08 (AK-11, owner request)
+
+Provenance:
+1. Upstream: draw.io (JGraph) — https://github.com/jgraph/drawio
+2. Mirror served: https://viewer.diagrams.net/ (the static viewer build,
+   same assets the official site serves — no build step).
+   Vendored files: index.html, js/{bootstrap.js,main.js,app.min.js,
+   PostConfig.js,extensions.min.js}, styles/{grapheditor.css,
+   high-contrast.css}, favicon.ico, images/manifest.json, images/{1x1.png,
+   drawlogo128.png, update32.png, warning.png}.
+3. License: draw.io core is MPL 2.0 (see LICENSE at the upstream repo); the
+   extensions bundle carries the respective upstream notices. The app is
+   served SAME-ORIGIN (public/static/drawio/), isolated in an iframe,
+   offline, no telemetry (identical discipline to the tikz-editor bundle).
+
+Consumer: frontend/modules/drawio — visual-editor provider for `.drawio`
+(draw.io / diagrams.net XML documents), same host/iframe pattern as
+frontend/modules/tikz and public/static/svgedit/.

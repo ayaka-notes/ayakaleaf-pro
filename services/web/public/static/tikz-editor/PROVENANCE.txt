@@ -1,0 +1,27 @@
+tikz-editor embed bundle — vendored 2026-09-29 (candidate B adoption, owner-approved)
+
+Provenance chain (all MIT):
+1. Upstream: https://github.com/DominikPeters/tikz-editor (MIT) — the WYSIWYG
+   TikZ editor (v0.5.2).
+2. Embed mirror: https://github.com/TeXlyre/tikz-editor-embed-mirror
+   (MIT, tag v0.5.2) — builds the static iframe-friendly bundle (postMessage
+   host API: init/load/change/autosave/save/export/persistence-save) with
+   host-side reference (host/) and full protocol doc (README.md).
+   Installed from: tikz-editor-embed-mirror v0.5.2 release zip,
+   folder `tikz-editor/` (per its README "the folder ... to install").
+3. License: MIT (c) TeXlyre contributors + DominikPeters (see LICENSE-MIT.txt
+   in this folder and LICENSE at both upstream repos).
+
+Served at: /static/tikz-editor/index.html (same origin; isolated via iframe,
+same pattern as public/static/svgedit/ — offline, no CDN, no telemetry).
+Consumer: frontend/modules/tikz (visual-editor provider for .tikz / .pgf).
+
+V (owner 2026-10-09 — "TikZ/drawio/SVG/TUI editors must be part of the
+image, no external loads"): the vendored bundle previously lazy-loaded
+three runtime resources from CDNs; all are now same-origin:
+  - MathJax 4 (startup.js, cdn.jsdelivr.net)  -> /js/libs/mathjax-4.1.2/tex-svg.js
+    (full v4.1.2 build already in the image; assets/index-*.js +
+    assets/thumbnail-render.worker-*.js const patched)
+  - TikzJax engine @drgrice1/tikzjax@1.0.0-beta24 (tikzjax.js + fonts.css
+    + 140 woff2 glyph fonts, cdn.jsdelivr.net) -> /static/tikz-editor/tikzjax/
+    (vendored 2026-10-09; assets/TikzJaxModal-*.js patched)

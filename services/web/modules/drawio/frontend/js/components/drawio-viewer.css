@@ -1,0 +1,45 @@
+.drawio-viewer
+{
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+}
+
+.drawio-viewer-toolbar
+{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--overleaf-border-light, #d8e1d8);
+  background: var(--overleaf-white, #fff);
+  flex: 0 0 auto;
+}
+
+.drawio-viewer-title
+{
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.drawio-viewer-status
+{
+  color: var(--overleaf-grey, #788287);
+  font-size: 12px;
+}
+
+.drawio-viewer-status-error
+{
+  color: var(--overleaf-red, #dc3545);
+}
+
+.drawio-viewer-frame
+{
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  border: 0;
+  background: #fff;
+}

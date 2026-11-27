@@ -1,0 +1,1 @@
+import{m as s}from"./mathjax-CtSps088.js";function c(o){return s.asyncLoad?new Promise((t,n)=>{const a=s.asyncLoad(o);a instanceof Promise?a.then(e=>t(e)).catch(e=>n(e)):t(a)}):Promise.reject(`Can't load '${o}': No mathjax.asyncLoad method specified`)}export{c as a};

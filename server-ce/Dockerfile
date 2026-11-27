@@ -33,7 +33,7 @@ COPY --parents libraries/ services/ tools/migrations/ /overleaf/
 RUN --mount=type=cache,target=/root/.cache \
     --mount=type=cache,target=/root/.yarn/berry/cache,id=server-ce-yarn-cache \
     --mount=type=cache,target=/usr/local/share/.cache/yarn,id=server-ce-yarn-fallback-cache \
-    --mount=type=cache,target=/overleaf/services/web/.cache,id=server-ce-webpack-cache \
+    --mount=type=cache,target=/overleaf/services/web/.cache,id=server-ce-webpack-cache-20261108 \
     --mount=type=tmpfs,target=/tmp \
     node genScript compile | bash
 
