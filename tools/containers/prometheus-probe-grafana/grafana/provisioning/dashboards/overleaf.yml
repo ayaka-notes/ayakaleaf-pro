@@ -1,0 +1,15 @@
+# file-based dashboard provider (shared/deterministic: dashboards ship with
+# this tree, no in-UI editing required). The datasource is pinned to uid
+# `prometheus` (see ../datasources/prometheus.yml) so dashboard JSON can
+# hard-reference it.
+apiVersion: 1
+providers:
+  - name: overleaf
+    folder: Overleaf
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

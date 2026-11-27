@@ -11,11 +11,16 @@ export OVERLEAF_BASE_TAG ?= sharelatex/sharelatex-base:$(BRANCH_NAME_TAG_SAFE)-$
 export OVERLEAF_BRANCH ?= sharelatex/sharelatex:$(BRANCH_NAME_TAG_SAFE)
 export OVERLEAF_LATEST ?= sharelatex/sharelatex
 export OVERLEAF_TAG ?= sharelatex/sharelatex:$(BRANCH_NAME_TAG_SAFE)-$(MONOREPO_REVISION)
+export OVERLEAF_SENSOR_BRANCH ?= sharelatex/sharelatex-sensor:$(BRANCH_NAME_TAG_SAFE)
+export OVERLEAF_SENSOR_LATEST ?= sharelatex/sharelatex-sensor
+export OVERLEAF_SENSOR_TAG ?= sharelatex/sharelatex-sensor:$(BRANCH_NAME_TAG_SAFE)-$(MONOREPO_REVISION)
+SENSOR_DIR := $(MONOREPO_ROOT)tools/containers/prometheus-probe-grafana/instance-sensor
+BUNDLE_DIR := $(MONOREPO_ROOT)tools/containers/prometheus-probe-grafana
 
-all: build-base build-community
+all: build-base build-community build-sensor
 
 clean:
-	-docker rmi --force $(OVERLEAF_BASE_TAG) $(OVERLEAF_TAG)
+	-docker rmi --force $(OVERLEAF_BASE_TAG) $(OVERLEAF_TAG) $(OVERLEAF_SENSOR_TAG)
 
 refresh-cache: refresh-cache-branch
 refresh-cache-branch:
@@ -54,11 +59,32 @@ build-community:
 	  --tag $(OVERLEAF_BRANCH) \
 	  $(MONOREPO_ROOT)
 
+build-sensor:
+	docker build \
+	  --build-arg BUILDKIT_INLINE_CACHE=1 \
+	  --progress=plain \
+	  --label "com.overleaf.ce.revision=$(MONOREPO_REVISION)" \
+	  --cache-from $(OVERLEAF_SENSOR_LATEST) \
+	  --cache-from $(OVERLEAF_SENSOR_BRANCH) \
+	  --file $(SENSOR_DIR)/Dockerfile \
+	  --tag $(OVERLEAF_SENSOR_TAG) \
+	  --tag $(OVERLEAF_SENSOR_BRANCH) \
+	  $(SENSOR_DIR)
+
+# Track A — deterministic integration test for the prometheus-probe-grafana
+# bundle (fixture mongo/redis + known filestore size, exact gauge assertions,
+# probe isolation, alert rules, grafana provisioning). Requires docker + a git
+# checkout; takes a few minutes.
+test-sensor:
+	bash $(BUNDLE_DIR)/test/run.sh
+
 push:
 	docker push $(OVERLEAF_BASE_TAG)
 	docker push $(OVERLEAF_BASE_BRANCH)
 	docker push $(OVERLEAF_TAG)
 	docker push $(OVERLEAF_BRANCH)
+	docker push $(OVERLEAF_SENSOR_TAG)
+	docker push $(OVERLEAF_SENSOR_BRANCH)
 
 SHELLCHECK_OPTS = \
 	--shell=bash \
@@ -80,5 +106,5 @@ shellcheck_fix:
 	done
 
 .PHONY: all \
-	build-base build-community \
+	build-base build-community build-sensor test-sensor \
 	shellcheck shellcheck_fix

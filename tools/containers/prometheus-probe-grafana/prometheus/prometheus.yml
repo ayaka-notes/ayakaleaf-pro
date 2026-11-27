@@ -1,0 +1,88 @@
+# prometheus-probe-grafana — Prometheus scrape config.
+#
+# NOTE: this file is mounted verbatim — Prometheus does NO variable
+# interpolation. Adjust the target names below to your deployment's
+# service/DNS names (the defaults match an Overleaf compose project's
+# service names: overleaf, mongo, redis, seaweedfs-master).
+#
+# The exporter/probe/sensor self-scrapes (mongodb-exporter, redis-exporter,
+# instance-sensor, node-exporter, prometheus, grafana) use THIS project's
+# container names and work as-is.
+#
+# Job list:
+#   - overleaf-web      the app's own @overleaf/metrics (web process :3000)
+#   - overleaf-mongodb  percona mongodb_exporter :9216
+#   - overleaf-redis    oliver006 redis_exporter :9121
+#   - overleaf-filestore SeaweedFS master native prometheus :9327
+#   - overleaf-instance this tree's instance-sensor :9464 (PR#178 stats)
+#   - node              prom/node-exporter :9100 (host CPU/mem/fs)
+#   - prometheus/grafana the monitoring stack itself
+#
+# Delete any job that does not apply to your deployment (e.g. the seaweedfs
+# or overleaf-web jobs on a non-Overleaf stack).
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    stack: overleaf-cep
+
+# Alert rules (mounted read-only; see prometheus.rules.yml)
+rule_files:
+  - "/etc/prometheus/prometheus.rules.yml"
+
+scrape_configs:
+  # --- the Overleaf app itself ------------------------------------------------
+  # The sharelatex image ships the @overleaf/metrics sensors on the web
+  # process: num_active_users, timer_http_request (summaries with quantiles),
+  # mongo_command_*, nodejs_* (event loop lag, GC, heap), security_http_auth_*,
+  # editor_join_project, tpds_add_doc, lock_mongoTransaction_*, ...
+  # Adjust `overleaf:3000` if your app service has another name/port.
+  - job_name: overleaf-web
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["overleaf:3000"]
+        labels: { app: web-api }
+
+  # --- MongoDB (percona exporter) ---------------------------------------------
+  - job_name: overleaf-mongodb
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["mongodb-exporter:9216"]
+
+  # --- Redis (oliver006 exporter) ----------------------------------------------
+  - job_name: overleaf-redis
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+
+  # --- Filestore (SeaweedFS master native prometheus, -metricsPort=9327) -------
+  # Adjust `seaweedfs-master:9327` if your filestore master has another name.
+  - job_name: overleaf-filestore
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["seaweedfs-master:9327"]
+        labels: { component: master }
+
+  # --- Instance stats (PR yu-i-i/overleaf-cep#178, live as prometheus) ---------
+  - job_name: overleaf-instance
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["instance-sensor:9464"]
+
+  # --- Host-level signals --------------------------------------------------------
+  - job_name: node
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  # --- The monitoring stack itself (self-up visibility in dashboards) -----------
+  - job_name: prometheus
+    static_configs:
+      - targets: ["prometheus:9090"]
+  - job_name: grafana
+    # NOTE: if you serve Grafana from a subpath (GF_SERVER_SERVE_FROM_SUB_PATH=true),
+    # change metrics_path to that subpath, e.g. /grafana/metrics — plain /metrics
+    # 301-redirects to the public URL, which breaks in-network scrapes.
+    static_configs:
+      - targets: ["grafana:3000"]

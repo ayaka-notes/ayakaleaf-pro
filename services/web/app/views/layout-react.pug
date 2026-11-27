@@ -15,6 +15,12 @@ block append meta
 	- const canDisplaySplitTestMenu = hasFeature('saas') && hasNonAdminDomainCapability('view-split-test')
 	- const canDisplaySurveyMenu = hasFeature('saas') && canDisplayAdminMenu && hasAdminCapability('manage-survey', false)
 	- const canDisplayScriptLogMenu = hasFeature('saas') && hasAdminCapability('view-script-log', false) && canDisplayAdminMenu
+	//- Keep in sync with isStatusEnabled() in
+	//- modules/monitoring/app/src/MonitoringRouter.mjs: the page is usable
+	//- with either the isolated embed (public_base_url) or the same-origin
+	//- proxy (internal_url AND admin_password; admin_user defaults to "admin",
+	//- so it never gates enablement).
+	- const canDisplayStatusMenu = canDisplayAdminMenu && settings.grafana && (settings.grafana.public_base_url || (settings.grafana.internal_url && settings.grafana.admin_password))
 	- const enableUpgradeButton = projectDashboardReact && usersBestSubscription && (usersBestSubscription.type === 'free' || usersBestSubscription.type === 'standalone-ai-add-on')
 	- const showSignUpLink = hasFeature('registration-page')
 
@@ -31,6 +37,7 @@ block append meta
 			canDisplaySplitTestMenu,
 			canDisplaySurveyMenu,
 			canDisplayScriptLogMenu,
+			canDisplayStatusMenu,
 			enableUpgradeButton,
 			suppressNavbarRight: !!suppressNavbarRight,
 			suppressNavContentLinks: !!suppressNavContentLinks,

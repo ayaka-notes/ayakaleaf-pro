@@ -1,0 +1,100 @@
+# overleaf-cep — Prometheus alert rules for the monitoring stack.
+# Mounted read-only next to prometheus.yml; loaded via --rules.file.
+# Keep exprs compatible with the metrics this stack actually exposes
+# (see prometheus.yml job comments for each family).
+groups:
+  - name: monitoring-stack
+    interval: 30s
+    rules:
+      # ---- scrape / target health -----------------------------------------
+      - alert: MonitoringTargetDown
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus target {{ $labels.job }}/{{ $labels.instance }} is down"
+          description: "Target {{ $labels.instance }} of job {{ $labels.job }} has been unreachable for more than 5 minutes."
+
+      # ---- instance-sensor probes ------------------------------------------
+      - alert: InstanceSensorProbeFailing
+        expr: overleaf_instance_sensor_probe_up == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Instance sensor probe {{ $labels.source }} failing"
+          description: "The instance-sensor probe {{ $labels.source }} has failed for more than 5 minutes (check the sensor container logs)."
+
+      - alert: InstanceSensorAllDown
+        expr: avg(overleaf_instance_sensor_probe_up) == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Instance sensor: all probes failing"
+          description: "Every instance-sensor probe has failed for more than 2 minutes — instance statistics are unavailable."
+
+      - alert: InstanceSensorScrapeSlow
+        expr: overleaf_instance_sensor_scrape_duration_seconds > 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Instance sensor scrape is slow (>10s)"
+          description: "The sensor collect has taken more than 10s for 10 minutes (Prometheus gives up at its 10s scrape timeout)."
+
+      # ---- MongoDB -----------------------------------------------------------
+      - alert: MongoOplogHeadroomLow
+        expr: |
+          100 * mongodb_oplog_stats_storageStats_freeStorageSize
+              / mongodb_oplog_stats_storageStats_totalSize < 10
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MongoDB oplog headroom below 10%"
+          description: "The oplog free-space fraction has stayed below 10% for 30 minutes — the secondary/backup window is shrinking."
+
+      - alert: MongoActiveConnectionsHigh
+        expr: mongodb_ss_connections{conn_type="active"} > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MongoDB active connections above 100"
+          description: "MongoDB has had more than 100 active connections for 10 minutes (default max is 1000)."
+
+      # ---- Redis ---------------------------------------------------------------
+      - alert: RedisMemoryHigh
+        expr: |
+          (redis_memory_max_bytes > 0)
+          and (redis_memory_used_bytes / redis_memory_max_bytes > 0.85)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis memory above 85% of maxmemory"
+          description: "Redis has used more than 85% of its maxmemory limit for 15 minutes."
+
+      # ---- Filesystems / filestore ---------------------------------------------
+      - alert: RootFilesystemLow
+        expr: |
+          100 * node_filesystem_avail_bytes{mountpoint="/"}
+              / node_filesystem_size_bytes{mountpoint="/"} < 10
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Root filesystem below 10% free"
+          description: "The host root filesystem has been below 10% free space for 30 minutes."
+
+      # ---- SeaweedFS --------------------------------------------------------------
+      - alert: SeaweedFSMasterNotLeader
+        expr: SeaweedFS_master_is_leader == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SeaweedFS master is not leader"
+          description: "The SeaweedFS master has not reported itself as leader for 5 minutes (leader election issue or split brain)."
