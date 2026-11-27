@@ -1,0 +1,20 @@
+// A widget whose feature is off for this user renders nothing, but core's
+// linking section still draws the line after it and the heading of its group
+.settings-widgets-container > hr {
+  &:first-child,
+  & + hr,
+  &:not(:has(~ .settings-widget-container)) {
+    display: none;
+  }
+}
+
+.settings-widgets-container:not(:has(.settings-widget-container)) {
+  display: none;
+}
+
+// Not one :has() with a :not(:has()) inside: :has() cannot be nested
+h3:has(+ .settings-widgets-container):not(
+    :has(+ .settings-widgets-container .settings-widget-container)
+  ) {
+  display: none;
+}

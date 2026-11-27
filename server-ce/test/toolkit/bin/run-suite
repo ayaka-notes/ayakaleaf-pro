@@ -55,5 +55,9 @@ for dir in "suites/$suite"/*/; do
   done
   "$TOOLKIT_DIR/bin/up" -d
   bin/wait-for-overleaf "$STARTUP_TIMEOUT"
+  # Redis outlives the restart: start the variant without the rate limit
+  # counts of the previous one
+  docker exec "${CONTAINER_PREFIX:-}redis" sh -c \
+    "redis-cli --scan --pattern 'rate-limit:*' | xargs -r redis-cli del" >/dev/null
   run_cypress "$dir"
 done
