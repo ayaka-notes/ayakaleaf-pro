@@ -1,4 +1,5 @@
 import { v4 as uuid } from 'uuid'
+import { expectRoutesAnswer, setUserFeatures } from '../../../helpers/adminTools'
 import { login } from '../../../helpers/login'
 import {
   createProject,
@@ -457,6 +458,39 @@ describe('permissions', function () {
     expectStatus(204, 'POST', reopen(reviewerThread))
   })
 
+  it('rejects malformed review route IDs before changing the thread', function () {
+    asUser(editor)
+    const invalidId = 'not-an-object-id'
+    const threadsUrl = `/project/${projectId}/threads`
+    const content = { content: 'This must not be saved' }
+
+    cy.request(threadsUrl).then(({ body: threads }) => {
+      const thread = threads[ownerThread]
+      const messageId = thread.messages[0].id
+      const messagePaths = [
+        `/thread/${invalidId}/messages/${messageId}`,
+        `/thread/${ownerThread}/messages/${invalidId}`,
+      ]
+      const invalidDocThread = `/doc/${invalidId}/thread/${ownerThread}`
+
+      expectStatus(404, 'POST', `/thread/${invalidId}/messages`, content)
+      for (const path of messagePaths) {
+        expectStatus(404, 'POST', `${path}/edit`, content)
+        expectStatus(404, 'DELETE', path)
+      }
+      expectStatus(404, 'POST', `/doc/${invalidId}/changes/accept`, {
+        change_ids: [],
+      })
+      expectStatus(404, 'POST', `${invalidDocThread}/resolve`)
+      expectStatus(404, 'POST', `${invalidDocThread}/reopen`)
+      expectStatus(404, 'DELETE', invalidDocThread)
+
+      cy.request(threadsUrl)
+        .its('body')
+        .should('deep.equal', threads)
+    })
+  })
+
   it('lets a reviewer comment and resolve only their own threads', function () {
     asUser(reviewer)
     canRead(200)
@@ -554,5 +588,210 @@ describe('permissions', function () {
     cy.request(`/project/${projectId}/threads`)
       .its('body')
       .should('not.have.property', reviewerThread)
+  })
+})
+
+describe('a project whose owner has track changes turned off', function () {
+  const lockedOwner = `locked-owner-${uuid()}@example.com`
+  const member = `locked-member-${uuid()}@example.com`
+  const invited = `locked-invited-${uuid()}@example.com`
+
+  before(function () {
+    ensureUserExists(lockedOwner)
+    ensureUserExists(member)
+  })
+
+  it('cannot turn tracking on until it is on again, but keeps its comments and gets reviewers who only comment', function () {
+    login(lockedOwner)
+    createProject(projectName('Locked')).then(projectId => {
+      shareProject(projectId, member, 'readAndWrite')
+      login(lockedOwner)
+      cy.request(`/project/${projectId}/members`).then(({ body }) => {
+        const memberId = body.members.find(
+          (m: { email: string }) => m.email === member
+        )._id
+
+        login(ADMIN_EMAIL)
+        setUserFeatures(lockedOwner, { trackChanges: false })
+
+        login(lockedOwner)
+        cy.visit('/project')
+        expectRoutesAnswer(403, [
+          [
+            'POST',
+            `/project/${projectId}/track_changes`,
+            { on_for: { [memberId]: true } },
+          ],
+          [
+            'POST',
+            `/project/${projectId}/track_changes`,
+            { on_for_guests: true },
+          ],
+        ])
+        // Reviewers are not refused: core makes them comment only
+        postWithCsrf(`/project/${projectId}/invite`, {
+          email: invited,
+          privileges: 'review',
+        })
+          .its('status')
+          .should('equal', 200)
+        expectRoutesAnswer(204, [
+          [
+            'PUT',
+            `/project/${projectId}/users/${memberId}`,
+            { privilegeLevel: 'review' },
+          ],
+          // granting an access request sets the role too
+          [
+            'POST',
+            `/project/${projectId}/access-requests/${memberId}/grant`,
+            { privilegeLevel: 'review' },
+          ],
+        ])
+
+        openProject(projectId)
+        openReviewPanel()
+        addComment(projectId, 'Introduction', 'Still a comment')
+
+        // Comment only: a read-only editor, but they can answer in the review
+        login(member)
+        openProject(projectId)
+        cy.get('.cm-content').should('have.attr', 'contenteditable', 'false')
+        cy.request(`/project/${projectId}/threads`).then(({ body }) => {
+          const threadId = Object.keys(body).find(id =>
+            body[id].messages.some(
+              (m: { content: string }) => m.content === 'Still a comment'
+            )
+          )
+          postWithCsrf(`/project/${projectId}/thread/${threadId}/messages`, {
+            content: 'From a reviewer',
+          })
+            .its('status')
+            .should('be.lessThan', 400)
+        })
+
+        login(ADMIN_EMAIL)
+        setUserFeatures(lockedOwner, { trackChanges: true })
+
+        login(lockedOwner)
+        cy.visit('/project')
+        expectRoutesAnswer(204, [
+          [
+            'POST',
+            `/project/${projectId}/track_changes`,
+            { on_for: { [memberId]: true } },
+          ],
+        ])
+      })
+    })
+  })
+
+  it('accepts a reviewer invitation from before it was turned off', function () {
+    const inviter = `locked-inviter-${uuid()}@example.com`
+    const reviewer = `locked-reviewer-${uuid()}@example.com`
+    for (const email of [inviter, reviewer]) ensureUserExists(email)
+
+    login(inviter)
+    createProject(projectName('Invited')).then(projectId => {
+      cy.visit('/project')
+      postWithCsrf(`/project/${projectId}/invite`, {
+        email: reviewer,
+        privileges: 'review',
+      })
+        .its('status')
+        .should('equal', 200)
+      login(ADMIN_EMAIL)
+      setUserFeatures(inviter, { trackChanges: false })
+
+      login(reviewer)
+      cy.visit('/project')
+      cy.request('/notifications').then(({ body }) => {
+        const token = body.find(
+          (n: { messageOpts?: { projectId?: string } }) =>
+            n.messageOpts?.projectId === projectId
+        ).messageOpts.token as string
+        postWithCsrf(`/project/${projectId}/invite/token/${token}/accept`, {})
+          .its('status')
+          .should('be.lessThan', 400)
+      })
+
+      login(inviter)
+      cy.request(`/project/${projectId}/members`).then(({ body }) => {
+        expect(body.members.map((m: { email: string }) => m.email)).to.include(
+          reviewer
+        )
+      })
+    })
+  })
+
+  it('goes by the owner, not by a collaborator with it turned off', function () {
+    const offCollaborator = `locked-collaborator-${uuid()}@example.com`
+    ensureUserExists(offCollaborator)
+    login(ADMIN_EMAIL)
+    setUserFeatures(offCollaborator, { trackChanges: false })
+    login(owner)
+    createProject(projectName('Unlocked')).then(projectId => {
+      shareProject(projectId, offCollaborator, 'readAndWrite')
+      cy.visit('/project')
+      expectRoutesAnswer(204, [
+        [
+          'POST',
+          `/project/${projectId}/track_changes`,
+          { on_for_guests: true },
+        ],
+      ])
+    })
+  })
+
+  it('can still turn tracking off, but not back on', function () {
+    const trackingOwner = `tracking-owner-${uuid()}@example.com`
+    const tracked = `tracked-member-${uuid()}@example.com`
+    ensureUserExists(trackingOwner)
+    ensureUserExists(tracked)
+    login(trackingOwner)
+    createProject(projectName('Tracked')).then(projectId => {
+      shareProject(projectId, tracked, 'readAndWrite')
+      login(trackingOwner)
+      cy.request(`/project/${projectId}/members`).then(({ body }) => {
+        const trackedId = body.members.find(
+          (m: { email: string }) => m.email === tracked
+        )._id
+        const trackChanges = `/project/${projectId}/track_changes`
+
+        cy.visit('/project')
+        expectRoutesAnswer(204, [
+          [
+            'POST',
+            trackChanges,
+            { on_for: { [trackedId]: true }, on_for_guests: true },
+          ],
+        ])
+
+        login(ADMIN_EMAIL)
+        setUserFeatures(trackingOwner, { trackChanges: false })
+
+        login(trackingOwner)
+        cy.visit('/project')
+        expectRoutesAnswer(204, [
+          // what is on already, sent again as the editor does
+          ['POST', trackChanges, { on_for: { [trackedId]: true } }],
+          [
+            'POST',
+            trackChanges,
+            { on_for: { [trackedId]: false }, on_for_guests: false },
+          ],
+        ])
+        // off now, so these turn it on again
+        expectRoutesAnswer(403, [
+          ['POST', trackChanges, { on_for: { [trackedId]: true } }],
+          ['POST', trackChanges, { on_for_guests: true }],
+        ])
+        // only true or false: the text "true" would be stored and read as on
+        expectRoutesAnswer(400, [
+          ['POST', trackChanges, { on_for: { [trackedId]: 'true' } }],
+          ['POST', trackChanges, { on_for_guests: 'true' }],
+        ])
+      })
+    })
   })
 })

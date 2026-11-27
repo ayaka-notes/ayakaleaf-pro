@@ -1,13 +1,17 @@
 import logger from '@overleaf/logger'
 import passport from 'passport'
+import Settings from '@overleaf/settings'
 import AuthenticationController from '../../../../../app/src/Features/Authentication/AuthenticationController.mjs'
 import AsyncFormHelper from '../../../../../app/src/Features/Helpers/AsyncFormHelper.mjs'
+import Errors from '../../../../../app/src/Features/Errors/Errors.js'
+import HttpErrorHandler from '../../../../../app/src/Features/Errors/HttpErrorHandler.mjs'
 import SAMLAuthenticationManager from './SAMLAuthenticationManager.mjs'
 import { endSession } from '../../../logout.mjs'
 import UserSessionsManager from '../../../../../app/src/Features/User/UserSessionsManager.mjs'
 import { handleAuthenticateErrors } from '../../../../../app/src/Features/Authentication/AuthenticationErrors.mjs'
 import { xmlResponse } from '../../../../../app/src/infrastructure/Response.mjs'
-import { readFilesContentFromEnv } from '../../../utils.mjs'
+import { emailOnAnotherAccountInfo, readFilesContentFromEnv } from '../../../utils.mjs'
+import { logLogout } from '../../../auditLog.mjs'
 
 const SAMLAuthenticationController = {
   passportLogin(req, res, next) {
@@ -46,6 +50,11 @@ const SAMLAuthenticationController = {
         } else {
           if (info.redir != null) {
             return res.json({ redir: info.redir })
+          } else if (info.status === 409) {
+            // this route runs before expressLocals, and the page shows the
+            // admin's address
+            res.locals.settings = { adminEmail: Settings.adminEmail }
+            return HttpErrorHandler.conflict(req, res, info.text)
           } else {
             res.status(info.status || 401)
             delete info.status
@@ -79,6 +88,9 @@ const SAMLAuthenticationController = {
     try {
       user = await SAMLAuthenticationManager.promises.findOrCreateUser(profile, auditLog)
     } catch (error) {
+      if (error instanceof Errors.EmailExistsError) {
+        return { user: false, info: emailOnAnotherAccountInfo(req) }
+      }
       return {
         user: false,
         info: handleAuthenticateErrors(error, req),
@@ -102,6 +114,7 @@ const SAMLAuthenticationController = {
   },
   async passportLogout(req, res, next) {
     passport._strategy('saml').logout(req, async (err, url) => {
+      logLogout(req)
       await endSession(req)
       if (err) return next(err)
       AsyncFormHelper.redirect(req, res, url)
@@ -130,6 +143,8 @@ const SAMLAuthenticationController = {
     if (req?.session?.saml_extce?.nameID === profile.nameID &&
         req?.session?.saml_extce?.sessionIndex === profile.sessionIndex) {
       profile = req.user
+      // the IdP ends this session; a logout started here ended it already
+      logLogout(req)
     }
     await UserSessionsManager.promises.untrackSession(req.user, req.sessionID).catch(err => {
       logger.warn({ err, userId: req.user._id }, 'failed to untrack session')

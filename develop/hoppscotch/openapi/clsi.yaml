@@ -1,0 +1,1334 @@
+openapi: 3.0.3
+info:
+  title: clsi
+  version: '6.3'
+  description: >-
+    CLSI (Common LaTeX Service Interface) compiles projects, runs SyncTeX and
+    texcount on the compile output, and converts documents with pandoc. Web
+    calls it; the output files themselves are served by clsi-nginx, not by
+    this port. No auth: it is reachable only inside the Docker network.
+security: []
+servers:
+  - url: http://clsi:3013
+    description: Inside the Docker network, through the Hoppscotch proxy
+# The servers are Docker addresses that a docs reader cannot reach
+x-hideTryItPanel: true
+tags:
+  - name: Compile
+    x-page-icon: gears
+    description: Compiles, stopping them and clearing the compile directory.
+  - name: Output
+    x-page-icon: file-pdf
+    description: SyncTeX, word count and output zip, read from the compile output.
+  - name: Conversion
+    x-page-icon: arrow-right-arrow-left
+    description: Pandoc and PDF conversions.
+  - name: Health
+    x-page-icon: heart-pulse
+    description: Status, health checks and metrics.
+paths:
+  /status:
+    get:
+      operationId: getStatus
+      summary: Get the status of CLSI
+      description: Returns a fixed text when the process is up.
+      tags: [Health]
+      responses:
+        '200':
+          description: CLSI is up.
+          content:
+            text/html:
+              schema:
+                type: string
+                example: "CLSI is alive\n"
+  /health_check:
+    get:
+      operationId: healthCheck
+      summary: Get the last smoke test result
+      description: >-
+        Returns the result of the last background smoke test compile. Smoke
+        tests run only when `Settings.smokeTest` is set; otherwise the result
+        stays `SmokeTestsPending` (500), as in the dev environment. No caller
+        in this repository.
+      tags: [Health]
+      responses:
+        '200':
+          description: The last smoke test passed.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: OK
+        '500':
+          description: >-
+            The last smoke test failed (text: the error message), the process
+            is past its lifespan, or a disk is critically low (JSON).
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: SmokeTestsPending
+            application/json:
+              schema:
+                type: object
+                properties:
+                  processTooOld:
+                    type: boolean
+                  diskCritical:
+                    type: boolean
+  /smoke_test_force:
+    get:
+      operationId: smokeTestForce
+      summary: Run a smoke test compile now
+      description: >-
+        Compiles a test project (`smoketest-<pid>`) on this CLSI right away
+        and returns the result. No caller in this repository.
+      tags: [Health]
+      responses:
+        '200':
+          description: The smoke test passed.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: OK
+        '500':
+          description: The smoke test failed; the body is the error message.
+          content:
+            text/plain:
+              schema:
+                type: string
+  /metrics:
+    get:
+      operationId: getMetrics
+      summary: Get Prometheus metrics
+      description: Prometheus metrics, added by `@overleaf/metrics` `injectMetricsRoute`.
+      tags: [Health]
+      responses:
+        '200':
+          description: Metrics in the Prometheus text format.
+          content:
+            text/plain:
+              schema:
+                type: string
+  /coverage:
+    get:
+      operationId: getCoverage
+      summary: Get code coverage data
+      description: >-
+        Registered only when `NODE_ENV=development` and the process runs with
+        coverage instrumentation (`global.__coverage__`); otherwise 404. Paths
+        in the data are rewritten from `/overleaf/` to `/workspace/`.
+      tags: [Health]
+      responses:
+        '200':
+          description: The coverage data.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  coverage:
+                    type: object
+                    additionalProperties: true
+        '404':
+          description: The route is not registered.
+          content:
+            text/html:
+              schema:
+                type: string
+  /project/{project_id}/compile:
+    post:
+      operationId: compile
+      summary: Compile a project
+      description: >-
+        Writes the resources to the compile directory, runs LaTeX and returns
+        the output files. Called by web
+        (`services/web/app/src/Features/Compile/ClsiManager.mjs`) for
+        anonymous compiles; the smoke test also uses it.
+      tags: [Compile]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+        - $ref: '#/components/parameters/compileBackendClass'
+        - $ref: '#/components/parameters/compileGroup'
+      requestBody:
+        $ref: '#/components/requestBodies/CompileRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/CompileResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/CompileResult'
+        '423':
+          $ref: '#/components/responses/CompileResult'
+        '500':
+          $ref: '#/components/responses/CompileResult'
+        '503':
+          $ref: '#/components/responses/CompileResult'
+  /project/{project_id}/user/{user_id}/compile:
+    post:
+      operationId: compileForUser
+      summary: Compile a project for a user
+      description: >-
+        Same as `POST /project/{project_id}/compile`, in the user's own
+        compile directory. Called by web
+        (`services/web/app/src/Features/Compile/ClsiManager.mjs`).
+      tags: [Compile]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+        - $ref: '#/components/parameters/user_id'
+        - $ref: '#/components/parameters/compileBackendClass'
+        - $ref: '#/components/parameters/compileGroup'
+      requestBody:
+        $ref: '#/components/requestBodies/CompileRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/CompileResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/CompileResult'
+        '423':
+          $ref: '#/components/responses/CompileResult'
+        '500':
+          $ref: '#/components/responses/CompileResult'
+        '503':
+          $ref: '#/components/responses/CompileResult'
+  /project/{project_id}/compile/stop:
+    post:
+      operationId: stopCompile
+      summary: Stop a running compile
+      description: >-
+        Stops the compile of the project, if one is running. Called by web
+        (`services/web/app/src/Features/Compile/ClsiManager.mjs`).
+      tags: [Compile]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+        - $ref: '#/components/parameters/compileBackendClass'
+        - $ref: '#/components/parameters/compileGroup'
+      responses:
+        '204':
+          description: Stopped.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/user/{user_id}/compile/stop:
+    post:
+      operationId: stopCompileForUser
+      summary: Stop a user's running compile
+      description: >-
+        Same as `POST /project/{project_id}/compile/stop` for the user's
+        compile. Called by web
+        (`services/web/app/src/Features/Compile/ClsiManager.mjs`).
+      tags: [Compile]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+        - $ref: '#/components/parameters/user_id'
+        - $ref: '#/components/parameters/compileBackendClass'
+        - $ref: '#/components/parameters/compileGroup'
+      responses:
+        '204':
+          description: Stopped.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}:
+    delete:
+      operationId: clearCache
+      summary: Clear the compile directory
+      description: >-
+        Stops any running compile, then deletes the project's compile and
+        output directories. Called by web
+        (`services/web/app/src/Features/Compile/ClsiManager.mjs`
+        `deleteAuxFiles`).
+      tags: [Compile]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+        - $ref: '#/components/parameters/compileBackendClass'
+        - $ref: '#/components/parameters/compileGroup'
+        - $ref: '#/components/parameters/clsiserverid'
+      responses:
+        '204':
+          description: Cleared.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/user/{user_id}:
+    delete:
+      operationId: clearCacheForUser
+      summary: Clear a user's compile directory
+      description: >-
+        Same as `DELETE /project/{project_id}` for the user's compile
+        directory. Called by web
+        (`services/web/app/src/Features/Compile/ClsiManager.mjs`
+        `deleteAuxFiles`).
+      tags: [Compile]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+        - $ref: '#/components/parameters/user_id'
+        - $ref: '#/components/parameters/compileBackendClass'
+        - $ref: '#/components/parameters/compileGroup'
+        - $ref: '#/components/parameters/clsiserverid'
+      responses:
+        '204':
+          description: Cleared.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/status:
+    get:
+      operationId: status
+      summary: Check that CLSI answers for a project
+      description: Returns `OK`; the handler reads nothing. No caller in this repository.
+      tags: [Health]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+      responses:
+        '200':
+          $ref: '#/components/responses/StatusOK'
+    post:
+      operationId: statusPost
+      summary: Check that CLSI answers for a project
+      description: >-
+        Same handler as the GET. Web
+        (`services/web/app/src/Features/Compile/ClsiCookieManager.mjs`) calls
+        it to get a CLSI server id cookie when CLSI cookies are enabled.
+      tags: [Health]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+        - $ref: '#/components/parameters/compileBackendClass'
+        - $ref: '#/components/parameters/compileGroup'
+      responses:
+        '200':
+          $ref: '#/components/responses/StatusOK'
+  /project/{project_id}/sync/code:
+    get:
+      operationId: syncFromCode
+      summary: Find the PDF position of a source line
+      description: >-
+        Runs `synctex view` on `output.synctex.gz` of the last compile. Called
+        by web (`services/web/app/src/Features/Compile/ClsiManager.mjs`
+        `syncTeX`).
+      tags: [Output]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+        - $ref: '#/components/parameters/syncFile'
+        - $ref: '#/components/parameters/syncLine'
+        - $ref: '#/components/parameters/syncColumn'
+        - $ref: '#/components/parameters/imageName'
+        - $ref: '#/components/parameters/editorId'
+        - $ref: '#/components/parameters/buildIdQuery'
+        - $ref: '#/components/parameters/compileFromClsiCache'
+        - $ref: '#/components/parameters/compileBackendClass'
+        - $ref: '#/components/parameters/compileGroup'
+        - $ref: '#/components/parameters/clsiserverid'
+      responses:
+        '200':
+          $ref: '#/components/responses/SyncFromCodeResult'
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/user/{user_id}/sync/code:
+    get:
+      operationId: syncFromCodeForUser
+      summary: Find the PDF position of a source line for a user
+      description: >-
+        Same as `GET /project/{project_id}/sync/code` on the user's compile.
+        Called by web (`services/web/app/src/Features/Compile/ClsiManager.mjs`
+        `syncTeX`).
+      tags: [Output]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+        - $ref: '#/components/parameters/user_id'
+        - $ref: '#/components/parameters/syncFile'
+        - $ref: '#/components/parameters/syncLine'
+        - $ref: '#/components/parameters/syncColumn'
+        - $ref: '#/components/parameters/imageName'
+        - $ref: '#/components/parameters/editorId'
+        - $ref: '#/components/parameters/buildIdQuery'
+        - $ref: '#/components/parameters/compileFromClsiCache'
+        - $ref: '#/components/parameters/compileBackendClass'
+        - $ref: '#/components/parameters/compileGroup'
+        - $ref: '#/components/parameters/clsiserverid'
+      responses:
+        '200':
+          $ref: '#/components/responses/SyncFromCodeResult'
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/sync/pdf:
+    get:
+      operationId: syncFromPdf
+      summary: Find the source line of a PDF position
+      description: >-
+        Runs `synctex edit` on `output.synctex.gz` of the last compile. Called
+        by web (`services/web/app/src/Features/Compile/ClsiManager.mjs`
+        `syncTeX`).
+      tags: [Output]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+        - $ref: '#/components/parameters/syncPage'
+        - $ref: '#/components/parameters/syncH'
+        - $ref: '#/components/parameters/syncV'
+        - $ref: '#/components/parameters/imageName'
+        - $ref: '#/components/parameters/editorId'
+        - $ref: '#/components/parameters/buildIdQuery'
+        - $ref: '#/components/parameters/compileFromClsiCache'
+        - $ref: '#/components/parameters/compileBackendClass'
+        - $ref: '#/components/parameters/compileGroup'
+        - $ref: '#/components/parameters/clsiserverid'
+      responses:
+        '200':
+          $ref: '#/components/responses/SyncFromPdfResult'
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/user/{user_id}/sync/pdf:
+    get:
+      operationId: syncFromPdfForUser
+      summary: Find the source line of a PDF position for a user
+      description: >-
+        Same as `GET /project/{project_id}/sync/pdf` on the user's compile.
+        Called by web (`services/web/app/src/Features/Compile/ClsiManager.mjs`
+        `syncTeX`).
+      tags: [Output]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+        - $ref: '#/components/parameters/user_id'
+        - $ref: '#/components/parameters/syncPage'
+        - $ref: '#/components/parameters/syncH'
+        - $ref: '#/components/parameters/syncV'
+        - $ref: '#/components/parameters/imageName'
+        - $ref: '#/components/parameters/editorId'
+        - $ref: '#/components/parameters/buildIdQuery'
+        - $ref: '#/components/parameters/compileFromClsiCache'
+        - $ref: '#/components/parameters/compileBackendClass'
+        - $ref: '#/components/parameters/compileGroup'
+        - $ref: '#/components/parameters/clsiserverid'
+      responses:
+        '200':
+          $ref: '#/components/responses/SyncFromPdfResult'
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/wordcount:
+    get:
+      operationId: wordcount
+      summary: Count the words of a file
+      description: >-
+        Runs `texcount` on `file` in the compile directory as the last compile
+        left it. Creates the compile directory when it is missing (texcount
+        then reports the file as not found). Web
+        (`services/web/app/src/Features/Compile/ClsiManager.mjs` `wordCount`)
+        falls back to this GET when the POST fails.
+      tags: [Output]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+        - $ref: '#/components/parameters/wordcountFile'
+        - $ref: '#/components/parameters/wordcountImage'
+        - $ref: '#/components/parameters/compileBackendClass'
+        - $ref: '#/components/parameters/compileGroup'
+        - $ref: '#/components/parameters/clsiserverid'
+      responses:
+        '200':
+          $ref: '#/components/responses/WordcountResult'
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      operationId: wordcountWithSync
+      summary: Write the project and count the words of a file
+      description: >-
+        Writes the resources from the compile request body to the compile
+        directory first (texcount needs every included file), then runs
+        `texcount`. Called by web
+        (`services/web/app/src/Features/Compile/ClsiManager.mjs` `wordCount`).
+      tags: [Output]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+        - $ref: '#/components/parameters/wordcountFile'
+        - $ref: '#/components/parameters/wordcountImage'
+        - $ref: '#/components/parameters/compileBackendClass'
+        - $ref: '#/components/parameters/compileGroup'
+        - $ref: '#/components/parameters/clsiserverid'
+      requestBody:
+        $ref: '#/components/requestBodies/CompileRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/WordcountResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MissingUpdates'
+        '423':
+          $ref: '#/components/responses/CompileInProgress'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/TooManyRequests'
+  /project/{project_id}/user/{user_id}/wordcount:
+    get:
+      operationId: wordcountForUser
+      summary: Count the words of a file for a user
+      description: >-
+        Same as `GET /project/{project_id}/wordcount` in the user's compile
+        directory (also created when missing). Web
+        (`services/web/app/src/Features/Compile/ClsiManager.mjs` `wordCount`)
+        falls back to this GET when the POST fails.
+      tags: [Output]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+        - $ref: '#/components/parameters/user_id'
+        - $ref: '#/components/parameters/wordcountFile'
+        - $ref: '#/components/parameters/wordcountImage'
+        - $ref: '#/components/parameters/compileBackendClass'
+        - $ref: '#/components/parameters/compileGroup'
+        - $ref: '#/components/parameters/clsiserverid'
+      responses:
+        '200':
+          $ref: '#/components/responses/WordcountResult'
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      operationId: wordcountWithSyncForUser
+      summary: Write the project and count the words of a file for a user
+      description: >-
+        Same as `POST /project/{project_id}/wordcount` in the user's compile
+        directory. Called by web
+        (`services/web/app/src/Features/Compile/ClsiManager.mjs` `wordCount`).
+      tags: [Output]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+        - $ref: '#/components/parameters/user_id'
+        - $ref: '#/components/parameters/wordcountFile'
+        - $ref: '#/components/parameters/wordcountImage'
+        - $ref: '#/components/parameters/compileBackendClass'
+        - $ref: '#/components/parameters/compileGroup'
+        - $ref: '#/components/parameters/clsiserverid'
+      requestBody:
+        $ref: '#/components/requestBodies/CompileRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/WordcountResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MissingUpdates'
+        '423':
+          $ref: '#/components/responses/CompileInProgress'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/TooManyRequests'
+  /project/{project_id}/build/{build_id}/output/output.zip:
+    get:
+      operationId: createOutputZip
+      summary: Download the output files of a build as a zip
+      description: >-
+        Zips the output files of the build. Called by web
+        (`services/web/app/src/Features/Compile/CompileController.mjs`
+        `getOutputZipFromClsi`, URL from `ClsiURLHelpers.mjs`
+        `getOutputZipURL`).
+      tags: [Output]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+        - $ref: '#/components/parameters/build_id'
+        - $ref: '#/components/parameters/compileBackendClassUnread'
+        - $ref: '#/components/parameters/clsiserveridUnread'
+      responses:
+        '200':
+          $ref: '#/components/responses/OutputZip'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/user/{user_id}/build/{build_id}/output/output.zip:
+    get:
+      operationId: createOutputZipForUser
+      summary: Download the output files of a user's build as a zip
+      description: >-
+        Same as `GET /project/{project_id}/build/{build_id}/output/output.zip`
+        for the user's build. Called by web
+        (`services/web/app/src/Features/Compile/CompileController.mjs`
+        `getOutputZipFromClsi`).
+      tags: [Output]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+        - $ref: '#/components/parameters/user_id'
+        - $ref: '#/components/parameters/build_id'
+        - $ref: '#/components/parameters/compileBackendClassUnread'
+        - $ref: '#/components/parameters/clsiserveridUnread'
+      responses:
+        '200':
+          $ref: '#/components/responses/OutputZip'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /convert/docx-to-latex:
+    post:
+      operationId: convertDocxToLaTeX
+      summary: Convert a Word file to LaTeX
+      description: >-
+        Old route kept for deploys; the conversion type is always `docx`.
+        Returns 404 unless `ENABLE_PANDOC_CONVERSIONS=true`. Called by web
+        (`services/web/app/src/Features/Uploads/DocumentConversionManager.mjs`
+        `convertDocumentToLaTeXZipArchive`) for docx uploads.
+      tags: [Conversion]
+      requestBody:
+        $ref: '#/components/requestBodies/UploadedFile'
+      responses:
+        '200':
+          $ref: '#/components/responses/ConversionZip'
+        '400':
+          $ref: '#/components/responses/InvalidUpload'
+        '404':
+          $ref: '#/components/responses/ConversionDisabled'
+        '422':
+          $ref: '#/components/responses/ConversionFailed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /convert/document-to-latex:
+    post:
+      operationId: convertDocumentToLaTeX
+      summary: Convert a document to LaTeX
+      description: >-
+        Converts a Word or Markdown file to a LaTeX project zip with pandoc.
+        Returns 404 unless `ENABLE_PANDOC_CONVERSIONS=true`. Called by web
+        (`services/web/app/src/Features/Uploads/DocumentConversionManager.mjs`
+        `convertDocumentToLaTeXZipArchive`) for non-docx uploads.
+      tags: [Conversion]
+      parameters:
+        - name: type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [docx, markdown]
+        - $ref: '#/components/parameters/compileBackendClass'
+        - $ref: '#/components/parameters/compileGroup'
+      requestBody:
+        $ref: '#/components/requestBodies/UploadedFile'
+      responses:
+        '200':
+          $ref: '#/components/responses/ConversionZip'
+        '400':
+          $ref: '#/components/responses/InvalidUpload'
+        '404':
+          $ref: '#/components/responses/ConversionDisabled'
+        '422':
+          $ref: '#/components/responses/ConversionFailed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /convert/pdf-to-jpeg:
+    post:
+      operationId: convertPDFToJPEG
+      summary: Render a PDF page as a JPEG
+      description: >-
+        Renders a preview or thumbnail of the uploaded PDF. Returns 404 unless
+        `ENABLE_PDF_CONVERSIONS=true`. No caller in this repository (the code
+        comment names v1's `CLSI::PdfToJpeg`).
+      tags: [Conversion]
+      parameters:
+        - name: mode
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [preview, thumbnail]
+        - $ref: '#/components/parameters/compileBackendClass'
+      requestBody:
+        $ref: '#/components/requestBodies/UploadedFile'
+      responses:
+        '200':
+          description: The image, as an attachment named `output.jpg`.
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/InvalidUpload'
+        '404':
+          $ref: '#/components/responses/ConversionDisabled'
+        '422':
+          $ref: '#/components/responses/InvalidUpload'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /project/{project_id}/user/{user_id}/download/project-to-document:
+    post:
+      operationId: convertProjectToDocument
+      summary: Convert a project to a document
+      description: >-
+        Writes the project from the compile request body to a fresh directory
+        and converts it with pandoc to docx, or to a Markdown or HTML zip.
+        With `responseFormat=json` the file is kept in the output directory
+        (removed later) and its location is returned; otherwise it is
+        streamed. Returns 404 unless `ENABLE_PANDOC_CONVERSIONS=true`. Called
+        by web
+        (`services/web/app/src/Features/Uploads/DocumentConversionManager.mjs`
+        `convertProjectToDocumentOnce`, with `responseFormat=json`).
+      tags: [Conversion]
+      parameters:
+        - $ref: '#/components/parameters/project_id'
+        - $ref: '#/components/parameters/user_id'
+        - name: type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [docx, markdown, html]
+        - name: responseFormat
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [json, stream]
+            default: stream
+        - $ref: '#/components/parameters/compileBackendClass'
+        - $ref: '#/components/parameters/compileGroup'
+      requestBody:
+        $ref: '#/components/requestBodies/CompileRequest'
+      responses:
+        '200':
+          description: >-
+            JSON with the file location (`responseFormat=json`), or the file
+            itself as an attachment named `output.docx` or `output.zip`.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversionId:
+                    type: string
+                    format: uuid
+                  buildId:
+                    type: string
+                  file:
+                    type: string
+                    enum: [output.docx, output.zip]
+            application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+              schema:
+                type: string
+                format: binary
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Conversions are off, or a path parameter is invalid.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Not Found
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '409':
+          $ref: '#/components/responses/MissingUpdates'
+        '422':
+          $ref: '#/components/responses/ConversionFailed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+components:
+  parameters:
+    project_id:
+      name: project_id
+      in: path
+      required: true
+      description: A Mongo ObjectId, or a submission id (`[a-zA-Z0-9_-]+`).
+      schema:
+        type: string
+        pattern: '^[a-zA-Z0-9_-]+$'
+      example: 6ab3f6db040b00ac810bca26
+    user_id:
+      name: user_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[0-9a-f]{24}$'
+      example: 6ab3f6d0040b00ac810bca0b
+    build_id:
+      name: build_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[0-9a-f]+-[0-9a-f]+$'
+      example: 1a1c62b70e2-6ebf1c2a26573849
+    compileBackendClass:
+      name: compileBackendClass
+      in: query
+      required: false
+      description: Added by web for routing and metrics; not read by the handler.
+      schema:
+        type: string
+        pattern: '^[a-z0-9-]+$'
+    compileGroup:
+      name: compileGroup
+      in: query
+      required: false
+      description: Added by web for routing and metrics; not read by the handler.
+      schema:
+        type: string
+        enum: [alpha, gvisor, standard, priority]
+    clsiserverid:
+      name: clsiserverid
+      in: query
+      required: false
+      description: Added by web for routing; not read by the handler.
+      schema:
+        type: string
+        pattern: '^[a-z0-9-]+$'
+    compileBackendClassUnread:
+      name: compileBackendClass
+      in: query
+      required: false
+      description: Sent by web; this route does not validate or read it.
+      schema:
+        type: string
+    clsiserveridUnread:
+      name: clsiserverid
+      in: query
+      required: false
+      description: Sent by web; this route does not validate or read it.
+      schema:
+        type: string
+    syncFile:
+      name: file
+      in: query
+      required: true
+      description: Source file path, relative, without `..`.
+      schema:
+        type: string
+      example: main.tex
+    syncLine:
+      name: line
+      in: query
+      required: true
+      schema:
+        type: integer
+      example: 12
+    syncColumn:
+      name: column
+      in: query
+      required: true
+      schema:
+        type: integer
+      example: 1
+    syncPage:
+      name: page
+      in: query
+      required: true
+      schema:
+        type: integer
+      example: 1
+    syncH:
+      name: h
+      in: query
+      required: true
+      schema:
+        type: number
+      example: 100
+    syncV:
+      name: v
+      in: query
+      required: true
+      schema:
+        type: number
+      example: 100
+    imageName:
+      name: imageName
+      in: query
+      required: false
+      description: TeX Live image; must be in `allowedImages` when that list is set.
+      schema:
+        type: string
+    editorId:
+      name: editorId
+      in: query
+      required: false
+      schema:
+        type: string
+        format: uuid
+    buildIdQuery:
+      name: buildId
+      in: query
+      required: false
+      description: Build to read; SyncTeX runs in that build's output directory when the runner supports it.
+      schema:
+        type: string
+        pattern: '^[0-9a-f]+-[0-9a-f]+$'
+    compileFromClsiCache:
+      name: compileFromClsiCache
+      in: query
+      required: false
+      description: >-
+        When `true` and `output.synctex.gz` is missing, download it from
+        clsi-cache (needs `editorId` and `buildId`). A zod `stringbool`.
+      schema:
+        type: string
+        default: 'false'
+    wordcountFile:
+      name: file
+      in: query
+      required: false
+      schema:
+        type: string
+        default: main.tex
+    wordcountImage:
+      name: image
+      in: query
+      required: false
+      description: TeX Live image; must be in `allowedImages` when that list is set.
+      schema:
+        type: string
+  requestBodies:
+    CompileRequest:
+      required: true
+      description: The compile request (`services/clsi/app/js/schemas.js`).
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [compile]
+            properties:
+              compile:
+                $ref: '#/components/schemas/Compile'
+    UploadedFile:
+      required: true
+      description: Multipart upload with the file in the `qqfile` field, at most 50 MB.
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [qqfile]
+            properties:
+              qqfile:
+                type: string
+                format: binary
+  responses:
+    StatusOK:
+      description: Fixed text.
+      content:
+        text/html:
+          schema:
+            type: string
+            example: OK
+    BadRequest:
+      description: >-
+        The request fails the route's zod schema. Routes that pass `logOnly`
+        only log the failure in the default `REQ_VALIDATION_MODE=log`; the
+        Server CE image sets `REQ_VALIDATION_MODE=enforce-log`.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+    NotFound:
+      description: >-
+        No output directory or file (text), or a path parameter fails the
+        zod schema (JSON, see BadRequest for the validation modes).
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: Not Found
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+    InvalidParameter:
+      description: >-
+        Image not allowed, or invalid `editorId` or `buildId` (text), or the
+        query fails the zod schema (JSON).
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: invalid image
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+    ServerError:
+      description: Internal error.
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: Internal Server Error
+    CompileResult:
+      description: >-
+        The compile result. 200 for `success`, `failure`,
+        `stopped-on-first-error`, `terminated`, `timedout` and
+        `validation-*`; 409 for `conflict` and `missing-updates`; 423 for
+        `compile-in-progress`; 503 for `unavailable`; 500 for `error`. A body
+        that RequestParser rejects gets a plain 500 instead.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              compile:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  error:
+                    type: string
+                    description: The error message, when the compile failed with one.
+                  baseHistoryVersion:
+                    type: integer
+                  stats:
+                    type: object
+                    additionalProperties: true
+                  timings:
+                    type: object
+                    additionalProperties: true
+                  buildId:
+                    type: string
+                  clsiCacheShard:
+                    type: string
+                  instanceType:
+                    type: string
+                  zone:
+                    type: string
+                  isSpotInstance:
+                    type: boolean
+                  outputUrlPrefix:
+                    type: string
+                  outputFiles:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OutputFile'
+    SyncFromCodeResult:
+      description: PDF positions of the source line.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              pdf:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    page:
+                      type: integer
+                    h:
+                      type: number
+                    v:
+                      type: number
+                    width:
+                      type: number
+                    height:
+                      type: number
+              downloadedFromCache:
+                type: boolean
+    SyncFromPdfResult:
+      description: Source positions of the PDF point.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              code:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    file:
+                      type: string
+                    line:
+                      type: integer
+                    column:
+                      type: integer
+              downloadedFromCache:
+                type: boolean
+    WordcountResult:
+      description: >-
+        texcount results. A missing file is not an error: `errors` is 1 and
+        `messages` holds texcount's message.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              texcount:
+                type: object
+                properties:
+                  encode:
+                    type: string
+                  textWords:
+                    type: integer
+                  headWords:
+                    type: integer
+                  outside:
+                    type: integer
+                  headers:
+                    type: integer
+                  elements:
+                    type: integer
+                  mathInline:
+                    type: integer
+                  mathDisplay:
+                    type: integer
+                  errors:
+                    type: integer
+                  messages:
+                    type: string
+    MissingUpdates:
+      description: History-based request is missing updates; the caller resends from this version.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              baseHistoryVersion:
+                type: integer
+    CompileInProgress:
+      description: A compile holds the lock.
+      content:
+        text/html:
+          schema:
+            type: string
+            example: compile in progress
+    TooManyRequests:
+      description: Too many concurrent compile requests.
+      content:
+        text/html:
+          schema:
+            type: string
+            example: too many concurrent requests
+    OutputZip:
+      description: The output files, as an attachment named `output.zip`.
+      content:
+        application/zip:
+          schema:
+            type: string
+            format: binary
+    ConversionZip:
+      description: The LaTeX project, as an attachment named `conversion.zip`.
+      content:
+        application/zip:
+          schema:
+            type: string
+            format: binary
+    ConversionDisabled:
+      description: Conversions are off.
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: Not Found
+    InvalidUpload:
+      description: >-
+        No file in the upload (400, `invalid_upload_request`), the file is
+        larger than 50 MB (422, `file_too_large`), or the query fails the zod
+        schema (400, ValidationError).
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                description: Set (`false`) on upload errors.
+              error:
+                type: string
+                description: '`invalid_upload_request`, `file_too_large`, or the zod error text.'
+              statusCode:
+                type: integer
+                description: Set on zod validation errors.
+    ConversionFailed:
+      description: >-
+        Pandoc failed. A user-facing failure carries pandoc's stderr and exit
+        code; otherwise the body is `{}`. Also 422 `file_too_large` for
+        uploads larger than 50 MB.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                description: pandoc's stderr, or `file_too_large`.
+                type: string
+              exitCode:
+                type: integer
+              success:
+                type: boolean
+  schemas:
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+        statusCode:
+          type: integer
+    Compile:
+      type: object
+      additionalProperties: false
+      properties:
+        options:
+          type: object
+          additionalProperties: false
+          properties:
+            metricsPath:
+              type: string
+            metricsMethod:
+              type: string
+            compiler:
+              type: string
+              enum: [pdflatex, latex, xelatex, lualatex]
+            compileFromClsiCache:
+              type: boolean
+            populateClsiCache:
+              type: boolean
+            enablePdfCaching:
+              type: boolean
+            pdfCachingMinChunkSize:
+              type: number
+            enableCheckpoint:
+              type: boolean
+            timeout:
+              type: number
+            imageName:
+              type: string
+              description: Must be in `allowedImages` when that list is set.
+            draft:
+              type: boolean
+            png2pdf:
+              type: boolean
+            stopOnFirstError:
+              type: boolean
+            check:
+              type: string
+            flags:
+              type: array
+              items:
+                type: string
+            compileGroup:
+              type: string
+              enum: [alpha, gvisor, standard, priority]
+            syncType:
+              type: string
+            syncState:
+              type: string
+            historyId:
+              type: string
+              pattern: '^([0-9a-f]{24}|[1-9][0-9]{0,9})$'
+            editorId:
+              type: string
+              format: uuid
+            buildId:
+              type: string
+              pattern: '^[0-9a-f]+-[0-9a-f]+$'
+            clsiPerfVariant:
+              type: string
+              enum: [example-project-frog, jpeg-images, memoir-manual, minimal, minimal-gvisor]
+        resources:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [path]
+            properties:
+              path:
+                type: string
+                description: Relative path without `..`.
+              modified:
+                type: number
+                description: Epoch milliseconds.
+              url:
+                type: string
+                format: uri
+              fallbackURL:
+                type: string
+                format: uri
+              content:
+                type: string
+        rootResourcePath:
+          type: string
+          description: Relative path without `..`.
+        baseHistoryVersion:
+          type: number
+        rawSnapshot:
+          type: object
+          description: A history snapshot, validated by overleaf-editor-core's schemas; not modelled here.
+        rawChangeOperations:
+          type: array
+          description: One array of raw history operations per change (overleaf-editor-core schemas); not modelled here.
+          items:
+            type: array
+            items:
+              type: object
+        globalBlobs:
+          type: array
+          description: Raw blob hashes (overleaf-editor-core schemas).
+          items:
+            type: string
+        filestoreBlobPrefix:
+          type: string
+          description: Relative path without `..`.
+    OutputFile:
+      type: object
+      properties:
+        url:
+          type: string
+          description: '`<downloadHost>/project/<id>[/user/<id>]/build/<build>/output/<path>`, served by clsi-nginx.'
+        path:
+          type: string
+        type:
+          type: string
+          description: The file extension.
+        build:
+          type: string
+        size:
+          type: integer
+        contentId:
+          type: string
+          description: Set when PDF caching ran.
+        ranges:
+          type: array
+          description: PDF caching ranges.
+          items:
+            type: object
+            additionalProperties: true
+        startXRefTable:
+          type: number

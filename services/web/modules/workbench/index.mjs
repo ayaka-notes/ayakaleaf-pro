@@ -14,6 +14,9 @@ import WorkbenchRouter from './app/src/WorkbenchRouter.mjs'
 //   AI_MAX_STEPS — optional; tool calls per user message, across requests (default 20)
 //   AI_PROXY_URL — optional; route gateway calls through an HTTP proxy
 //                  (like the GITHUB_/PAPERS_ proxy env vars)
+//   AI_API_MODE  — 'chat' (default; Chat Completions, /chat/completions) or
+//                  'responses' (the OpenAI Responses API, /responses), for
+//                  models that take tools only there
 //   AI_TOKEN_QUOTA — optional; per-user tokens per period for chat and error fixes
 //                  (prompt+completion, all agent steps). Counted in Redis.
 //                  Unset/0 = unlimited.
@@ -28,6 +31,7 @@ Settings.workbenchAi = {
   pdfModel: process.env.AI_PDF_MODEL,
   maxSteps: parseInt(process.env.AI_MAX_STEPS || '', 10) || 20,
   proxyUrl: process.env.AI_PROXY_URL,
+  apiMode: process.env.AI_API_MODE === 'responses' ? 'responses' : 'chat',
   tokenQuota: parseInt(process.env.AI_TOKEN_QUOTA || '', 10) || 0,
   tokenQuotaPeriod:
     process.env.AI_TOKEN_QUOTA_PERIOD === 'week' ? 'week' : 'month',

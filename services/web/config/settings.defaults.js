@@ -810,7 +810,7 @@ module.exports = {
 
     right_footer: [
       {
-        text: '<a href="https://github.com/overleaf/overleaf">Fork on GitHub!</a>',
+        text: '<a href="https://github.com/ayaka-notes/ayakaleaf-pro">Fork on GitHub!</a>',
       },
     ],
 
@@ -1341,7 +1341,8 @@ module.exports = {
     'error-assistant',
     'instance-features',
     'open-in-overleaf',
-    'toast-image'
+    'toast-image',
+    'user-emails'
   ],
   viewIncludes: {},
 

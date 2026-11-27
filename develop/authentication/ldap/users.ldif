@@ -1,0 +1,44 @@
+# Users from rroemhild/docker-test-openldap, the password is the uid
+dn: ou=people,dc=planetexpress,dc=com
+objectClass: organizationalUnit
+ou: people
+
+dn: cn=Hubert J. Farnsworth,ou=people,dc=planetexpress,dc=com
+objectClass: inetOrgPerson
+cn: Hubert J. Farnsworth
+sn: Farnsworth
+givenName: Hubert
+displayName: Professor Farnsworth
+mail: professor@planetexpress.com
+uid: professor
+userPassword: professor
+
+dn: cn=Philip J. Fry,ou=people,dc=planetexpress,dc=com
+objectClass: inetOrgPerson
+cn: Philip J. Fry
+sn: Fry
+givenName: Philip
+displayName: Fry
+mail: fry@planetexpress.com
+uid: fry
+userPassword: fry
+
+dn: cn=Turanga Leela,ou=people,dc=planetexpress,dc=com
+objectClass: inetOrgPerson
+cn: Turanga Leela
+sn: Turanga
+givenName: Leela
+mail: leela@planetexpress.com
+uid: leela
+userPassword: leela
+
+dn: cn=admin_staff,ou=people,dc=planetexpress,dc=com
+objectClass: groupOfNames
+cn: admin_staff
+member: cn=Hubert J. Farnsworth,ou=people,dc=planetexpress,dc=com
+
+dn: cn=ship_crew,ou=people,dc=planetexpress,dc=com
+objectClass: groupOfNames
+cn: ship_crew
+member: cn=Philip J. Fry,ou=people,dc=planetexpress,dc=com
+member: cn=Turanga Leela,ou=people,dc=planetexpress,dc=com

@@ -1,0 +1,58 @@
+# Keeps history and template files in RustFS. Each service reads its own
+# variables here, the all-in-one image maps OVERLEAF_*_S3_* to the same ones.
+x-s3-client: &s3-client
+  AWS_ACCESS_KEY_ID: rustfsadmin
+  AWS_SECRET_ACCESS_KEY: rustfsadmin
+  AWS_S3_ENDPOINT: http://rustfs:9000
+  AWS_S3_PATH_STYLE: "true"
+
+volumes:
+  rustfs-data:
+
+services:
+  # The console is on http://localhost:9001/rustfs/console/
+  # admin credentials are "rustfsadmin:rustfsadmin"
+  rustfs:
+    image: rustfs/rustfs:1.0.4
+    environment:
+      RUSTFS_ACCESS_KEY: rustfsadmin
+      RUSTFS_SECRET_KEY: rustfsadmin
+    ports:
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - rustfs-data:/data
+
+  # Creates the buckets, 409 means that a bucket is already there
+  rustfs-buckets:
+    image: curlimages/curl:8.11.1
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        for bucket in overleaf-template-files overleaf-project-blobs overleaf-global-blobs overleaf-chunks overleaf-zips overleaf-analytics; do
+          until curl -s -o /dev/null -w '%{http_code}' --aws-sigv4 aws:amz:us-east-1:s3 --user rustfsadmin:rustfsadmin -X PUT http://rustfs:9000/$$bucket | grep -qE '^(200|409)$$'; do
+            sleep 1
+          done
+        done
+
+  filestore:
+    environment:
+      <<: *s3-client
+      BACKEND: s3
+      TEMPLATE_FILES_BUCKET_NAME: overleaf-template-files
+      OVERLEAF_EDITOR_PROJECT_BLOBS_BUCKET: overleaf-project-blobs
+      OVERLEAF_EDITOR_BLOBS_BUCKET: overleaf-global-blobs
+
+  history-v1:
+    environment:
+      <<: *s3-client
+      PERSISTOR_BACKEND: s3
+      OVERLEAF_EDITOR_ANALYTICS_BUCKET: overleaf-analytics
+      OVERLEAF_EDITOR_BLOBS_BUCKET: overleaf-global-blobs
+      OVERLEAF_EDITOR_CHUNKS_BUCKET: overleaf-chunks
+      OVERLEAF_EDITOR_PROJECT_BLOBS_BUCKET: overleaf-project-blobs
+      OVERLEAF_EDITOR_ZIPS_BUCKET: overleaf-zips
+
+  web:
+    environment:
+      OVERLEAF_EDITOR_PROJECT_BLOBS_BUCKET: overleaf-project-blobs
+      OVERLEAF_EDITOR_BLOBS_BUCKET: overleaf-global-blobs

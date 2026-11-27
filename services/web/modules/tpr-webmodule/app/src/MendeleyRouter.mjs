@@ -1,5 +1,9 @@
 import AuthenticationController from '../../../../app/src/Features/Authentication/AuthenticationController.mjs'
+import { requireUserFeature } from '../../../instance-features/app/src/UserFeatures.mjs'
 import MendeleyController from './MendeleyController.mjs'
+
+// Unlinking stays open: a user can always let go of the account
+const requireMendeley = requireUserFeature('mendeley')
 
 export default {
   apply(webRouter) {
@@ -7,6 +11,7 @@ export default {
     webRouter.get(
       '/mendeley/groups',
       AuthenticationController.requireLogin(),
+      requireMendeley,
       MendeleyController.getGroups
     )
 
@@ -14,6 +19,7 @@ export default {
     webRouter.get(
       '/user/mendeley/oauth',
       AuthenticationController.requireLogin(),
+      requireMendeley,
       MendeleyController.oauth
     )
 
@@ -21,6 +27,7 @@ export default {
     webRouter.get(
       '/user/mendeley/oauth/callback',
       AuthenticationController.requireLogin(),
+      requireMendeley,
       MendeleyController.oauthCallback
     )
 

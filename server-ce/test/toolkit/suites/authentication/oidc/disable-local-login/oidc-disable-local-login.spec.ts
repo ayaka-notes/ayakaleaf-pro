@@ -1,6 +1,8 @@
 import {
   currentUser,
+  expectSsoPasswordRefused,
   idpEmail,
+  requestPasswordReset,
   resetAuthentikUsers,
   ssoLogin,
 } from '../../../../../helpers/auth'
@@ -38,5 +40,9 @@ describe('OIDC with local login disabled', function () {
   it('still logs in with OIDC', function () {
     ssoLogin('/oidc/login', 'bob')
     currentUser().its('email').should('equal', idpEmail('bob'))
+  })
+
+  it('refuses to send a reset email to an account made by OIDC', function () {
+    requestPasswordReset(idpEmail('bob')).then(expectSsoPasswordRefused)
   })
 })
