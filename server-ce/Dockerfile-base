@@ -10,7 +10,7 @@ ENV TEXMFVAR=/var/lib/overleaf/tmp/texmf-var
 
 # Update to ensure dependencies are updated
 # ------------------------------------------
-ENV REBUILT_AFTER="2026-08-27"
+ENV REBUILT_AFTER="2026-11-27"
 
 # Install dependencies
 # --------------------
@@ -38,6 +38,19 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # We are adding a custom nginx config in the main Dockerfile.
       /etc/nginx/nginx.conf \
       /etc/nginx/sites-enabled/default
+
+# filestore (running in this image via runit) uses ImageMagick for PDF thumbnail
+# conversion. Debian's default policy.xml blocks the PDF/PS/EPS coders, so allow
+# them and raise the resource limits, matching services/filestore/install_deps.sh
+# (which only runs when building the standalone filestore image).
+# ----------------------------------------------------
+RUN sed -i -E \
+      -e '/<policy domain="coder" rights="none" pattern="(PS2|PS3|EPS|PDF|XPS)" \/>/d' \
+      -e 's/(<policy[^>]*domain="resource"[^>]*name="memory"[^>]*value=")[^"]*(")/\12GiB\2/' \
+      -e 's/(<policy[^>]*domain="resource"[^>]*name="map"[^>]*value=")[^"]*(")/\14GiB\2/' \
+      -e 's/(<policy[^>]*domain="resource"[^>]*name="area"[^>]*value=")[^"]*(")/\14GP\2/' \
+      -e 's/(<policy[^>]*domain="resource"[^>]*name="disk"[^>]*value=")[^"]*(")/\11GiB\2/' \
+    /etc/ImageMagick-6/policy.xml
 
 # Install TexLive
 # ---------------
