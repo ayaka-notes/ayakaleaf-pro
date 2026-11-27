@@ -341,6 +341,12 @@ async function initialize(webRouter, privateApiRouter, publicApiRouter) {
     AuthenticationController.requireLogin(),
     UserController.updateUserSettings
   )
+  webRouter.get(
+    '/user/keybind',
+    AuthenticationController.requireLogin(),
+    PermissionsController.useCapabilities(),
+    UserPagesController.keybindPage
+  )
   webRouter.post(
     '/user/password/update',
     AuthenticationController.requireLogin(),

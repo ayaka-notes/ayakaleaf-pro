@@ -32,6 +32,7 @@ import { UserFeaturesProvider } from '@/shared/context/user-features-context'
 import { UserSettingsProvider } from '@/shared/context/user-settings-context'
 import { CommandRegistryProvider } from './command-registry-context'
 import { EditorSelectionProvider } from '@/shared/context/editor-selection-context'
+import CustomKeybindingsActivator from '@/features/ide-react/custom-keybindings-activator'
 import importOverleafModules from '../../../../macros/import-overleaf-module.macro'
 import { TutorialProvider } from '@/shared/context/tutorial-context'
 import { TabsProvider } from './tabs-context'
@@ -136,6 +137,8 @@ export const ReactContextRoot: FC<
                                                                       <Providers.CommandRegistryProvider>
                                                                         <Providers.EditorSelectionProvider>
                                                                           <Providers.ChangesUsersProvider>
+                                                                            {/* user custom key bindings (window keydown capture → command-registry handlers) */}
+                                                                            <CustomKeybindingsActivator />
                                                                             {
                                                                               childrenWrappedWithDynamicProviders
                                                                             }

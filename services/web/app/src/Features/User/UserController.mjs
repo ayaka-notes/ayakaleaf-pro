@@ -412,6 +412,10 @@ const updateUserSettingsSchema = z.object({
     referencesSearchMode: z.string().optional(),
     darkModePdf: z.coerce.boolean().optional(),
     floatingMenu: z.coerce.boolean().optional(),
+    // Custom key bindings: a map of rebindable-action id → key string or
+    // null (null clears the binding). Values are never executed server-side;
+    // they only select one of the fixed client-side command handlers.
+    customKeybindings: z.record(z.string(), z.union([z.string(), z.null()])).optional(),
     zotero: refProviderSettingsSchema,
     mendeley: refProviderSettingsSchema,
     papers: refProviderSettingsSchema,
@@ -519,6 +523,31 @@ async function updateUserSettings(req, res, next) {
   }
   if (body.floatingMenu != null) {
     user.ace.floatingMenu = Boolean(body.floatingMenu)
+  }
+  if (body.customKeybindings != null) {
+    // Sanitize: keep only entries whose value is a null (clear) or a bounded
+    // string key-binding: up to 3 modifiers (mod/shift/alt) followed by one
+    // key — a single printable character (letters, digits, punctuation such
+    // as `/`) or a named key (Space, Enter, Escape, F1-F12, ...). Values are
+    // never executed — the client only uses them to pick a fixed command
+    // handler. Grammar exactly mirrors the client's isValidKeyString, so
+    // anything set in the modal also persists across reloads.
+    const clean = {}
+    for (const [id, value] of Object.entries(body.customKeybindings)) {
+      if (value == null) {
+        clean[id] = null
+      } else if (
+        typeof value === 'string' &&
+        value.length > 0 &&
+        value.length <= 64 &&
+        /^((mod|shift|alt)-){0,3}(space|enter|escape|backspace|delete|home|end|pageup|pagedown|tab|arrowup|arrowdown|arrowleft|arrowright|f1[0-2]|f[1-9]|[!-~])$/i.test(
+          value,
+        )
+      ) {
+        clean[id] = value
+      }
+    }
+    user.ace.customKeybindings = clean
   }
   if (body.zotero != null) {
     user.ace.zotero = { ...user.ace.zotero, ...body.zotero }

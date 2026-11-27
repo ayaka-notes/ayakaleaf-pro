@@ -11,7 +11,6 @@ import AutoCloseBracketsSetting from '@/features/ide-settings/components/editor-
 import AutoCompleteSetting from '@/features/ide-settings/components/editor-settings/auto-complete-setting'
 import CodeCheckSetting from '@/features/ide-settings/components/editor-settings/code-check-setting'
 import PreviewTabsSetting from '@/features/ide-settings/components/editor-settings/preview-tabs-setting'
-import KeybindingSetting from '@/features/ide-settings/components/editor-settings/keybinding-setting'
 import PDFViewerSetting from '@/features/ide-settings/components/editor-settings/pdf-viewer-setting'
 import importOverleafModules from '../../../../macros/import-overleaf-module.macro'
 import SpellCheckSetting from '@/features/ide-settings/components/editor-settings/spell-check-setting'
@@ -140,10 +139,6 @@ export const SettingsModalProvider: FC<React.PropsWithChildren> = ({
               {
                 key: 'previewTabs',
                 component: <PreviewTabsSetting />,
-              },
-              {
-                key: 'mode',
-                component: <KeybindingSetting />,
               },
               {
                 key: 'pdfViewer',
