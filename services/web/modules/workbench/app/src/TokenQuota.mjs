@@ -1,6 +1,7 @@
 import Settings from '@overleaf/settings'
 import logger from '@overleaf/logger'
 import { RateLimiter } from '../../../../app/src/infrastructure/RateLimiter.mjs'
+import UserAuditLogHandler from '../../../../app/src/Features/User/UserAuditLogHandler.mjs'
 
 /**
  * Tracks per-user AI token usage in Redis and enforces the configured quota.
@@ -101,6 +102,18 @@ export async function recordTokenUsage(userId, tokens) {
     }
     // A quota-exceeded result still records usage; later requests check the balance.
   }
+}
+
+// A request the quota blocks goes on the user's audit log, as core's
+// TokenUsageRateLimiter.checkUsage writes it
+export function logQuotaBreach(userId, req, tool) {
+  UserAuditLogHandler.addEntryInBackground(
+    userId,
+    'ai-quota-breach',
+    userId,
+    req.ip,
+    { tool }
+  )
 }
 
 export default {

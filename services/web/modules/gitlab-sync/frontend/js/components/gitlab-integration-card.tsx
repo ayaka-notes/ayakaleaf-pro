@@ -22,7 +22,7 @@ const GitLabSyncCard = () => {
   return (
     <>
       <IntegrationCard
-        title={'GitLab'}
+        title={t('gitlab')}
         description={t('sync_with_a_x_repository', { provider: 'GitLab' })}
         icon={<GitlabLogo size={32} />}
         showPaywallBadge={false}
