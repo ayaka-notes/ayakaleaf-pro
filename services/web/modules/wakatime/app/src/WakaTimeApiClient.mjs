@@ -1,5 +1,7 @@
 import logger from '@overleaf/logger'
 import OError from '@overleaf/o-error'
+import net from 'node:net'
+import Settings from '@overleaf/settings'
 import {
   fetchNothing,
   fetchJson,
@@ -24,6 +26,9 @@ const REQUEST_TIMEOUT_MS = 15 * 1000
 async function resolveAuth(userId) {
   const credentials = await TokenManager.getCredentials(userId)
   if (credentials) {
+    // SSRF guard for stored credentials too, so accounts linked before
+    // a policy change can never trigger internal fetches either.
+    validateApiUrl(credentials.apiUrl)
     const { headers, authQuery } = buildAuth(credentials.apiKey)
     return {
       kind: 'key',
@@ -37,6 +42,172 @@ async function resolveAuth(userId) {
 
 function normalizeApiUrl(apiUrl) {
   return (apiUrl || DEFAULT_API_URL).replace(/\/+$/, '')
+}
+
+/**
+ * SSRF guard for user-supplied WakaTime/Wakapi API URLs.
+ *
+ * By default only public http(s) endpoints are accepted: loopback
+ * names (localhost, *.local), and IP literals in private, link-local,
+ * reserved, multicast or CGNAT ranges are rejected, so a linked account
+ * can never make the backend fetch internal addresses (cloud metadata,
+ * LAN services, ...) or ship auth material to an attacker-chosen host.
+ *
+ * Deployment overrides (Settings.wakatime, see settings.defaults.js):
+ *   - allowedHosts: explicit allowlist of host / host:port entries
+ *     (e.g. a self-hosted Wakapi by name on the internal network).
+ *   - allowInternalHosts: trust every host, including internal ones.
+ *
+ * Throws an OError with status 400 on a rejected URL.
+ */
+function validateApiUrl(apiUrl) {
+  if (typeof apiUrl !== 'string' || !apiUrl.trim()) {
+    throw new OError('A valid WakaTime API URL is required', { status: 400 })
+  }
+
+  let url
+  try {
+    url = new URL(apiUrl)
+  } catch {
+    throw new OError(
+      'The WakaTime API URL must be a valid absolute URL, e.g. https://wakatime.com/api/v1',
+      { status: 400 }
+    )
+  }
+
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new OError('The WakaTime API URL must use http or https', {
+      status: 400,
+    })
+  }
+
+  if (url.username || url.password) {
+    throw new OError('The WakaTime API URL must not contain credentials', {
+      status: 400,
+    })
+  }
+
+  const host = url.hostname
+  if (!host) {
+    throw new OError('The WakaTime API URL must include a host', {
+      status: 400,
+    })
+  }
+
+  const wt = Settings.wakatime || {}
+  const allowedHosts = (Array.isArray(wt.allowedHosts) ? wt.allowedHosts : [])
+    .map(h => String(h).toLowerCase())
+    .filter(Boolean)
+  const hostWithPort = url.port ? `${host}:${url.port}` : host
+  if (
+    allowedHosts.includes(host) ||
+    allowedHosts.includes(hostWithPort) ||
+    wt.allowInternalHosts === true
+  ) {
+    return
+  }
+
+  if (
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host.endsWith('.local') ||
+    host.endsWith('.internal')
+  ) {
+    throw new OError(
+      'This deployment does not allow WakaTime API URLs pointing at internal hostnames',
+      { status: 400 }
+    )
+  }
+
+  if (isBlockedIpLiteral(host)) {
+    throw new OError(
+      'This deployment does not allow WakaTime API URLs pointing at private or internal network addresses',
+      { status: 400 }
+    )
+  }
+}
+
+const BLOCKED_IPV4_RANGES = [
+  [0x00000000, 0x00ffffff], // 0.0.0.0/8 this network
+  [0x0a000000, 0x0affffff], // 10.0.0.0/8 private
+  [0x64400000, 0x647fffff], // 100.64.0.0/10 carrier-grade NAT
+  [0x7f000000, 0x7fffffff], // 127.0.0.0/8 loopback
+  [0xa9fe0000, 0xa9feffff], // 169.254.0.0/16 link-local
+  [0xac100000, 0xac1fffff], // 172.16.0.0/12 private
+  [0xc0a80000, 0xc0a8ffff], // 192.168.0.0/16 private
+  [0xc6120000, 0xc613ffff], // 198.18.0.0/15 benchmarking
+  [0xe0000000, 0xefffffff], // 224.0.0.0/4 multicast
+  [0xf0000000, 0xffffffff], // 240.0.0.0/4 reserved
+]
+
+function ipv4ToLong(ip) {
+  return ip
+    .split('.')
+    .reduce((acc, part) => acc * 256 + parseInt(part, 10), 0)
+}
+
+function isBlockedV4Long(long) {
+  return BLOCKED_IPV4_RANGES.some(([start, end]) => long >= start && long <= end)
+}
+
+function isBlockedIPv4(ip) {
+  return isBlockedV4Long(ipv4ToLong(ip))
+}
+
+function isBlockedIPv6(ip) {
+  const host = ip.toLowerCase()
+  if (host === '::' || host === '::1') return true
+
+  // IPv4-embedded dotted tails: ::ffff:127.0.0.1, ::10.0.0.1, ...
+  const v4Tail = host.match(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/)?.[1]
+  if (v4Tail && isBlockedV4Long(ipv4ToLong(v4Tail))) return true
+
+  const groups = expandIpv6Groups(host)
+  if (!groups) return false
+  const first = groups[0]
+  if ((first & 0xffc0) === 0xfe80) return true // fe80::/10 link-local
+  if ((first & 0xfe00) === 0xfc00) return true // fc00::/7 unique-local
+
+  // URL-normalized IPv4-mapped/compatible form, where the last 32 bits
+  // hold the IPv4 address as two hex groups (::ffff:7f00:1, ::a01:203):
+  // the upper 80 bits must be zero for that interpretation to hold.
+  const ipv4Compat =
+    groups[0] === 0 &&
+    groups[1] === 0 &&
+    groups[2] === 0 &&
+    groups[3] === 0 &&
+    groups[4] === 0
+  if (ipv4Compat) return isBlockedV4Long((groups[6] << 16) | groups[7])
+  return false
+}
+
+function expandIpv6Groups(ip) {
+  if (ip.includes('%')) return null
+  const parts = ip.split('::')
+  if (parts.length > 2) return null
+  const head = parts[0] ? parts[0].split(':') : []
+  const tail =
+    parts.length === 2 && parts[1] ? parts[1].split(':') : []
+  for (const part of [...head, ...tail]) {
+    if (!/^[0-9a-f]{1,4}$/.test(part)) return null
+  }
+  const missing = 8 - head.length - tail.length
+  if (missing < 0) return null
+  const groups = [
+    ...head.map(p => parseInt(p, 16)),
+    ...Array(missing).fill(0),
+    ...tail.map(p => parseInt(p, 16)),
+  ]
+  return groups.length === 8 ? groups : null
+}
+
+function isBlockedIpLiteral(host) {
+  // URL.hostname keeps IPv6 literals bracketed ('[::1]'); strip for checks.
+  const ip =
+    host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host
+  if (net.isIPv4(ip)) return isBlockedIPv4(ip)
+  if (net.isIPv6(ip)) return isBlockedIPv6(ip)
+  return false
 }
 
 // Shared UA/Content-Type for all API calls.
@@ -97,6 +268,7 @@ function authUrl(auth, path, qs) {
  * (wakatime.com and Wakapi) implements for auth verification.
  */
 async function verifyCredentials(apiUrl, apiKey) {
+  validateApiUrl(apiUrl)
   const { headers, authQuery } = buildAuth(apiKey)
   const url = normalizeApiUrl(apiUrl)
   const target = authQuery
@@ -118,7 +290,13 @@ async function verifyCredentials(apiUrl, apiKey) {
  * a WakaTime-compatible account.
  */
 async function getConnectionStatus(userId) {
-  const auth = await resolveAuth(userId)
+  let auth
+  try {
+    auth = await resolveAuth(userId)
+  } catch (err) {
+    logger.warn({ userId, err }, 'WakaTime credentials rejected, treating as not connected')
+    return { connected: false, error: true }
+  }
   if (auth.kind === 'none') return { connected: false }
 
   try {
@@ -360,6 +538,7 @@ function normalizeApiError(err, operation) {
 }
 
 export default {
+  validateApiUrl,
   verifyCredentials,
   getConnectionStatus,
   sendHeartbeat,

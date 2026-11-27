@@ -1352,6 +1352,20 @@ module.exports = {
     // global on/off (routes + account-settings widget + editor heartbeats)
     enabled: process.env.WAKATIME_ENABLED !== 'false',
     debugLogging: process.env.WAKATIME_DEBUG_LOGGING === 'true',
+    // SSRF guard for the user-supplied WakaTime/Wakapi API URL (the
+    // "Use an API key" form): by default loopback names and IP literals
+    // in private/link-local/reserved/multicast/CGNAT ranges are rejected
+    // at link time and on every request, so a linked account can never
+    // make the backend fetch internal addresses. Set
+    // WAKATIME_ALLOW_INTERNAL_HOSTS=true to trust every host (e.g. a
+    // self-hosted Wakapi on the internal network), or list specific
+    // host / host:port entries in WAKATIME_ALLOWED_API_HOSTS (comma
+    // separated) to allow them by name.
+    allowInternalHosts: process.env.WAKATIME_ALLOW_INTERNAL_HOSTS === 'true',
+    allowedHosts: (process.env.WAKATIME_ALLOWED_API_HOSTS || '')
+      .split(',')
+      .map(s => s.trim().toLowerCase())
+      .filter(Boolean),
     // WakaTime.com OAuth2 (optional; empty clientId disables the
     // "Connect with WakaTime" button). Create an app on wakatime.com and
     // register WAKATIME_OAUTH_REDIRECT_URI as an authorized redirect URI.

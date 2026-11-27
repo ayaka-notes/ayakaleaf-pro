@@ -9,6 +9,14 @@ Settings.wakatime = {
   // global on/off (routes + widgets + editor heartbeat tracking)
   enabled: process.env.WAKATIME_ENABLED !== 'false',
   debugLogging: process.env.WAKATIME_DEBUG_LOGGING === 'true',
+  // SSRF guard for user-supplied API URLs: private/loopback/link-local
+  // targets are rejected by default. allowInternalHosts opts the whole
+  // deployment in; allowedHosts is an allowlist of specific hosts.
+  allowInternalHosts: process.env.WAKATIME_ALLOW_INTERNAL_HOSTS === 'true',
+  allowedHosts: (process.env.WAKATIME_ALLOWED_API_HOSTS || '')
+    .split(',')
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean),
   // WakaTime.com OAuth2 (empty clientId = OAuth button hidden)
   oauth: {
     clientId: process.env.WAKATIME_OAUTH_CLIENT_ID || '',

@@ -27,7 +27,12 @@ async function getConnectionStatus(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
   try {
     const status = await WakaTimeApiClient.getConnectionStatus(userId)
-    res.json(status)
+    // Lets the frontend hide the OAuth button when this deployment has
+    // no WakaTime.com OAuth app configured (settings.defaults.js).
+    res.json({
+      ...status,
+      oauthEnabled: !!(Settings.wakatime?.oauth?.clientId),
+    })
   } catch (err) {
     sendError(res, err, 'getConnectionStatus')
   }
@@ -47,6 +52,9 @@ async function link(req, res) {
   }
 
   try {
+    // SSRF guard: reject URLs pointing at private/internal addresses
+    // (throws a 400 OError, handled by sendError below).
+    WakaTimeApiClient.validateApiUrl(apiUrl)
     await WakaTimeApiClient.verifyCredentials(apiUrl, apiKey)
     await TokenManager.storeCredentials(userId, apiUrl, apiKey)
     res.sendStatus(200)
@@ -126,7 +134,7 @@ async function heartbeatsBulk(req, res) {
 async function summary(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
   const { project_id: projectId } = req.params
-  const range = Math.min(parseInt(req.query.range, 10) || 7, 90)
+  const range = Math.min(Math.max(parseInt(req.query.range, 10) || 7, 1), 90)
 
   try {
     const project = await Project.findById(projectId, 'name').exec()

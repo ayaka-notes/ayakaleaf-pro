@@ -8,7 +8,12 @@ import Notification from '@/shared/components/notification'
 import WakaTimeLogo from '@/shared/svgs/wakatime-logo'
 import WakaTimeConnectModal from './wakatime-connect-modal'
 
-type WakaTimeStatus = { connected: boolean; apiUrl?: string; error?: boolean }
+type WakaTimeStatus = {
+  connected: boolean
+  apiUrl?: string
+  error?: boolean
+  oauthEnabled?: boolean
+}
 
 /**
  * WakaTime account linking widget (Coding statistics page + Account Settings).
@@ -143,12 +148,17 @@ export const WakaTimeWidget = function WakaTimeWidget() {
             </div>
           ) : (
             <div className="coding-statistics-actions">
-              <a href="/user/wakatime/oauth/authorize">
-                <OLButton variant="primary">
-                  {t('connect_with_wakatime', { defaultValue: 'Connect with WakaTime' })}
-                </OLButton>
-              </a>
-              <OLButton variant="secondary" onClick={() => setShowConnectModal(true)}>
+              {status?.oauthEnabled && (
+                <a href="/user/wakatime/oauth/authorize">
+                  <OLButton variant="primary">
+                    {t('connect_with_wakatime', { defaultValue: 'Connect with WakaTime' })}
+                  </OLButton>
+                </a>
+              )}
+              <OLButton
+                variant={status?.oauthEnabled ? 'secondary' : 'primary'}
+                onClick={() => setShowConnectModal(true)}
+              >
                 {t('use_api_key', { defaultValue: 'Use an API key' })}
               </OLButton>
             </div>
