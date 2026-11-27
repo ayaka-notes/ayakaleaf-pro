@@ -270,8 +270,6 @@ async function resolveVettedHost(url) {
   return { host: hostname, target }
 }
 
-const MAX_REDIRECT_HOPS = 5
-
 /**
  * Run a fetchJson/fetchNothing call with transport-level SSRF protection:
  *
@@ -279,67 +277,54 @@ const MAX_REDIRECT_HOPS = 5
  *    connection is pinned to that vetted address (SNI/Host keep the
  *    original name), so DNS rebinding cannot swap in an internal IP
  *    between the check and the connect;
- *  - redirects are followed manually (up to MAX_REDIRECT_HOPS); every hop
- *    is re-validated (string policy + destination vetting) before any
- *    bytes leave the machine; 301/302/303 drop a POST/PUT body per the
- *    fetch spec, 307/308 keep it.
+ *  - redirects are rejected (redirect: 'manual'). The WakaTime/Wakapi
+ *    API endpoints are not expected to redirect, and following one would
+ *    send the user's credentials to a host this deployment has not
+ *    vetted. fetchJson/fetchNothing surface a 3xx as a
+ *    RequestFailedError, which is rethrown as an explicit 400.
  */
 async function guardedFetch(url, fetcher, fetchOpts = {}) {
-  let method = String(fetchOpts.method || 'GET').toUpperCase()
-  let body = fetchOpts.body
-  let current = url instanceof URL ? url : new URL(url)
+  const target = url instanceof URL ? url : new URL(url)
+  validateApiUrl(target.href)
 
-  for (let hop = 0; ; hop++) {
-    validateApiUrl(current.href)
+  const isHttps = target.protocol === 'https:'
+  const { host: hostname, target: targetHost } = await resolveVettedHost(target)
 
-    const isHttps = current.protocol === 'https:'
-    const { host: hostname, target } = await resolveVettedHost(current)
+  const agent = new (isHttps ? https.Agent : http.Agent)({
+    createConnection: options => {
+      const connOpts = { ...options, host: targetHost }
+      if (isHttps) {
+        // Pin SNI to the original hostname, not the IP.
+        connOpts.servername = hostname
+        return tls.connect(connOpts)
+      }
+      return net.connect(connOpts)
+    },
+  })
 
-    const agent = new (isHttps ? https.Agent : http.Agent)({
-      createConnection: options => {
-        const connOpts = { ...options, host: target }
-        if (isHttps) {
-          // Pin SNI to the original hostname, not the IP.
-          connOpts.servername = hostname
-          return tls.connect(connOpts)
-        }
-        return net.connect(connOpts)
-      },
+  try {
+    return await fetcher(target, {
+      ...fetchOpts,
+      agent,
+      redirect: 'manual',
     })
-
-    let response
-    try {
-      response = await fetcher(current, {
-        ...fetchOpts,
-        agent,
-        redirect: 'manual',
-        method,
-        body,
-      })
-    } finally {
-      agent.destroy()
-    }
-
-    if (![301, 302, 303, 307, 308].includes(response.status)) {
-      return response
-    }
-
-    const location = response.headers?.get?.('location')
-    if (response.body) response.body.resume()
-
-    if (!location) return response // let the caller see the 3xx as a failure
-    if (hop >= MAX_REDIRECT_HOPS) return response
-
+  } catch (err) {
     if (
-      response.status === 303 ||
-      ((response.status === 301 || response.status === 302) &&
-        (method === 'POST' || method === 'PUT'))
+      err instanceof RequestFailedError &&
+      [301, 302, 303, 307, 308].includes(err.response?.status)
     ) {
-      method = 'GET'
-      body = undefined
+      throw new OError(
+        'The WakaTime server redirected the request, which this deployment does not allow',
+        {
+          status: 400,
+          from: target.href,
+          location: err.response?.headers?.get?.('location') || null,
+        }
+      ).withCause(err)
     }
-
-    current = new URL(location, current)
+    throw err
+  } finally {
+    agent.destroy()
   }
 }
 
